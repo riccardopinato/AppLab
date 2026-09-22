@@ -120,13 +120,13 @@ fi
   echo "# AppLab report"
   echo
   echo "- Result: PASS"
-  echo "- APK: `$(basename "$APK_PATH")`"
-  echo "- Package: `$PACKAGE_ID`"
-  echo "- PID after settle: `$PID_AFTER`"
+  printf -- '- APK: `%s`\\n' "$(basename \"$APK_PATH\")"
+  printf -- '- Package: `%s`\\n' "$PACKAGE_ID"
+  printf -- '- PID after settle: `%s`\\n' "$PID_AFTER"
   echo "- Maestro: $MAESTRO_RESULT"
-  echo "- Screenshot: `launch.png`"
-  echo "- UI hierarchy: `window.xml`"
-  echo "- Logcat: `logcat.txt`"
+  printf -- '- Screenshot: `launch.png`\\n'
+  printf -- '- UI hierarchy: `window.xml`\\n'
+  printf -- '- Logcat: `logcat.txt`\\n'
 } > "$REPORT_DIR/summary.md"
 
 log "PASS — report written to $REPORT_DIR"
