@@ -17,11 +17,16 @@ on:
         required: false
         default: "35"
         type: string
+      run_maestro:
+        description: Run generic Maestro launch/home/relaunch smoke
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
 
     steps:
       - uses: actions/checkout@v6
@@ -35,6 +40,12 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Install Maestro
+        if: inputs.run_maestro
+        run: |
+          chmod +x scripts/install_maestro.sh
+          ./scripts/install_maestro.sh
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -43,6 +54,8 @@ jobs:
 
       - name: Run AppLab
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          APPLAB_RUN_MAESTRO: ${{ inputs.run_maestro }}
         with:
           api-level: ${{ inputs.api_level }}
           target: google_apis
@@ -51,7 +64,7 @@ jobs:
           disable-animations: true
           script: |
             chmod +x scripts/*.sh
-            ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/app-under-test.apk" "${{ inputs.package_id }}"
+            RUN_MAESTRO="$APPLAB_RUN_MAESTRO" ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/app-under-test.apk" "${{ inputs.package_id }}"
 
       - name: Upload AppLab report
         if: always()

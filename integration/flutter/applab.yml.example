@@ -6,61 +6,11 @@ on:
     branches: [main]
 
 jobs:
-  verify-apk:
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-
-    steps:
-      - name: Checkout app
-        uses: actions/checkout@v6
-
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Flutter quality checks
-        run: |
-          flutter pub get
-          flutter analyze
-          flutter test
-          flutter build apk --debug
-
-      - name: Checkout AppLab
-        uses: actions/checkout@v6
-        with:
-          repository: riccardopinato/AppLab
-          path: .applab
-
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Emulator verification
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: pixel_7_pro
-          disable-animations: true
-          script: |
-            chmod +x .applab/scripts/*.sh
-            REPORT_DIR="$GITHUB_WORKSPACE/applab-report" .applab/scripts/verify_apk.sh               "$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-debug.apk"
-
-      - name: Upload AppLab report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: applab-report
-          path: applab-report/
-          if-no-files-found: warn
+  applab:
+    uses: riccardopinato/AppLab/.github/workflows/verify-flutter.yml@main
+    with:
+      run_flutter_tests: true
+      run_maestro: true
+      # Optional: create this file in the app repository for app-specific checks.
+      # If omitted, AppLab generates a generic launch -> Home -> relaunch flow.
+      # maestro_flow: .maestro/applab-smoke.yaml

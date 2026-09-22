@@ -7,12 +7,13 @@ on:
     paths:
       - "scripts/**"
       - "selftest/**"
+      - "tests/flows/selftest.yaml"
       - ".github/workflows/emulator-self-test.yml"
 
 jobs:
   android-runtime:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
 
     steps:
       - uses: actions/checkout@v6
@@ -36,6 +37,11 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
+      - name: Install Maestro
+        run: |
+          chmod +x scripts/install_maestro.sh
+          ./scripts/install_maestro.sh
+
       - name: Build self-test APK
         run: gradle -p selftest :app:assembleDebug --stacktrace
 
@@ -55,10 +61,13 @@ jobs:
           disable-animations: true
           script: |
             chmod +x scripts/*.sh
-            REPORT_DIR="$GITHUB_WORKSPACE/applab-report" ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk" "dev.applab.selftest"
+            RUN_MAESTRO=true MAESTRO_FLOW="$GITHUB_WORKSPACE/tests/flows/selftest.yaml" REPORT_DIR="$GITHUB_WORKSPACE/applab-report" ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk" "dev.applab.selftest"
             grep -Fq -- "- Result: PASS" "$GITHUB_WORKSPACE/applab-report/summary.md"
+            grep -Fq -- "- Maestro: PASS" "$GITHUB_WORKSPACE/applab-report/summary.md"
             grep -Fq "dev.applab.selftest" "$GITHUB_WORKSPACE/applab-report/activity.txt"
+            grep -Fq "INTERACTION_OK" "$GITHUB_WORKSPACE/applab-report/post-maestro-window.xml"
             test -s "$GITHUB_WORKSPACE/applab-report/launch.png"
+            test -s "$GITHUB_WORKSPACE/applab-report/post-maestro.png"
             test -s "$GITHUB_WORKSPACE/applab-report/logcat.txt"
 
       - name: Publish runtime evidence

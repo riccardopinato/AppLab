@@ -38,12 +38,22 @@ on:
         required: false
         default: true
         type: boolean
+      run_maestro:
+        description: Run a Maestro smoke flow after launch
+        required: false
+        default: true
+        type: boolean
+      maestro_flow:
+        description: Optional flow path in the application repository; empty generates a generic launch/home/relaunch flow
+        required: false
+        default: ""
+        type: string
 
 jobs:
   verify:
     name: AppLab Android
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
 
     steps:
       - name: Checkout application
@@ -81,6 +91,12 @@ jobs:
           repository: riccardopinato/AppLab
           path: .applab
 
+      - name: Install Maestro
+        if: inputs.run_maestro
+        run: |
+          chmod +x .applab/scripts/install_maestro.sh
+          .applab/scripts/install_maestro.sh
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -89,6 +105,9 @@ jobs:
 
       - name: Verify APK on Android
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          APPLAB_MAESTRO_FLOW: ${{ inputs.maestro_flow }}
+          APPLAB_RUN_MAESTRO: ${{ inputs.run_maestro }}
         with:
           api-level: ${{ inputs.api_level }}
           target: google_apis
@@ -97,7 +116,11 @@ jobs:
           disable-animations: true
           script: |
             chmod +x .applab/scripts/*.sh
-            REPORT_DIR="$GITHUB_WORKSPACE/applab-report"               .applab/scripts/verify_apk.sh               "$GITHUB_WORKSPACE/${{ inputs.apk_path }}"               "${{ inputs.package_id }}"
+            FLOW_PATH=""
+            if [[ -n "$APPLAB_MAESTRO_FLOW" ]]; then
+              FLOW_PATH="$GITHUB_WORKSPACE/$APPLAB_MAESTRO_FLOW"
+            fi
+            RUN_MAESTRO="$APPLAB_RUN_MAESTRO" MAESTRO_FLOW="$FLOW_PATH" REPORT_DIR="$GITHUB_WORKSPACE/applab-report" .applab/scripts/verify_apk.sh "$GITHUB_WORKSPACE/${{ inputs.apk_path }}" "${{ inputs.package_id }}"
 
       - name: Publish AppLab report
         if: always()

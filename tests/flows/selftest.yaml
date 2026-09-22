@@ -1,0 +1,8 @@
+appId: dev.applab.selftest
+---
+- launchApp:
+    clearState: true
+- assertVisible: "AppLab Self Test"
+- assertVisible: "ANDROID_RUNTIME_OK"
+- tapOn: "RUN INTERACTION TEST"
+- assertVisible: "INTERACTION_OK"

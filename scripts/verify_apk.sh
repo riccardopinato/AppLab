@@ -8,6 +8,7 @@ BOOT_TIMEOUT="${BOOT_TIMEOUT:-180}"
 START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
+RUN_MAESTRO="${RUN_MAESTRO:-false}"
 
 fail() {
   echo "[AppLab] ERROR: $*" >&2
@@ -23,12 +24,19 @@ fail() {
 
 log() { echo "[AppLab] $*"; }
 
+is_true() {
+  case "${1,,}" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 [[ -n "$APK_PATH" ]] || fail "APK path is required."
 [[ -f "$APK_PATH" ]] || fail "APK not found: $APK_PATH"
 command -v adb >/dev/null 2>&1 || fail "adb is not available on PATH."
 
 mkdir -p "$REPORT_DIR"
-rm -f "$REPORT_DIR"/launch.png "$REPORT_DIR"/window.xml "$REPORT_DIR"/logcat.txt
+rm -f   "$REPORT_DIR/launch.png"   "$REPORT_DIR/post-maestro.png"   "$REPORT_DIR/window.xml"   "$REPORT_DIR/post-maestro-window.xml"   "$REPORT_DIR/logcat.txt"
 
 detect_package() {
   local apk="$1"
@@ -45,7 +53,50 @@ detect_package() {
   printf '%s' "$result"
 }
 
-if [[ -z "$PACKAGE_ID" ]]; then PACKAGE_ID="$(detect_package "$APK_PATH")"; fi
+runtime_pid() {
+  adb shell pidof "$PACKAGE_ID" 2>/dev/null | tr -d '\r' | awk '{print $1}' || true
+}
+
+capture_evidence() {
+  local prefix="$1"
+  local remote_xml="/sdcard/applab-${prefix}.xml"
+
+  adb exec-out screencap -p > "$REPORT_DIR/${prefix}.png" || true
+  adb shell uiautomator dump "$remote_xml" > "$REPORT_DIR/${prefix}-uiautomator.txt" 2>&1 || true
+  adb pull "$remote_xml" "$REPORT_DIR/${prefix}-window.xml" > /dev/null 2>&1 || true
+  adb shell dumpsys activity activities > "$REPORT_DIR/${prefix}-activity.txt" 2>&1 || true
+  adb shell dumpsys window windows > "$REPORT_DIR/${prefix}-window-dumpsys.txt" 2>&1 || true
+  adb logcat -b all -d -v threadtime > "$REPORT_DIR/logcat.txt" 2>&1 || true
+}
+
+assert_runtime_healthy() {
+  local stage="$1"
+  local pid
+  pid="$(runtime_pid)"
+
+  if [[ -z "$pid" ]]; then
+    capture_evidence "failure-${stage}"
+    fail "Application process died during ${stage}."
+  fi
+
+  adb logcat -b all -d -v threadtime > "$REPORT_DIR/logcat.txt" 2>&1 || true
+
+  if grep -Fq "ANR in $PACKAGE_ID" "$REPORT_DIR/logcat.txt"; then
+    capture_evidence "failure-${stage}"
+    fail "ANR detected for $PACKAGE_ID during ${stage}."
+  fi
+
+  if grep -F -A 40 "FATAL EXCEPTION" "$REPORT_DIR/logcat.txt" | grep -Fq "Process: $PACKAGE_ID"; then
+    capture_evidence "failure-${stage}"
+    fail "Fatal exception detected for $PACKAGE_ID during ${stage}."
+  fi
+
+  printf '%s' "$pid"
+}
+
+if [[ -z "$PACKAGE_ID" ]]; then
+  PACKAGE_ID="$(detect_package "$APK_PATH")"
+fi
 [[ -n "$PACKAGE_ID" ]] || fail "Unable to detect package id. Pass it as the second argument."
 
 log "APK: $APK_PATH"
@@ -55,7 +106,7 @@ log "Package: $PACKAGE_ID"
 
 adb devices -l > "$REPORT_DIR/device.txt" || true
 adb shell getprop >> "$REPORT_DIR/device.txt" 2>/dev/null || true
-adb logcat -c || true
+adb logcat -b all -c || true
 
 log "installing APK..."
 if ! adb install -r -t "$APK_PATH" > "$REPORT_DIR/install.txt" 2>&1; then
@@ -69,14 +120,15 @@ log "launching application..."
 adb shell am force-stop "$PACKAGE_ID" || true
 adb shell monkey -p "$PACKAGE_ID" -c android.intent.category.LAUNCHER 1   > "$REPORT_DIR/launch.txt" 2>&1 || true
 
-STARTED_AT=$(date +%s)
+STARTED_AT="$(date +%s)"
 PID=""
 while true; do
-  PID="$(adb shell pidof "$PACKAGE_ID" 2>/dev/null | tr -d '\r' | awk '{print $1}' || true)"
+  PID="$(runtime_pid)"
   [[ -n "$PID" ]] && break
-  NOW=$(date +%s)
+
+  NOW="$(date +%s)"
   if (( NOW - STARTED_AT >= START_TIMEOUT )); then
-    adb logcat -d -v threadtime > "$REPORT_DIR/logcat.txt" 2>&1 || true
+    capture_evidence "failure-start"
     fail "Application process did not start within ${START_TIMEOUT}s."
   fi
   sleep 1
@@ -85,35 +137,37 @@ done
 log "process started with PID $PID; settling for ${SETTLE_SECONDS}s..."
 sleep "$SETTLE_SECONDS"
 
-adb exec-out screencap -p > "$REPORT_DIR/launch.png" || true
-adb shell uiautomator dump /sdcard/applab-window.xml > "$REPORT_DIR/uiautomator.txt" 2>&1 || true
-adb pull /sdcard/applab-window.xml "$REPORT_DIR/window.xml" > /dev/null 2>&1 || true
-adb shell dumpsys activity activities > "$REPORT_DIR/activity.txt" 2>&1 || true
-adb shell dumpsys window windows > "$REPORT_DIR/window-dumpsys.txt" 2>&1 || true
-adb logcat -d -v threadtime > "$REPORT_DIR/logcat.txt" 2>&1 || true
+capture_evidence "launch"
+cp "$REPORT_DIR/launch-window.xml" "$REPORT_DIR/window.xml" 2>/dev/null || true
+cp "$REPORT_DIR/launch-activity.txt" "$REPORT_DIR/activity.txt" 2>/dev/null || true
+cp "$REPORT_DIR/launch-window-dumpsys.txt" "$REPORT_DIR/window-dumpsys.txt" 2>/dev/null || true
 
-PID_AFTER="$(adb shell pidof "$PACKAGE_ID" 2>/dev/null | tr -d '\r' | awk '{print $1}' || true)"
-[[ -n "$PID_AFTER" ]] || fail "Application process died after launch."
-
-if grep -Fq "ANR in $PACKAGE_ID" "$REPORT_DIR/logcat.txt"; then
-  fail "ANR detected for $PACKAGE_ID."
-fi
-if grep -Fq "Process: $PACKAGE_ID" "$REPORT_DIR/logcat.txt" && grep -Fq "FATAL EXCEPTION" "$REPORT_DIR/logcat.txt"; then
-  fail "Fatal exception detected for $PACKAGE_ID."
-fi
+PID_AFTER="$(assert_runtime_healthy "launch")"
 
 MAESTRO_RESULT="SKIPPED"
-if [[ -n "$MAESTRO_FLOW" ]]; then
+if [[ -n "$MAESTRO_FLOW" ]] || is_true "$RUN_MAESTRO"; then
+  command -v maestro >/dev/null 2>&1 || fail "Maestro was requested but is not installed."
+
+  if [[ -z "$MAESTRO_FLOW" ]]; then
+    MAESTRO_FLOW="$REPORT_DIR/generated-smoke.yaml"
+    "$(dirname "$0")/create_maestro_smoke.sh" "$PACKAGE_ID" "$MAESTRO_FLOW" >/dev/null
+  fi
+
   [[ -f "$MAESTRO_FLOW" ]] || fail "MAESTRO_FLOW does not exist: $MAESTRO_FLOW"
-  command -v maestro >/dev/null 2>&1 || fail "Maestro flow requested but maestro is not installed."
+
   log "running Maestro flow: $MAESTRO_FLOW"
+  mkdir -p "$REPORT_DIR/maestro"
   if maestro test "$MAESTRO_FLOW" --test-output-dir "$REPORT_DIR/maestro"; then
     MAESTRO_RESULT="PASS"
   else
     MAESTRO_RESULT="FAIL"
-    adb logcat -d -v threadtime > "$REPORT_DIR/logcat.txt" 2>&1 || true
+    capture_evidence "maestro-failure"
     fail "Maestro flow failed."
   fi
+
+  sleep 2
+  capture_evidence "post-maestro"
+  PID_AFTER="$(assert_runtime_healthy "post-maestro")"
 fi
 
 {
@@ -122,9 +176,13 @@ fi
   echo "- Result: PASS"
   printf -- '- APK: %s\n' "$(basename "$APK_PATH")"
   printf -- '- Package: %s\n' "$PACKAGE_ID"
-  printf -- '- PID after settle: %s\n' "$PID_AFTER"
+  printf -- '- PID after verification: %s\n' "$PID_AFTER"
   echo "- Maestro: $MAESTRO_RESULT"
   printf -- '- Screenshot: launch.png\n'
+  if [[ "$MAESTRO_RESULT" == "PASS" ]]; then
+    printf -- '- Post-Maestro screenshot: post-maestro.png\n'
+    printf -- '- Post-Maestro UI hierarchy: post-maestro-window.xml\n'
+  fi
   printf -- '- UI hierarchy: window.xml\n'
   printf -- '- Logcat: logcat.txt\n'
 } > "$REPORT_DIR/summary.md"
