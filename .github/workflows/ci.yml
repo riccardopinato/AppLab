@@ -1,0 +1,30 @@
+name: AppLab CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck scripts/*.sh
+
+      - name: Python tests
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements-dev.txt
+          PYTHONPATH=backend pytest backend/tests -q
+
+      - name: Frontend build
+        run: |
+          cd frontend
+          npm install
+          npm run build

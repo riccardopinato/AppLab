@@ -1,0 +1,21 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      ADB_SERIAL: ${ADB_SERIAL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:8000}
+        VITE_GATEWAY_URI: ${VITE_GATEWAY_URI:-localhost:8080}
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
