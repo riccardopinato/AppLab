@@ -1,12 +1,9 @@
 import { useMemo, useRef, useState } from "react";
-import { Emulator } from "android-emulator-webrtc";
+import { Emulator } from "android-emulator-webrtc/dist/index.js";
+import type { EmulatorRef } from "android-emulator-webrtc/dist/components/emulator/emulator";
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 const DEFAULT_GATEWAY = import.meta.env.VITE_GATEWAY_URI || "localhost:8080";
-
-type EmulatorHandle = {
-  sendKey?: (key: string) => void;
-};
 
 async function jsonRequest(path: string, init?: RequestInit) {
   const response = await fetch(`${BACKEND}${path}`, {
@@ -24,7 +21,7 @@ async function jsonRequest(path: string, init?: RequestInit) {
 }
 
 export default function App() {
-  const emulatorRef = useRef<EmulatorHandle | null>(null);
+  const emulatorRef = useRef<EmulatorRef | null>(null);
   const [gateway, setGateway] = useState(DEFAULT_GATEWAY);
   const [packageId, setPackageId] = useState("");
   const [apk, setApk] = useState<File | null>(null);
@@ -93,7 +90,7 @@ export default function App() {
         <div className="phone-card">
           <div className="phone-frame">
             <Emulator
-              ref={emulatorRef as never}
+              ref={emulatorRef}
               uri={gateway}
               muted
               onStateChange={(state: string) => setStatus(`WebRTC: ${state}`)}
