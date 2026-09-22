@@ -1,0 +1,65 @@
+name: Emulator Self Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "selftest/**"
+      - ".github/workflows/emulator-self-test.yml"
+
+jobs:
+  android-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Install Android SDK components
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Build self-test APK
+        run: gradle -p selftest :app:assembleDebug --stacktrace
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Full Android runtime verification
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          disable-animations: true
+          script: |
+            chmod +x scripts/*.sh
+            REPORT_DIR="$GITHUB_WORKSPACE/applab-report"               ./scripts/verify_apk.sh               "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk"               "dev.applab.selftest"
+            grep -q "ANDROID_RUNTIME_OK" "$GITHUB_WORKSPACE/applab-report/window.xml"
+
+      - name: Publish runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: applab-emulator-self-test
+          path: applab-report/
+          if-no-files-found: warn
+          retention-days: 14

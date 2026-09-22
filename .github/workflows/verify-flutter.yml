@@ -1,0 +1,109 @@
+name: AppLab Flutter Verify
+
+on:
+  workflow_call:
+    inputs:
+      flutter_channel:
+        description: Flutter channel
+        required: false
+        default: stable
+        type: string
+      api_level:
+        description: Android emulator API level
+        required: false
+        default: "35"
+        type: string
+      emulator_profile:
+        description: Android emulator hardware profile
+        required: false
+        default: pixel_7_pro
+        type: string
+      apk_path:
+        description: APK produced by flutter build
+        required: false
+        default: build/app/outputs/flutter-apk/app-debug.apk
+        type: string
+      package_id:
+        description: Optional Android application id
+        required: false
+        default: ""
+        type: string
+      build_command:
+        description: Flutter build command
+        required: false
+        default: flutter build apk --debug
+        type: string
+      run_flutter_tests:
+        description: Run flutter analyze and flutter test before APK verification
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  verify:
+    name: AppLab Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout application
+        uses: actions/checkout@v6
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ inputs.flutter_channel }}
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        if: inputs.run_flutter_tests
+        run: flutter analyze
+
+      - name: Unit tests
+        if: inputs.run_flutter_tests
+        run: flutter test
+
+      - name: Build APK
+        run: ${{ inputs.build_command }}
+
+      - name: Checkout AppLab
+        uses: actions/checkout@v6
+        with:
+          repository: riccardopinato/AppLab
+          path: .applab
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Verify APK on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ inputs.api_level }}
+          target: google_apis
+          arch: x86_64
+          profile: ${{ inputs.emulator_profile }}
+          disable-animations: true
+          script: |
+            chmod +x .applab/scripts/*.sh
+            REPORT_DIR="$GITHUB_WORKSPACE/applab-report"               .applab/scripts/verify_apk.sh               "$GITHUB_WORKSPACE/${{ inputs.apk_path }}"               "${{ inputs.package_id }}"
+
+      - name: Publish AppLab report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: applab-report-${{ github.sha }}
+          path: applab-report/
+          if-no-files-found: warn
+          retention-days: 14
