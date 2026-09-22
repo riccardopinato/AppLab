@@ -55,8 +55,15 @@ jobs:
           disable-animations: true
           script: |
             chmod +x scripts/*.sh
-            REPORT_DIR="$GITHUB_WORKSPACE/applab-report"               ./scripts/verify_apk.sh               "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk"               "dev.applab.selftest"
-            grep -q "ANDROID_RUNTIME_OK" "$GITHUB_WORKSPACE/applab-report/window.xml"
+            REPORT_DIR="$GITHUB_WORKSPACE/applab-report" \
+              ./scripts/verify_apk.sh \
+              "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk" \
+              "dev.applab.selftest"
+
+            grep -Fq -- "- Result: PASS" "$GITHUB_WORKSPACE/applab-report/summary.md"
+            grep -Fq "dev.applab.selftest" "$GITHUB_WORKSPACE/applab-report/activity.txt"
+            test -s "$GITHUB_WORKSPACE/applab-report/launch.png"
+            test -s "$GITHUB_WORKSPACE/applab-report/logcat.txt"
 
       - name: Publish runtime evidence
         if: always()
