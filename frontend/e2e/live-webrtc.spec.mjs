@@ -161,12 +161,15 @@ test("streams real Android video and sends real WebRTC input", async ({
   const browserY =
     box.y + offsetY + (nativeY / deviceHeight) * renderedHeight;
 
-  await page.touchscreen.tap(browserX, browserY);
+  await page.mouse.move(browserX, browserY);
+  await page.mouse.down({ button: "left" });
+  await page.waitForTimeout(80);
+  await page.mouse.up({ button: "left" });
 
   await expect
     .poll(async () => (await hierarchy(request)).includes("INTERACTION_OK"), {
       timeout: 20_000,
-      message: "Android UI did not react to the WebRTC touch input",
+      message: "Android UI did not react to the WebRTC pointer input",
     })
     .toBe(true);
 
