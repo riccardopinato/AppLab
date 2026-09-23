@@ -1,19 +1,29 @@
-name: Live Emulator Self Test
+name: Live Emulator Browser E2E
 
 on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "selftest/**"
+      - "docker-compose.live.yml"
+      - "scripts/check_live_host.sh"
+      - ".github/workflows/live-emulator-self-test.yml"
   pull_request:
     paths:
       - "backend/**"
       - "frontend/**"
+      - "selftest/**"
       - "docker-compose.live.yml"
       - "scripts/check_live_host.sh"
       - ".github/workflows/live-emulator-self-test.yml"
-  workflow_dispatch:
 
 jobs:
-  live-runtime:
+  live-browser-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
       - uses: actions/checkout@v6
@@ -24,11 +34,9 @@ jobs:
             sudo modprobe kvm || true
             sudo modprobe kvm_intel || sudo modprobe kvm_amd || true
           fi
-
           if [[ -e /dev/kvm ]]; then
             sudo chmod 0666 /dev/kvm
           fi
-
           test -e /dev/kvm
           test -r /dev/kvm
           test -w /dev/kvm
@@ -38,19 +46,57 @@ jobs:
           chmod +x scripts/check_live_host.sh
           ./scripts/check_live_host.sh
 
-      - name: Build live backend
-        run: docker compose -f docker-compose.live.yml build backend
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
 
-      - name: Start AppLab controller
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK components
         run: |
-          docker compose -f docker-compose.live.yml up -d backend
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Build browser interaction APK
+        run: gradle -p selftest :app:assembleDebug --stacktrace
+
+      - name: Install Playwright Chromium
+        working-directory: frontend/e2e
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Build live AppLab stack
+        run: docker compose -f docker-compose.live.yml build backend frontend
+
+      - name: Start AppLab controller and frontend
+        run: |
+          docker compose -f docker-compose.live.yml up -d backend frontend
+
+          backend_ready=false
+          frontend_ready=false
           for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:8000/api/health >/dev/null; then
+              backend_ready=true
+            fi
+            if curl -fsS http://127.0.0.1:5173 >/dev/null; then
+              frontend_ready=true
+            fi
+            if [[ "$backend_ready" == "true" && "$frontend_ready" == "true" ]]; then
               exit 0
             fi
             sleep 2
           done
-          docker compose -f docker-compose.live.yml logs backend
+
+          docker compose -f docker-compose.live.yml logs backend frontend
           exit 1
 
       - name: Start managed Android emulator
@@ -80,37 +126,68 @@ jobs:
 
           test -s live-emulator.png
 
+      - name: Install and launch browser interaction target
+        run: |
+          curl --fail --show-error --silent             -F "file=@selftest/app/build/outputs/apk/debug/app-debug.apk"             http://127.0.0.1:8000/api/apk/install             | tee browser-install.json
+
+          curl --fail --show-error --silent             -H "Content-Type: application/json"             -d '{"package_id":"dev.applab.selftest"}'             http://127.0.0.1:8000/api/app/launch             | tee browser-launch.json
+
+          for _ in {1..30}; do
+            curl --fail --show-error --silent               http://127.0.0.1:8000/api/ui/hierarchy               > browser-ui-before.json
+            if grep -Fq "RUN INTERACTION TEST" browser-ui-before.json; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat browser-ui-before.json
+          exit 1
+
+      - name: Browser WebRTC video and input E2E
+        working-directory: frontend/e2e
+        env:
+          APPLAB_FRONTEND_URL: http://127.0.0.1:5173
+          APPLAB_BACKEND_URL: http://127.0.0.1:8000
+        run: npm test
+
       - name: Stop managed Android emulator
         if: always()
         run: |
           curl --show-error --silent             --max-time 120             -X POST             http://127.0.0.1:8000/api/runtime/stop             | tee runtime-stop.json || true
 
-      - name: Collect live runtime evidence
+      - name: Collect live browser evidence
         if: always()
         run: |
           docker compose -f docker-compose.live.yml logs backend > backend-live.log 2>&1 || true
+          docker compose -f docker-compose.live.yml logs frontend > frontend-live.log 2>&1 || true
           docker logs applab-emulator > emulator-container.log 2>&1 || true
           docker cp applab-backend-1:/data/emulator-last.log emulator-last.log 2>/dev/null || true
           docker cp applab-backend-1:/data/gateway.log gateway.log 2>/dev/null || true
-          curl --show-error --silent http://127.0.0.1:8000/api/history?limit=20 > history.json || true
+          curl --show-error --silent http://127.0.0.1:8000/api/history?limit=30 > history.json || true
           docker ps -a > docker-ps.txt || true
 
-      - name: Upload live runtime evidence
+      - name: Upload live browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: applab-live-runtime
+          name: applab-browser-webrtc-e2e
           path: |
             runtime-start.json
             runtime-stop.json
             gateway-status.json
             live-emulator.png
+            browser-install.json
+            browser-launch.json
+            browser-ui-before.json
             backend-live.log
+            frontend-live.log
             emulator-container.log
             emulator-last.log
             gateway.log
             history.json
             docker-ps.txt
+            frontend/e2e/playwright-report/
+            frontend/e2e/test-results/
           if-no-files-found: warn
           retention-days: 14
 
