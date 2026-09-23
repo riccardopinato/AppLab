@@ -28,3 +28,29 @@ jobs:
           cd frontend
           npm install
           npm run build
+
+      - name: Build backend container
+        run: docker build -t applab-backend:ci backend
+
+      - name: Backend container health smoke
+        run: |
+          docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
+          healthy=false
+          for _ in {1..30}; do
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.2.0"'; then
+              healthy=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$healthy" != "true" ]]; then
+            docker logs applab-backend-ci
+            exit 1
+          fi
+
+      - name: Build frontend container
+        run: docker build -t applab-frontend:ci frontend
+
+      - name: Cleanup containers
+        if: always()
+        run: docker rm -f applab-backend-ci >/dev/null 2>&1 || true
