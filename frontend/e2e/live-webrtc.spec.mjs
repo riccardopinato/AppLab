@@ -167,12 +167,32 @@ test("streams real Android video and sends real WebRTC input", async ({
   const handlerBox = await handler.boundingBox();
   if (!handlerBox) throw new Error("WebRTC input handler has no browser bounding box");
 
-  // The upstream WebRTC handler owns the coordinate transform. Feed it the
-  // Android node's normalized position relative to the handler itself.
+  // Match the upstream event_handler.tsx scaling exactly. The handler status
+  // falls back to 1080x2424 when the gateway status omits hw.lcd dimensions.
+  const inputWidth = 1080;
+  const inputHeight = 2424;
   const nativeX = (bounds.left + bounds.right) / 2;
   const nativeY = (bounds.top + bounds.bottom) / 2;
-  const browserX = handlerBox.x + (nativeX / first.width) * handlerBox.width;
-  const browserY = handlerBox.y + (nativeY / first.height) * handlerBox.height;
+  const deviceRatio = inputWidth / inputHeight;
+  const containerRatio = handlerBox.width / handlerBox.height;
+
+  let renderedWidth = handlerBox.width;
+  let renderedHeight = handlerBox.height;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  if (containerRatio > deviceRatio) {
+    renderedWidth = handlerBox.height * deviceRatio;
+    offsetX = (handlerBox.width - renderedWidth) / 2;
+  } else {
+    renderedHeight = handlerBox.width / deviceRatio;
+    offsetY = (handlerBox.height - renderedHeight) / 2;
+  }
+
+  const browserX =
+    handlerBox.x + offsetX + (nativeX / inputWidth) * renderedWidth;
+  const browserY =
+    handlerBox.y + offsetY + (nativeY / inputHeight) * renderedHeight;
 
   await page.mouse.move(browserX, browserY);
   await page.mouse.down({ button: "left" });
