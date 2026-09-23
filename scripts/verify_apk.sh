@@ -155,6 +155,30 @@ if [[ -n "$MAESTRO_FLOW" ]] || is_true "$RUN_MAESTRO"; then
 
   [[ -f "$MAESTRO_FLOW" ]] || fail "MAESTRO_FLOW does not exist: $MAESTRO_FLOW"
 
+  # Android Emulator occasionally surfaces an ANR dialog from Pixel Launcher
+  # even while the application under test is healthy and visible underneath.
+  # Clear only this known emulator-side dialog before running app assertions.
+  PREFLIGHT_FLOW="$REPORT_DIR/emulator-preflight.yaml"
+  cat > "$PREFLIGHT_FLOW" <<EOF
+appId: $PACKAGE_ID
+---
+- launchApp:
+    clearState: false
+- runFlow:
+    when:
+      visible: "Pixel Launcher isn't responding"
+    commands:
+      - tapOn:
+          text: "Wait"
+          optional: true
+EOF
+
+  log "running emulator-system preflight..."
+  mkdir -p "$REPORT_DIR/maestro-preflight"
+  if ! maestro test "$PREFLIGHT_FLOW" --test-output-dir "$REPORT_DIR/maestro-preflight"; then
+    log "emulator-system preflight returned non-zero; continuing with the application flow."
+  fi
+
   log "running Maestro flow: $MAESTRO_FLOW"
   mkdir -p "$REPORT_DIR/maestro"
   if maestro test "$MAESTRO_FLOW" --test-output-dir "$REPORT_DIR/maestro"; then
