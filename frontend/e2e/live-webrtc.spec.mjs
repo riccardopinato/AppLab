@@ -79,9 +79,54 @@ test("streams real Android video and sends real WebRTC input", async ({
   expect(first.width).toBeGreaterThan(0);
   expect(first.height).toBeGreaterThan(0);
 
-  await page.waitForTimeout(1_500);
+  const frame = await expect
+    .poll(async () => video.evaluate((element) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 64;
+      canvas.height = 64;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) throw new Error("Canvas 2D context unavailable");
 
-  const frame = await video.evaluate((element) => {
+      context.drawImage(element, 0, 0, canvas.width, canvas.height);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+
+      let min = 255;
+      let max = 0;
+      let sum = 0;
+      let bright = 0;
+      const samples = pixels.length / 4;
+
+      for (let i = 0; i < pixels.length; i += 4) {
+        const luma =
+          pixels[i] * 0.2126 +
+          pixels[i + 1] * 0.7152 +
+          pixels[i + 2] * 0.0722;
+        min = Math.min(min, luma);
+        max = Math.max(max, luma);
+        sum += luma;
+        if (luma > 80) bright += 1;
+      }
+
+      return {
+        readyState: element.readyState,
+        width: element.videoWidth,
+        height: element.videoHeight,
+        currentTime: element.currentTime,
+        lumaRange: max - min,
+        meanLuma: sum / samples,
+        brightRatio: bright / samples,
+      };
+    }), {
+      timeout: 20_000,
+      message: "WebRTC connected but no non-black Android frame was decoded",
+    })
+    .toMatchObject({
+      readyState: expect.any(Number),
+      width: expect.any(Number),
+      height: expect.any(Number),
+    });
+
+  const frameStats = await video.evaluate((element) => {
     const canvas = document.createElement("canvas");
     canvas.width = 64;
     canvas.height = 64;
@@ -119,13 +164,14 @@ test("streams real Android video and sends real WebRTC input", async ({
     };
   });
 
-  expect(frame.readyState).toBeGreaterThanOrEqual(2);
-  expect(frame.currentTime).toBeGreaterThan(first.currentTime);
-  expect(frame.lumaRange).toBeGreaterThan(60);
-  expect(frame.brightRatio).toBeGreaterThan(0.002);
+  expect(frameStats.readyState).toBeGreaterThanOrEqual(2);
+  expect(frameStats.width).toBeGreaterThan(0);
+  expect(frameStats.height).toBeGreaterThan(0);
+  expect(frameStats.lumaRange).toBeGreaterThan(60);
+  expect(frameStats.brightRatio).toBeGreaterThan(0.002);
 
   await testInfo.attach("webrtc-frame-stats.json", {
-    body: Buffer.from(JSON.stringify(frame, null, 2)),
+    body: Buffer.from(JSON.stringify({ first, frame: frameStats }, null, 2)),
     contentType: "application/json",
   });
 
