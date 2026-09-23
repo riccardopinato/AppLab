@@ -48,7 +48,12 @@ jobs:
 
       - name: Start managed Android emulator
         run: |
-          curl --fail --show-error --silent             --max-time 600             -X POST             http://127.0.0.1:8000/api/runtime/start             | tee runtime-start.json
+          http_code="$(curl --show-error --silent             --max-time 900             -X POST             -o runtime-start.json             -w '%{http_code}'             http://127.0.0.1:8000/api/runtime/start)"
+          cat runtime-start.json
+          if [[ "$http_code" != "200" ]]; then
+            echo "AppLab runtime start returned HTTP $http_code" >&2
+            exit 1
+          fi
 
           python - <<'PY'
           import json
@@ -77,6 +82,10 @@ jobs:
         if: always()
         run: |
           docker compose -f docker-compose.live.yml logs backend > backend-live.log 2>&1 || true
+          docker logs applab-emulator > emulator-container.log 2>&1 || true
+          docker cp applab-backend-1:/data/emulator-last.log emulator-last.log 2>/dev/null || true
+          docker cp applab-backend-1:/data/gateway.log gateway.log 2>/dev/null || true
+          curl --show-error --silent http://127.0.0.1:8000/api/history?limit=20 > history.json || true
           docker ps -a > docker-ps.txt || true
 
       - name: Upload live runtime evidence
@@ -90,6 +99,10 @@ jobs:
             gateway-status.json
             live-emulator.png
             backend-live.log
+            emulator-container.log
+            emulator-last.log
+            gateway.log
+            history.json
             docker-ps.txt
           if-no-files-found: warn
           retention-days: 14
