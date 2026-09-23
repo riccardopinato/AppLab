@@ -20,7 +20,7 @@ RUN curl -Ls "https://get.maestro.mobile.dev" | bash
 # Install Google's current Python WebRTC signaling gateway. The gateway build
 # generates its protobuf stubs from the Android Emulator AEMU proto sources.
 RUN mkdir -p /opt/aemu-root/hardware/google \
-    && git clone --depth 1 --filter=blob:none --sparse \
+    && git clone --depth 1 --branch emu-main-dev --filter=blob:none --sparse \
        https://android.googlesource.com/platform/hardware/google/aemu \
        /opt/aemu-root/hardware/google/aemu \
     && git -C /opt/aemu-root/hardware/google/aemu sparse-checkout set protos \
