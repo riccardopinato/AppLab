@@ -6,6 +6,11 @@ ARG EMULATOR_PACKAGE_SHA1=1b1f78891abf8ec268264356e1365c25519e8379
 
 USER root
 
+# The legacy Google launcher links /root/.android/avd before its cleanup
+# function creates the parent directory. Pre-create it so the upgraded emulator
+# keeps using the AVD bundled in /android-home.
+RUN mkdir -p /root/.android
+
 RUN set -eux; \
     apt-get update; \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
