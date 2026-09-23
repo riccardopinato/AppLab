@@ -155,11 +155,14 @@ if [[ -n "$MAESTRO_FLOW" ]] || is_true "$RUN_MAESTRO"; then
 
   [[ -f "$MAESTRO_FLOW" ]] || fail "MAESTRO_FLOW does not exist: $MAESTRO_FLOW"
 
-  # Android Emulator occasionally surfaces an ANR dialog from Pixel Launcher
-  # even while the application under test is healthy and visible underneath.
-  # Clear only this known emulator-side dialog before running app assertions.
-  PREFLIGHT_FLOW="$REPORT_DIR/emulator-preflight.yaml"
-  cat > "$PREFLIGHT_FLOW" <<EOF
+  # Run emulator-dialog handling and app assertions in one Maestro process.
+  # Starting Maestro twice can race Android's package service on hosted AVDs.
+  MAESTRO_RUNTIME_DIR="$REPORT_DIR/maestro-runtime"
+  mkdir -p "$MAESTRO_RUNTIME_DIR" "$REPORT_DIR/maestro"
+  cp "$MAESTRO_FLOW" "$MAESTRO_RUNTIME_DIR/app-flow.yaml"
+
+  WRAPPER_FLOW="$MAESTRO_RUNTIME_DIR/applab-wrapper.yaml"
+  cat > "$WRAPPER_FLOW" <<EOF
 appId: $PACKAGE_ID
 ---
 - launchApp:
@@ -171,22 +174,52 @@ appId: $PACKAGE_ID
       - tapOn:
           text: "Wait"
           optional: true
+- runFlow:
+    file: app-flow.yaml
 EOF
 
-  log "running emulator-system preflight..."
-  mkdir -p "$REPORT_DIR/maestro-preflight"
-  if ! maestro test "$PREFLIGHT_FLOW" --test-output-dir "$REPORT_DIR/maestro-preflight"; then
-    log "emulator-system preflight returned non-zero; continuing with the application flow."
-  fi
+  run_maestro_attempt() {
+    local attempt="$1"
+    local attempt_dir="$REPORT_DIR/maestro/attempt-$attempt"
+    local console_log="$REPORT_DIR/maestro/attempt-$attempt.log"
+    local command_status
 
-  log "running Maestro flow: $MAESTRO_FLOW"
-  mkdir -p "$REPORT_DIR/maestro"
-  if maestro test "$MAESTRO_FLOW" --test-output-dir "$REPORT_DIR/maestro"; then
-    MAESTRO_RESULT="PASS"
-  else
-    MAESTRO_RESULT="FAIL"
+    mkdir -p "$attempt_dir"
+    set +e
+    maestro test "$WRAPPER_FLOW" --test-output-dir "$attempt_dir" 2>&1 | tee "$console_log"
+    command_status="${PIPESTATUS[0]}"
+    set -e
+    return "$command_status"
+  }
+
+  MAESTRO_RESULT="FAIL"
+  for attempt in 1 2 3; do
+    log "running Maestro flow (attempt $attempt/3): $MAESTRO_FLOW"
+    if run_maestro_attempt "$attempt"; then
+      MAESTRO_RESULT="PASS"
+      break
+    fi
+
+    CONSOLE_LOG="$REPORT_DIR/maestro/attempt-$attempt.log"
+    if ! grep -Eqi "Broken pipe|Failure calling service package|device offline|device not found|connection reset|closed.*transport|transport.*error" "$CONSOLE_LOG"; then
+      capture_evidence "maestro-failure"
+      fail "Maestro flow failed."
+    fi
+
+    log "transient emulator/ADB failure detected; recovering before retry..."
+    adb wait-for-device || true
+    for _ in {1..15}; do
+      if adb shell cmd package list packages android >/dev/null 2>&1; then
+        break
+      fi
+      sleep 2
+    done
+    sleep 3
+  done
+
+  if [[ "$MAESTRO_RESULT" != "PASS" ]]; then
     capture_evidence "maestro-failure"
-    fail "Maestro flow failed."
+    fail "Maestro flow failed after transient-error retries."
   fi
 
   sleep 2
