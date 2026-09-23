@@ -13,6 +13,8 @@ The runner records the resolved target commit, builds the project, executes the
 same Android/ADB/Maestro verification engine as the reusable Project Gate, and
 publishes the standard `result.json` + evidence artifact.
 
+For repositories with generated native scaffolding or code generation, v0.4.1 also accepts exact Java/Flutter versions plus `prepare_command`, `post_pub_get_command`, and an ADB-aware `android_prepare_command` hook. These run only in the disposable Actions workspace.
+
 See `integration/flutter/EXTERNAL_RUNNER.md`.
 
 ## v0.4 — Automatic Project Gate

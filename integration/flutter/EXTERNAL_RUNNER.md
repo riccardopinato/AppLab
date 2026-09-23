@@ -36,3 +36,26 @@ automation.
 v0.4.1 intentionally targets public GitHub Flutter repositories. Private
 cross-repository checkout requires a separate credential model and is not
 silently granted to the runner.
+
+## Non-standard Flutter repositories
+
+The runner exposes build hooks instead of assuming every repository commits the
+same native scaffold:
+
+- `flutter_version`: pin an exact Flutter SDK when the project CI requires it;
+- `java_version`: select the target JDK;
+- `prepare_command`: run setup before `flutter pub get`, for example
+  generating `android/` with `flutter create`;
+- `post_pub_get_command`: run code generation such as
+  `dart run build_runner build`;
+- `android_prepare_command`: run an ADB-aware command after a preliminary APK
+  install and before the standard AppLab verifier.
+
+These hooks execute only for an explicitly dispatched run and do not write back
+to the target repository.
+
+### TrailPath example
+
+TrailPath intentionally generates its native scaffold in CI. A compatible
+external run therefore pins Flutter and passes its scaffold/codegen commands
+through these hooks rather than requiring AppLab to special-case TrailPath.

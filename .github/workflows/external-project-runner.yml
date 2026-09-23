@@ -18,9 +18,34 @@ on:
         default: "."
         type: string
       flutter_channel:
-        description: Flutter channel
+        description: Flutter channel used when flutter_version is empty
         required: false
         default: stable
+        type: string
+      flutter_version:
+        description: Optional exact Flutter version
+        required: false
+        default: ""
+        type: string
+      java_version:
+        description: Java version used to build the target project
+        required: false
+        default: "17"
+        type: string
+      prepare_command:
+        description: Optional repository-specific command run before flutter pub get
+        required: false
+        default: ""
+        type: string
+      post_pub_get_command:
+        description: Optional repository-specific command run after flutter pub get
+        required: false
+        default: ""
+        type: string
+      android_prepare_command:
+        description: Optional command run with ADB available after a preliminary APK install
+        required: false
+        default: ""
         type: string
       api_level:
         description: Android emulator API level
@@ -138,23 +163,57 @@ jobs:
           PROJECT_DIR="$GITHUB_WORKSPACE/target/${{ inputs.working_directory }}"
           test -d "$PROJECT_DIR"
           test -f "$PROJECT_DIR/pubspec.yaml"
-          test -d "$PROJECT_DIR/android"
 
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ inputs.java_version }}
 
-      - name: Setup Flutter
+      - name: Setup Flutter channel
+        if: inputs.flutter_version == ''
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ inputs.flutter_channel }}
           cache: true
 
+      - name: Setup exact Flutter version
+        if: inputs.flutter_version != ''
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ inputs.flutter_version }}
+          channel: stable
+          cache: true
+
+      - name: Target preparation
+        if: inputs.prepare_command != ''
+        working-directory: target/${{ inputs.working_directory }}
+        shell: bash
+        env:
+          APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}
+        run: bash -Eeuo pipefail -c "$APPLAB_PREPARE_COMMAND"
+
+      - name: Require Android scaffold
+        shell: bash
+        run: |
+          PROJECT_DIR="$GITHUB_WORKSPACE/target/${{ inputs.working_directory }}"
+          if [[ ! -d "$PROJECT_DIR/android" ]]; then
+            echo "Target has no android/ scaffold." >&2
+            echo "Use prepare_command for repositories that generate platform scaffolding." >&2
+            exit 1
+          fi
+
       - name: Resolve dependencies
         working-directory: target/${{ inputs.working_directory }}
         run: flutter pub get
+
+      - name: Post dependency preparation
+        if: inputs.post_pub_get_command != ''
+        working-directory: target/${{ inputs.working_directory }}
+        shell: bash
+        env:
+          APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}
+        run: bash -Eeuo pipefail -c "$APPLAB_POST_PUB_GET_COMMAND"
 
       - name: Analyze
         if: inputs.run_flutter_tests
@@ -221,6 +280,11 @@ jobs:
             FLOW_PATH=""
             if [[ -n "$APPLAB_MAESTRO_FLOW" ]]; then
               FLOW_PATH="$GITHUB_WORKSPACE/target/$APPLAB_MAESTRO_FLOW"
+            fi
+            if [[ -n "${{ inputs.android_prepare_command }}" ]]; then
+              adb install -r -t "$APPLAB_APK_FILE"
+              APPLAB_ANDROID_PREPARE_COMMAND="${{ inputs.android_prepare_command }}" \
+                bash -Eeuo pipefail -c "$APPLAB_ANDROID_PREPARE_COMMAND"
             fi
             RUN_MAESTRO="$APPLAB_RUN_MAESTRO" \
             MAESTRO_FLOW="$FLOW_PATH" \
