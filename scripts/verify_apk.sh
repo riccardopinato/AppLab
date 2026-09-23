@@ -175,8 +175,9 @@ if [[ -n "$MAESTRO_FLOW" ]] || is_true "$RUN_MAESTRO"; then
   cat > "$WRAPPER_FLOW" <<EOF
 appId: $PACKAGE_ID
 ---
-- launchApp:
-    clearState: false
+# verify_apk.sh already launched the package through ADB. Do not launch it
+# again here: repeated immediate launches can recreate platform views (MapLibre,
+# CameraX, WebView) while their native side is still initializing.
 - runFlow:
     when:
       visible: "Pixel Launcher isn't responding"
