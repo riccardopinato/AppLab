@@ -2,7 +2,26 @@
 
 AppLab is a reusable Android APK verification lab.
 
-## v0.3 — Live Android Emulator
+## v0.4 — Automatic Project Gate
+
+AppLab can be attached to a Flutter repository as a reusable GitHub Actions
+quality gate. A push can now be verified end-to-end without manually uploading
+the APK:
+
+```
+code -> analyze -> tests -> APK -> Android emulator -> install -> launch
+     -> Maestro -> screenshot/UI hierarchy -> Logcat/crash scan -> report
+```
+
+Copy `integration/flutter/applab.yml.example` into the target repository as
+`.github/workflows/applab.yml`. The run publishes a visible Actions summary
+plus an `applab-report-<commit>` artifact containing screenshots, logs and the
+machine-readable `result.json`.
+
+The reusable workflow also supports Flutter projects inside monorepos through
+the `working_directory` input and optional app-specific Maestro flows.
+
+## v0.3.1 — Live Android Emulator + Browser E2E
 
 AppLab can now own the Android runtime instead of requiring an emulator to be
 started manually.
@@ -53,7 +72,7 @@ chmod +x scripts/check_live_host.sh
 Bare-metal Linux is preferred. Cloud VMs can work when nested virtualization is
 enabled.
 
-## Start AppLab v0.3 Live
+## Start AppLab v0.3.1 Live
 
 ```bash
 cp .env.example .env
@@ -77,14 +96,13 @@ Press **Start emulator** in the Live Runtime panel. AppLab will pull/start the
 configured Android Emulator image, connect ADB, wait for
 `sys.boot_completed=1`, then launch the WebRTC gateway.
 
-The default image is Google's published API 30 Google APIs x86_64 container:
+The default v0.3.1 runtime image is `applab-emulator-runtime:0.3.1`. AppLab
+builds it automatically from Google's published API 30 x86_64 base image and
+upgrades the Android Emulator binary to the WebRTC-capable runtime used by the
+browser E2E gate.
 
-```
-us-docker.pkg.dev/android-emulator-268719/images/30-google-x64:30.1.2
-```
-
-Override `APPLAB_EMULATOR_IMAGE` in `.env` to use a compatible image you
-have built or published for newer Android API levels.
+Override `APPLAB_EMULATOR_IMAGE` or `APPLAB_EMULATOR_BASE_IMAGE` in
+`.env` when testing a compatible custom runtime.
 
 ## Standard Control Center
 

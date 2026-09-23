@@ -9,16 +9,61 @@ START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
 RUN_MAESTRO="${RUN_MAESTRO:-false}"
+APPLAB_VERSION="${APPLAB_VERSION:-0.4.0}"
+
+write_result_json() {
+  local result="$1"
+  local reason="${2:-}"
+  local pid_value="${3:-}"
+  local maestro_result="${4:-SKIPPED}"
+
+  mkdir -p "$REPORT_DIR"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+output, result, package_id, maestro, pid_value, reason, version, apk_path = sys.argv[1:]
+payload = {
+    "schema_version": 1,
+    "applab_version": version,
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "result": result,
+    "reason": reason or None,
+    "apk": Path(apk_path).name if apk_path else "",
+    "package_id": package_id,
+    "pid": pid_value,
+    "maestro": maestro,
+    "evidence": {
+        "summary": "summary.md",
+        "launch_screenshot": "launch.png",
+        "post_maestro_screenshot": "post-maestro.png",
+        "ui_hierarchy": "window.xml",
+        "logcat": "logcat.txt",
+        "app_logcat": "app-logcat.txt",
+    },
+}
+Path(output).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+  else
+    printf '{"result":"%s","applab_version":"%s"}\n' "$result" "$APPLAB_VERSION" > "$REPORT_DIR/result.json"
+  fi
+}
 
 fail() {
-  echo "[AppLab] ERROR: $*" >&2
+  local reason="$*"
+  echo "[AppLab] ERROR: $reason" >&2
   mkdir -p "$REPORT_DIR"
   {
     echo "# AppLab report"
     echo
     echo "- Result: FAIL"
-    echo "- Reason: $*"
+    echo "- AppLab: $APPLAB_VERSION"
+    echo "- Reason: $reason"
   } > "$REPORT_DIR/summary.md"
+  write_result_json "FAIL" "$reason" "" "${MAESTRO_RESULT:-SKIPPED}"
   exit 1
 }
 
@@ -242,6 +287,7 @@ fi
   echo "# AppLab report"
   echo
   echo "- Result: PASS"
+  echo "- AppLab: $APPLAB_VERSION"
   printf -- '- APK: %s\n' "$(basename "$APK_PATH")"
   printf -- '- Package: %s\n' "$PACKAGE_ID"
   printf -- '- PID after verification: %s\n' "$PID_AFTER"
@@ -256,4 +302,5 @@ fi
   printf -- '- App Logcat: app-logcat.txt\n'
 } > "$REPORT_DIR/summary.md"
 
+write_result_json "PASS" "" "$PID_AFTER" "$MAESTRO_RESULT"
 log "PASS — report written to $REPORT_DIR"

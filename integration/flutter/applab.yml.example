@@ -1,9 +1,16 @@
-name: AppLab
+name: AppLab Project Gate
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   applab:
@@ -11,6 +18,7 @@ jobs:
     with:
       run_flutter_tests: true
       run_maestro: true
-      # Optional: create this file in the app repository for app-specific checks.
-      # If omitted, AppLab generates a generic launch -> Home -> relaunch flow.
+      # Optional for monorepos:
+      # working_directory: apps/mobile
+      # Optional app-specific Maestro flow, relative to repository root:
       # maestro_flow: .maestro/applab-smoke.yaml

@@ -1,4 +1,4 @@
-name: AppLab Flutter Verify
+name: AppLab Flutter Project Gate
 
 on:
   workflow_call:
@@ -7,6 +7,11 @@ on:
         description: Flutter channel
         required: false
         default: stable
+        type: string
+      working_directory:
+        description: Flutter project directory relative to repository root
+        required: false
+        default: "."
         type: string
       api_level:
         description: Android emulator API level
@@ -19,17 +24,17 @@ on:
         default: pixel_7_pro
         type: string
       apk_path:
-        description: APK produced by flutter build
+        description: APK path relative to working_directory
         required: false
         default: build/app/outputs/flutter-apk/app-debug.apk
         type: string
       package_id:
-        description: Optional Android application id
+        description: Optional Android application id; empty enables automatic detection
         required: false
         default: ""
         type: string
       build_command:
-        description: Flutter build command
+        description: Flutter APK build command
         required: false
         default: flutter build apk --debug
         type: string
@@ -44,20 +49,41 @@ on:
         default: true
         type: boolean
       maestro_flow:
-        description: Optional flow path in the application repository; empty generates a generic launch/home/relaunch flow
+        description: Optional flow path relative to repository root; empty generates a generic smoke flow
         required: false
         default: ""
+        type: string
+      start_timeout:
+        description: Seconds allowed for the app process to start
+        required: false
+        default: "30"
+        type: string
+      settle_seconds:
+        description: Seconds to let the app settle before diagnostics
+        required: false
+        default: "5"
         type: string
 
 jobs:
   verify:
-    name: AppLab Android
+    name: AppLab Project Gate
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
       - name: Checkout application
         uses: actions/checkout@v6
+
+      - name: Prepare AppLab report
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/applab-report"
+          {
+            echo "repository=$GITHUB_REPOSITORY"
+            echo "sha=$GITHUB_SHA"
+            echo "ref=$GITHUB_REF"
+            echo "working_directory=${{ inputs.working_directory }}"
+            echo "apk_path=${{ inputs.apk_path }}"
+          } > "$GITHUB_WORKSPACE/applab-report/project.txt"
 
       - name: Setup Java
         uses: actions/setup-java@v5
@@ -72,18 +98,43 @@ jobs:
           cache: true
 
       - name: Resolve dependencies
+        working-directory: ${{ inputs.working_directory }}
         run: flutter pub get
 
       - name: Analyze
         if: inputs.run_flutter_tests
-        run: flutter analyze
+        working-directory: ${{ inputs.working_directory }}
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter analyze 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-analyze.txt"
 
       - name: Unit tests
         if: inputs.run_flutter_tests
-        run: flutter test
+        working-directory: ${{ inputs.working_directory }}
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter test 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-test.txt"
 
       - name: Build APK
-        run: ${{ inputs.build_command }}
+        working-directory: ${{ inputs.working_directory }}
+        shell: bash
+        run: |
+          set -o pipefail
+          ${{ inputs.build_command }} 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-build.txt"
+
+      - name: Resolve APK
+        id: apk
+        shell: bash
+        run: |
+          APK_FILE="$GITHUB_WORKSPACE/${{ inputs.working_directory }}/${{ inputs.apk_path }}"
+          if [[ ! -s "$APK_FILE" ]]; then
+            echo "Expected APK not found or empty: $APK_FILE" >&2
+            exit 1
+          fi
+          echo "apk_file=$APK_FILE" >> "$GITHUB_OUTPUT"
+          ls -lh "$APK_FILE" | tee "$GITHUB_WORKSPACE/applab-report/apk.txt"
 
       - name: Checkout AppLab
         uses: actions/checkout@v6
@@ -104,10 +155,14 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Verify APK on Android
+        id: verify
         uses: reactivecircus/android-emulator-runner@v2
         env:
           APPLAB_MAESTRO_FLOW: ${{ inputs.maestro_flow }}
           APPLAB_RUN_MAESTRO: ${{ inputs.run_maestro }}
+          APPLAB_START_TIMEOUT: ${{ inputs.start_timeout }}
+          APPLAB_SETTLE_SECONDS: ${{ inputs.settle_seconds }}
+          APPLAB_APK_FILE: ${{ steps.apk.outputs.apk_file }}
         with:
           api-level: ${{ inputs.api_level }}
           target: google_apis
@@ -120,9 +175,33 @@ jobs:
             if [[ -n "$APPLAB_MAESTRO_FLOW" ]]; then
               FLOW_PATH="$GITHUB_WORKSPACE/$APPLAB_MAESTRO_FLOW"
             fi
-            RUN_MAESTRO="$APPLAB_RUN_MAESTRO" MAESTRO_FLOW="$FLOW_PATH" REPORT_DIR="$GITHUB_WORKSPACE/applab-report" .applab/scripts/verify_apk.sh "$GITHUB_WORKSPACE/${{ inputs.apk_path }}" "${{ inputs.package_id }}"
+            RUN_MAESTRO="$APPLAB_RUN_MAESTRO" \
+            MAESTRO_FLOW="$FLOW_PATH" \
+            REPORT_DIR="$GITHUB_WORKSPACE/applab-report" \
+            START_TIMEOUT="$APPLAB_START_TIMEOUT" \
+            SETTLE_SECONDS="$APPLAB_SETTLE_SECONDS" \
+            .applab/scripts/verify_apk.sh "$APPLAB_APK_FILE" "${{ inputs.package_id }}"
 
-      - name: Publish AppLab report
+      - name: Publish AppLab summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## AppLab Project Gate"
+            echo
+            echo "- Repository: `$GITHUB_REPOSITORY`"
+            echo "- Commit: `$GITHUB_SHA`"
+            echo "- Android verification step: `${{ steps.verify.outcome }}`"
+            echo
+            if [[ -f "$GITHUB_WORKSPACE/applab-report/summary.md" ]]; then
+              cat "$GITHUB_WORKSPACE/applab-report/summary.md"
+            else
+              echo "AppLab APK verification did not produce a runtime report."
+              echo "Check analyze, unit-test, build, or APK-resolution steps above."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload AppLab report
         if: always()
         uses: actions/upload-artifact@v4
         with:
