@@ -163,20 +163,21 @@ test("streams real Android video and sends real WebRTC input", async ({
   expect(beforeXml).toContain("RUN INTERACTION TEST");
 
   const bounds = nodeBounds(beforeXml, "RUN INTERACTION TEST");
-  const box = await video.boundingBox();
-  if (!box) throw new Error("WebRTC video has no browser bounding box");
+  const handler = video.locator("..");
+  const handlerBox = await handler.boundingBox();
+  if (!handlerBox) throw new Error("WebRTC input handler has no browser bounding box");
 
-  // Click the WebRTC handler at the Android node's normalized position.
-  // The upstream event handler performs its own letterbox/device scaling, so
-  // feeding already letterbox-adjusted browser coordinates would scale twice.
+  // The upstream WebRTC handler owns the coordinate transform. Feed it the
+  // Android node's normalized position relative to the handler itself.
   const nativeX = (bounds.left + bounds.right) / 2;
   const nativeY = (bounds.top + bounds.bottom) / 2;
-  const browserX = box.x + (nativeX / first.width) * box.width;
-  const browserY = box.y + (nativeY / first.height) * box.height;
+  const browserX = handlerBox.x + (nativeX / first.width) * handlerBox.width;
+  const browserY = handlerBox.y + (nativeY / first.height) * handlerBox.height;
 
-  // Playwright's touchscreen dispatches real TouchEvents. This exercises the
-  // WebRTC input DataChannel directly and avoids desktop mouse emulation.
-  await page.touchscreen.tap(browserX, browserY);
+  await page.mouse.move(browserX, browserY);
+  await page.mouse.down({ button: "left" });
+  await page.waitForTimeout(80);
+  await page.mouse.up({ button: "left" });
 
   await expect
     .poll(async () => (await hierarchy(request)).includes("INTERACTION_OK"), {
