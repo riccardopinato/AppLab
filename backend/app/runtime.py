@@ -37,13 +37,14 @@ class LiveRuntimeManager:
             "-no-window -no-audio -no-boot-anim -gpu swiftshader_indirect",
         )
         self.boot_timeout = int(os.getenv("APPLAB_BOOT_TIMEOUT", "240"))
+        self.docker_timeout = int(os.getenv("APPLAB_DOCKER_TIMEOUT", "600"))
         self._lock = threading.RLock()
         self._gateway: subprocess.Popen[str] | None = None
         self._gateway_log_handle = None
 
     def _docker(self):
         try:
-            client = docker.from_env()
+            client = docker.from_env(timeout=self.docker_timeout)
             client.ping()
             return client
         except DockerException as exc:
