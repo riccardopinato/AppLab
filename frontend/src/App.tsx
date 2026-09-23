@@ -106,6 +106,7 @@ export default function App() {
   const [testOutput, setTestOutput] = useState("");
   const [logcat, setLogcat] = useState("");
   const [status, setStatus] = useState("Ready");
+  const [webrtcState, setWebrtcState] = useState("idle");
   const [busy, setBusy] = useState(false);
   const [viewMode, setViewMode] = useState<"live" | "screenshot">("live");
   const [screenshotNonce, setScreenshotNonce] = useState(0);
@@ -120,6 +121,12 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("applab.package", packageId);
   }, [packageId]);
+
+  useEffect(() => {
+    if (!runtime?.live_ready) {
+      setWebrtcState("idle");
+    }
+  }, [runtime?.live_ready]);
 
   const refreshRuntime = useCallback(async () => {
     try {
@@ -374,7 +381,7 @@ export default function App() {
           <p className="eyebrow">ANDROID VERIFICATION LAB</p>
           <div className="title-row">
             <h1>AppLab</h1>
-            <span className="version">v0.3</span>
+            <span className="version">v0.3.1</span>
           </div>
           <p className="subtitle">Live Android Emulator · WebRTC · ADB · Maestro · Diagnostics</p>
         </div>
@@ -430,15 +437,33 @@ export default function App() {
             </div>
           </div>
 
-          <div className="phone-frame">
+          <div
+            className="phone-frame"
+            data-testid="device-live-view"
+            data-webrtc-state={webrtcState}
+          >
             {viewMode === "live" ? (
-              <Emulator
-                ref={emulatorRef}
-                uri={gateway}
-                muted
-                onStateChange={(state: string) => setStatus(`WebRTC: ${state}`)}
-                onError={(error: unknown) => setStatus(`WebRTC: ${String(error)}`)}
-              />
+              runtime?.live_ready ? (
+                <Emulator
+                  key={`${gateway}-${runtime.container_id}`}
+                  ref={emulatorRef}
+                  uri={gateway}
+                  muted
+                  onStateChange={(state: string) => {
+                    setWebrtcState(state);
+                    setStatus(`WebRTC: ${state}`);
+                  }}
+                  onError={(error: unknown) => {
+                    setWebrtcState("error");
+                    setStatus(`WebRTC: ${String(error)}`);
+                  }}
+                />
+              ) : (
+                <div className="empty-phone">
+                  <strong>Live runtime offline</strong>
+                  <span>Start the managed emulator to connect WebRTC.</span>
+                </div>
+              )
             ) : screenshotVisible ? (
               <img
                 className="phone-screenshot"
@@ -455,7 +480,7 @@ export default function App() {
 
           <div className="hardware">
             <button disabled={busy} onClick={() => hardwareKey("back", "GoBack")}>Back</button>
-            <button disabled={busy} onClick={() => hardwareKey("home", "GoHome")}>Home</button>
+            <button data-testid="hardware-home" disabled={busy} onClick={() => hardwareKey("home", "GoHome")}>Home</button>
             <button disabled={busy} onClick={() => hardwareKey("recent", "AppSwitch")}>Recent</button>
             <button disabled={busy} onClick={() => hardwareKey("power", "Power")}>Power</button>
           </div>
