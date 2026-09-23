@@ -7,5 +7,9 @@ def test_health() -> None:
     client = TestClient(app)
     response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json()["ok"] is True
-    assert response.json()["service"] == "applab-controller"
+
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["service"] == "applab-controller"
+    assert payload["version"] == "0.2.0"
+    assert "diagnostics" in payload["features"]
