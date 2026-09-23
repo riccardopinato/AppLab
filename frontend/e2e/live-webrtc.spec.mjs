@@ -79,20 +79,18 @@ test("streams real Android video and sends real WebRTC input", async ({
   expect(first.width).toBeGreaterThan(0);
   expect(first.height).toBeGreaterThan(0);
 
-  const frame = await expect
+  await expect
     .poll(async () => video.evaluate((element) => {
       const canvas = document.createElement("canvas");
       canvas.width = 64;
       canvas.height = 64;
       const context = canvas.getContext("2d", { willReadFrequently: true });
-      if (!context) throw new Error("Canvas 2D context unavailable");
+      if (!context) return false;
 
       context.drawImage(element, 0, 0, canvas.width, canvas.height);
       const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-
       let min = 255;
       let max = 0;
-      let sum = 0;
       let bright = 0;
       const samples = pixels.length / 4;
 
@@ -103,28 +101,15 @@ test("streams real Android video and sends real WebRTC input", async ({
           pixels[i + 2] * 0.0722;
         min = Math.min(min, luma);
         max = Math.max(max, luma);
-        sum += luma;
         if (luma > 80) bright += 1;
       }
 
-      return {
-        readyState: element.readyState,
-        width: element.videoWidth,
-        height: element.videoHeight,
-        currentTime: element.currentTime,
-        lumaRange: max - min,
-        meanLuma: sum / samples,
-        brightRatio: bright / samples,
-      };
+      return max - min > 60 && bright / samples > 0.002;
     }), {
       timeout: 20_000,
       message: "WebRTC connected but no non-black Android frame was decoded",
     })
-    .toMatchObject({
-      readyState: expect.any(Number),
-      width: expect.any(Number),
-      height: expect.any(Number),
-    });
+    .toBe(true);
 
   const frameStats = await video.evaluate((element) => {
     const canvas = document.createElement("canvas");
@@ -135,7 +120,6 @@ test("streams real Android video and sends real WebRTC input", async ({
 
     context.drawImage(element, 0, 0, canvas.width, canvas.height);
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-
     let min = 255;
     let max = 0;
     let sum = 0;
