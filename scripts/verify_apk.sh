@@ -106,6 +106,10 @@ log "Package: $PACKAGE_ID"
 
 adb devices -l > "$REPORT_DIR/device.txt" || true
 adb shell getprop >> "$REPORT_DIR/device.txt" 2>/dev/null || true
+# Hosted Android emulators can surface launcher/SystemUI ANR dialogs over the
+# app under test. Suppress those modal dialogs during automation; AppLab still
+# detects package-specific ANRs and fatal exceptions directly from logcat.
+adb shell settings put global hide_error_dialogs 1 >/dev/null 2>&1 || true
 adb logcat -b all -c || true
 
 log "installing APK..."
@@ -172,7 +176,7 @@ appId: $PACKAGE_ID
       visible: "Pixel Launcher isn't responding"
     commands:
       - tapOn:
-          text: "Wait"
+          text: "Close app"
           optional: true
 - runFlow:
     file: app-flow.yaml
