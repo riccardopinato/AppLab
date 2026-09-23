@@ -54,6 +54,22 @@ test("streams real Android video and sends real WebRTC input", async ({
   const video = liveView.locator("video");
   await expect(video).toBeVisible();
 
+  await expect
+    .poll(async () => {
+      return video.evaluate((element) => ({
+        readyState: element.readyState,
+        width: element.videoWidth,
+        height: element.videoHeight,
+        currentTime: element.currentTime,
+      }));
+    }, {
+      timeout: 30_000,
+      message: "WebRTC connected but no decoded Android video frame arrived",
+    })
+    .toMatchObject({
+      readyState: 4,
+    });
+
   const first = await video.evaluate((element) => ({
     readyState: element.readyState,
     width: element.videoWidth,
