@@ -2,51 +2,81 @@
 
 AppLab is a reusable Android APK verification lab.
 
-## Layers
+## v0.2 — Live Control Center
 
-1. **Quality Gate** — boot Android in CI, install an APK, launch it, capture screenshot/UI hierarchy/Logcat, verify the process survives, detect crashes/ANRs and optionally run Maestro.
-2. **Live Controller** — browser UI for ADB control and optional Google Emulator WebRTC streaming.
+The browser dashboard is now an operational Android QA console rather than a
+static controller. It provides:
 
-The development gate is:
+- emulator/device health and Android/SDK information;
+- APK upload and install;
+- package auto-detection when available;
+- launch, restart, stop, clear-data and uninstall controls;
+- WebRTC device view when an Emulator Gateway is connected;
+- screenshot fallback when streaming is unavailable;
+- package-filtered Logcat;
+- runtime PASS/FAIL diagnostics for process death, ANR, Android fatal
+  exceptions and unhandled Flutter/framework exceptions;
+- Maestro flow discovery and one-click execution;
+- persistent controller history in Docker;
+- reusable CI quality gates for Flutter application repositories.
+
+## Quality Gate
 
 ```
 code -> analyze -> tests -> APK -> emulator -> install -> launch
-     -> smoke -> screenshot -> Logcat -> crash scan -> report
+     -> Maestro -> screenshot -> Logcat -> crash scan -> report
 ```
 
-## Quick local verification
+## Live Control Center
 
 ```bash
-chmod +x scripts/*.sh
-./scripts/verify_apk.sh path/to/app.apk
-```
-
-The package id is auto-detected with `apkanalyzer`, `aapt2` or `aapt`; it can also be passed explicitly:
-
-```bash
-./scripts/verify_apk.sh path/to/app.apk com.example.app
-```
-
-Artifacts are written to `applab-report/`: screenshot, UI hierarchy, Logcat, device data and a Markdown summary.
-
-## GitHub Actions
-
-Run **APK Emulator Smoke** manually with a direct APK URL, or copy `integration/flutter/applab.yml.example` to an app repository as `.github/workflows/applab.yml`.
-
-That template builds the Flutter APK and checks out this repository only for the reusable verification scripts.
-
-## Live controller
-
-```bash
+cp .env.example .env
 docker compose up --build
 ```
 
 Frontend: http://localhost:5173  
-Backend: http://localhost:8000
+Backend API: http://localhost:8000
 
-Set `ADB_SERIAL` in `.env` when needed.
+Set `ADB_SERIAL` when the controller must target a remote ADB endpoint.
+`VITE_GATEWAY_URI` points the browser at a compatible Android Emulator
+WebRTC gateway. Streaming is optional: all ADB controls and diagnostics work
+without it.
 
-The frontend uses Google's `android-emulator-webrtc` package when a compatible Emulator Gateway is available. WebRTC is deliberately separate from the Quality Gate so streaming cannot create false functional failures.
+The backend image includes ADB, Java and Maestro. Controller actions are
+stored in the `applab-data` Docker volume.
+
+## Main API
+
+```
+GET  /api/device
+GET  /api/apps
+GET  /api/app/status?package_id=...
+POST /api/apk/install
+POST /api/app/launch
+POST /api/app/restart
+POST /api/app/stop
+POST /api/app/clear
+POST /api/app/uninstall
+GET  /api/screenshot
+GET  /api/logcat?package_id=...
+GET  /api/report?package_id=...
+GET  /api/tests
+POST /api/tests/run
+GET  /api/history
+```
+
+## CI verification
+
+```bash
+chmod +x scripts/*.sh
+./scripts/verify_apk.sh path/to/app.apk com.example.app
+```
+
+Artifacts are written to `applab-report/`: screenshots, UI hierarchy,
+package-filtered/full Logcat and Markdown summary.
+
+For Flutter repositories, use
+`.github/workflows/verify-flutter.yml` as the reusable AppLab runtime gate.
 
 ## Upstream foundations
 

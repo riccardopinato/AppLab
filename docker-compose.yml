@@ -4,8 +4,12 @@ services:
       context: ./backend
     environment:
       ADB_SERIAL: ${ADB_SERIAL:-}
+      APPLAB_HISTORY_PATH: /data/history.jsonl
+      APPLAB_FLOW_DIR: /app/flows
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - applab-data:/data
     ports:
       - "8000:8000"
 
@@ -19,3 +23,6 @@ services:
       - backend
     ports:
       - "5173:80"
+
+volumes:
+  applab-data:
