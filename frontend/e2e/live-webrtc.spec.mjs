@@ -174,10 +174,9 @@ test("streams real Android video and sends real WebRTC input", async ({
   const browserX = box.x + (nativeX / first.width) * box.width;
   const browserY = box.y + (nativeY / first.height) * box.height;
 
-  await page.mouse.move(browserX, browserY);
-  await page.mouse.down({ button: "left" });
-  await page.waitForTimeout(80);
-  await page.mouse.up({ button: "left" });
+  // Playwright's touchscreen dispatches real TouchEvents. This exercises the
+  // WebRTC input DataChannel directly and avoids desktop mouse emulation.
+  await page.touchscreen.tap(browserX, browserY);
 
   await expect
     .poll(async () => (await hierarchy(request)).includes("INTERACTION_OK"), {
