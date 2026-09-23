@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import docker
-from docker.errors import APIError, DockerException, ImageNotFound, NotFound
+from docker.errors import APIError, BuildError, DockerException, ImageNotFound, NotFound
 
 
 class LiveRuntimeError(RuntimeError):
@@ -23,7 +23,14 @@ class LiveRuntimeManager:
         self.container_name = os.getenv("APPLAB_EMULATOR_CONTAINER", "applab-emulator")
         self.image = os.getenv(
             "APPLAB_EMULATOR_IMAGE",
-            "us-docker.pkg.dev/android-emulator-268719/images/30-google-x64:30.1.2",
+            "applab-emulator-runtime:0.3.1",
+        )
+        self.base_image = os.getenv(
+            "APPLAB_EMULATOR_BASE_IMAGE",
+            "us-docker.pkg.dev/android-emulator-268719/images/30-google-x64-no-metrics:7148297",
+        )
+        self.build_context = Path(
+            os.getenv("APPLAB_EMULATOR_BUILD_CONTEXT", "/opt/applab/emulator-runtime")
         )
         self.adb_serial = os.getenv("APPLAB_LIVE_ADB_SERIAL", "127.0.0.1:5555")
         self.grpc_port = int(os.getenv("APPLAB_EMULATOR_GRPC_PORT", "8554"))
@@ -38,7 +45,7 @@ class LiveRuntimeManager:
             "-no-window -no-audio -no-boot-anim -gpu swiftshader_indirect",
         )
         self.boot_timeout = int(os.getenv("APPLAB_BOOT_TIMEOUT", "240"))
-        self.docker_timeout = int(os.getenv("APPLAB_DOCKER_TIMEOUT", "600"))
+        self.docker_timeout = int(os.getenv("APPLAB_DOCKER_TIMEOUT", "1200"))
         self._lock = threading.RLock()
         self._gateway: subprocess.Popen[str] | None = None
         self._gateway_log_handle = None
@@ -60,6 +67,39 @@ class LiveRuntimeManager:
             return None
         except DockerException as exc:
             raise LiveRuntimeError(str(exc)) from exc
+
+    def _ensure_image(self, client) -> None:
+        try:
+            client.images.get(self.image)
+            return
+        except ImageNotFound:
+            pass
+
+        if self.build_context.is_dir():
+            try:
+                client.images.build(
+                    path=str(self.build_context),
+                    tag=self.image,
+                    rm=True,
+                    forcerm=True,
+                    pull=True,
+                    buildargs={
+                        "EMULATOR_BASE_IMAGE": self.base_image,
+                    },
+                )
+                return
+            except (BuildError, APIError, DockerException) as exc:
+                raise LiveRuntimeError(
+                    f"Unable to build WebRTC-capable emulator image {self.image}: {exc}"
+                ) from exc
+
+        try:
+            client.images.pull(self.image)
+        except (APIError, DockerException) as exc:
+            raise LiveRuntimeError(
+                f"Emulator image {self.image} is unavailable and build context "
+                f"{self.build_context} is not mounted: {exc}"
+            ) from exc
 
     def _ensure_host_capabilities(self) -> None:
         if not Path("/dev/kvm").exists():
@@ -211,10 +251,7 @@ class LiveRuntimeManager:
 
             adb_key = self._ensure_adb_key()
             try:
-                try:
-                    client.images.get(self.image)
-                except ImageNotFound:
-                    client.images.pull(self.image)
+                self._ensure_image(client)
 
                 client.containers.run(
                     self.image,
@@ -317,6 +354,9 @@ class LiveRuntimeManager:
             "docker_error": docker_error,
             "kvm_available": Path("/dev/kvm").exists(),
             "image": self.image,
+            "base_image": self.base_image,
+            "build_context": str(self.build_context),
+            "build_context_available": self.build_context.is_dir(),
             "container_name": self.container_name,
             "container_id": container_id,
             "container_state": container_state,
