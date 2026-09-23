@@ -130,7 +130,22 @@ jobs:
         run: |
           curl --fail --show-error --silent             -F "file=@selftest/app/build/outputs/apk/debug/app-debug.apk"             http://127.0.0.1:8000/api/apk/install             | tee browser-install.json
 
-          curl --fail --show-error --silent             -H "Content-Type: application/json"             -d '{"package_id":"dev.applab.selftest"}'             http://127.0.0.1:8000/api/app/launch             | tee browser-launch.json
+          launch_ready=false
+          for attempt in {1..5}; do
+            curl --fail --show-error --silent               -H "Content-Type: application/json"               -d '{"package_id":"dev.applab.selftest"}'               http://127.0.0.1:8000/api/app/launch               | tee browser-launch.json
+
+            sleep 1
+            if curl --fail --show-error --silent               http://127.0.0.1:8000/api/ui/hierarchy               | tee browser-ui-before.json               | grep -Fq "RUN INTERACTION TEST"; then
+              launch_ready=true
+              break
+            fi
+            echo "Self-test activity not visible after launch attempt $attempt; retrying..."
+          done
+
+          if [[ "$launch_ready" != "true" ]]; then
+            cat browser-ui-before.json || true
+            exit 1
+          fi
 
           for _ in {1..30}; do
             curl --fail --show-error --silent               http://127.0.0.1:8000/api/ui/hierarchy               > browser-ui-before.json
