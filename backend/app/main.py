@@ -16,7 +16,7 @@ from .maestro import MaestroError, MaestroRunner
 from .runtime import LiveRuntimeError, LiveRuntimeManager
 
 
-app = FastAPI(title="AppLab Controller", version="0.3.0")
+app = FastAPI(title="AppLab Controller", version="0.3.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -96,7 +96,7 @@ def health() -> dict:
     return {
         "ok": True,
         "service": "applab-controller",
-        "version": "0.3.0",
+        "version": "0.3.1",
         "features": [
             "adb-control",
             "diagnostics",
@@ -104,6 +104,8 @@ def health() -> dict:
             "session-history",
             "webrtc-live-runtime",
             "emulator-lifecycle",
+            "browser-webrtc-e2e",
+            "ui-hierarchy",
         ],
     }
 
@@ -265,6 +267,12 @@ def screenshot() -> Response:
         media_type="image/png",
         headers={"Cache-Control": "no-store"},
     )
+
+
+@app.get("/api/ui/hierarchy")
+def ui_hierarchy() -> dict:
+    ctl = controller()
+    return {"xml": adb_guard(ctl.ui_hierarchy)}
 
 
 @app.get("/api/logcat")
