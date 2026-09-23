@@ -14,6 +14,23 @@ type DeviceInfo = {
   boot_completed: string;
 };
 
+type RuntimeStatus = {
+  docker_available: boolean;
+  docker_error: string;
+  kvm_available: boolean;
+  image: string;
+  container_name: string;
+  container_id: string;
+  container_state: string;
+  adb_serial: string;
+  adb_ready: boolean;
+  boot_completed: boolean;
+  gateway_ready: boolean;
+  gateway_uri: string;
+  gateway_log: string;
+  live_ready: boolean;
+};
+
 type AppStatus = {
   package_id: string;
   installed: boolean;
@@ -80,6 +97,7 @@ export default function App() {
   const [packageId, setPackageId] = useState(() => localStorage.getItem("applab.package") || "");
   const [apk, setApk] = useState<File | null>(null);
   const [device, setDevice] = useState<DeviceInfo | null>(null);
+  const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
   const [appStatus, setAppStatus] = useState<AppStatus | null>(null);
   const [report, setReport] = useState<Report | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -102,6 +120,16 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("applab.package", packageId);
   }, [packageId]);
+
+  const refreshRuntime = useCallback(async () => {
+    try {
+      const next = await api<RuntimeStatus>("/api/runtime");
+      setRuntime(next);
+      if (next.gateway_uri) setGateway(next.gateway_uri);
+    } catch {
+      setRuntime(null);
+    }
+  }, []);
 
   const refreshDevice = useCallback(async () => {
     try {
@@ -176,22 +204,24 @@ export default function App() {
 
   const refreshAll = useCallback(async () => {
     await Promise.allSettled([
+      refreshRuntime(),
       refreshDevice(),
       refreshPackage(),
       refreshReport(),
       refreshHistory(),
       refreshTests(),
     ]);
-  }, [refreshDevice, refreshHistory, refreshPackage, refreshReport, refreshTests]);
+  }, [refreshDevice, refreshHistory, refreshPackage, refreshReport, refreshRuntime, refreshTests]);
 
   useEffect(() => {
     void refreshAll();
     const timer = window.setInterval(() => {
+      void refreshRuntime();
       void refreshDevice();
       void refreshPackage();
-    }, 12000);
+    }, 8000);
     return () => window.clearInterval(timer);
-  }, [refreshAll, refreshDevice, refreshPackage]);
+  }, [refreshAll, refreshDevice, refreshPackage, refreshRuntime]);
 
   const runAction = async <T,>(label: string, work: () => Promise<T>) => {
     setBusy(true);
@@ -206,6 +236,20 @@ export default function App() {
       throw error;
     } finally {
       setBusy(false);
+    }
+  };
+
+  const runtimeAction = async (path: string, label: string) => {
+    try {
+      const next = await runAction(label, () =>
+        api<RuntimeStatus>(path, { method: "POST" }),
+      );
+      setRuntime(next);
+      if (next.gateway_uri) setGateway(next.gateway_uri);
+      if (next.live_ready) setViewMode("live");
+      await Promise.allSettled([refreshDevice(), refreshHistory()]);
+    } catch {
+      await refreshRuntime();
     }
   };
 
@@ -330,9 +374,9 @@ export default function App() {
           <p className="eyebrow">ANDROID VERIFICATION LAB</p>
           <div className="title-row">
             <h1>AppLab</h1>
-            <span className="version">v0.2</span>
+            <span className="version">v0.3</span>
           </div>
-          <p className="subtitle">Live Control Center · ADB · Maestro · Diagnostics</p>
+          <p className="subtitle">Live Android Emulator · WebRTC · ADB · Maestro · Diagnostics</p>
         </div>
         <div className={`status-pill ${status.includes("OK") || status === "Ready" ? "good" : "neutral"}`}>
           <span className="status-dot" />
@@ -341,6 +385,11 @@ export default function App() {
       </header>
 
       <section className="metrics">
+        <article className={`metric-card ${runtime?.live_ready ? "good" : "neutral"}`}>
+          <span>Live Runtime</span>
+          <strong>{runtime?.live_ready ? "READY" : runtime?.container_state === "running" ? "BOOTING" : "STOPPED"}</strong>
+          <small>{runtime?.live_ready ? "Android + WebRTC online" : runtime?.kvm_available ? "KVM available" : "Linux/KVM required"}</small>
+        </article>
         <article className="metric-card">
           <span>Emulator</span>
           <strong>{device?.boot_completed === "1" ? "ONLINE" : "OFFLINE"}</strong>
@@ -418,6 +467,51 @@ export default function App() {
         </div>
 
         <div className="controls">
+          <section className="panel runtime-panel">
+            <div className="panel-heading">
+              <div>
+                <span className="panel-kicker">00 · LIVE RUNTIME</span>
+                <h2>Managed Android Emulator</h2>
+              </div>
+              <div className={`mini-badge ${runtime?.live_ready ? "good" : runtime?.docker_available && runtime?.kvm_available ? "neutral" : "bad"}`}>
+                {runtime?.live_ready ? "LIVE" : runtime?.container_state === "running" ? "BOOTING" : "OFFLINE"}
+              </div>
+            </div>
+
+            <div className="runtime-grid">
+              <div><span>Docker</span><strong>{runtime?.docker_available ? "READY" : "OFFLINE"}</strong></div>
+              <div><span>KVM</span><strong>{runtime?.kvm_available ? "READY" : "MISSING"}</strong></div>
+              <div><span>ADB</span><strong>{runtime?.adb_ready ? "READY" : "OFFLINE"}</strong></div>
+              <div><span>WebRTC</span><strong>{runtime?.gateway_ready ? "READY" : "OFFLINE"}</strong></div>
+            </div>
+
+            <p className="runtime-image">{runtime?.image || "Live runtime not available in this deployment."}</p>
+            {runtime?.docker_error ? <p className="runtime-error">{runtime.docker_error}</p> : null}
+
+            <div className="button-grid">
+              <button
+                className="primary"
+                disabled={busy || runtime?.live_ready}
+                onClick={() => void runtimeAction("/api/runtime/start", "Start emulator")}
+              >
+                Start emulator
+              </button>
+              <button
+                disabled={busy || runtime?.container_state !== "running"}
+                onClick={() => void runtimeAction("/api/runtime/restart", "Restart emulator")}
+              >
+                Restart
+              </button>
+              <button
+                className="danger"
+                disabled={busy || runtime?.container_state === "missing"}
+                onClick={() => void runtimeAction("/api/runtime/stop", "Stop emulator")}
+              >
+                Stop
+              </button>
+            </div>
+          </section>
+
           <section className="panel">
             <div className="panel-heading">
               <div>

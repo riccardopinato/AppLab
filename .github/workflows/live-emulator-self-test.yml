@@ -1,0 +1,119 @@
+name: Live Emulator Self Test
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "docker-compose.live.yml"
+      - "scripts/check_live_host.sh"
+      - ".github/workflows/live-emulator-self-test.yml"
+  workflow_dispatch:
+
+jobs:
+  live-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Enable KVM
+        run: |
+          if [[ ! -e /dev/kvm ]]; then
+            sudo modprobe kvm || true
+            sudo modprobe kvm_intel || sudo modprobe kvm_amd || true
+          fi
+
+          if [[ -e /dev/kvm ]]; then
+            sudo chmod 0666 /dev/kvm
+          fi
+
+          test -e /dev/kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
+
+      - name: Verify live host
+        run: |
+          chmod +x scripts/check_live_host.sh
+          ./scripts/check_live_host.sh
+
+      - name: Build live backend
+        run: docker compose -f docker-compose.live.yml build backend
+
+      - name: Start AppLab controller
+        run: |
+          docker compose -f docker-compose.live.yml up -d backend
+          for _ in {1..60}; do
+            if curl -fsS http://127.0.0.1:8000/api/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f docker-compose.live.yml logs backend
+          exit 1
+
+      - name: Start managed Android emulator
+        run: |
+          http_code="$(curl --show-error --silent             --max-time 900             -X POST             -o runtime-start.json             -w '%{http_code}'             http://127.0.0.1:8000/api/runtime/start)"
+          cat runtime-start.json
+          if [[ "$http_code" != "200" ]]; then
+            echo "AppLab runtime start returned HTTP $http_code" >&2
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json
+          with open("runtime-start.json", encoding="utf-8") as fh:
+              data = json.load(fh)
+          assert data["live_ready"] is True, data
+          assert data["adb_ready"] is True, data
+          assert data["boot_completed"] is True, data
+          assert data["gateway_ready"] is True, data
+          PY
+
+      - name: Verify WebRTC gateway and Android screenshot
+        run: |
+          curl --fail --show-error --silent             http://127.0.0.1:8080/api/v1/emulator/status             | tee gateway-status.json
+
+          curl --fail --show-error --silent             http://127.0.0.1:8000/api/screenshot             --output live-emulator.png
+
+          test -s live-emulator.png
+
+      - name: Stop managed Android emulator
+        if: always()
+        run: |
+          curl --show-error --silent             --max-time 120             -X POST             http://127.0.0.1:8000/api/runtime/stop             | tee runtime-stop.json || true
+
+      - name: Collect live runtime evidence
+        if: always()
+        run: |
+          docker compose -f docker-compose.live.yml logs backend > backend-live.log 2>&1 || true
+          docker logs applab-emulator > emulator-container.log 2>&1 || true
+          docker cp applab-backend-1:/data/emulator-last.log emulator-last.log 2>/dev/null || true
+          docker cp applab-backend-1:/data/gateway.log gateway.log 2>/dev/null || true
+          curl --show-error --silent http://127.0.0.1:8000/api/history?limit=20 > history.json || true
+          docker ps -a > docker-ps.txt || true
+
+      - name: Upload live runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: applab-live-runtime
+          path: |
+            runtime-start.json
+            runtime-stop.json
+            gateway-status.json
+            live-emulator.png
+            backend-live.log
+            emulator-container.log
+            emulator-last.log
+            gateway.log
+            history.json
+            docker-ps.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker-compose.live.yml down --remove-orphans || true
