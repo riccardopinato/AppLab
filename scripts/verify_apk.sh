@@ -80,6 +80,7 @@ assert_runtime_healthy() {
   fi
 
   adb logcat -b all -d -v threadtime > "$REPORT_DIR/logcat.txt" 2>&1 || true
+  adb logcat --pid="$pid" -d -v threadtime > "$REPORT_DIR/app-logcat.txt" 2>&1 || true
 
   if grep -Fq "ANR in $PACKAGE_ID" "$REPORT_DIR/logcat.txt"; then
     capture_evidence "failure-${stage}"
@@ -89,6 +90,11 @@ assert_runtime_healthy() {
   if grep -F -A 40 "FATAL EXCEPTION" "$REPORT_DIR/logcat.txt" | grep -Fq "Process: $PACKAGE_ID"; then
     capture_evidence "failure-${stage}"
     fail "Fatal exception detected for $PACKAGE_ID during ${stage}."
+  fi
+
+  if grep -Eqi "Unhandled Exception:|EXCEPTION CAUGHT BY (WIDGETS|RENDERING|SCHEDULER) LIBRARY|Failed assertion:|Another exception was thrown" "$REPORT_DIR/app-logcat.txt"; then
+    capture_evidence "failure-${stage}"
+    fail "Unhandled Flutter/framework exception detected for $PACKAGE_ID during ${stage}."
   fi
 
   printf '%s' "$pid"
@@ -246,6 +252,7 @@ fi
   fi
   printf -- '- UI hierarchy: window.xml\n'
   printf -- '- Logcat: logcat.txt\n'
+  printf -- '- App Logcat: app-logcat.txt\n'
 } > "$REPORT_DIR/summary.md"
 
 log "PASS — report written to $REPORT_DIR"
