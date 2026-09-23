@@ -31,6 +31,58 @@ is_true() {
   esac
 }
 
+recover_android_package_manager() {
+  log "recovering Android package manager after transient emulator failure..."
+  adb wait-for-device >/dev/null 2>&1 || true
+
+  local attempt
+  for attempt in {1..15}; do
+    if adb shell pm path android >/dev/null 2>&1; then
+      adb shell input keyevent 82 >/dev/null 2>&1 || true
+      sleep 2
+      return 0
+    fi
+    sleep 2
+  done
+
+  log "Android package manager did not report healthy during recovery window."
+  return 1
+}
+
+run_maestro_with_retry() {
+  local flow="$1"
+  local output_dir="$2"
+  local max_attempts="${MAESTRO_ATTEMPTS:-2}"
+  local attempt=1
+
+  mkdir -p "$output_dir"
+
+  while (( attempt <= max_attempts )); do
+    local attempt_dir="$output_dir/attempt-$attempt"
+    local attempt_log="$output_dir/attempt-$attempt.log"
+    mkdir -p "$attempt_dir"
+
+    log "Maestro attempt $attempt/$max_attempts"
+    if maestro test "$flow" --test-output-dir "$attempt_dir" 2>&1 | tee "$attempt_log"; then
+      return 0
+    fi
+
+    if (( attempt >= max_attempts )); then
+      return 1
+    fi
+
+    if ! grep -Eqi 'Broken pipe|Failure calling service package|AndroidOperationFailedException|device offline|device .* not found' "$attempt_log"; then
+      return 1
+    fi
+
+    log "transient Maestro/ADB infrastructure failure detected; retrying."
+    recover_android_package_manager || true
+    attempt=$((attempt + 1))
+  done
+
+  return 1
+}
+
 [[ -n "$APK_PATH" ]] || fail "APK path is required."
 [[ -f "$APK_PATH" ]] || fail "APK not found: $APK_PATH"
 command -v adb >/dev/null 2>&1 || fail "adb is not available on PATH."
@@ -177,11 +229,11 @@ EOF
   mkdir -p "$REPORT_DIR/maestro-preflight"
   if ! maestro test "$PREFLIGHT_FLOW" --test-output-dir "$REPORT_DIR/maestro-preflight"; then
     log "emulator-system preflight returned non-zero; continuing with the application flow."
+    recover_android_package_manager || true
   fi
 
   log "running Maestro flow: $MAESTRO_FLOW"
-  mkdir -p "$REPORT_DIR/maestro"
-  if maestro test "$MAESTRO_FLOW" --test-output-dir "$REPORT_DIR/maestro"; then
+  if run_maestro_with_retry "$MAESTRO_FLOW" "$REPORT_DIR/maestro"; then
     MAESTRO_RESULT="PASS"
   else
     MAESTRO_RESULT="FAIL"
