@@ -56,19 +56,17 @@ test("streams real Android video and sends real WebRTC input", async ({
 
   await expect
     .poll(async () => {
-      return video.evaluate((element) => ({
-        readyState: element.readyState,
-        width: element.videoWidth,
-        height: element.videoHeight,
-        currentTime: element.currentTime,
-      }));
+      return video.evaluate(
+        (element) =>
+          element.readyState >= 2 &&
+          element.videoWidth > 0 &&
+          element.videoHeight > 0,
+      );
     }, {
       timeout: 30_000,
       message: "WebRTC connected but no decoded Android video frame arrived",
     })
-    .toMatchObject({
-      readyState: 4,
-    });
+    .toBe(true);
 
   const first = await video.evaluate((element) => ({
     readyState: element.readyState,
