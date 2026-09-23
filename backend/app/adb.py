@@ -200,6 +200,11 @@ class AdbController:
         result = self._run(["exec-out", "screencap", "-p"], timeout=30, text=False)
         return bytes(result.stdout)
 
+    def ui_hierarchy(self) -> str:
+        remote = "/sdcard/applab-window.xml"
+        self.shell("uiautomator", "dump", remote, timeout=30)
+        return self.shell("cat", remote, timeout=30)
+
     def logcat(self, lines: int = 400, package_id: str | None = None) -> str:
         count = str(max(1, min(lines, 5000)))
         if package_id:
