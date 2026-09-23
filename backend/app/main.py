@@ -13,9 +13,10 @@ from .adb import AdbController, AdbError, validate_package_id
 from .diagnostics import analyze_logcat
 from .journal import SessionJournal
 from .maestro import MaestroError, MaestroRunner
+from .runtime import LiveRuntimeError, LiveRuntimeManager
 
 
-app = FastAPI(title="AppLab Controller", version="0.2.0")
+app = FastAPI(title="AppLab Controller", version="0.3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,6 +27,7 @@ app.add_middleware(
 
 journal = SessionJournal()
 maestro = MaestroRunner()
+live_runtime = LiveRuntimeManager()
 T = TypeVar("T")
 
 
@@ -94,15 +96,54 @@ def health() -> dict:
     return {
         "ok": True,
         "service": "applab-controller",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "features": [
             "adb-control",
             "diagnostics",
             "maestro",
             "session-history",
-            "webrtc-ready",
+            "webrtc-live-runtime",
+            "emulator-lifecycle",
         ],
     }
+
+
+@app.get("/api/runtime")
+def runtime_status() -> dict:
+    return live_runtime.status()
+
+
+@app.post("/api/runtime/start")
+def runtime_start() -> dict:
+    try:
+        result = live_runtime.start()
+    except LiveRuntimeError as exc:
+        record_action("runtime-start", "FAIL", error=str(exc))
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    record_action("runtime-start", "PASS", image=result["image"])
+    return result
+
+
+@app.post("/api/runtime/stop")
+def runtime_stop() -> dict:
+    try:
+        result = live_runtime.stop()
+    except LiveRuntimeError as exc:
+        record_action("runtime-stop", "FAIL", error=str(exc))
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    record_action("runtime-stop", "PASS")
+    return result
+
+
+@app.post("/api/runtime/restart")
+def runtime_restart() -> dict:
+    try:
+        result = live_runtime.restart()
+    except LiveRuntimeError as exc:
+        record_action("runtime-restart", "FAIL", error=str(exc))
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    record_action("runtime-restart", "PASS", image=result["image"])
+    return result
 
 
 @app.get("/api/devices")

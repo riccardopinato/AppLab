@@ -37,7 +37,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.2.0"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.3.0"'; then
               healthy=true
               break
             fi
@@ -47,6 +47,9 @@ jobs:
             docker logs applab-backend-ci
             exit 1
           fi
+
+      - name: Validate live compose
+        run: docker compose -f docker-compose.live.yml config >/dev/null
 
       - name: Build frontend container
         run: docker build -t applab-frontend:ci frontend

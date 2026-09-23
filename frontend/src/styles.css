@@ -84,7 +84,7 @@ h2 { margin: 2px 0 0; font-size: 19px; letter-spacing: -.02em; }
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   margin-bottom: 18px;
 }
@@ -240,4 +240,61 @@ pre {
   .device-grid { grid-template-columns: repeat(2, 1fr); }
   .apk-row, .test-row { grid-template-columns: 1fr; }
   .run-test { width: 100%; }
+}
+
+
+.runtime-panel {
+  border-color: #33436a;
+  background:
+    linear-gradient(150deg, rgba(31, 38, 60, .97), rgba(13, 17, 23, .96));
+}
+.runtime-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.runtime-grid > div {
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid #293344;
+  border-radius: 11px;
+  background: rgba(6, 9, 13, .58);
+}
+.runtime-grid span {
+  display: block;
+  color: #69768a;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+.runtime-grid strong {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.runtime-image {
+  margin: 11px 0 0;
+  overflow-wrap: anywhere;
+  color: #8490a2;
+  font: 10px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.runtime-error {
+  margin: 8px 0 0;
+  padding: 9px 11px;
+  border-left: 3px solid #e46570;
+  border-radius: 8px;
+  background: #211015;
+  color: #d7aeb2;
+  font-size: 11px;
+  line-height: 1.45;
+}
+@media (max-width: 1180px) {
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 720px) {
+  .runtime-grid { grid-template-columns: repeat(2, 1fr); }
 }
