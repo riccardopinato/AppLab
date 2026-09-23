@@ -32,6 +32,7 @@ class LiveRuntimeManager:
         self.adb_key = self.data_dir / "adbkey"
         self.discovery_file = self.data_dir / "emulator-discovery.ini"
         self.gateway_log = self.data_dir / "gateway.log"
+        self.emulator_log = self.data_dir / "emulator-last.log"
         self.emulator_params = os.getenv(
             "APPLAB_EMULATOR_PARAMS",
             "-no-window -no-audio -no-boot-anim -gpu swiftshader_indirect",
@@ -241,6 +242,11 @@ class LiveRuntimeManager:
                 container = self._container()
                 if container is not None:
                     try:
+                        logs = container.logs(stdout=True, stderr=True, tail=2000)
+                        self.emulator_log.write_bytes(logs)
+                    except (DockerException, OSError):
+                        pass
+                    try:
                         container.remove(force=True)
                     except DockerException:
                         pass
@@ -320,6 +326,7 @@ class LiveRuntimeManager:
             "gateway_ready": gateway_ready,
             "gateway_uri": f"localhost:{self.gateway_port}",
             "gateway_log": str(self.gateway_log),
+            "emulator_log": str(self.emulator_log),
             "live_ready": container_state == "running"
             and adb_ready
             and boot_completed
