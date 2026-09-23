@@ -1,0 +1,257 @@
+name: External Flutter Project Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Public GitHub repository in owner/name format
+        required: true
+        type: string
+      ref:
+        description: Branch, tag, or commit SHA to verify
+        required: false
+        default: main
+        type: string
+      working_directory:
+        description: Flutter project directory inside the target repository
+        required: false
+        default: "."
+        type: string
+      flutter_channel:
+        description: Flutter channel
+        required: false
+        default: stable
+        type: string
+      api_level:
+        description: Android emulator API level
+        required: false
+        default: "35"
+        type: string
+      emulator_profile:
+        description: Android emulator hardware profile
+        required: false
+        default: pixel_7_pro
+        type: string
+      apk_path:
+        description: APK path relative to working_directory
+        required: false
+        default: build/app/outputs/flutter-apk/app-debug.apk
+        type: string
+      package_id:
+        description: Optional Android application id; empty enables automatic detection
+        required: false
+        default: ""
+        type: string
+      build_command:
+        description: Flutter APK build command
+        required: false
+        default: flutter build apk --debug
+        type: string
+      run_flutter_tests:
+        description: Run flutter analyze and flutter test
+        required: false
+        default: true
+        type: boolean
+      run_maestro:
+        description: Run Maestro after launch
+        required: false
+        default: true
+        type: boolean
+      maestro_flow:
+        description: Optional Maestro flow path relative to target repository root
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-external-${{ inputs.repository }}-${{ inputs.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify ${{ inputs.repository }}@${{ inputs.ref }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+
+    steps:
+      - name: Validate target coordinates
+        shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+          TARGET_REF: ${{ inputs.ref }}
+          TARGET_WORKDIR: ${{ inputs.working_directory }}
+          TARGET_APK_PATH: ${{ inputs.apk_path }}
+          TARGET_MAESTRO_FLOW: ${{ inputs.maestro_flow }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import PurePosixPath
+
+          repo = os.environ["TARGET_REPOSITORY"].strip()
+          ref = os.environ["TARGET_REF"].strip()
+          if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
+              raise SystemExit(f"Invalid repository: {repo!r}")
+          if not ref or any(ch in ref for ch in "\r\n"):
+              raise SystemExit("Invalid ref")
+
+          for key in ("TARGET_WORKDIR", "TARGET_APK_PATH", "TARGET_MAESTRO_FLOW"):
+              raw = os.environ.get(key, "").strip()
+              if not raw:
+                  continue
+              path = PurePosixPath(raw)
+              if path.is_absolute() or ".." in path.parts:
+                  raise SystemExit(f"{key} must be a safe repository-relative path: {raw!r}")
+          PY
+
+      - name: Checkout AppLab
+        uses: actions/checkout@v6
+        with:
+          path: .applab
+
+      - name: Checkout target project
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          path: target
+          persist-credentials: false
+
+      - name: Prepare evidence directory
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/applab-report"
+          {
+            echo "repository=${{ inputs.repository }}"
+            echo "ref=${{ inputs.ref }}"
+            echo "resolved_sha=$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
+            echo "working_directory=${{ inputs.working_directory }}"
+            echo "apk_path=${{ inputs.apk_path }}"
+          } | tee "$GITHUB_WORKSPACE/applab-report/project.txt"
+
+      - name: Validate Flutter project
+        shell: bash
+        run: |
+          PROJECT_DIR="$GITHUB_WORKSPACE/target/${{ inputs.working_directory }}"
+          test -d "$PROJECT_DIR"
+          test -f "$PROJECT_DIR/pubspec.yaml"
+          test -d "$PROJECT_DIR/android"
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ inputs.flutter_channel }}
+          cache: true
+
+      - name: Resolve dependencies
+        working-directory: target/${{ inputs.working_directory }}
+        run: flutter pub get
+
+      - name: Analyze
+        if: inputs.run_flutter_tests
+        working-directory: target/${{ inputs.working_directory }}
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter analyze 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-analyze.txt"
+
+      - name: Unit tests
+        if: inputs.run_flutter_tests
+        working-directory: target/${{ inputs.working_directory }}
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter test 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-test.txt"
+
+      - name: Build APK
+        working-directory: target/${{ inputs.working_directory }}
+        shell: bash
+        run: |
+          set -o pipefail
+          ${{ inputs.build_command }} 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-build.txt"
+
+      - name: Resolve APK
+        id: apk
+        shell: bash
+        run: |
+          APK_FILE="$GITHUB_WORKSPACE/target/${{ inputs.working_directory }}/${{ inputs.apk_path }}"
+          if [[ ! -s "$APK_FILE" ]]; then
+            echo "Expected APK not found or empty: $APK_FILE" >&2
+            exit 1
+          fi
+          echo "apk_file=$APK_FILE" >> "$GITHUB_OUTPUT"
+          ls -lh "$APK_FILE" | tee "$GITHUB_WORKSPACE/applab-report/apk.txt"
+
+      - name: Install Maestro
+        if: inputs.run_maestro
+        run: |
+          chmod +x .applab/scripts/install_maestro.sh
+          .applab/scripts/install_maestro.sh
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Verify APK on Android
+        id: verify
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          APPLAB_APK_FILE: ${{ steps.apk.outputs.apk_file }}
+          APPLAB_RUN_MAESTRO: ${{ inputs.run_maestro }}
+          APPLAB_MAESTRO_FLOW: ${{ inputs.maestro_flow }}
+        with:
+          api-level: ${{ inputs.api_level }}
+          target: google_apis
+          arch: x86_64
+          profile: ${{ inputs.emulator_profile }}
+          disable-animations: true
+          script: |
+            chmod +x .applab/scripts/*.sh
+            FLOW_PATH=""
+            if [[ -n "$APPLAB_MAESTRO_FLOW" ]]; then
+              FLOW_PATH="$GITHUB_WORKSPACE/target/$APPLAB_MAESTRO_FLOW"
+            fi
+            RUN_MAESTRO="$APPLAB_RUN_MAESTRO" \
+            MAESTRO_FLOW="$FLOW_PATH" \
+            REPORT_DIR="$GITHUB_WORKSPACE/applab-report" \
+            APPLAB_VERSION="0.4.1" \
+            .applab/scripts/verify_apk.sh "$APPLAB_APK_FILE" "${{ inputs.package_id }}"
+
+      - name: Publish AppLab summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## AppLab External Project Runner"
+            echo
+            echo "- Target: `${{ inputs.repository }}@${{ inputs.ref }}`"
+            echo "- Working directory: `${{ inputs.working_directory }}`"
+            echo "- Android verification: `${{ steps.verify.outcome }}`"
+            echo
+            if [[ -f "$GITHUB_WORKSPACE/applab-report/summary.md" ]]; then
+              cat "$GITHUB_WORKSPACE/applab-report/summary.md"
+            else
+              echo "No Android runtime report was produced."
+              echo "Inspect dependency, analyze, test, build, or APK-resolution steps."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload AppLab evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-applab-report-${{ github.run_id }}
+          path: applab-report/
+          if-no-files-found: warn
+          retention-days: 14

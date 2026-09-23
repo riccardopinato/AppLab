@@ -2,6 +2,19 @@
 
 AppLab is a reusable Android APK verification lab.
 
+## v0.4.1 — External Project Runner
+
+AppLab can also test a public Flutter repository **from AppLab itself**, without
+first copying a workflow into the target repository. Run
+`External Flutter Project Runner` from GitHub Actions and supply
+`owner/repository` plus a branch, tag, or commit SHA.
+
+The runner records the resolved target commit, builds the project, executes the
+same Android/ADB/Maestro verification engine as the reusable Project Gate, and
+publishes the standard `result.json` + evidence artifact.
+
+See `integration/flutter/EXTERNAL_RUNNER.md`.
+
 ## v0.4 — Automatic Project Gate
 
 AppLab can be attached to a Flutter repository as a reusable GitHub Actions
