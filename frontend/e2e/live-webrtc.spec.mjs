@@ -166,30 +166,13 @@ test("streams real Android video and sends real WebRTC input", async ({
   const box = await video.boundingBox();
   if (!box) throw new Error("WebRTC video has no browser bounding box");
 
-  const deviceWidth = first.width;
-  const deviceHeight = first.height;
-  const deviceRatio = deviceWidth / deviceHeight;
-  const containerRatio = box.width / box.height;
-
-  let renderedWidth = box.width;
-  let renderedHeight = box.height;
-  let offsetX = 0;
-  let offsetY = 0;
-
-  if (containerRatio > deviceRatio) {
-    renderedWidth = box.height * deviceRatio;
-    offsetX = (box.width - renderedWidth) / 2;
-  } else {
-    renderedHeight = box.width / deviceRatio;
-    offsetY = (box.height - renderedHeight) / 2;
-  }
-
+  // Click the WebRTC handler at the Android node's normalized position.
+  // The upstream event handler performs its own letterbox/device scaling, so
+  // feeding already letterbox-adjusted browser coordinates would scale twice.
   const nativeX = (bounds.left + bounds.right) / 2;
   const nativeY = (bounds.top + bounds.bottom) / 2;
-  const browserX =
-    box.x + offsetX + (nativeX / deviceWidth) * renderedWidth;
-  const browserY =
-    box.y + offsetY + (nativeY / deviceHeight) * renderedHeight;
+  const browserX = box.x + (nativeX / first.width) * box.width;
+  const browserY = box.y + (nativeY / first.height) * box.height;
 
   await page.mouse.move(browserX, browserY);
   await page.mouse.down({ button: "left" });
