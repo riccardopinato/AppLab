@@ -25,25 +25,12 @@
     },
     {
       "key": "watch-battery-guard",
+      "engine": "auto",
       "enabled": true,
       "repository": "riccardopinato/Battery_Guard",
       "ref": "main",
-      "working_directory": ".",
-      "flutter_channel": "stable",
-      "flutter_version": "",
-      "java_version": "17",
-      "prepare_command": "bash \"$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh\"",
-      "post_pub_get_command": "",
-      "android_prepare_command": "",
-      "api_level": "35",
-      "emulator_profile": "pixel_7_pro",
-      "apk_path": "build/app/outputs/flutter-apk/app-debug.apk",
-      "package_id": "",
-      "build_command": "flutter build apk --debug",
-      "run_flutter_tests": true,
       "run_maestro": true,
-      "maestro_flow": "",
-      "engine": "flutter"
+      "cache_epoch": 6
     },
     {
       "key": "watch-notes-ecosistema",
