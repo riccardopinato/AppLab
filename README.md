@@ -2,6 +2,21 @@
 
 AppLab is a reusable Android APK verification lab.
 
+## v0.6.1 — Visual Regression Baseline
+
+AppLab now preserves the last passing final screen for each watched project in
+GitHub Actions cache and compares every new verified screen against it.
+
+The comparison combines normalized screenshot differences with UI hierarchy
+changes. Large visual changes accompanied by major structural UI changes fail
+the gate; moderate differences are warnings. A project's first passing run
+creates the initial baseline automatically.
+
+Baselines are updated only after a successful verification, so a broken commit
+cannot replace a known-good reference.
+
+See `integration/visual-qa/VISUAL_REGRESSION.md`.
+
 ## v0.6 — Smart Visual QA
 
 The Android verification gate now performs deterministic visual checks after
