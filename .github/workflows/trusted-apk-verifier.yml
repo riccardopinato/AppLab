@@ -57,6 +57,10 @@ on:
         required: false
         default: "5"
         type: string
+      approve_visual_baseline:
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -150,15 +154,22 @@ jobs:
         id: baseline
         if: steps.verify.outcome == 'success'
         shell: bash
+        env:
+          APPROVE_VISUAL_BASELINE: ${{ inputs.approve_visual_baseline }}
         run: |
+          EXTRA_ARGS=()
+          if [[ "$APPROVE_VISUAL_BASELINE" == "true" ]]; then
+            EXTRA_ARGS+=(--approve-current)
+          fi
           python .applab/scripts/prepare_visual_baseline.py \
             --report-dir "$GITHUB_WORKSPACE/applab-report" \
             --baseline-dir "$GITHUB_WORKSPACE/.applab-visual-baseline" \
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.6.4" \
-            --github-output "$GITHUB_OUTPUT"
+            --version "0.6.5" \
+            --github-output "$GITHUB_OUTPUT" \
+            "${EXTRA_ARGS[@]}"
 
       - name: Save PASS-only visual baseline
         if: steps.baseline.outputs.promote == 'true'
