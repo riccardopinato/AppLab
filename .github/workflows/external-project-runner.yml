@@ -388,28 +388,18 @@ jobs:
           APPLAB_APK_FILE: ${{ steps.apk.outputs.apk_file }}
           APPLAB_RUN_MAESTRO: ${{ inputs.run_maestro }}
           APPLAB_MAESTRO_FLOW: ${{ inputs.maestro_flow }}
+          APPLAB_ANDROID_PREPARE_COMMAND: ${{ inputs.android_prepare_command }}
+          APPLAB_PACKAGE_ID: ${{ inputs.package_id }}
+          APPLAB_TARGET_ROOT: ${{ github.workspace }}/target
+          APPLAB_REPORT_DIR: ${{ github.workspace }}/applab-report
+          APPLAB_VERSION: "0.5.0"
         with:
           api-level: ${{ inputs.api_level }}
           target: google_apis
           arch: x86_64
           profile: ${{ inputs.emulator_profile }}
           disable-animations: true
-          script: |
-            chmod +x .applab/scripts/*.sh
-            FLOW_PATH=""
-            if [[ -n "$APPLAB_MAESTRO_FLOW" ]]; then
-              FLOW_PATH="$GITHUB_WORKSPACE/target/$APPLAB_MAESTRO_FLOW"
-            fi
-            if [[ -n "${{ inputs.android_prepare_command }}" ]]; then
-              adb install -r -t "$APPLAB_APK_FILE"
-              APPLAB_ANDROID_PREPARE_COMMAND="${{ inputs.android_prepare_command }}" \
-                bash -Eeuo pipefail -c "$APPLAB_ANDROID_PREPARE_COMMAND"
-            fi
-            RUN_MAESTRO="$APPLAB_RUN_MAESTRO" \
-            MAESTRO_FLOW="$FLOW_PATH" \
-            REPORT_DIR="$GITHUB_WORKSPACE/applab-report" \
-            APPLAB_VERSION="0.5.0" \
-            .applab/scripts/verify_apk.sh "$APPLAB_APK_FILE" "${{ inputs.package_id }}"
+          script: bash .applab/scripts/run_external_android_gate.sh
 
       - name: Finalize external result contract
         if: always()
