@@ -38,6 +38,7 @@ jobs:
             scripts/package_build_contract.py \
             scripts/validate_build_contract.py \
             scripts/visual_qa.py \
+            scripts/visual_policy.py \
             scripts/visual_regression.py \
             scripts/visual_journey.py \
             scripts/visual_journey_runtime.py \
@@ -49,6 +50,7 @@ jobs:
           python scripts/package_build_contract.py --self-test
           python scripts/validate_build_contract.py --self-test
           python scripts/visual_qa.py --self-test
+          python scripts/visual_policy.py
           python scripts/visual_regression.py --self-test
           python scripts/visual_journey.py --self-test
           python scripts/watch_discover.py \

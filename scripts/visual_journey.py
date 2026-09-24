@@ -11,6 +11,7 @@ from typing import Any
 
 import visual_qa
 import visual_regression
+import visual_policy
 
 
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
@@ -47,7 +48,9 @@ def evaluate(
     current_root: Path,
     baseline_root: Path | None,
     package_id: str,
+    config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    config = config or visual_policy.validate_config(None)
     screens = []
     qa_results: list[str] = []
     regression_results: list[str] = []
@@ -60,6 +63,7 @@ def evaluate(
             package_id,
         )
         qa_results.append(str(qa["result"]))
+        policy = visual_policy.policy_for(config, name)
 
         regression: dict[str, Any]
         baseline = baseline_root / name if baseline_root else None
@@ -79,16 +83,25 @@ def evaluate(
                     if (baseline / "metadata.json").is_file()
                     else None
                 ),
+                policy=policy,
+                heatmap_path=current / "visual-diff-heatmap.png",
             )
         else:
             regression = {
                 "schema_version": 1,
-                "visual_regression_version": "0.6.2",
+                "visual_regression_version": "0.6.5",
                 "result": "NO_BASELINE",
                 "errors": 0,
                 "warnings": 0,
                 "package_id": package_id,
                 "baseline_metadata": {},
+                "policy": {
+                    "profile": policy["profile"],
+                    "auto_mask_dynamic_views": policy["auto_mask_dynamic_views"],
+                    "manual_mask_count": len(policy["masks"]),
+                    "ignore_text_regex": policy["ignore_text_regex"],
+                    "thresholds": policy["thresholds"],
+                },
                 "image_difference": {},
                 "ui_difference": {},
                 "findings": [],
@@ -114,7 +127,7 @@ def evaluate(
 
     return {
         "schema_version": 1,
-        "visual_journey_version": "0.6.2",
+        "visual_journey_version": "0.6.5",
         "result": overall,
         "visual_qa": qa_result,
         "visual_regression": regression_result,
@@ -132,12 +145,14 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Visual Regression: **{report['visual_regression']}**",
         f"- Checkpoints: {report['checkpoint_count']}",
         "",
-        "| Checkpoint | Visual QA | Regression |",
-        "| --- | --- | --- |",
+        "| Checkpoint | Profile | Visual QA | Regression |",
+        "| --- | --- | --- | --- |",
     ]
     for item in report["checkpoints"]:
         lines.append(
-            f"| {item['name']} | {item['visual_qa']['result']} | "
+            f"| {item['name']} | "
+            f"{item['visual_regression'].get('policy', {}).get('profile', 'standard')} | "
+            f"{item['visual_qa']['result']} | "
             f"{item['visual_regression']['result']} |"
         )
 
@@ -262,9 +277,18 @@ def self_test() -> None:
                 png(d / "screenshot.png", 10)
                 (d / "window.xml").write_text(xml, encoding="utf-8")
 
-        report = evaluate(current, baseline, "com.example.app")
+        config = visual_policy.validate_config(
+            {
+                "defaults": {"profile": "strict"},
+                "checkpoints": {"final": {"profile": "dynamic"}},
+            }
+        )
+        report = evaluate(current, baseline, "com.example.app", config)
         assert report["result"] == "PASS"
         assert report["checkpoint_count"] == 2
+        final = next(x for x in report["checkpoints"] if x["name"] == "final")
+        assert final["visual_regression"]["policy"]["profile"] == "dynamic"
+        assert (current / "final" / "visual-diff-heatmap.png").is_file()
 
         first_run = evaluate(current, None, "com.example.app")
         compat = root / "compat-first-run"
@@ -300,6 +324,7 @@ def main() -> int:
     parser.add_argument("--output-json")
     parser.add_argument("--output-md")
     parser.add_argument("--compat-report-dir")
+    parser.add_argument("--visual-config")
     parser.add_argument("--validate-manifest")
     parser.add_argument("--normalized-manifest")
     parser.add_argument("--self-test", action="store_true")
@@ -321,10 +346,14 @@ def main() -> int:
     if not args.current_root:
         raise SystemExit("--current-root is required")
 
+    config = visual_policy.load_config(
+        Path(args.visual_config) if args.visual_config else None
+    )
     report = evaluate(
         Path(args.current_root),
         Path(args.baseline_root) if args.baseline_root else None,
         args.package_id.strip(),
+        config,
     )
 
     if args.output_json:

@@ -8,6 +8,8 @@ import os
 import re
 from pathlib import Path, PurePosixPath
 
+import visual_policy
+
 ALLOWED_SUFFIXES = {".yaml", ".yml", ".json"}
 MAX_APK_BYTES = 600 * 1024 * 1024
 MAX_FLOW_BYTES = 1_048_576
@@ -87,6 +89,15 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
                 text = path.read_text(encoding="utf-8", errors="strict")
                 if DISALLOWED_MAESTRO.search(text):
                     raise ValueError(f"Executable Maestro script command is forbidden: {relative}")
+            elif path.name == "applab-visual.json":
+                try:
+                    visual_policy.validate_config(
+                        json.loads(path.read_text(encoding="utf-8"))
+                    )
+                except (ValueError, json.JSONDecodeError) as exc:
+                    raise ValueError(
+                        f"Invalid AppLab visual policy: {relative}: {exc}"
+                    ) from exc
 
     if flow:
         flow_path = evidence / Path(flow)

@@ -115,6 +115,11 @@ on:
         required: false
         default: "manual"
         type: string
+      approve_visual_baseline:
+        description: Explicitly accept a visual WARN as the new baseline
+        required: false
+        default: false
+        type: boolean
       config_fingerprint:
         description: Fingerprint of this target's watcher/build configuration
         required: false
@@ -211,6 +216,10 @@ on:
         required: false
         default: "manual"
         type: string
+      approve_visual_baseline:
+        required: false
+        default: false
+        type: boolean
       config_fingerprint:
         required: false
         default: "manual"
@@ -469,6 +478,7 @@ jobs:
       cache_verification: ${{ inputs.cache_verification }}
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
+      approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       run_maestro: ${{ inputs.run_maestro }}
       android_prepare_command: ${{ inputs.android_prepare_command }}
       api_level: ${{ inputs.api_level }}

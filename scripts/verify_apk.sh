@@ -364,6 +364,15 @@ elif [[ -n "$TARGET_ROOT" ]]; then
   log "custom Visual Journey skipped because Maestro is disabled."
 fi
 
+VISUAL_CONFIG_ARGS=()
+if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-visual.json" ]]; then
+  VISUAL_CONFIG_ARGS=(--visual-config "$PROJECT_ROOT/.maestro/applab-visual.json")
+  log "Visual Regression Pro config: project checkpoint policy"
+elif [[ -n "$TARGET_ROOT" && -f "$TARGET_ROOT/.maestro/applab-visual.json" ]]; then
+  VISUAL_CONFIG_ARGS=(--visual-config "$TARGET_ROOT/.maestro/applab-visual.json")
+  log "Visual Regression Pro config: repository checkpoint policy"
+fi
+
 JOURNEY_STATUS=0
 set +e
 if [[ -n "$VISUAL_BASELINE_DIR" && -d "$VISUAL_BASELINE_DIR/journey" ]]; then
@@ -373,14 +382,16 @@ if [[ -n "$VISUAL_BASELINE_DIR" && -d "$VISUAL_BASELINE_DIR/journey" ]]; then
     --package-id "$PACKAGE_ID" \
     --output-json "$REPORT_DIR/visual-journey.json" \
     --output-md "$REPORT_DIR/visual-journey.md" \
-    --compat-report-dir "$REPORT_DIR"
+    --compat-report-dir "$REPORT_DIR" \
+    "${VISUAL_CONFIG_ARGS[@]}"
 else
   python3 "$(dirname "$0")/visual_journey.py" \
     --current-root "$REPORT_DIR/visual-journey/current" \
     --package-id "$PACKAGE_ID" \
     --output-json "$REPORT_DIR/visual-journey.json" \
     --output-md "$REPORT_DIR/visual-journey.md" \
-    --compat-report-dir "$REPORT_DIR"
+    --compat-report-dir "$REPORT_DIR" \
+    "${VISUAL_CONFIG_ARGS[@]}"
 fi
 JOURNEY_STATUS="$?"
 set -e
