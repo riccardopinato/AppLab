@@ -13,6 +13,7 @@ import system_lab
 import network_lab
 import persistence_lab
 import configuration_lab
+import resource_pressure_lab
 import upgrade_lab
 
 ALLOWED_SUFFIXES = {".yaml", ".yml", ".json"}
@@ -131,6 +132,13 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
                     raise ValueError(
                         f"Invalid AppLab configuration policy: {relative}: {exc}"
                     ) from exc
+            elif path.name == "applab-resource.json":
+                try:
+                    resource_pressure_lab.load_config(path)
+                except (ValueError, json.JSONDecodeError) as exc:
+                    raise ValueError(
+                        f"Invalid AppLab resource-pressure policy: {relative}: {exc}"
+                    ) from exc
             elif path.name == "applab-upgrade.json":
                 try:
                     upgrade_lab.load_config(path)
@@ -179,6 +187,10 @@ def self_test() -> None:
         )
         (root / "target-evidence/.maestro/applab-configuration.json").write_text(
             '{"schema_version":1,"required":false,"rotation_cycles":1,"background_cycles":1}',
+            encoding="utf-8",
+        )
+        (root / "target-evidence/.maestro/applab-resource.json").write_text(
+            '{"schema_version":1,"required":false,"trim_levels":["RUNNING_LOW"],"process_death_cycles":1}',
             encoding="utf-8",
         )
         (root / "target-evidence/.maestro/applab-upgrade.json").write_text(
