@@ -14,6 +14,7 @@ CONTRACT_FILES = (
     "scripts/visual_journey.py",
     "scripts/visual_journey_runtime.py",
     "scripts/prepare_visual_baseline.py",
+    "scripts/install_maestro.sh",
     "scripts/project_autodiscover.py",
     ".github/workflows/external-project-runner.yml",
     ".github/workflows/external-native-android-runner.yml",
@@ -24,7 +25,15 @@ CONTRACT_VERSION = "0.6.3"
 def compute(root: Path) -> str:
     digest = hashlib.sha256()
     digest.update(f"AppLab contract {CONTRACT_VERSION}\0".encode())
-    for relative in CONTRACT_FILES:
+    files = list(CONTRACT_FILES)
+    profiles = root / "watch-profiles"
+    if profiles.is_dir():
+        files.extend(
+            str(path.relative_to(root))
+            for path in sorted(profiles.rglob("*"))
+            if path.is_file()
+        )
+    for relative in files:
         path = root / relative
         digest.update(relative.encode())
         digest.update(b"\0")
