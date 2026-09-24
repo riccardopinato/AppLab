@@ -1,0 +1,12 @@
+{
+  "checkpoints": [
+    {
+      "name": "settings",
+      "flow": ".maestro/journey/settings.yaml"
+    },
+    {
+      "name": "dialog",
+      "flow": ".maestro/journey/dialog.yaml"
+    }
+  ]
+}
