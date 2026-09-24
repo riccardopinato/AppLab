@@ -29,7 +29,7 @@ on:
         default: build/app/outputs/flutter-apk/app-debug.apk
         type: string
       package_id:
-        description: Optional Android application id; empty enables automatic detection
+        description: Optional Android application id
         required: false
         default: ""
         type: string
@@ -39,17 +39,17 @@ on:
         default: flutter build apk --debug
         type: string
       run_flutter_tests:
-        description: Run flutter analyze and flutter test before APK verification
+        description: Run flutter analyze and flutter test
         required: false
         default: true
         type: boolean
       run_maestro:
-        description: Run a Maestro smoke flow after launch
+        description: Run Maestro smoke/journey verification
         required: false
         default: true
         type: boolean
       maestro_flow:
-        description: Optional flow path relative to repository root; empty generates a generic smoke flow
+        description: Optional flow path relative to repository root
         required: false
         default: ""
         type: string
@@ -64,148 +64,29 @@ on:
         default: "5"
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   verify:
-    name: AppLab Project Gate
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-
-    steps:
-      - name: Checkout application
-        uses: actions/checkout@v7
-
-      - name: Prepare AppLab report
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/applab-report"
-          {
-            echo "repository=$GITHUB_REPOSITORY"
-            echo "sha=$GITHUB_SHA"
-            echo "ref=$GITHUB_REF"
-            echo "working_directory=${{ inputs.working_directory }}"
-            echo "apk_path=${{ inputs.apk_path }}"
-          } > "$GITHUB_WORKSPACE/applab-report/project.txt"
-
-      - name: Setup Java
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: ${{ inputs.flutter_channel }}
-          cache: true
-
-      - name: Resolve dependencies
-        working-directory: ${{ inputs.working_directory }}
-        run: flutter pub get
-
-      - name: Analyze
-        if: inputs.run_flutter_tests
-        working-directory: ${{ inputs.working_directory }}
-        shell: bash
-        run: |
-          set -o pipefail
-          flutter analyze 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-analyze.txt"
-
-      - name: Unit tests
-        if: inputs.run_flutter_tests
-        working-directory: ${{ inputs.working_directory }}
-        shell: bash
-        run: |
-          set -o pipefail
-          flutter test 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-test.txt"
-
-      - name: Build APK
-        working-directory: ${{ inputs.working_directory }}
-        shell: bash
-        run: |
-          set -o pipefail
-          ${{ inputs.build_command }} 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-build.txt"
-
-      - name: Resolve APK
-        id: apk
-        shell: bash
-        run: |
-          APK_FILE="$GITHUB_WORKSPACE/${{ inputs.working_directory }}/${{ inputs.apk_path }}"
-          if [[ ! -s "$APK_FILE" ]]; then
-            echo "Expected APK not found or empty: $APK_FILE" >&2
-            exit 1
-          fi
-          echo "apk_file=$APK_FILE" >> "$GITHUB_OUTPUT"
-          ls -lh "$APK_FILE" | tee "$GITHUB_WORKSPACE/applab-report/apk.txt"
-
-      - name: Checkout AppLab
-        uses: actions/checkout@v7
-        with:
-          repository: riccardopinato/AppLab
-          path: .applab
-
-      - name: Install Maestro
-        if: inputs.run_maestro
-        run: |
-          chmod +x .applab/scripts/install_maestro.sh
-          .applab/scripts/install_maestro.sh
-
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Verify APK on Android
-        id: verify
-        uses: reactivecircus/android-emulator-runner@v2
-        env:
-          APPLAB_MAESTRO_FLOW: ${{ inputs.maestro_flow }}
-          APPLAB_RUN_MAESTRO: ${{ inputs.run_maestro }}
-          APPLAB_START_TIMEOUT: ${{ inputs.start_timeout }}
-          APPLAB_SETTLE_SECONDS: ${{ inputs.settle_seconds }}
-          APPLAB_APK_FILE: ${{ steps.apk.outputs.apk_file }}
-        with:
-          api-level: ${{ inputs.api_level }}
-          target: google_apis
-          arch: x86_64
-          profile: ${{ inputs.emulator_profile }}
-          disable-animations: true
-          script: |
-            chmod +x .applab/scripts/*.sh
-            FLOW_PATH=""
-            if [[ -n "$APPLAB_MAESTRO_FLOW" ]]; then
-              FLOW_PATH="$GITHUB_WORKSPACE/$APPLAB_MAESTRO_FLOW"
-            fi
-            RUN_MAESTRO="$APPLAB_RUN_MAESTRO" \
-            MAESTRO_FLOW="$FLOW_PATH" \
-            REPORT_DIR="$GITHUB_WORKSPACE/applab-report" \
-            START_TIMEOUT="$APPLAB_START_TIMEOUT" \
-            SETTLE_SECONDS="$APPLAB_SETTLE_SECONDS" \
-            .applab/scripts/verify_apk.sh "$APPLAB_APK_FILE" "${{ inputs.package_id }}"
-
-      - name: Publish AppLab summary
-        if: always()
-        shell: bash
-        run: |
-          {
-            echo "## AppLab Project Gate"
-            echo
-            echo "- Repository: `$GITHUB_REPOSITORY`"
-            echo "- Commit: `$GITHUB_SHA`"
-            echo "- Android verification step: `${{ steps.verify.outcome }}`"
-            echo
-            if [[ -f "$GITHUB_WORKSPACE/applab-report/summary.md" ]]; then
-              cat "$GITHUB_WORKSPACE/applab-report/summary.md"
-            else
-              echo "AppLab APK verification did not produce a runtime report."
-              echo "Check analyze, unit-test, build, or APK-resolution steps above."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload AppLab report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: applab-report-${{ github.sha }}
-          path: applab-report/
-          if-no-files-found: warn
-          retention-days: 14
+    name: AppLab v0.6.3 Unified Flutter Gate
+    uses: riccardopinato/AppLab/.github/workflows/external-project-runner.yml@main
+    with:
+      repository: ${{ github.repository }}
+      ref: ${{ github.sha }}
+      working_directory: ${{ inputs.working_directory }}
+      flutter_channel: ${{ inputs.flutter_channel }}
+      java_version: "17"
+      api_level: ${{ inputs.api_level }}
+      emulator_profile: ${{ inputs.emulator_profile }}
+      apk_path: ${{ inputs.apk_path }}
+      package_id: ${{ inputs.package_id }}
+      build_command: ${{ inputs.build_command }}
+      run_flutter_tests: ${{ inputs.run_flutter_tests }}
+      run_maestro: ${{ inputs.run_maestro }}
+      maestro_flow: ${{ inputs.maestro_flow }}
+      history_key: reusable-flutter
+      cache_verification: false
+      contract_fingerprint: reusable-v063
+      start_timeout: ${{ inputs.start_timeout }}
+      settle_seconds: ${{ inputs.settle_seconds }}
