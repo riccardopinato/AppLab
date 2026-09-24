@@ -776,7 +776,7 @@ def self_test() -> None:
             baseline_ui,
             current_ui,
             "com.example.app",
-            [r"^time \\d{2}:\\d{2}$"],
+            [r"^time \d{2}:\d{2}$"],
         )
         assert ignored["text_jaccard_similarity"] == 1.0
 
