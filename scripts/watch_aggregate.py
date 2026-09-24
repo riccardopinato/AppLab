@@ -76,8 +76,8 @@ def main() -> int:
     if current:
         lines.extend(
             [
-                "| Repository | SHA | Result | Maestro | Visual QA | Regression |",
-                "| --- | --- | --- | --- | --- | --- |",
+                "| Repository | SHA | Result | Maestro | Visual QA | Regression | Journey |",
+                "| --- | --- | --- | --- | --- | --- | --- |",
             ]
         )
         for item in current:
@@ -86,7 +86,13 @@ def main() -> int:
             short_sha = sha[:8] if sha else "—"
             result = str(item.get("result", "UNKNOWN"))
             maestro = str(item.get("maestro", "—"))
-            lines.append(f"| {repository} | \`{short_sha}\` | **{result}** | {maestro} |")
+            visual_qa = str(item.get("visual_qa", "—"))
+            visual_regression = str(item.get("visual_regression", "—"))
+            visual_journey = str(item.get("visual_journey", "—"))
+            lines.append(
+                f"| {repository} | `{short_sha}` | **{result}** | {maestro} | "
+                f"{visual_qa} | {visual_regression} | {visual_journey} |"
+            )
     else:
         lines.append("No new repository commits required AppLab verification in this run.")
 
