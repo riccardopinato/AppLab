@@ -72,6 +72,16 @@ payload = {
         "performance_lab_summary": "performance-lab.md",
     },
 }
+performance_path = Path(output).parent / "performance-lab.json"
+if performance_path.is_file():
+    try:
+        performance_payload = json.loads(performance_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        performance_payload = {}
+    if isinstance(performance_payload, dict):
+        payload["performance"] = performance_payload.get("metrics", {})
+        payload["performance_findings"] = performance_payload.get("findings", [])
+
 Path(output).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
   else
