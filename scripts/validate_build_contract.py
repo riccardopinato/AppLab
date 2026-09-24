@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 
 import visual_policy
 import system_lab
+import network_lab
 
 ALLOWED_SUFFIXES = {".yaml", ".yml", ".json"}
 MAX_APK_BYTES = 600 * 1024 * 1024
