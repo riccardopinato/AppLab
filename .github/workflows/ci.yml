@@ -36,6 +36,7 @@ jobs:
             scripts/interaction_crawler.py \
             scripts/system_lab.py \
             scripts/performance_lab.py \
+            scripts/network_lab.py \
             scripts/prepare_performance_baseline.py \
             scripts/project_autodiscover.py \
             scripts/contract_fingerprint.py \
@@ -54,6 +55,7 @@ jobs:
           python scripts/interaction_crawler.py --self-test
           python scripts/system_lab.py --self-test
           python scripts/performance_lab.py --self-test
+          python scripts/network_lab.py --self-test
           python scripts/prepare_performance_baseline.py --self-test
           python scripts/project_autodiscover.py --self-test
           python scripts/prepare_visual_baseline.py --self-test
@@ -83,7 +85,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.7.2"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.7.3"'; then
               healthy=true
               break
             fi

@@ -14,6 +14,7 @@ on:
       - "scripts/interaction_crawler.py"
       - "scripts/system_lab.py"
       - "scripts/performance_lab.py"
+      - "scripts/network_lab.py"
       - "scripts/prepare_performance_baseline.py"
       - "scripts/contract_fingerprint.py"
       - "scripts/prepare_visual_baseline.py"

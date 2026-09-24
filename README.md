@@ -1,5 +1,24 @@
 # AppLab
 
+## v0.7.3 — Network & Offline Lab
+
+The trusted Android gate now removes and restores connectivity, verifies that
+the target stays healthy while offline, optionally relaunches it without a
+network, and checks recovery after connectivity returns. App crashes, ANRs or
+failed relaunches fail the gate; emulator network-control limitations are WARN
+by default and can be made strict with `.maestro/applab-network.json`.
+
+Evidence includes `network-lab.json`, `network-lab.md`,
+`network-offline.png`, and `network-recovered.png`. The verdict is propagated
+through Repo Watcher history and the Control Center.
+
+## v0.7.2 — Performance Lab
+
+Trusted verification records cold/warm startup, PSS/RSS, frame jank and
+percentiles, CPU snapshot and APK size. Last-known-good performance baselines
+are promoted only from eligible passing runs, allowing AppLab to flag startup,
+memory and jank regressions without replacing a known-good baseline.
+
 ## v0.7.1 — Verified Release Artifact
 
 A successful trusted verification now produces a PASS-only installable APK
