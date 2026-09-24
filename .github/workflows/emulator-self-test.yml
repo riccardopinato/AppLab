@@ -8,6 +8,14 @@ on:
       - "scripts/**"
       - "selftest/**"
       - "tests/flows/selftest.yaml"
+      - ".maestro/**"
+      - ".github/workflows/emulator-self-test.yml"
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "selftest/**"
+      - "tests/flows/selftest.yaml"
+      - ".maestro/**"
       - ".github/workflows/emulator-self-test.yml"
 
 concurrency:
@@ -65,7 +73,7 @@ jobs:
           disable-animations: true
           script: |
             chmod +x scripts/*.sh
-            RUN_MAESTRO=true MAESTRO_FLOW="$GITHUB_WORKSPACE/tests/flows/selftest.yaml" REPORT_DIR="$GITHUB_WORKSPACE/applab-report" APPLAB_TARGET_ROOT="$GITHUB_WORKSPACE" APPLAB_PROJECT_ROOT="$GITHUB_WORKSPACE" APPLAB_VERSION="0.6.3" ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk" "dev.applab.selftest"
+            RUN_MAESTRO=true MAESTRO_FLOW="$GITHUB_WORKSPACE/tests/flows/selftest.yaml" REPORT_DIR="$GITHUB_WORKSPACE/applab-report" APPLAB_TARGET_ROOT="$GITHUB_WORKSPACE" APPLAB_PROJECT_ROOT="$GITHUB_WORKSPACE" APPLAB_VERSION="0.6.7" ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk" "dev.applab.selftest"
             grep -Fq -- "- Result: PASS" "$GITHUB_WORKSPACE/applab-report/summary.md"
             grep -Fq -- "- Maestro: PASS" "$GITHUB_WORKSPACE/applab-report/summary.md"
             grep -Fq "dev.applab.selftest" "$GITHUB_WORKSPACE/applab-report/activity.txt"
@@ -74,9 +82,10 @@ jobs:
             test -s "$GITHUB_WORKSPACE/applab-report/post-maestro.png"
             test -s "$GITHUB_WORKSPACE/applab-report/logcat.txt"
             python -c 'import json,pathlib; report=json.loads(pathlib.Path("applab-report/visual-journey.json").read_text()); names={item["name"] for item in report["checkpoints"]}; assert {"launch","final","settings","dialog"} <= names, names; assert report["checkpoint_count"] >= 4, report; assert report["visual_qa"] == "PASS", report'
+            python -c 'import json,pathlib; report=json.loads(pathlib.Path("applab-report/system-lab.json").read_text()); assert report["result"] == "PASS", report; assert report["process_restart"]["restart_success"], report; assert report["deep_links"][0]["success"], report; assert any(x["permission"] == "android.permission.POST_NOTIFICATIONS" and x["success"] for x in report["permission_actions"]), report'
 
-            RUN_MAESTRO=false REPORT_DIR="$GITHUB_WORKSPACE/applab-report-no-maestro" APPLAB_TARGET_ROOT="$GITHUB_WORKSPACE" APPLAB_PROJECT_ROOT="$GITHUB_WORKSPACE" APPLAB_VERSION="0.6.3" ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk" "dev.applab.selftest"
-            python -c 'import json,pathlib; report=json.loads(pathlib.Path("applab-report-no-maestro/result.json").read_text()); journey=json.loads(pathlib.Path("applab-report-no-maestro/visual-journey.json").read_text()); assert report["result"] == "PASS", report; assert report["maestro"] == "SKIPPED", report; assert journey["checkpoint_count"] == 2, journey; assert {x["name"] for x in journey["checkpoints"]} == {"launch","final"}, journey'
+            RUN_MAESTRO=false REPORT_DIR="$GITHUB_WORKSPACE/applab-report-no-maestro" APPLAB_TARGET_ROOT="$GITHUB_WORKSPACE" APPLAB_PROJECT_ROOT="$GITHUB_WORKSPACE" APPLAB_VERSION="0.6.7" ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk" "dev.applab.selftest"
+            python -c 'import json,pathlib; report=json.loads(pathlib.Path("applab-report-no-maestro/result.json").read_text()); journey=json.loads(pathlib.Path("applab-report-no-maestro/visual-journey.json").read_text()); system=json.loads(pathlib.Path("applab-report-no-maestro/system-lab.json").read_text()); assert report["result"] == "PASS", report; assert report["maestro"] == "SKIPPED", report; assert journey["checkpoint_count"] == 2, journey; assert {x["name"] for x in journey["checkpoints"]} == {"launch","final"}, journey; assert system["result"] == "PASS", system'
 
       - name: Publish runtime evidence
         if: always()

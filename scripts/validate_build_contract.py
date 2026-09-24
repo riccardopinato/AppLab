@@ -9,6 +9,7 @@ import re
 from pathlib import Path, PurePosixPath
 
 import visual_policy
+import system_lab
 
 ALLOWED_SUFFIXES = {".yaml", ".yml", ".json"}
 MAX_APK_BYTES = 600 * 1024 * 1024
@@ -97,6 +98,13 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
                 except (ValueError, json.JSONDecodeError) as exc:
                     raise ValueError(
                         f"Invalid AppLab visual policy: {relative}: {exc}"
+                    ) from exc
+            elif path.name == "applab-system.json":
+                try:
+                    system_lab.load_config(path)
+                except (ValueError, json.JSONDecodeError) as exc:
+                    raise ValueError(
+                        f"Invalid AppLab system policy: {relative}: {exc}"
                     ) from exc
 
     if flow:
