@@ -16,6 +16,7 @@ on:
       - "scripts/performance_lab.py"
       - "scripts/network_lab.py"
       - "scripts/persistence_lab.py"
+      - "scripts/configuration_lab.py"
       - "scripts/upgrade_lab.py"
       - "scripts/prepare_upgrade_baseline.py"
       - "scripts/prepare_performance_baseline.py"
