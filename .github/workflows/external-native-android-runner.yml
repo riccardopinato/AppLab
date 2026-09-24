@@ -224,10 +224,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Verify ${{ inputs.repository }}@${{ inputs.ref }}
+  build:
+    name: Build ${{ inputs.repository }}@${{ inputs.ref }}
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 35
+    outputs:
+      resolved_sha: ${{ steps.target.outputs.resolved_sha }}
+      artifact_name: ${{ steps.contract.outputs.artifact_name }}
 
     steps:
       - name: Validate target coordinates
@@ -403,7 +406,8 @@ jobs:
             verify --verbose "${{ steps.apk.outputs.apk_file }}" |
             tee "$GITHUB_WORKSPACE/applab-report/apksigner.txt"
 
-      - name: Restore trusted AppLab verifier
+
+      - name: Restore trusted AppLab contract packager
         shell: bash
         env:
           APPLAB_TRUSTED_SHA: ${{ job.workflow_sha }}
@@ -413,135 +417,113 @@ jobs:
           git -C "$GITHUB_WORKSPACE/.applab" clean -ffd
           test "$(git -C "$GITHUB_WORKSPACE/.applab" rev-parse HEAD)" = "$APPLAB_TRUSTED_SHA"
 
-      - name: Install Maestro
-        if: inputs.run_maestro
-        run: |
-          chmod +x .applab/scripts/install_maestro.sh
-          .applab/scripts/install_maestro.sh
-
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
-            sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Restore previous passing visual baseline
-        id: visual_baseline
-        uses: actions/cache/restore@v6
-        with:
-          path: .applab-visual-baseline
-          key: applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
-          restore-keys: |
-            applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-
-
-      - name: Verify APK on Android
-        id: verify
-        uses: reactivecircus/android-emulator-runner@v2
-        env:
-          APPLAB_APK_FILE: ${{ steps.apk.outputs.apk_file }}
-          APPLAB_RUN_MAESTRO: ${{ inputs.run_maestro }}
-          APPLAB_MAESTRO_FLOW: ${{ inputs.maestro_flow }}
-          APPLAB_ANDROID_PREPARE_COMMAND: ${{ inputs.android_prepare_command }}
-          APPLAB_PACKAGE_ID: ${{ inputs.package_id }}
-          APPLAB_TARGET_ROOT: ${{ github.workspace }}/target
-          APPLAB_PROJECT_ROOT: ${{ github.workspace }}/target/${{ inputs.working_directory }}
-          APPLAB_TRUSTED_ROOT: ${{ github.workspace }}/.applab
-          APPLAB_TRUSTED_SHA: ${{ job.workflow_sha }}
-          APPLAB_REPORT_DIR: ${{ github.workspace }}/applab-report
-          APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
-          APPLAB_VERSION: "0.6.3"
-        with:
-          api-level: ${{ inputs.api_level }}
-          target: google_apis
-          arch: x86_64
-          profile: ${{ inputs.emulator_profile }}
-          disable-animations: true
-          script: bash .applab/scripts/run_external_android_gate.sh
-
-      - name: Prepare PASS-only visual baseline
-        id: baseline
-        if: steps.verify.outcome == 'success'
+      - name: Package isolated APK contract
+        id: contract
         shell: bash
         run: |
-          python .applab/scripts/prepare_visual_baseline.py \
-            --report-dir "$GITHUB_WORKSPACE/applab-report" \
-            --baseline-dir "$GITHUB_WORKSPACE/.applab-visual-baseline" \
+          set -Eeuo pipefail
+          ARTIFACT_NAME="applab-build-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}"
+          echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+          python .applab/scripts/package_build_contract.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --apk "${{ steps.apk.outputs.apk_file }}" \
+            --output "$GITHUB_WORKSPACE/applab-build-contract" \
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ steps.target.outputs.resolved_sha }}" \
-            --run-id "$GITHUB_RUN_ID" \
-            --version "0.6.3" \
-            --github-output "$GITHUB_OUTPUT"
+            --engine "native_android" \
+            --working-directory "${{ inputs.working_directory }}" \
+            --package-id "${{ inputs.package_id }}" \
+            --maestro-flow "${{ inputs.maestro_flow }}"
 
-      - name: Save PASS-only visual baseline
-        if: steps.baseline.outputs.promote == 'true'
-        uses: actions/cache/save@v6
+      - name: Upload isolated APK contract
+        uses: actions/upload-artifact@v7
         with:
-          path: .applab-visual-baseline
-          key: applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}-${{ github.run_id }}
+          name: ${{ steps.contract.outputs.artifact_name }}
+          path: applab-build-contract/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 0
 
-      - name: Finalize external result contract
+      - name: Upload build-phase evidence
         if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-build-evidence-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: applab-report/
+          if-no-files-found: warn
+          retention-days: 7
+
+  verify:
+    name: Trusted verify ${{ inputs.repository }}
+    needs: build
+    if: needs.build.result == 'success'
+    uses: ./.github/workflows/trusted-apk-verifier.yml
+    with:
+      build_artifact_name: ${{ needs.build.outputs.artifact_name }}
+      repository: ${{ inputs.repository }}
+      ref: ${{ inputs.ref }}
+      resolved_sha: ${{ needs.build.outputs.resolved_sha }}
+      engine: "native_android"
+      history_key: ${{ inputs.history_key }}
+      cache_verification: ${{ inputs.cache_verification }}
+      contract_fingerprint: ${{ inputs.contract_fingerprint }}
+      config_fingerprint: ${{ inputs.config_fingerprint }}
+      run_maestro: ${{ inputs.run_maestro }}
+      android_prepare_command: ${{ inputs.android_prepare_command }}
+      api_level: ${{ inputs.api_level }}
+      emulator_profile: ${{ inputs.emulator_profile }}
+
+  report_build_failure:
+    name: Report build failure
+    needs: build
+    if: always() && needs.build.result != 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .applab
+          persist-credentials: false
+
+      - name: Finalize failed build result
+        shell: bash
         env:
-          APPLAB_PIPELINE_STATUS: ${{ job.status }}
-          APPLAB_RESOLVED_SHA: ${{ steps.target.outputs.resolved_sha }}
+          RESOLVED_SHA: ${{ needs.build.outputs.resolved_sha }}
         run: |
+          set -Eeuo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/applab-report"
+          SHA="$RESOLVED_SHA"
+          [[ -n "$SHA" ]] || SHA="${{ inputs.ref }}"
           python .applab/scripts/finalize_external_result.py \
             --report-dir "$GITHUB_WORKSPACE/applab-report" \
             --repository "${{ inputs.repository }}" \
             --ref "${{ inputs.ref }}" \
-            --resolved-sha "$APPLAB_RESOLVED_SHA" \
+            --resolved-sha "$SHA" \
             --history-key "${{ inputs.history_key }}" \
-            --engine native_android \
-            --pipeline-status "$APPLAB_PIPELINE_STATUS" \
+            --engine "native_android" \
+            --pipeline-status failure \
             --run-id "$GITHUB_RUN_ID"
 
-      - name: Prepare verification cache payload
-        if: always() && inputs.cache_verification && steps.target.outputs.resolved_sha != ''
+      - name: Prepare failed verification cache payload
+        if: inputs.cache_verification && needs.build.outputs.resolved_sha != ''
         run: |
-          rm -rf "$GITHUB_WORKSPACE/.applab-watch-cache"
           mkdir -p "$GITHUB_WORKSPACE/.applab-watch-cache"
-          cp "$GITHUB_WORKSPACE/applab-report/result.json" \
-            "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
-          cp "$GITHUB_WORKSPACE/applab-report/summary.md" \
-            "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
+          cp "$GITHUB_WORKSPACE/applab-report/result.json" "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
+          cp "$GITHUB_WORKSPACE/applab-report/summary.md" "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
 
-      - name: Mark resolved commit as checked
-        if: always() && inputs.cache_verification && steps.target.outputs.resolved_sha != ''
+      - name: Cache failed resolved commit
+        if: inputs.cache_verification && needs.build.outputs.resolved_sha != ''
         uses: actions/cache/save@v6
         with:
           path: .applab-watch-cache
-          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
+          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ needs.build.outputs.resolved_sha }}
 
-      - name: Publish AppLab summary
-        if: always()
-        shell: bash
-        env:
-          APPLAB_TARGET_REPOSITORY: ${{ inputs.repository }}
-          APPLAB_TARGET_REF: ${{ inputs.ref }}
-          APPLAB_TARGET_WORKDIR: ${{ inputs.working_directory }}
-          APPLAB_VERIFY_OUTCOME: ${{ steps.verify.outcome }}
-        run: |
-          {
-            echo "## AppLab Native Android Project Runner"
-            echo
-            printf -- '- Target: `%s@%s`\n' "$APPLAB_TARGET_REPOSITORY" "$APPLAB_TARGET_REF"
-            printf -- '- Working directory: `%s`\n' "$APPLAB_TARGET_WORKDIR"
-            printf -- '- Android verification: `%s`\n' "$APPLAB_VERIFY_OUTCOME"
-            echo
-            if [[ -f "$GITHUB_WORKSPACE/applab-report/summary.md" ]]; then
-              cat "$GITHUB_WORKSPACE/applab-report/summary.md"
-            else
-              echo "No Android runtime report was produced."
-              echo "Inspect test, lint, build, signature, or APK-resolution steps."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload AppLab evidence
-        if: always()
+      - name: Upload failed build result
         uses: actions/upload-artifact@v7
         with:
           name: applab-${{ inputs.history_key }}-${{ github.run_id }}
           path: applab-report/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
