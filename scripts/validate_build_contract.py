@@ -106,6 +106,13 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
                     raise ValueError(
                         f"Invalid AppLab system policy: {relative}: {exc}"
                     ) from exc
+            elif path.name == "applab-network.json":
+                try:
+                    network_lab.load_config(path)
+                except (ValueError, json.JSONDecodeError) as exc:
+                    raise ValueError(
+                        f"Invalid AppLab network policy: {relative}: {exc}"
+                    ) from exc
 
     if flow:
         flow_path = evidence / Path(flow)
@@ -137,6 +144,10 @@ def self_test() -> None:
         (root / "app.apk").write_bytes(b"APK")
         flow = root / "target-evidence/.maestro/smoke.yaml"
         flow.write_text("appId: example\n---\n- assertVisible: Home\n", encoding="utf-8")
+        (root / "target-evidence/.maestro/applab-network.json").write_text(
+            '{"schema_version":1,"required":false,"offline_seconds":1.0}',
+            encoding="utf-8",
+        )
         payload = {
             "schema_version": 1, "repository": "owner/repo", "resolved_sha": "a"*40,
             "engine": "flutter", "working_directory": ".", "package_id": "com.example.app",
