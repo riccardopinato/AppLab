@@ -15,6 +15,13 @@ from typing import Any
 
 
 BOUNDS_RE = re.compile(r"\[(\-?\d+),(\-?\d+)\]\[(\-?\d+),(\-?\d+)\]")
+DYNAMIC_VIEW_TOKENS = (
+    "MapView",
+    "SurfaceView",
+    "TextureView",
+    "WebView",
+    "PreviewView",
+)
 
 
 @dataclass
@@ -148,26 +155,134 @@ def sample_grid(
     return result
 
 
+def _masked(x: float, y: float, masks: list[dict[str, float]]) -> bool:
+    for mask in masks:
+        if (
+            mask["x"] <= x <= mask["x"] + mask["width"]
+            and mask["y"] <= y <= mask["y"] + mask["height"]
+        ):
+            return True
+    return False
+
+
+def _write_heatmap(
+    path: Path,
+    values: list[float | None],
+    grid_w: int,
+    grid_h: int,
+    scale: int = 8,
+) -> None:
+    width = grid_w * scale
+    height = grid_h * scale
+    rows: list[bytes] = []
+    for gy in range(grid_h):
+        source_row = bytearray()
+        for gx in range(grid_w):
+            value = values[gy * grid_w + gx]
+            if value is None:
+                pixel = (32, 32, 32)
+            else:
+                intensity = max(0, min(255, int(value * 4.0)))
+                pixel = (intensity, max(0, 180 - intensity // 2), 0)
+            source_row.extend(pixel * scale)
+        encoded = b"\x00" + bytes(source_row)
+        rows.extend(encoded for _ in range(scale))
+
+    signature = b"\x89PNG\r\n\x1a\n"
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        crc = zlib.crc32(kind)
+        crc = zlib.crc32(data, crc) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", crc)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(
+        signature
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"IDAT", zlib.compress(b"".join(rows)))
+        + chunk(b"IEND", b"")
+    )
+
+
+def dynamic_masks_from_ui(
+    path: Path,
+    width: int,
+    height: int,
+) -> list[dict[str, float]]:
+    if width <= 0 or height <= 0:
+        return []
+    root = ET.parse(path).getroot()
+    masks: list[dict[str, float]] = []
+    for node in root.iter("node"):
+        class_name = node.attrib.get("class", "")
+        if not any(token in class_name for token in DYNAMIC_VIEW_TOKENS):
+            continue
+        match = BOUNDS_RE.fullmatch(node.attrib.get("bounds", "").strip())
+        if not match:
+            continue
+        x1, y1, x2, y2 = (int(value) for value in match.groups())
+        x1 = max(0, min(width, x1))
+        x2 = max(0, min(width, x2))
+        y1 = max(0, min(height, y1))
+        y2 = max(0, min(height, y2))
+        if x2 <= x1 or y2 <= y1:
+            continue
+        masks.append(
+            {
+                "x": x1 / width,
+                "y": y1 / height,
+                "width": (x2 - x1) / width,
+                "height": (y2 - y1) / height,
+            }
+        )
+    return masks
+
+
 def image_difference(
     baseline_path: Path,
     current_path: Path,
+    masks: list[dict[str, float]] | None = None,
+    heatmap_path: Path | None = None,
 ) -> dict[str, Any]:
     bw, bh, brows = decode_png_rgb(baseline_path)
     cw, ch, crows = decode_png_rgb(current_path)
 
-    baseline = sample_grid(bw, bh, brows)
-    current = sample_grid(cw, ch, crows)
+    grid_w, grid_h = 32, 56
+    baseline = sample_grid(bw, bh, brows, grid_w, grid_h)
+    current = sample_grid(cw, ch, crows, grid_w, grid_h)
     if len(baseline) != len(current):
         raise ValueError("Normalized image grids differ in size")
 
+    masks = masks or []
     diffs: list[float] = []
+    weighted_diffs: list[float] = []
+    heatmap: list[float | None] = []
     changed_20 = 0
     changed_35 = 0
     changed_60 = 0
+    masked = 0
 
-    for before, after in zip(baseline, current):
-        diff = sum(abs(a - b) for a, b in zip(before, after)) / 3.0
+    for index, (before, after) in enumerate(zip(baseline, current)):
+        gx = index % grid_w
+        gy = index // grid_w
+        x_norm = (gx + 0.5) / grid_w
+        y_norm = 0.05 + ((gy + 0.5) / grid_h) * 0.90
+        if _masked(x_norm, y_norm, masks):
+            masked += 1
+            heatmap.append(None)
+            continue
+
+        channel = [abs(a - b) for a, b in zip(before, after)]
+        diff = sum(channel) / 3.0
+        weighted = (
+            0.2126 * channel[0]
+            + 0.7152 * channel[1]
+            + 0.0722 * channel[2]
+        )
         diffs.append(diff)
+        weighted_diffs.append(weighted)
+        heatmap.append(weighted)
         if diff >= 20:
             changed_20 += 1
         if diff >= 35:
@@ -175,28 +290,46 @@ def image_difference(
         if diff >= 60:
             changed_60 += 1
 
-    count = max(1, len(diffs))
-    mean = sum(diffs) / count
-    rms = math.sqrt(sum(value * value for value in diffs) / count)
+    count = len(diffs)
+    if count <= 0:
+        mean = rms = weighted_mean = 0.0
+    else:
+        mean = sum(diffs) / count
+        rms = math.sqrt(sum(value * value for value in diffs) / count)
+        weighted_mean = sum(weighted_diffs) / count
 
+    if heatmap_path is not None:
+        _write_heatmap(heatmap_path, heatmap, grid_w, grid_h)
+
+    denominator = max(1, count)
+    total_cells = len(baseline)
     return {
         "baseline_size": [bw, bh],
         "current_size": [cw, ch],
-        "grid_cells": count,
+        "grid_cells": total_cells,
+        "compared_cells": count,
+        "masked_cells": masked,
+        "masked_ratio": round(masked / max(1, total_cells), 4),
         "mean_abs_rgb_diff": round(mean, 3),
+        "mean_perceptual_diff": round(weighted_mean, 3),
         "rms_rgb_diff": round(rms, 3),
-        "changed_ratio_20": round(changed_20 / count, 4),
-        "changed_ratio_35": round(changed_35 / count, 4),
-        "changed_ratio_60": round(changed_60 / count, 4),
+        "changed_ratio_20": round(changed_20 / denominator, 4),
+        "changed_ratio_35": round(changed_35 / denominator, 4),
+        "changed_ratio_60": round(changed_60 / denominator, 4),
+        "heatmap": str(heatmap_path) if heatmap_path is not None else "",
     }
-
 
 def normalize_text(value: str) -> str:
     return " ".join(value.lower().split())
 
 
-def ui_signature(path: Path, package_id: str) -> dict[str, Any]:
+def ui_signature(
+    path: Path,
+    package_id: str,
+    ignore_text_regex: list[str] | None = None,
+) -> dict[str, Any]:
     root = ET.parse(path).getroot()
+    ignored = [re.compile(pattern) for pattern in (ignore_text_regex or [])]
     nodes = list(root.iter("node"))
 
     target_nodes = []
@@ -214,7 +347,7 @@ def ui_signature(path: Path, package_id: str) -> dict[str, Any]:
         value = normalize_text(
             (attrs.get("text", "") + " " + attrs.get("content-desc", "")).strip()
         )
-        if value:
+        if value and not any(pattern.search(value) for pattern in ignored):
             texts.add(value[:160])
 
         class_name = attrs.get("class", "")
@@ -248,9 +381,10 @@ def ui_difference(
     baseline_path: Path,
     current_path: Path,
     package_id: str,
+    ignore_text_regex: list[str] | None = None,
 ) -> dict[str, Any]:
-    before = ui_signature(baseline_path, package_id)
-    after = ui_signature(current_path, package_id)
+    before = ui_signature(baseline_path, package_id, ignore_text_regex)
+    after = ui_signature(current_path, package_id, ignore_text_regex)
 
     before_text = set(before["texts"])
     after_text = set(after["texts"])
@@ -294,30 +428,78 @@ def evaluate(
     current_ui: Path,
     package_id: str,
     metadata: dict[str, Any],
+    policy: dict[str, Any] | None = None,
+    heatmap_path: Path | None = None,
 ) -> dict[str, Any]:
-    image = image_difference(baseline_screenshot, current_screenshot)
-    ui = ui_difference(baseline_ui, current_ui, package_id)
+    policy = policy or {
+        "profile": "standard",
+        "auto_mask_dynamic_views": True,
+        "masks": [],
+        "ignore_text_regex": [],
+        "thresholds": {
+            "error_mean": 45.0,
+            "error_ratio": 0.55,
+            "warn_mean": 20.0,
+            "warn_ratio": 0.30,
+            "error_text_similarity": 0.45,
+            "error_node_delta": 0.60,
+            "error_interactive_delta": 0.75,
+            "warn_text_similarity": 0.70,
+            "warn_node_delta": 0.35,
+            "warn_interactive_delta": 0.50,
+        },
+    }
+    masks = list(policy.get("masks", []))
+    if policy.get("auto_mask_dynamic_views", True):
+        bw, bh, _ = decode_png_rgb(baseline_screenshot)
+        cw, ch, _ = decode_png_rgb(current_screenshot)
+        masks.extend(dynamic_masks_from_ui(baseline_ui, bw, bh))
+        masks.extend(dynamic_masks_from_ui(current_ui, cw, ch))
+
+    image = image_difference(
+        baseline_screenshot,
+        current_screenshot,
+        masks,
+        heatmap_path,
+    )
+    ui = ui_difference(
+        baseline_ui,
+        current_ui,
+        package_id,
+        policy.get("ignore_text_regex", []),
+    )
+    thresholds = policy["thresholds"]
     findings: list[Finding] = []
 
     severe_image = (
-        image["mean_abs_rgb_diff"] >= 45.0
-        and image["changed_ratio_35"] >= 0.55
+        image["mean_abs_rgb_diff"] >= thresholds["error_mean"]
+        and image["changed_ratio_35"] >= thresholds["error_ratio"]
     )
     severe_structure = (
-        ui["text_jaccard_similarity"] < 0.45
-        or ui["node_delta_ratio"] >= 0.60
-        or ui["interactive_delta_ratio"] >= 0.75
+        ui["text_jaccard_similarity"] < thresholds["error_text_similarity"]
+        or ui["node_delta_ratio"] >= thresholds["error_node_delta"]
+        or ui["interactive_delta_ratio"] >= thresholds["error_interactive_delta"]
     )
 
     moderate_image = (
-        image["mean_abs_rgb_diff"] >= 20.0
-        or image["changed_ratio_35"] >= 0.30
+        image["mean_abs_rgb_diff"] >= thresholds["warn_mean"]
+        or image["changed_ratio_35"] >= thresholds["warn_ratio"]
     )
     moderate_structure = (
-        ui["text_jaccard_similarity"] < 0.70
-        or ui["node_delta_ratio"] >= 0.35
-        or ui["interactive_delta_ratio"] >= 0.50
+        ui["text_jaccard_similarity"] < thresholds["warn_text_similarity"]
+        or ui["node_delta_ratio"] >= thresholds["warn_node_delta"]
+        or ui["interactive_delta_ratio"] >= thresholds["warn_interactive_delta"]
     )
+
+    if image["masked_ratio"] >= 0.90:
+        findings.append(
+            Finding(
+                "warning",
+                "excessive_visual_mask",
+                "More than 90% of the normalized screen is excluded from image comparison.",
+                {"masked_ratio": image["masked_ratio"]},
+            )
+        )
 
     if severe_image and severe_structure:
         findings.append(
@@ -327,6 +509,7 @@ def evaluate(
                 "The screen changed substantially from the last passing baseline and the UI structure changed with it.",
                 {
                     "mean_abs_rgb_diff": image["mean_abs_rgb_diff"],
+                    "mean_perceptual_diff": image["mean_perceptual_diff"],
                     "changed_ratio_35": image["changed_ratio_35"],
                     "text_jaccard_similarity": ui["text_jaccard_similarity"],
                     "node_delta_ratio": ui["node_delta_ratio"],
@@ -342,6 +525,7 @@ def evaluate(
                 "The current screen differs materially from the last passing baseline.",
                 {
                     "mean_abs_rgb_diff": image["mean_abs_rgb_diff"],
+                    "mean_perceptual_diff": image["mean_perceptual_diff"],
                     "changed_ratio_35": image["changed_ratio_35"],
                     "text_jaccard_similarity": ui["text_jaccard_similarity"],
                     "node_delta_ratio": ui["node_delta_ratio"],
@@ -356,6 +540,7 @@ def evaluate(
                 "The screenshot changed noticeably, but the UI structure remains broadly consistent.",
                 {
                     "mean_abs_rgb_diff": image["mean_abs_rgb_diff"],
+                    "mean_perceptual_diff": image["mean_perceptual_diff"],
                     "changed_ratio_35": image["changed_ratio_35"],
                 },
             )
@@ -380,17 +565,26 @@ def evaluate(
 
     return {
         "schema_version": 1,
-        "visual_regression_version": "0.6.1",
+        "visual_regression_version": "0.6.5",
         "result": result,
         "errors": len(errors),
         "warnings": len(warnings),
         "package_id": package_id,
         "baseline_metadata": metadata,
+        "policy": {
+            "profile": policy.get("profile", "standard"),
+            "auto_mask_dynamic_views": policy.get(
+                "auto_mask_dynamic_views", True
+            ),
+            "manual_mask_count": len(policy.get("masks", [])),
+            "effective_mask_count": len(masks),
+            "ignore_text_regex": policy.get("ignore_text_regex", []),
+            "thresholds": thresholds,
+        },
         "image_difference": image,
         "ui_difference": ui,
         "findings": [asdict(item) for item in findings],
     }
-
 
 def write_markdown(path: Path, report: dict[str, Any]) -> None:
     baseline = report.get("baseline_metadata", {})
@@ -412,12 +606,15 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Warnings: {report['warnings']}",
         f"- Baseline SHA: `{baseline.get('resolved_sha', 'unknown')}`",
         f"- Baseline run: `{baseline.get('workflow_run_id', 'unknown')}`",
+        f"- Profile: `{report.get('policy', {}).get('profile', 'standard')}`",
         "",
         "## Image comparison",
         "",
         f"- Mean RGB difference: {report['image_difference']['mean_abs_rgb_diff']}",
+        f"- Mean perceptual difference: {report['image_difference'].get('mean_perceptual_diff', 0)}",
         f"- RMS RGB difference: {report['image_difference']['rms_rgb_diff']}",
         f"- Changed cells >=35: {report['image_difference']['changed_ratio_35']:.1%}",
+        f"- Masked cells: {report['image_difference'].get('masked_ratio', 0):.1%}",
         "",
         "## UI comparison",
         "",
