@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -93,6 +94,20 @@ def resolve_sha(repository: str, ref: str, token: str) -> str:
     return sha.lower()
 
 
+def entry_fingerprint(entry: dict[str, Any]) -> str:
+    normalized = {
+        key: value
+        for key, value in entry.items()
+        if key not in {"cache_epoch"}
+    }
+    raw = json.dumps(
+        normalized,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()[:12]
+
+
 def write_matrix(path: str | None, items: list[dict[str, Any]]) -> None:
     if not path:
         return
@@ -178,16 +193,21 @@ def main() -> int:
         if only_repository and repository != only_repository:
             continue
 
+        config_fingerprint = entry_fingerprint(entry)
         item_status: dict[str, Any] = {
             "key": entry["key"],
             "engine": engine,
             "repository": repository,
             "ref": entry["ref"],
+            "config_fingerprint": config_fingerprint,
         }
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
-            cache_key = f"applab-c{contract_fingerprint}-{entry['key']}-{sha}"
+            cache_key = (
+                f"applab-c{contract_fingerprint}-"
+                f"p{config_fingerprint}-{entry['key']}-{sha}"
+            )
             cached = False if args.force else cache_exists(
                 applab_repository, cache_key, token
             )
@@ -207,6 +227,7 @@ def main() -> int:
                     "resolved_sha": sha,
                     "cache_epoch": cache_epoch,
                     "contract_fingerprint": contract_fingerprint,
+                    "config_fingerprint": config_fingerprint,
                 }
                 matrix.append(resolved)
                 if engine == "flutter":
