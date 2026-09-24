@@ -134,6 +134,7 @@ jobs:
           print(f"- Flutter: {data.get('flutter_scheduled_count', 0)}")
           print(f"- Native Android: {data.get('native_scheduled_count', 0)}")
           print(f"- Auto: {data.get('auto_scheduled_count', 0)}")
+          print(f"- Contract: `{data.get('contract_fingerprint', 'unknown')}`")
           print()
           print("| Engine | Repository | SHA | State |")
           print("| --- | --- | --- | --- |")
@@ -191,6 +192,7 @@ jobs:
       history_key: ${{ matrix.key }}
       cache_verification: true
       cache_epoch: ${{ matrix.cache_epoch }}
+      contract_fingerprint: ${{ matrix.contract_fingerprint }}
 
   verify_native:
     name: Native Android ${{ matrix.repository }}
@@ -223,6 +225,7 @@ jobs:
       history_key: ${{ matrix.key }}
       cache_verification: true
       cache_epoch: ${{ matrix.cache_epoch }}
+      contract_fingerprint: ${{ matrix.contract_fingerprint }}
 
   verify_auto:
     name: Auto ${{ matrix.repository }}
@@ -239,6 +242,7 @@ jobs:
       history_key: ${{ matrix.key }}
       cache_verification: true
       cache_epoch: ${{ matrix.cache_epoch }}
+      contract_fingerprint: ${{ matrix.contract_fingerprint }}
 
   aggregate:
     name: Update central watcher history
