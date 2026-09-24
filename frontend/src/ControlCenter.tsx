@@ -41,6 +41,7 @@ type ProjectRow = {
   persistence_lab: string;
   configuration_lab: string;
   resource_pressure_lab: string;
+  background_lab: string;
   upgrade_lab: string;
   performance_lab: string;
   performance?: PerformanceMetrics;
@@ -67,6 +68,7 @@ type RecentRow = {
   persistence_lab?: string;
   configuration_lab?: string;
   resource_pressure_lab?: string;
+  background_lab?: string;
   upgrade_lab?: string;
   performance_lab?: string;
   performance?: PerformanceMetrics;
@@ -206,6 +208,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>Persistence</th>
                   <th>Configuration</th>
                   <th>Resources</th>
+                  <th>Background</th>
                   <th>Upgrade</th>
                   <th>Performance</th>
                   <th>Release APK</th>
@@ -238,6 +241,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     <td>{gate(project.persistence_lab)}</td>
                     <td>{gate(project.configuration_lab)}</td>
                     <td>{gate(project.resource_pressure_lab)}</td>
+                    <td>{gate(project.background_lab)}</td>
                     <td>{gate(project.upgrade_lab)}</td>
                     <td>
                       <div className="cc-project">

@@ -1,5 +1,13 @@
 # AppLab
 
+## v0.7.8 — Background Execution, Doze & Recovery Lab
+
+AppLab now validates background execution under Android power-management constraints before the upgrade gate. The trusted verifier backgrounds the app, exercises App Standby and forced Doze when available, inspects foreground services, JobScheduler/WorkManager evidence, notifications and device-idle state, then verifies foreground recovery with screenshot/UI evidence and crash/ANR scanning.
+
+Projects can optionally define `.maestro/applab-background.json` for repeated background cycles, strict Doze/App Standby requirements, notification/service/job assertions, and persisted UI checks. Hosted-emulator limitations are advisory by default; failed recovery and target runtime failures are hard failures.
+
+See `integration/background/BACKGROUND_DOZE_RECOVERY_LAB.md`.
+
 ## v0.7.7 — Resource Pressure & Process Death Lab
 
 AppLab now exercises Android memory-pressure callbacks and background process death before the upgrade gate. It sends validated `trim-memory` levels, backgrounds the target, simulates operating-system-style process death with `am kill`, relaunches the app, captures recovery evidence, and checks target ANRs/fatal exceptions.
