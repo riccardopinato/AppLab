@@ -249,9 +249,6 @@ jobs:
         with:
           repository: riccardopinato/AppLab
           path: .applab
-        with:
-          repository: riccardopinato/AppLab
-          path: .applab
 
       - name: Checkout target project
         uses: actions/checkout@v6
