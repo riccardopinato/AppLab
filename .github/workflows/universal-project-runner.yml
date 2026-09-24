@@ -46,6 +46,10 @@ on:
         required: false
         default: "manual"
         type: string
+      config_fingerprint:
+        required: false
+        default: "manual"
+        type: string
 
 permissions:
   contents: read
@@ -132,6 +136,7 @@ jobs:
       cache_verification: ${{ inputs.cache_verification }}
       cache_epoch: ${{ inputs.cache_epoch }}
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
+      config_fingerprint: ${{ inputs.config_fingerprint }}
 
   verify_native:
     name: Auto native Android verification
@@ -162,3 +167,4 @@ jobs:
       cache_verification: ${{ inputs.cache_verification }}
       cache_epoch: ${{ inputs.cache_epoch }}
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
+      config_fingerprint: ${{ inputs.config_fingerprint }}
