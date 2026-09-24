@@ -551,6 +551,35 @@ fi
 PID_AFTER="$(assert_runtime_healthy "system-lab")"
 log "System UI Lab: $SYSTEM_LAB_RESULT"
 
+
+
+PERFORMANCE_BASELINE_ARGS=()
+if [[ -n "${APPLAB_PERFORMANCE_BASELINE_JSON:-}" && -f "${APPLAB_PERFORMANCE_BASELINE_JSON}" ]]; then
+  PERFORMANCE_BASELINE_ARGS=(--baseline-json "$APPLAB_PERFORMANCE_BASELINE_JSON")
+fi
+
+python3 "$(dirname "$0")/performance_lab.py" \
+  --package-id "$PACKAGE_ID" \
+  --apk "$APK_PATH" \
+  --report-dir "$REPORT_DIR" \
+  "${PERFORMANCE_BASELINE_ARGS[@]}"
+
+if [[ -s "$REPORT_DIR/performance-lab.json" ]]; then
+  PERFORMANCE_LAB_RESULT="$(
+    python3 - "$REPORT_DIR/performance-lab.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(payload.get("result", "WARN"))
+PY
+  )"
+else
+  PERFORMANCE_LAB_RESULT="WARN"
+fi
+PID_AFTER="$(assert_runtime_healthy "performance-lab")"
+log "Performance Lab: $PERFORMANCE_LAB_RESULT"
+
 NETWORK_CONFIG_ARGS=()
 if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-network.json" ]]; then
   NETWORK_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-network.json")
@@ -588,33 +617,6 @@ if [[ "$NETWORK_STATUS" -ne 0 || "$NETWORK_LAB_RESULT" == "FAIL" || "$NETWORK_LA
 fi
 PID_AFTER="$(assert_runtime_healthy "network-lab")"
 log "Network & Offline Lab: $NETWORK_LAB_RESULT"
-
-PERFORMANCE_BASELINE_ARGS=()
-if [[ -n "${APPLAB_PERFORMANCE_BASELINE_JSON:-}" && -f "${APPLAB_PERFORMANCE_BASELINE_JSON}" ]]; then
-  PERFORMANCE_BASELINE_ARGS=(--baseline-json "$APPLAB_PERFORMANCE_BASELINE_JSON")
-fi
-
-python3 "$(dirname "$0")/performance_lab.py" \
-  --package-id "$PACKAGE_ID" \
-  --apk "$APK_PATH" \
-  --report-dir "$REPORT_DIR" \
-  "${PERFORMANCE_BASELINE_ARGS[@]}"
-
-if [[ -s "$REPORT_DIR/performance-lab.json" ]]; then
-  PERFORMANCE_LAB_RESULT="$(
-    python3 - "$REPORT_DIR/performance-lab.json" <<'PY'
-import json
-import sys
-from pathlib import Path
-payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-print(payload.get("result", "WARN"))
-PY
-  )"
-else
-  PERFORMANCE_LAB_RESULT="WARN"
-fi
-PID_AFTER="$(assert_runtime_healthy "performance-lab")"
-log "Performance Lab: $PERFORMANCE_LAB_RESULT"
 
 {
   echo "# AppLab report"
