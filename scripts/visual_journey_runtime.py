@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 import visual_journey
+import dismiss_foreign_anr
 
 
 TRANSIENT_RE = re.compile(
@@ -130,9 +131,11 @@ def main() -> int:
             raise RuntimeError(f"Checkpoint flow not found: {flow}")
 
         print(f"[AppLab] Visual Journey checkpoint: {name}")
+        dismiss_foreign_anr.dismiss_foreign_anr(args.package_id)
         run_flow(flow, maestro_root, name)
         time.sleep(1)
         ensure_process(args.package_id)
+        dismiss_foreign_anr.dismiss_foreign_anr(args.package_id)
         capture_checkpoint(report_dir, name)
 
     return 0

@@ -26,6 +26,7 @@ jobs:
       - name: Validate watcher tooling
         run: |
           python -m py_compile \
+            scripts/dismiss_foreign_anr.py \
             scripts/finalize_external_result.py \
             scripts/project_autodiscover.py \
             scripts/visual_qa.py \
@@ -34,6 +35,7 @@ jobs:
             scripts/visual_journey_runtime.py \
             scripts/watch_discover.py \
             scripts/watch_aggregate.py
+          python scripts/dismiss_foreign_anr.py --self-test
           python scripts/project_autodiscover.py --self-test
           python scripts/visual_qa.py --self-test
           python scripts/visual_regression.py --self-test

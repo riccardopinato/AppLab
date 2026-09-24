@@ -331,6 +331,8 @@ done
 log "process started with PID $PID; settling for ${SETTLE_SECONDS}s..."
 sleep "$SETTLE_SECONDS"
 
+python3 "$(dirname "$0")/dismiss_foreign_anr.py" --package-id "$PACKAGE_ID" || true
+
 capture_evidence "launch"
 mkdir -p "$REPORT_DIR/visual-journey/current/launch"
 cp "$REPORT_DIR/launch.png" "$REPORT_DIR/visual-journey/current/launch/screenshot.png"
@@ -421,6 +423,7 @@ EOF
   fi
 
   sleep 2
+  python3 "$(dirname "$0")/dismiss_foreign_anr.py" --package-id "$PACKAGE_ID" || true
   capture_evidence "post-maestro"
   PID_AFTER="$(assert_runtime_healthy "post-maestro")"
 fi
