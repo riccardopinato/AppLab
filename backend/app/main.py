@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 from typing import Callable, TypeVar
@@ -16,10 +17,21 @@ from .maestro import MaestroError, MaestroRunner
 from .runtime import LiveRuntimeError, LiveRuntimeManager
 
 
-app = FastAPI(title="AppLab Controller", version="0.3.1")
+APP_VERSION = "0.6.3"
+MAX_APK_BYTES = int(os.getenv("APPLAB_MAX_APK_BYTES", str(512 * 1024 * 1024)))
+CORS_ORIGINS = [
+    item.strip()
+    for item in os.getenv(
+        "APPLAB_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if item.strip()
+]
+
+app = FastAPI(title="AppLab Controller", version=APP_VERSION)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -96,7 +108,7 @@ def health() -> dict:
     return {
         "ok": True,
         "service": "applab-controller",
-        "version": "0.3.1",
+        "version": APP_VERSION,
         "features": [
             "adb-control",
             "diagnostics",
@@ -106,6 +118,10 @@ def health() -> dict:
             "emulator-lifecycle",
             "browser-webrtc-e2e",
             "ui-hierarchy",
+            "smart-visual-qa",
+            "visual-regression",
+            "multi-screen-journey",
+            "repo-watcher",
         ],
     }
 
@@ -177,16 +193,31 @@ async def install_apk(file: UploadFile = File(...)) -> dict:
     if not file.filename or not file.filename.lower().endswith(".apk"):
         raise HTTPException(status_code=400, detail="An .apk file is required.")
 
-    payload = await file.read()
-    if not payload:
-        raise HTTPException(status_code=400, detail="APK is empty.")
-
     ctl = controller()
     before = set(adb_guard(ctl.installed_packages))
 
     with tempfile.TemporaryDirectory(prefix="applab-") as tmp:
         path = Path(tmp) / "app.apk"
-        path.write_bytes(payload)
+        total = 0
+        with path.open("wb") as handle:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_APK_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=(
+                            "APK exceeds AppLab upload limit "
+                            f"({MAX_APK_BYTES // (1024 * 1024)} MiB)."
+                        ),
+                    )
+                handle.write(chunk)
+
+        if total == 0:
+            raise HTTPException(status_code=400, detail="APK is empty.")
+
         package_id = ctl.detect_package_id(path)
         output = adb_guard(lambda: ctl.install(path))
 
