@@ -200,9 +200,9 @@ def gradle_lines(workflows: str) -> list[str]:
         line = raw.strip()
         if line.startswith("#"):
             continue
-        if re.search(r"(?:^|\s)(?:\./gradlew|gradle)\s+", line):
-            line = line.lstrip("- ").strip()
-            result.append(line)
+        match = re.search(r"(?:\./gradlew|gradle)\s+[^|#]+", line)
+        if match:
+            result.append(match.group(0).strip())
     return result
 
 
@@ -302,6 +302,10 @@ def native_profile(root: Path, project: Path, workflows: str) -> dict[str, Any]:
         lint_command = f"{prefix} lintDebug --stacktrace"
 
     compile_sdk = detect_compile_sdk(project)
+    build_tools = first_regex(
+        workflows,
+        [r"build-tools;([0-9]+(?:\.[0-9]+){1,2})"],
+    ) or f"{compile_sdk}.0.0"
     return {
         "schema_version": 1,
         "detected": True,
@@ -310,7 +314,7 @@ def native_profile(root: Path, project: Path, workflows: str) -> dict[str, Any]:
         "java_version": detect_java_version(root, project, workflows),
         "gradle_version": detect_gradle_version(project, workflows),
         "compile_sdk": compile_sdk,
-        "build_tools": f"{compile_sdk}.0.0",
+        "build_tools": build_tools,
         "prepare_command": "",
         "test_command": test_command,
         "lint_command": lint_command,
