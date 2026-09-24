@@ -386,9 +386,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .applab-visual-baseline
-          key: applab-visual-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
+          key: applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
           restore-keys: |
-            applab-visual-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-
+            applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-
 
       - name: Verify APK on Android
         id: verify
@@ -402,7 +402,7 @@ jobs:
           APPLAB_TARGET_ROOT: ${{ github.workspace }}/target
           APPLAB_REPORT_DIR: ${{ github.workspace }}/applab-report
           APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
-          APPLAB_VERSION: "0.6.1"
+          APPLAB_VERSION: "0.6.2"
         with:
           api-level: ${{ inputs.api_level }}
           target: google_apis
@@ -434,6 +434,11 @@ jobs:
             SOURCE_STAGE="launch"
           fi
 
+          if [[ -d "$REPORT_DIR/visual-journey/current" ]]; then
+            mkdir -p "$BASELINE_DIR/journey"
+            cp -a "$REPORT_DIR/visual-journey/current/." "$BASELINE_DIR/journey/"
+          fi
+
           APPLAB_BASELINE_STAGE="$SOURCE_STAGE" python3 - <<'PY'
           import json
           import os
@@ -442,17 +447,26 @@ jobs:
 
           payload = {
               "schema_version": 1,
-              "applab_version": "0.6.1",
+              "applab_version": "0.6.2",
               "repository": os.environ["APPLAB_BASELINE_REPOSITORY"],
               "resolved_sha": os.environ["APPLAB_BASELINE_SHA"],
               "workflow_run_id": os.environ["GITHUB_RUN_ID"],
               "source_stage": os.environ["APPLAB_BASELINE_STAGE"],
               "created_at": datetime.now(timezone.utc).isoformat(),
           }
-          Path(".applab-visual-baseline/metadata.json").write_text(
+          metadata_path = Path(".applab-visual-baseline/metadata.json")
+          metadata_path.write_text(
               json.dumps(payload, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
+          journey_root = Path(".applab-visual-baseline/journey")
+          if journey_root.is_dir():
+              for checkpoint in journey_root.iterdir():
+                  if checkpoint.is_dir():
+                      (checkpoint / "metadata.json").write_text(
+                          json.dumps(payload, indent=2, sort_keys=True) + "\n",
+                          encoding="utf-8",
+                      )
           PY
 
       - name: Save passing visual baseline
@@ -460,7 +474,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .applab-visual-baseline
-          key: applab-visual-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}-${{ github.run_id }}
+          key: applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}-${{ github.run_id }}
 
       - name: Finalize external result contract
         if: always()
