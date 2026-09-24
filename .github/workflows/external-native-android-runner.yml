@@ -443,6 +443,7 @@ jobs:
           if-no-files-found: error
           retention-days: 2
           compression-level: 0
+          include-hidden-files: true
 
       - name: Upload build-phase evidence
         if: always()
