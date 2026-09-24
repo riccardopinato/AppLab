@@ -266,6 +266,14 @@ def self_test() -> None:
         assert report["result"] == "PASS"
         assert report["checkpoint_count"] == 2
 
+        first_run = evaluate(current, None, "com.example.app")
+        compat = root / "compat-first-run"
+        write_compat_reports(compat, first_run)
+        assert (compat / "visual-qa.json").is_file()
+        assert "NO_BASELINE" in (compat / "visual-regression.md").read_text(
+            encoding="utf-8"
+        )
+
         manifest = root / "manifest.json"
         manifest.write_text(
             json.dumps(
