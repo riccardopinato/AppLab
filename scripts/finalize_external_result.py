@@ -14,6 +14,7 @@ def main() -> int:
     parser.add_argument("--ref", required=True)
     parser.add_argument("--resolved-sha", default="")
     parser.add_argument("--history-key", required=True)
+    parser.add_argument("--engine", default="flutter")
     parser.add_argument("--pipeline-status", required=True)
     parser.add_argument("--run-id", required=True)
     args = parser.parse_args()
@@ -34,7 +35,7 @@ def main() -> int:
     if not payload:
         payload = {
             "schema_version": 1,
-            "applab_version": "0.5.0",
+            "applab_version": "0.5.1",
             "result": "FAIL",
             "reason": "Pipeline ended before the Android verifier produced a result.",
             "apk": "",
@@ -50,6 +51,7 @@ def main() -> int:
             "requested_ref": args.ref,
             "resolved_sha": args.resolved_sha,
             "history_key": args.history_key,
+            "engine": args.engine,
             "pipeline_status": args.pipeline_status,
             "workflow_run_id": args.run_id,
             "observed_at": datetime.now(timezone.utc).isoformat(),

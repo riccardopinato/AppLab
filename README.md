@@ -2,14 +2,25 @@
 
 AppLab is a reusable Android APK verification lab.
 
+## v0.5.1 — Native Android Project Runner
+
+The central watcher now supports two engines: `flutter` and
+`native_android`. Native Gradle/Compose projects receive their own build gate
+(Java, Android SDK, Gradle, unit tests, lint, APK build and signature check)
+before entering the same AppLab emulator/Maestro/runtime verifier.
+
+`Send-to-pc` is the first native Android repository in the live watchlist.
+
+See `integration/android/NATIVE_RUNNER.md`.
+
 ## v0.5 — Automatic Repo Watcher
 
-AppLab now watches configured public Flutter repositories centrally. Every hour
+AppLab watches configured public Android repositories centrally. Every hour
 it resolves each target's current SHA, skips commits already verified, and runs
 the existing External Project Runner only for new commits.
 
-The first live watchlist contains TrailPath, Battery Guard and the Flutter port
-of Notes-Ecosistema. Each repository keeps its own build profile while AppLab
+The live watchlist contains TrailPath, Battery Guard, the Flutter port of
+Notes-Ecosistema, and native Android project Send-to-pc. Each repository keeps its own build profile while AppLab
 owns the emulator verification contract.
 
 Watcher results are aggregated into a cumulative `history.jsonl` stored in

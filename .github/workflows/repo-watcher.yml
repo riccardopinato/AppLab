@@ -8,8 +8,10 @@ on:
       - "watch-profiles/**"
       - "scripts/watch_*.py"
       - "scripts/finalize_external_result.py"
+      - "scripts/run_external_android_gate.sh"
       - ".github/workflows/repo-watcher.yml"
       - ".github/workflows/external-project-runner.yml"
+      - ".github/workflows/external-native-android-runner.yml"
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
@@ -40,14 +42,16 @@ jobs:
     name: Discover changed repositories
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-      has_work: ${{ steps.matrix.outputs.has_work }}
+      flutter_matrix: ${{ steps.matrix.outputs.flutter_matrix }}
+      native_matrix: ${{ steps.matrix.outputs.native_matrix }}
+      has_flutter_work: ${{ steps.matrix.outputs.has_flutter_work }}
+      has_native_work: ${{ steps.matrix.outputs.has_native_work }}
       scheduled_count: ${{ steps.matrix.outputs.scheduled_count }}
 
     steps:
       - uses: actions/checkout@v6
 
-      - name: Resolve watcher matrix
+      - name: Resolve watcher matrices
         id: matrix
         shell: bash
         env:
@@ -71,6 +75,8 @@ jobs:
             --watchlist watchlist.json
             --applab-repository "$GITHUB_REPOSITORY"
             --matrix-output "$RUNNER_TEMP/watch-matrix.json"
+            --flutter-matrix-output "$RUNNER_TEMP/flutter-matrix.json"
+            --native-matrix-output "$RUNNER_TEMP/native-matrix.json"
             --status-output "$GITHUB_WORKSPACE/watch-discovery.json"
           )
           if [[ "$FORCE" == "true" ]]; then
@@ -82,15 +88,23 @@ jobs:
 
           python scripts/watch_discover.py "${ARGS[@]}"
 
-          MATRIX="$(cat "$RUNNER_TEMP/watch-matrix.json")"
-          COUNT="$(python -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["include"]))' "$RUNNER_TEMP/watch-matrix.json")"
-          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          FLUTTER_MATRIX="$(cat "$RUNNER_TEMP/flutter-matrix.json")"
+          NATIVE_MATRIX="$(cat "$RUNNER_TEMP/native-matrix.json")"
+          FLUTTER_COUNT="$(python -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["include"]))' "$RUNNER_TEMP/flutter-matrix.json")"
+          NATIVE_COUNT="$(python -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["include"]))' "$RUNNER_TEMP/native-matrix.json")"
+          COUNT=$((FLUTTER_COUNT + NATIVE_COUNT))
+
+          echo "flutter_matrix=$FLUTTER_MATRIX" >> "$GITHUB_OUTPUT"
+          echo "native_matrix=$NATIVE_MATRIX" >> "$GITHUB_OUTPUT"
           echo "scheduled_count=$COUNT" >> "$GITHUB_OUTPUT"
-          if [[ "$COUNT" -gt 0 ]]; then
-            echo "has_work=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_work=false" >> "$GITHUB_OUTPUT"
-          fi
+
+          [[ "$FLUTTER_COUNT" -gt 0 ]] &&
+            echo "has_flutter_work=true" >> "$GITHUB_OUTPUT" ||
+            echo "has_flutter_work=false" >> "$GITHUB_OUTPUT"
+
+          [[ "$NATIVE_COUNT" -gt 0 ]] &&
+            echo "has_native_work=true" >> "$GITHUB_OUTPUT" ||
+            echo "has_native_work=false" >> "$GITHUB_OUTPUT"
 
       - name: Discovery summary
         shell: bash
@@ -105,9 +119,11 @@ jobs:
           data = json.loads(Path("watch-discovery.json").read_text())
           rows = data.get("repositories", [])
           print(f"- Scheduled: {data.get('scheduled_count', 0)}")
+          print(f"- Flutter: {data.get('flutter_scheduled_count', 0)}")
+          print(f"- Native Android: {data.get('native_scheduled_count', 0)}")
           print()
-          print("| Repository | SHA | State |")
-          print("| --- | --- | --- |")
+          print("| Engine | Repository | SHA | State |")
+          print("| --- | --- | --- | --- |")
           for item in rows:
               sha = str(item.get("resolved_sha", ""))[:8] or "—"
               if item.get("error"):
@@ -118,7 +134,10 @@ jobs:
                   state = "scheduled"
               else:
                   state = "skipped"
-              print(f"| {item.get('repository', '—')} | `{sha}` | {state} |")
+              print(
+                  f"| {item.get('engine', 'flutter')} | "
+                  f"{item.get('repository', '—')} | `{sha}` | {state} |"
+              )
           PY
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -130,13 +149,13 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  verify:
-    name: Verify ${{ matrix.repository }}
-    if: needs.discover.outputs.has_work == 'true'
+  verify_flutter:
+    name: Flutter ${{ matrix.repository }}
+    if: needs.discover.outputs.has_flutter_work == 'true'
     needs: discover
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.discover.outputs.flutter_matrix) }}
     uses: ./.github/workflows/external-project-runner.yml
     with:
       repository: ${{ matrix.repository }}
@@ -160,10 +179,42 @@ jobs:
       cache_verification: true
       cache_epoch: ${{ matrix.cache_epoch }}
 
+  verify_native:
+    name: Native Android ${{ matrix.repository }}
+    if: needs.discover.outputs.has_native_work == 'true'
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.native_matrix) }}
+    uses: ./.github/workflows/external-native-android-runner.yml
+    with:
+      repository: ${{ matrix.repository }}
+      ref: ${{ matrix.resolved_sha }}
+      working_directory: ${{ matrix.working_directory }}
+      java_version: ${{ matrix.java_version }}
+      gradle_version: ${{ matrix.gradle_version }}
+      compile_sdk: ${{ matrix.compile_sdk }}
+      build_tools: ${{ matrix.build_tools }}
+      prepare_command: ${{ matrix.prepare_command }}
+      test_command: ${{ matrix.test_command }}
+      lint_command: ${{ matrix.lint_command }}
+      build_command: ${{ matrix.build_command }}
+      apk_path: ${{ matrix.apk_path }}
+      package_id: ${{ matrix.package_id }}
+      verify_signature: ${{ matrix.verify_signature }}
+      android_prepare_command: ${{ matrix.android_prepare_command }}
+      api_level: ${{ matrix.api_level }}
+      emulator_profile: ${{ matrix.emulator_profile }}
+      run_maestro: ${{ matrix.run_maestro }}
+      maestro_flow: ${{ matrix.maestro_flow }}
+      history_key: ${{ matrix.key }}
+      cache_verification: true
+      cache_epoch: ${{ matrix.cache_epoch }}
+
   aggregate:
     name: Update central watcher history
     if: always()
-    needs: [discover, verify]
+    needs: [discover, verify_flutter, verify_native]
     runs-on: ubuntu-latest
 
     steps:

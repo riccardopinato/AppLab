@@ -1,4 +1,4 @@
-name: External Flutter Project Runner
+name: External Native Android Project Runner
 
 on:
   workflow_dispatch:
@@ -13,37 +13,65 @@ on:
         default: main
         type: string
       working_directory:
-        description: Flutter project directory inside the target repository
+        description: Gradle project directory inside the target repository
         required: false
         default: "."
         type: string
-      flutter_channel:
-        description: Flutter channel used when flutter_version is empty
-        required: false
-        default: stable
-        type: string
-      flutter_version:
-        description: Optional exact Flutter version
-        required: false
-        default: ""
-        type: string
       java_version:
-        description: Java version used to build the target project
+        description: Java version used by the Android project
         required: false
         default: "17"
         type: string
+      gradle_version:
+        description: Gradle version used when the repository has no wrapper
+        required: false
+        default: "8.14.3"
+        type: string
+      compile_sdk:
+        description: Android platform installed before the build
+        required: false
+        default: "35"
+        type: string
+      build_tools:
+        description: Android build-tools version installed before the build
+        required: false
+        default: "35.0.0"
+        type: string
       prepare_command:
-        description: Optional repository-specific command run before flutter pub get
+        description: Optional project-specific preparation command
         required: false
         default: ""
         type: string
-      post_pub_get_command:
-        description: Optional repository-specific command run after flutter pub get
+      test_command:
+        description: Optional JVM/unit-test command
         required: false
         default: ""
         type: string
+      lint_command:
+        description: Optional Android lint/static-analysis command
+        required: false
+        default: ""
+        type: string
+      build_command:
+        description: Command that produces the APK
+        required: true
+        type: string
+      apk_path:
+        description: APK path relative to working_directory
+        required: true
+        type: string
+      package_id:
+        description: Optional Android application id; empty enables automatic detection
+        required: false
+        default: ""
+        type: string
+      verify_signature:
+        description: Verify the produced APK with apksigner
+        required: false
+        default: true
+        type: boolean
       android_prepare_command:
-        description: Optional command run with ADB available after a preliminary APK install
+        description: Optional command run with ADB available before AppLab verification
         required: false
         default: ""
         type: string
@@ -57,26 +85,6 @@ on:
         required: false
         default: pixel_7_pro
         type: string
-      apk_path:
-        description: APK path relative to working_directory
-        required: false
-        default: build/app/outputs/flutter-apk/app-debug.apk
-        type: string
-      package_id:
-        description: Optional Android application id; empty enables automatic detection
-        required: false
-        default: ""
-        type: string
-      build_command:
-        description: Flutter APK build command
-        required: false
-        default: flutter build apk --debug
-        type: string
-      run_flutter_tests:
-        description: Run flutter analyze and flutter test
-        required: false
-        default: true
-        type: boolean
       run_maestro:
         description: Run Maestro after launch
         required: false
@@ -90,7 +98,7 @@ on:
       history_key:
         description: Stable identifier used by AppLab Watcher history and caches
         required: false
-        default: external
+        default: external-native
         type: string
       cache_verification:
         description: Save this resolved commit as already verified by AppLab Watcher
@@ -98,108 +106,94 @@ on:
         default: false
         type: boolean
       cache_epoch:
-        description: Watcher cache epoch; bump when AppLab verification semantics change
+        description: Watcher cache epoch
         required: false
         default: "1"
         type: string
   workflow_call:
     inputs:
       repository:
-        description: Public GitHub repository in owner/name format
         required: true
         type: string
       ref:
-        description: Branch, tag, or commit SHA to verify
         required: false
         default: main
         type: string
       working_directory:
-        description: Flutter project directory inside the target repository
         required: false
         default: "."
         type: string
-      flutter_channel:
-        description: Flutter channel used when flutter_version is empty
-        required: false
-        default: stable
-        type: string
-      flutter_version:
-        description: Optional exact Flutter version
-        required: false
-        default: ""
-        type: string
       java_version:
-        description: Java version used to build the target project
         required: false
         default: "17"
         type: string
-      prepare_command:
-        description: Optional repository-specific command run before flutter pub get
+      gradle_version:
         required: false
-        default: ""
+        default: "8.14.3"
         type: string
-      post_pub_get_command:
-        description: Optional repository-specific command run after flutter pub get
-        required: false
-        default: ""
-        type: string
-      android_prepare_command:
-        description: Optional command run with ADB available after a preliminary APK install
-        required: false
-        default: ""
-        type: string
-      api_level:
-        description: Android emulator API level
+      compile_sdk:
         required: false
         default: "35"
         type: string
-      emulator_profile:
-        description: Android emulator hardware profile
+      build_tools:
         required: false
-        default: pixel_7_pro
+        default: "35.0.0"
         type: string
-      apk_path:
-        description: APK path relative to working_directory
+      prepare_command:
         required: false
-        default: build/app/outputs/flutter-apk/app-debug.apk
+        default: ""
         type: string
-      package_id:
-        description: Optional Android application id; empty enables automatic detection
+      test_command:
+        required: false
+        default: ""
+        type: string
+      lint_command:
         required: false
         default: ""
         type: string
       build_command:
-        description: Flutter APK build command
-        required: false
-        default: flutter build apk --debug
+        required: true
         type: string
-      run_flutter_tests:
-        description: Run flutter analyze and flutter test
+      apk_path:
+        required: true
+        type: string
+      package_id:
+        required: false
+        default: ""
+        type: string
+      verify_signature:
         required: false
         default: true
         type: boolean
+      android_prepare_command:
+        required: false
+        default: ""
+        type: string
+      api_level:
+        required: false
+        default: "35"
+        type: string
+      emulator_profile:
+        required: false
+        default: pixel_7_pro
+        type: string
       run_maestro:
-        description: Run Maestro after launch
         required: false
         default: true
         type: boolean
       maestro_flow:
-        description: Optional Maestro flow path relative to target repository root
         required: false
         default: ""
         type: string
       history_key:
-        description: Stable identifier used by AppLab Watcher history and caches
         required: false
-        default: external
+        default: external-native
         type: string
       cache_verification:
-        description: Save this resolved commit as already verified by AppLab Watcher
         required: false
         default: false
         type: boolean
       cache_epoch:
-        description: Watcher cache epoch; bump when AppLab verification semantics change
         required: false
         default: "1"
         type: string
@@ -208,7 +202,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: applab-external-${{ inputs.repository }}-${{ inputs.ref }}
+  group: applab-native-${{ inputs.repository }}-${{ inputs.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -245,7 +239,9 @@ jobs:
                   continue
               path = PurePosixPath(raw)
               if path.is_absolute() or ".." in path.parts:
-                  raise SystemExit(f"{key} must be a safe repository-relative path: {raw!r}")
+                  raise SystemExit(
+                      f"{key} must be a safe repository-relative path: {raw!r}"
+                  )
           PY
 
       - name: Checkout AppLab
@@ -269,6 +265,7 @@ jobs:
           RESOLVED_SHA="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
           echo "resolved_sha=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
           {
+            echo "engine=native_android"
             echo "repository=${{ inputs.repository }}"
             echo "ref=${{ inputs.ref }}"
             echo "resolved_sha=$RESOLVED_SHA"
@@ -276,12 +273,18 @@ jobs:
             echo "apk_path=${{ inputs.apk_path }}"
           } | tee "$GITHUB_WORKSPACE/applab-report/project.txt"
 
-      - name: Validate Flutter project
+      - name: Validate Android project
         shell: bash
         run: |
           PROJECT_DIR="$GITHUB_WORKSPACE/target/${{ inputs.working_directory }}"
           test -d "$PROJECT_DIR"
-          test -f "$PROJECT_DIR/pubspec.yaml"
+          if [[ ! -f "$PROJECT_DIR/settings.gradle" &&
+                ! -f "$PROJECT_DIR/settings.gradle.kts" &&
+                ! -f "$PROJECT_DIR/build.gradle" &&
+                ! -f "$PROJECT_DIR/build.gradle.kts" ]]; then
+            echo "No Gradle Android project found in $PROJECT_DIR" >&2
+            exit 1
+          fi
 
       - name: Setup Java
         uses: actions/setup-java@v5
@@ -289,20 +292,21 @@ jobs:
           distribution: temurin
           java-version: ${{ inputs.java_version }}
 
-      - name: Setup Flutter channel
-        if: inputs.flutter_version == ''
-        uses: subosito/flutter-action@v2
-        with:
-          channel: ${{ inputs.flutter_channel }}
-          cache: true
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Setup exact Flutter version
-        if: inputs.flutter_version != ''
-        uses: subosito/flutter-action@v2
+      - name: Install Android SDK components
+        shell: bash
+        run: |
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-${{ inputs.compile_sdk }}" \
+            "build-tools;${{ inputs.build_tools }}"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          flutter-version: ${{ inputs.flutter_version }}
-          channel: stable
-          cache: true
+          gradle-version: ${{ inputs.gradle_version }}
 
       - name: Target preparation
         if: inputs.prepare_command != ''
@@ -312,50 +316,37 @@ jobs:
           APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}
         run: bash -Eeuo pipefail -c "$APPLAB_PREPARE_COMMAND"
 
-      - name: Require Android scaffold
-        shell: bash
-        run: |
-          PROJECT_DIR="$GITHUB_WORKSPACE/target/${{ inputs.working_directory }}"
-          if [[ ! -d "$PROJECT_DIR/android" ]]; then
-            echo "Target has no android/ scaffold." >&2
-            echo "Use prepare_command for repositories that generate platform scaffolding." >&2
-            exit 1
-          fi
-
-      - name: Resolve dependencies
-        working-directory: target/${{ inputs.working_directory }}
-        run: flutter pub get
-
-      - name: Post dependency preparation
-        if: inputs.post_pub_get_command != ''
+      - name: Unit tests
+        if: inputs.test_command != ''
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
         env:
-          APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}
-        run: bash -Eeuo pipefail -c "$APPLAB_POST_PUB_GET_COMMAND"
-
-      - name: Analyze
-        if: inputs.run_flutter_tests
-        working-directory: target/${{ inputs.working_directory }}
-        shell: bash
+          APPLAB_TEST_COMMAND: ${{ inputs.test_command }}
         run: |
           set -o pipefail
-          flutter analyze 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-analyze.txt"
+          bash -Eeuo pipefail -c "$APPLAB_TEST_COMMAND" 2>&1 |
+            tee "$GITHUB_WORKSPACE/applab-report/android-test.txt"
 
-      - name: Unit tests
-        if: inputs.run_flutter_tests
+      - name: Android lint
+        if: inputs.lint_command != ''
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
+        env:
+          APPLAB_LINT_COMMAND: ${{ inputs.lint_command }}
         run: |
           set -o pipefail
-          flutter test 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-test.txt"
+          bash -Eeuo pipefail -c "$APPLAB_LINT_COMMAND" 2>&1 |
+            tee "$GITHUB_WORKSPACE/applab-report/android-lint.txt"
 
       - name: Build APK
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
+        env:
+          APPLAB_BUILD_COMMAND: ${{ inputs.build_command }}
         run: |
           set -o pipefail
-          ${{ inputs.build_command }} 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-build.txt"
+          bash -Eeuo pipefail -c "$APPLAB_BUILD_COMMAND" 2>&1 |
+            tee "$GITHUB_WORKSPACE/applab-report/android-build.txt"
 
       - name: Resolve APK
         id: apk
@@ -367,7 +358,18 @@ jobs:
             exit 1
           fi
           echo "apk_file=$APK_FILE" >> "$GITHUB_OUTPUT"
-          ls -lh "$APK_FILE" | tee "$GITHUB_WORKSPACE/applab-report/apk.txt"
+          {
+            ls -lh "$APK_FILE"
+            sha256sum "$APK_FILE"
+          } | tee "$GITHUB_WORKSPACE/applab-report/apk.txt"
+
+      - name: Verify APK signature
+        if: inputs.verify_signature
+        shell: bash
+        run: |
+          "$ANDROID_HOME/build-tools/${{ inputs.build_tools }}/apksigner" \
+            verify --verbose "${{ steps.apk.outputs.apk_file }}" |
+            tee "$GITHUB_WORKSPACE/applab-report/apksigner.txt"
 
       - name: Install Maestro
         if: inputs.run_maestro
@@ -377,7 +379,8 @@ jobs:
 
       - name: Enable KVM
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
@@ -413,7 +416,7 @@ jobs:
             --ref "${{ inputs.ref }}" \
             --resolved-sha "$APPLAB_RESOLVED_SHA" \
             --history-key "${{ inputs.history_key }}" \
-            --engine flutter \
+            --engine native_android \
             --pipeline-status "$APPLAB_PIPELINE_STATUS" \
             --run-id "$GITHUB_RUN_ID"
 
@@ -422,8 +425,10 @@ jobs:
         run: |
           rm -rf "$GITHUB_WORKSPACE/.applab-watch-cache"
           mkdir -p "$GITHUB_WORKSPACE/.applab-watch-cache"
-          cp "$GITHUB_WORKSPACE/applab-report/result.json" "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
-          cp "$GITHUB_WORKSPACE/applab-report/summary.md" "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
+          cp "$GITHUB_WORKSPACE/applab-report/result.json" \
+            "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
+          cp "$GITHUB_WORKSPACE/applab-report/summary.md" \
+            "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
 
       - name: Mark resolved commit as checked
         if: always() && inputs.cache_verification && steps.target.outputs.resolved_sha != ''
@@ -442,7 +447,7 @@ jobs:
           APPLAB_VERIFY_OUTCOME: ${{ steps.verify.outcome }}
         run: |
           {
-            echo "## AppLab External Project Runner"
+            echo "## AppLab Native Android Project Runner"
             echo
             printf -- '- Target: `%s@%s`\n' "$APPLAB_TARGET_REPOSITORY" "$APPLAB_TARGET_REF"
             printf -- '- Working directory: `%s`\n' "$APPLAB_TARGET_WORKDIR"
@@ -452,7 +457,7 @@ jobs:
               cat "$GITHUB_WORKSPACE/applab-report/summary.md"
             else
               echo "No Android runtime report was produced."
-              echo "Inspect dependency, analyze, test, build, or APK-resolution steps."
+              echo "Inspect test, lint, build, signature, or APK-resolution steps."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

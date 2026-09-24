@@ -15,12 +15,13 @@ from typing import Any
 
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 KEY_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+ENGINES = {"flutter", "native_android"}
 
 
 def api_json(url: str, token: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "AppLab-Repo-Watcher/0.5",
+        "User-Agent": "AppLab-Repo-Watcher/0.5.1",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     if token:
@@ -30,16 +31,43 @@ def api_json(url: str, token: str) -> dict[str, Any]:
         return json.load(response)
 
 
+def validate_relative_path(value: object, field: str, repository: str) -> None:
+    raw = str(value or "").strip()
+    if not raw:
+        return
+    if raw.startswith("/") or "\n" in raw or "\r" in raw:
+        raise ValueError(f"Invalid {field} for {repository}: {raw!r}")
+    parts = raw.replace("\\", "/").split("/")
+    if ".." in parts:
+        raise ValueError(f"{field} must stay inside repository: {raw!r}")
+
+
 def validate_entry(entry: dict[str, Any]) -> None:
     key = str(entry.get("key", "")).strip()
     repository = str(entry.get("repository", "")).strip()
     ref = str(entry.get("ref", "")).strip()
+    engine = str(entry.get("engine", "flutter")).strip()
+
     if not KEY_RE.fullmatch(key):
         raise ValueError(f"Invalid watcher key: {key!r}")
     if not REPO_RE.fullmatch(repository):
         raise ValueError(f"Invalid repository: {repository!r}")
     if not ref or "\n" in ref or "\r" in ref:
         raise ValueError(f"Invalid ref for {repository}: {ref!r}")
+    if engine not in ENGINES:
+        raise ValueError(
+            f"Unsupported engine for {repository}: {engine!r}; "
+            f"expected one of {sorted(ENGINES)}"
+        )
+
+    validate_relative_path(entry.get("working_directory", "."), "working_directory", repository)
+    validate_relative_path(entry.get("apk_path", ""), "apk_path", repository)
+    validate_relative_path(entry.get("maestro_flow", ""), "maestro_flow", repository)
+
+    if not str(entry.get("build_command", "")).strip():
+        raise ValueError(f"build_command is required for {repository}")
+    if not str(entry.get("apk_path", "")).strip():
+        raise ValueError(f"apk_path is required for {repository}")
 
 
 def cache_exists(applab_repository: str, cache_key: str, token: str) -> bool:
@@ -62,11 +90,23 @@ def resolve_sha(repository: str, ref: str, token: str) -> str:
     return sha.lower()
 
 
+def write_matrix(path: str | None, items: list[dict[str, Any]]) -> None:
+    if not path:
+        return
+    payload = {"include": items}
+    Path(path).write_text(
+        json.dumps(payload, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--watchlist", required=True)
     parser.add_argument("--applab-repository", default="")
     parser.add_argument("--matrix-output")
+    parser.add_argument("--flutter-matrix-output")
+    parser.add_argument("--native-matrix-output")
     parser.add_argument("--status-output")
     parser.add_argument("--only-repository", default="")
     parser.add_argument("--force", action="store_true")
@@ -96,7 +136,19 @@ def main() -> int:
         seen_keys.add(key)
 
     if args.validate_only:
-        print(f"Validated {len(entries)} AppLab watcher entries.")
+        counts = {
+            engine: sum(
+                1
+                for entry in entries
+                if str(entry.get("engine", "flutter")) == engine
+            )
+            for engine in sorted(ENGINES)
+        }
+        print(
+            f"Validated {len(entries)} AppLab watcher entries: "
+            f"{counts['flutter']} flutter, "
+            f"{counts['native_android']} native_android."
+        )
         return 0
 
     applab_repository = args.applab_repository.strip()
@@ -106,56 +158,73 @@ def main() -> int:
     token = os.environ.get("GITHUB_TOKEN", "")
     only_repository = args.only_repository.strip()
     matrix: list[dict[str, Any]] = []
+    flutter_matrix: list[dict[str, Any]] = []
+    native_matrix: list[dict[str, Any]] = []
     status: list[dict[str, Any]] = []
 
     for entry in entries:
         if not bool(entry.get("enabled", False)):
             continue
+
         repository = str(entry["repository"])
+        engine = str(entry.get("engine", "flutter"))
         if only_repository and repository != only_repository:
             continue
 
         item_status: dict[str, Any] = {
             "key": entry["key"],
+            "engine": engine,
             "repository": repository,
             "ref": entry["ref"],
         }
+
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
             cache_key = f"applab-v0.5-e{cache_epoch}-{entry['key']}-{sha}"
             cached = False if args.force else cache_exists(
                 applab_repository, cache_key, token
             )
+            scheduled = args.force or not cached
             item_status.update(
                 {
                     "resolved_sha": sha,
                     "cache_key": cache_key,
                     "cached": cached,
-                    "scheduled": args.force or not cached,
+                    "scheduled": scheduled,
                 }
             )
-            if args.force or not cached:
-                matrix.append(
-                    {**entry, "resolved_sha": sha, "cache_epoch": cache_epoch}
-                )
+            if scheduled:
+                resolved = {
+                    **entry,
+                    "engine": engine,
+                    "resolved_sha": sha,
+                    "cache_epoch": cache_epoch,
+                }
+                matrix.append(resolved)
+                if engine == "flutter":
+                    flutter_matrix.append(resolved)
+                elif engine == "native_android":
+                    native_matrix.append(resolved)
         except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
             item_status.update({"scheduled": False, "error": str(exc)})
         status.append(item_status)
 
-    matrix_payload = {"include": matrix}
-    matrix_text = json.dumps(matrix_payload, separators=(",", ":"))
+    write_matrix(args.matrix_output, matrix)
+    write_matrix(args.flutter_matrix_output, flutter_matrix)
+    write_matrix(args.native_matrix_output, native_matrix)
+
+    if not args.matrix_output:
+        print(json.dumps({"include": matrix}, separators=(",", ":")))
+
     status_payload = {
         "schema_version": 1,
         "force": args.force,
         "only_repository": only_repository,
         "scheduled_count": len(matrix),
+        "flutter_scheduled_count": len(flutter_matrix),
+        "native_scheduled_count": len(native_matrix),
         "repositories": status,
     }
-
-    if args.matrix_output:
-        Path(args.matrix_output).write_text(matrix_text + "\n", encoding="utf-8")
-    else:
-        print(matrix_text)
 
     if args.status_output:
         Path(args.status_output).write_text(
