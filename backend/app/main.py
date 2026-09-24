@@ -124,7 +124,8 @@ def health() -> dict:
             "multi-screen-journey",
             "repo-watcher",
             "control-center",
-            "performance-lab",\n            "network-offline-lab",
+            "performance-lab",
+            "network-offline-lab",
         ],
     }
 
