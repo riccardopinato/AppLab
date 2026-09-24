@@ -10,6 +10,10 @@ on:
       - "tests/flows/selftest.yaml"
       - ".github/workflows/emulator-self-test.yml"
 
+concurrency:
+  group: applab-emulator-self-test
+  cancel-in-progress: true
+
 jobs:
   android-runtime:
     runs-on: ubuntu-latest
