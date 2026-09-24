@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Emulator } from "android-emulator-webrtc/dist/index.js";
 import type { EmulatorRef } from "android-emulator-webrtc/dist/components/emulator/emulator";
+import ControlCenter from "./ControlCenter";
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 const DEFAULT_GATEWAY = import.meta.env.VITE_GATEWAY_URI || "localhost:8080";
@@ -381,7 +382,7 @@ export default function App() {
           <p className="eyebrow">ANDROID VERIFICATION LAB</p>
           <div className="title-row">
             <h1>AppLab</h1>
-            <span className="version">v0.6.3</span>
+            <span className="version">v0.7.0</span>
           </div>
           <p className="subtitle">Live Android Emulator · WebRTC · ADB · Maestro · Diagnostics</p>
         </div>
@@ -413,6 +414,8 @@ export default function App() {
           <small>{report ? `${report.issue_count} issue(s)` : "Run diagnostics or Maestro"}</small>
         </article>
       </section>
+
+      <ControlCenter backend={BACKEND} />
 
       <section className="workspace">
         <div className="phone-card">
