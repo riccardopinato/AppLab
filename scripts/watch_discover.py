@@ -15,7 +15,7 @@ from typing import Any
 
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 KEY_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
-ENGINES = {"flutter", "native_android"}
+ENGINES = {"auto", "flutter", "native_android"}
 
 
 def api_json(url: str, token: str) -> dict[str, Any]:
@@ -64,10 +64,11 @@ def validate_entry(entry: dict[str, Any]) -> None:
     validate_relative_path(entry.get("apk_path", ""), "apk_path", repository)
     validate_relative_path(entry.get("maestro_flow", ""), "maestro_flow", repository)
 
-    if not str(entry.get("build_command", "")).strip():
-        raise ValueError(f"build_command is required for {repository}")
-    if not str(entry.get("apk_path", "")).strip():
-        raise ValueError(f"apk_path is required for {repository}")
+    if engine != "auto":
+        if not str(entry.get("build_command", "")).strip():
+            raise ValueError(f"build_command is required for {repository}")
+        if not str(entry.get("apk_path", "")).strip():
+            raise ValueError(f"apk_path is required for {repository}")
 
 
 def cache_exists(applab_repository: str, cache_key: str, token: str) -> bool:
@@ -107,6 +108,7 @@ def main() -> int:
     parser.add_argument("--matrix-output")
     parser.add_argument("--flutter-matrix-output")
     parser.add_argument("--native-matrix-output")
+    parser.add_argument("--auto-matrix-output")
     parser.add_argument("--status-output")
     parser.add_argument("--only-repository", default="")
     parser.add_argument("--force", action="store_true")
@@ -146,6 +148,7 @@ def main() -> int:
         }
         print(
             f"Validated {len(entries)} AppLab watcher entries: "
+            f"{counts['auto']} auto, "
             f"{counts['flutter']} flutter, "
             f"{counts['native_android']} native_android."
         )
@@ -160,6 +163,7 @@ def main() -> int:
     matrix: list[dict[str, Any]] = []
     flutter_matrix: list[dict[str, Any]] = []
     native_matrix: list[dict[str, Any]] = []
+    auto_matrix: list[dict[str, Any]] = []
     status: list[dict[str, Any]] = []
 
     for entry in entries:
@@ -212,6 +216,8 @@ def main() -> int:
                     flutter_matrix.append(resolved)
                 elif engine == "native_android":
                     native_matrix.append(resolved)
+                elif engine == "auto":
+                    auto_matrix.append(resolved)
         except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
             item_status.update({"scheduled": False, "error": str(exc)})
         status.append(item_status)
@@ -219,6 +225,7 @@ def main() -> int:
     write_matrix(args.matrix_output, matrix)
     write_matrix(args.flutter_matrix_output, flutter_matrix)
     write_matrix(args.native_matrix_output, native_matrix)
+    write_matrix(args.auto_matrix_output, auto_matrix)
 
     if not args.matrix_output:
         print(json.dumps({"include": matrix}, separators=(",", ":")))
@@ -230,6 +237,7 @@ def main() -> int:
         "scheduled_count": len(matrix),
         "flutter_scheduled_count": len(flutter_matrix),
         "native_scheduled_count": len(native_matrix),
+        "auto_scheduled_count": len(auto_matrix),
         "repositories": status,
     }
 
