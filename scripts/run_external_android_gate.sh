@@ -14,7 +14,18 @@ TRUSTED_SHA="${APPLAB_TRUSTED_SHA:-}"
 
 FLOW_PATH=""
 if [[ -n "$MAESTRO_FLOW_INPUT" ]]; then
-  FLOW_PATH="$TARGET_ROOT/$MAESTRO_FLOW_INPUT"
+  if [[ "$MAESTRO_FLOW_INPUT" == /* ]]; then
+    FLOW_PATH="$MAESTRO_FLOW_INPUT"
+    case "$FLOW_PATH" in
+      "$TARGET_ROOT"/*) ;;
+      *)
+        echo "[AppLab] ERROR: absolute Maestro flow escapes trusted evidence root." >&2
+        exit 2
+        ;;
+    esac
+  else
+    FLOW_PATH="$TARGET_ROOT/$MAESTRO_FLOW_INPUT"
+  fi
   if [[ ! -f "$FLOW_PATH" ]]; then
     echo "[AppLab] ERROR: Maestro flow not found: $FLOW_PATH" >&2
     exit 2
