@@ -67,6 +67,7 @@ def build_snapshot(
                 "recorded_at": result.get("recorded_at", ""),
                 "watcher_run_id": result.get("watcher_run_id", ""),
                 "watcher_run_url": result.get("watcher_run_url", ""),
+                "release": result.get("release", {}),
             }
         )
 
@@ -95,6 +96,7 @@ def build_snapshot(
                     "watcher_run_id",
                     "watcher_run_url",
                     "applab_version",
+                    "release",
                 }
             }
             for item in history
@@ -146,6 +148,7 @@ def self_test() -> None:
             "recorded_at": "2026-01-02T00:00:00Z",
             "result": "PASS",
             "resolved_sha": "new",
+            "release": {"artifact_url": "https://example.test/artifact"},
         },
     ]
     snapshot = build_snapshot(watchlist, history)
@@ -159,6 +162,7 @@ def self_test() -> None:
         item for item in snapshot["projects"] if item["repository"] == "owner/one"
     )
     assert first["resolved_sha"] == "new"
+    assert first["release"]["artifact_url"] == "https://example.test/artifact"
     print("AppLab Control Center snapshot self-test PASS")
 
 
