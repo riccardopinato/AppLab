@@ -10,6 +10,7 @@ CONTRACT_FILES = (
     "scripts/run_external_android_gate.sh",
     "scripts/dismiss_foreign_anr.py",
     "scripts/visual_qa.py",
+    "scripts/visual_policy.py",
     "scripts/visual_regression.py",
     "scripts/visual_journey.py",
     "scripts/visual_journey_runtime.py",
@@ -23,7 +24,7 @@ CONTRACT_FILES = (
     ".github/workflows/universal-project-runner.yml",
     ".github/workflows/trusted-apk-verifier.yml",
 )
-CONTRACT_VERSION = "0.6.4"
+CONTRACT_VERSION = "0.6.5"
 
 def compute(root: Path) -> str:
     digest = hashlib.sha256()
