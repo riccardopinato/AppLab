@@ -69,28 +69,12 @@
     },
     {
       "key": "watch-send-to-pc",
-      "engine": "native_android",
+      "engine": "auto",
       "enabled": true,
       "repository": "riccardopinato/Send-to-pc",
       "ref": "main",
-      "working_directory": ".",
-      "java_version": "17",
-      "gradle_version": "9.6.0",
-      "compile_sdk": "36",
-      "build_tools": "36.0.0",
-      "prepare_command": "",
-      "test_command": "gradle testDebugUnitTest --stacktrace",
-      "lint_command": "gradle lintSlim --stacktrace",
-      "build_command": "gradle assembleSlim --stacktrace",
-      "apk_path": "app/build/outputs/apk/slim/app-slim.apk",
-      "package_id": "com.riccardopinato.inviaalpc",
-      "verify_signature": true,
-      "android_prepare_command": "",
-      "api_level": "35",
-      "emulator_profile": "pixel_7_pro",
       "run_maestro": true,
-      "maestro_flow": "",
-      "cache_epoch": 4
+      "cache_epoch": 5
     }
   ],
   "cache_epoch": 3
