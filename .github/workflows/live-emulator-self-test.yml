@@ -20,6 +20,10 @@ on:
       - "scripts/check_live_host.sh"
       - ".github/workflows/live-emulator-self-test.yml"
 
+concurrency:
+  group: applab-live-e2e
+  cancel-in-progress: true
+
 jobs:
   live-browser-e2e:
     runs-on: ubuntu-latest
