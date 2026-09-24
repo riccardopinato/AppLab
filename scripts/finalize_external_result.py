@@ -46,7 +46,8 @@ def main() -> int:
             "visual_regression": "NO_BASELINE",
             "visual_journey": "SKIPPED",
             "interaction_crawl": "SKIPPED",
-            "system_lab": "SKIPPED",\n            "network_lab": "SKIPPED",
+            "system_lab": "SKIPPED",
+            "network_lab": "SKIPPED",
             "performance_lab": "SKIPPED",
             "evidence": {},
         }
