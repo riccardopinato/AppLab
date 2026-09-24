@@ -212,18 +212,15 @@ def app_crash_state(package_id: str) -> tuple[bool, str]:
 
 def capture(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    result = adb("exec-out", "screencap", "-p", timeout=20)
-    if result.returncode == 0 and result.stdout:
-        # subprocess text mode cannot safely preserve PNG bytes, so use a
-        # shell redirection through adb when screenshots are requested.
-        raw = subprocess.run(
-            ["adb", "exec-out", "screencap", "-p"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-        if raw.returncode == 0 and raw.stdout:
-            path.write_bytes(raw.stdout)
+    raw = subprocess.run(
+        ["adb", "exec-out", "screencap", "-p"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        timeout=20,
+        check=False,
+    )
+    if raw.returncode == 0 and raw.stdout:
+        path.write_bytes(raw.stdout)
 
 
 def evaluate(
