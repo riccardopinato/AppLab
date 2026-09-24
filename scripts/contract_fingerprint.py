@@ -14,13 +14,16 @@ CONTRACT_FILES = (
     "scripts/visual_journey.py",
     "scripts/visual_journey_runtime.py",
     "scripts/prepare_visual_baseline.py",
+    "scripts/validate_build_contract.py",
+    "scripts/package_build_contract.py",
     "scripts/install_maestro.sh",
     "scripts/project_autodiscover.py",
     ".github/workflows/external-project-runner.yml",
     ".github/workflows/external-native-android-runner.yml",
     ".github/workflows/universal-project-runner.yml",
+    ".github/workflows/trusted-apk-verifier.yml",
 )
-CONTRACT_VERSION = "0.6.3"
+CONTRACT_VERSION = "0.6.4"
 
 def compute(root: Path) -> str:
     digest = hashlib.sha256()
