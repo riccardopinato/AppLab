@@ -35,7 +35,7 @@ def main() -> int:
     if not payload:
         payload = {
             "schema_version": 1,
-            "applab_version": "0.6.0",
+            "applab_version": "0.6.1",
             "result": "FAIL",
             "reason": "Pipeline ended before the Android verifier produced a result.",
             "apk": "",
@@ -43,6 +43,7 @@ def main() -> int:
             "pid": "",
             "maestro": "SKIPPED",
             "visual_qa": "SKIPPED",
+            "visual_regression": "NO_BASELINE",
             "evidence": {},
         }
 
