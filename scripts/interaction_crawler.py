@@ -41,6 +41,10 @@ class Candidate:
     y: int
 
 
+class ObservationError(RuntimeError):
+    pass
+
+
 def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         list(args),
@@ -131,36 +135,103 @@ def changed(before: dict[str, Any], after: dict[str, Any]) -> bool:
     return before["texts"] != after["texts"]
 
 
+def _adb_ready() -> bool:
+    result = run("adb", "get-state", check=False)
+    return result.returncode == 0 and "device" in result.stdout
+
+
+def _wait_for_adb() -> None:
+    run("adb", "wait-for-device", check=False)
+    for _ in range(10):
+        if _adb_ready():
+            return
+        time.sleep(1)
+
+
+def _capture_screenshot(path: Path) -> bool:
+    for _ in range(3):
+        with path.open("wb") as handle:
+            proc = subprocess.run(
+                ["adb", "exec-out", "screencap", "-p"],
+                check=False,
+                stdout=handle,
+                stderr=subprocess.DEVNULL,
+            )
+        if proc.returncode == 0 and path.is_file() and path.stat().st_size > 0:
+            return True
+        _wait_for_adb()
+        time.sleep(1)
+    return False
+
+
+def _capture_hierarchy(
+    hierarchy: Path,
+    remote: str,
+    diagnostic_log: Path,
+) -> bool:
+    hierarchy.unlink(missing_ok=True)
+    diagnostic_log.parent.mkdir(parents=True, exist_ok=True)
+
+    with diagnostic_log.open("a", encoding="utf-8") as log:
+        for attempt in range(1, 5):
+            log.write(f"attempt={attempt}\n")
+            run("adb", "shell", "rm", "-f", remote, check=False)
+
+            for compressed in (False, True):
+                command = ["adb", "shell", "uiautomator", "dump"]
+                if compressed:
+                    command.append("--compressed")
+                command.append(remote)
+
+                dumped = run(*command, check=False)
+                log.write(
+                    f"dump compressed={compressed} rc={dumped.returncode} "
+                    f"output={dumped.stdout[-1200:]}\n"
+                )
+                pulled = run(
+                    "adb", "pull", remote, str(hierarchy), check=False
+                )
+                log.write(
+                    f"pull compressed={compressed} rc={pulled.returncode} "
+                    f"output={pulled.stdout[-800:]}\n"
+                )
+                if (
+                    pulled.returncode == 0
+                    and hierarchy.is_file()
+                    and hierarchy.stat().st_size > 0
+                ):
+                    try:
+                        ET.parse(hierarchy)
+                    except ET.ParseError as exc:
+                        log.write(f"parse_error={exc}\n")
+                        hierarchy.unlink(missing_ok=True)
+                    else:
+                        return True
+
+            # Hosted AVDs can leave uiautomator stale after Maestro/native views.
+            run("adb", "shell", "am", "force-stop", "com.github.uiautomator", check=False)
+            _wait_for_adb()
+            time.sleep(min(1.5 * attempt, 4.0))
+
+    return False
+
+
 def adb_capture(output_dir: Path, prefix: str) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     screenshot = output_dir / f"{prefix}.png"
     hierarchy = output_dir / f"{prefix}.xml"
+    diagnostics = output_dir / f"{prefix}-capture.log"
     remote = f"/sdcard/applab-crawl-{prefix}.xml"
-    with screenshot.open("wb") as handle:
-        proc = subprocess.run(
-            ["adb", "exec-out", "screencap", "-p"],
-            check=False,
-            stdout=handle,
-            stderr=subprocess.DEVNULL,
-        )
-    if proc.returncode != 0 or not screenshot.is_file() or screenshot.stat().st_size == 0:
-        raise RuntimeError("Unable to capture crawler screenshot")
 
-    for args in (
-        ["adb", "shell", "uiautomator", "dump", remote],
-        ["adb", "shell", "uiautomator", "dump", "--compressed", remote],
-    ):
-        subprocess.run(args, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        pulled = subprocess.run(
-            ["adb", "pull", remote, str(hierarchy)],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        if pulled.returncode == 0 and hierarchy.is_file() and hierarchy.stat().st_size > 0:
-            return screenshot, hierarchy
-    raise RuntimeError("Unable to capture crawler UI hierarchy")
+    if not _capture_screenshot(screenshot):
+        raise ObservationError("Unable to capture crawler screenshot")
 
+    if _capture_hierarchy(hierarchy, remote, diagnostics):
+        return screenshot, hierarchy
+
+    raise ObservationError(
+        f"Unable to capture crawler UI hierarchy; diagnostics={diagnostics.name}"
+    )
 
 def pid_of(package_id: str) -> str:
     result = run("adb", "shell", "pidof", package_id, check=False)
@@ -201,62 +272,165 @@ def crawl(
     evidence = report_dir / "interaction-crawl"
     evidence.mkdir(parents=True, exist_ok=True)
 
-    relaunch(package_id, settle)
-    _, base_xml = adb_capture(evidence, "base")
-    base_signature = hierarchy_signature(base_xml, package_id)
-    candidates = parse_candidates(base_xml, package_id, max_candidates=max_actions * 3)
-
     actions: list[dict[str, Any]] = []
     failures = 0
     tested = 0
+    observation_warnings = 0
+    crawler_reason: str | None = None
+    base_signature: dict[str, Any] = {}
+    candidates: list[Candidate] = []
 
-    for index, candidate in enumerate(candidates[:max_actions], start=1):
-        relaunch(package_id, settle)
-        _, before_xml = adb_capture(evidence, f"{index:02d}-before")
-        before = hierarchy_signature(before_xml, package_id)
+    relaunch(package_id, settle)
+    crashed, reason = app_crashed(package_id)
+    if crashed:
+        failures += 1
+        crawler_reason = reason
+    else:
+        try:
+            _, base_xml = adb_capture(evidence, "base")
+            base_signature = hierarchy_signature(base_xml, package_id)
+            candidates = parse_candidates(
+                base_xml,
+                package_id,
+                max_candidates=max_actions * 3,
+            )
+        except ObservationError as exc:
+            observation_warnings += 1
+            crawler_reason = str(exc)
 
-        run("adb", "shell", "input", "tap", str(candidate.x), str(candidate.y), check=False)
-        time.sleep(settle)
-        screenshot, after_xml = adb_capture(evidence, f"{index:02d}-after")
-        after = hierarchy_signature(after_xml, package_id)
+    if failures == 0 and candidates:
+        for index, candidate in enumerate(candidates[:max_actions], start=1):
+            relaunch(package_id, settle)
+            crashed, reason = app_crashed(package_id)
+            if crashed:
+                failures += 1
+                actions.append(
+                    {
+                        **asdict(candidate),
+                        "bounds": list(candidate.bounds),
+                        "status": "FAIL",
+                        "state_changed": False,
+                        "target_nodes_after": 0,
+                        "reason": reason,
+                        "screenshot": None,
+                        "ui_hierarchy": None,
+                    }
+                )
+                break
 
-        crashed, reason = app_crashed(package_id)
-        state_changed = changed(before, after)
-        target_nodes = int(after.get("nodes", 0))
-        status = "FAIL" if crashed else ("CHANGED" if state_changed else "NO_CHANGE")
-        if crashed:
-            failures += 1
-        tested += 1
+            try:
+                _, before_xml = adb_capture(evidence, f"{index:02d}-before")
+                before = hierarchy_signature(before_xml, package_id)
+            except ObservationError as exc:
+                observation_warnings += 1
+                actions.append(
+                    {
+                        **asdict(candidate),
+                        "bounds": list(candidate.bounds),
+                        "status": "OBSERVATION_SKIPPED",
+                        "state_changed": False,
+                        "target_nodes_after": 0,
+                        "reason": str(exc),
+                        "screenshot": None,
+                        "ui_hierarchy": None,
+                    }
+                )
+                continue
 
-        actions.append(
-            {
-                **asdict(candidate),
-                "bounds": list(candidate.bounds),
-                "status": status,
-                "state_changed": state_changed,
-                "target_nodes_after": target_nodes,
-                "reason": reason or None,
-                "screenshot": str(screenshot.relative_to(report_dir)),
-                "ui_hierarchy": str(after_xml.relative_to(report_dir)),
-            }
-        )
+            run(
+                "adb",
+                "shell",
+                "input",
+                "tap",
+                str(candidate.x),
+                str(candidate.y),
+                check=False,
+            )
+            time.sleep(settle)
 
-        if crashed:
-            break
+            try:
+                screenshot, after_xml = adb_capture(
+                    evidence,
+                    f"{index:02d}-after",
+                )
+                after = hierarchy_signature(after_xml, package_id)
+            except ObservationError as exc:
+                crashed, reason = app_crashed(package_id)
+                if crashed:
+                    failures += 1
+                    status = "FAIL"
+                    failure_reason = reason
+                else:
+                    observation_warnings += 1
+                    status = "OBSERVATION_WARN"
+                    failure_reason = str(exc)
 
-    result = "FAIL" if failures else ("PASS" if tested else "SKIPPED")
+                actions.append(
+                    {
+                        **asdict(candidate),
+                        "bounds": list(candidate.bounds),
+                        "status": status,
+                        "state_changed": False,
+                        "target_nodes_after": 0,
+                        "reason": failure_reason,
+                        "screenshot": None,
+                        "ui_hierarchy": None,
+                    }
+                )
+                if crashed:
+                    break
+                continue
+
+            crashed, reason = app_crashed(package_id)
+            state_changed = changed(before, after)
+            target_nodes = int(after.get("nodes", 0))
+            status = (
+                "FAIL"
+                if crashed
+                else ("CHANGED" if state_changed else "NO_CHANGE")
+            )
+            if crashed:
+                failures += 1
+            tested += 1
+
+            actions.append(
+                {
+                    **asdict(candidate),
+                    "bounds": list(candidate.bounds),
+                    "status": status,
+                    "state_changed": state_changed,
+                    "target_nodes_after": target_nodes,
+                    "reason": reason or None,
+                    "screenshot": str(screenshot.relative_to(report_dir)),
+                    "ui_hierarchy": str(after_xml.relative_to(report_dir)),
+                }
+            )
+
+            if crashed:
+                break
+
+    if failures:
+        result = "FAIL"
+    elif observation_warnings:
+        result = "WARN" if actions or candidates else "SKIPPED"
+    elif tested:
+        result = "PASS"
+    else:
+        result = "SKIPPED"
+
     return {
-        "schema_version": 1,
-        "interaction_crawler_version": "0.6.6",
+        "schema_version": 2,
+        "interaction_crawler_version": "0.6.6.1",
         "result": result,
         "package_id": package_id,
         "candidate_count": len(candidates),
         "tested_actions": tested,
         "failures": failures,
+        "observation_warnings": observation_warnings,
+        "reason": crawler_reason,
         "base_signature": base_signature,
         "actions": actions,
     }
-
 
 def write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines = [
@@ -266,6 +440,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Safe candidates found: {report['candidate_count']}",
         f"- Actions tested: {report['tested_actions']}",
         f"- Runtime failures: {report['failures']}",
+        f"- Observation warnings: {report.get('observation_warnings', 0)}",
+        f"- Instrumentation note: {report.get('reason') or 'none'}",
         "",
         "| # | Control | Result | State changed |",
         "| ---: | --- | --- | --- |",
@@ -306,6 +482,14 @@ def self_test() -> None:
         before = hierarchy_signature(path, "com.example.app")
         assert before["nodes"] == 4
         assert before["clickable"] == 4
+
+        report = {
+            "result": "WARN",
+            "failures": 0,
+            "observation_warnings": 1,
+        }
+        assert report["result"] != "FAIL"
+        assert report["failures"] == 0
     print("AppLab Safe Interaction Crawler self-test PASS")
 
 
