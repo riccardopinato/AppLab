@@ -314,6 +314,47 @@ EOF
     return "$command_status"
   }
 
+  is_transient_maestro_failure() {
+    local attempt="$1"
+    local console_log="$REPORT_DIR/maestro/attempt-$attempt.log"
+    local system_log="$REPORT_DIR/maestro/attempt-$attempt-system-logcat.txt"
+
+    if grep -Eqi "Broken pipe|Failure calling service package|device offline|device not found|connection reset|closed.*transport|transport.*error" "$console_log"; then
+      return 0
+    fi
+
+    adb logcat -b all -d -v threadtime > "$system_log" 2>&1 || true
+
+    # Hosted AVDs occasionally restart system_server or lose the accessibility
+    # manager while Maestro is interacting with the app. In that case the app
+    # can receive DeadSystemException and disappear even though its own code did
+    # not crash. Treat this as infrastructure failure and retry the flow.
+    if grep -Eqi "DeadSystemException|registerUiTestAutomationService.*null object reference|UiAutomationConnection.*NullPointerException|system_server.*(died|crash|restarting)|ServiceManager.*(dead|Bad file descriptor)" "$system_log"; then
+      return 0
+    fi
+
+    return 1
+  }
+
+  recover_emulator_after_transient_failure() {
+    log "transient emulator/system failure detected; recovering before retry..."
+    adb wait-for-device || true
+
+    for _ in {1..30}; do
+      BOOT_COMPLETED="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+      if [[ "$BOOT_COMPLETED" == "1" ]] &&
+         adb shell cmd package list packages android >/dev/null 2>&1 &&
+         adb shell service check accessibility >/dev/null 2>&1; then
+        break
+      fi
+      sleep 2
+    done
+
+    adb shell am force-stop "$PACKAGE_ID" >/dev/null 2>&1 || true
+    adb logcat -b all -c >/dev/null 2>&1 || true
+    sleep 3
+  }
+
   MAESTRO_RESULT="FAIL"
   for attempt in 1 2 3; do
     log "running Maestro flow (attempt $attempt/3): $MAESTRO_FLOW"
@@ -322,21 +363,12 @@ EOF
       break
     fi
 
-    CONSOLE_LOG="$REPORT_DIR/maestro/attempt-$attempt.log"
-    if ! grep -Eqi "Broken pipe|Failure calling service package|device offline|device not found|connection reset|closed.*transport|transport.*error" "$CONSOLE_LOG"; then
+    if ! is_transient_maestro_failure "$attempt"; then
       capture_evidence "maestro-failure"
       fail "Maestro flow failed."
     fi
 
-    log "transient emulator/ADB failure detected; recovering before retry..."
-    adb wait-for-device || true
-    for _ in {1..15}; do
-      if adb shell cmd package list packages android >/dev/null 2>&1; then
-        break
-      fi
-      sleep 2
-    done
-    sleep 3
+    recover_emulator_after_transient_failure
   done
 
   if [[ "$MAESTRO_RESULT" != "PASS" ]]; then
