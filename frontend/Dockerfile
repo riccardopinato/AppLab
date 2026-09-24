@@ -1,7 +1,7 @@
 FROM node:22-alpine AS build
 WORKDIR /app
-COPY package.json ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY . .
 ARG VITE_BACKEND_URL=http://localhost:8000
 ARG VITE_GATEWAY_URI=localhost:8080
