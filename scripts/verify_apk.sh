@@ -275,8 +275,17 @@ adb logcat -b all -c || true
 
 log "installing APK..."
 if ! adb install -r -t "$APK_PATH" > "$REPORT_DIR/install.txt" 2>&1; then
-  cat "$REPORT_DIR/install.txt" >&2
-  fail "APK installation failed."
+  if grep -Eqi "INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match" "$REPORT_DIR/install.txt"; then
+    log "existing package signature differs; removing stale test install and retrying clean..."
+    adb uninstall "$PACKAGE_ID" >> "$REPORT_DIR/install.txt" 2>&1 || true
+    if ! adb install -t "$APK_PATH" >> "$REPORT_DIR/install.txt" 2>&1; then
+      cat "$REPORT_DIR/install.txt" >&2
+      fail "APK installation failed after stale-signature recovery."
+    fi
+  else
+    cat "$REPORT_DIR/install.txt" >&2
+    fail "APK installation failed."
+  fi
 fi
 
 adb shell pm list packages | sort > "$REPORT_DIR/packages.txt" || true
