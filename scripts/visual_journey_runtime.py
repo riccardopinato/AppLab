@@ -94,16 +94,28 @@ def run_flow(flow: Path, output_dir: Path, name: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--target-root", required=True)
+    parser.add_argument("--project-root", default="")
     parser.add_argument("--report-dir", required=True)
     parser.add_argument("--package-id", required=True)
     parser.add_argument("--manifest", default="")
     args = parser.parse_args()
 
     target_root = Path(args.target_root).resolve()
+    project_root = Path(args.project_root).resolve() if args.project_root else target_root
     report_dir = Path(args.report_dir).resolve()
-    manifest = Path(args.manifest).resolve() if args.manifest else (
-        target_root / ".maestro" / "applab-journey.json"
-    )
+
+    if args.manifest:
+        manifest = Path(args.manifest).resolve()
+        flow_root = project_root
+    else:
+        project_manifest = project_root / ".maestro" / "applab-journey.json"
+        repository_manifest = target_root / ".maestro" / "applab-journey.json"
+        if project_manifest.is_file():
+            manifest = project_manifest
+            flow_root = project_root
+        else:
+            manifest = repository_manifest
+            flow_root = target_root
 
     if not manifest.is_file():
         print("AppLab Visual Journey: no custom manifest")
@@ -120,12 +132,12 @@ def main() -> int:
     maestro_root = report_dir / "maestro" / "journey"
     for checkpoint in payload["checkpoints"]:
         name = checkpoint["name"]
-        flow = (target_root / checkpoint["flow"]).resolve()
+        flow = (flow_root / checkpoint["flow"]).resolve()
         try:
-            flow.relative_to(target_root)
+            flow.relative_to(flow_root)
         except ValueError as exc:
             raise RuntimeError(
-                f"Checkpoint flow escapes target repository: {flow}"
+                f"Checkpoint flow escapes journey root: {flow}"
             ) from exc
         if not flow.is_file():
             raise RuntimeError(f"Checkpoint flow not found: {flow}")
