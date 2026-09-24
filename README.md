@@ -2,6 +2,24 @@
 
 AppLab is a reusable Android APK verification lab.
 
+## v0.5.2 — Universal Project Auto-Discovery
+
+AppLab can now start from only `owner/repository + ref`. The Universal Runner
+checks out the target, detects whether it is Flutter or native Android/Gradle,
+derives the build profile, and routes it to the correct existing verification
+engine.
+
+For standard repositories AppLab auto-detects the working directory, Java,
+Flutter/Gradle versions, compile SDK, build command, APK path, package id and
+common code-generation/build preparation. The inferred profile is uploaded as
+`profile.json` for inspection.
+
+The watcher also supports `engine: auto`, so a normal repository entry can be
+reduced to its key, repository and ref. Explicit Flutter/native profiles remain
+available for exceptional projects that need custom preparation.
+
+See `integration/universal/AUTO_DISCOVERY.md`.
+
 ## v0.5.1 — Native Android Project Runner
 
 The central watcher now supports two engines: `flutter` and
