@@ -1,5 +1,23 @@
 # AppLab
 
+## v0.7.1 — Verified Release Artifact
+
+A successful trusted verification now produces a PASS-only installable APK
+artifact. AppLab republishes the exact APK bytes that were exercised by the
+trusted emulator gate, verifies the SHA-256 against the isolated build contract,
+and records package id, version name/code, size, commit summary, artifact id and
+download URL in the final report.
+
+The central Repo Watcher history carries this release metadata into the Control
+Center, where the latest PASS for each project exposes a direct verified APK
+download. FAIL/WARN pipelines never publish a release artifact.
+
+## v0.7 — Control Center
+
+AppLab now exposes the central Repo Watcher snapshot in the browser dashboard,
+including the latest verdict and runtime quality gates for every configured
+project plus recent verification history.
+
 ## v0.6.7 — Permissions, Notifications & System UI Lab
 
 AppLab now validates Android system behaviour after the visual and interaction
