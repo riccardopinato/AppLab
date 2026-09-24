@@ -1,0 +1,39 @@
+name: Frontend Lock Consistency
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - ".github/workflows/frontend-lock.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: applab-frontend-lock
+  cancel-in-progress: true
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+        continue-on-error: true
+      - name: Generate deterministic lockfile
+        working-directory: frontend
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-frontend-package-lock
+          path: frontend/package-lock.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Verify committed lockfile
+        if: hashFiles('frontend/package-lock.json') != ''
+        run: git diff --exit-code -- frontend/package-lock.json
