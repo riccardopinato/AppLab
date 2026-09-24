@@ -715,6 +715,71 @@ def self_test() -> None:
         )
         assert report["result"] in {"WARN", "FAIL"}
 
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw)
+        before = root / "before.png"
+        after = root / "after.png"
+        heatmap = root / "heatmap.png"
+        width, height = 96, 160
+        signature = b"\x89PNG\r\n\x1a\n"
+        ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+
+        def chunk(kind: bytes, data: bytes) -> bytes:
+            crc = zlib.crc32(kind)
+            crc = zlib.crc32(data, crc) & 0xFFFFFFFF
+            return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", crc)
+
+        def write_half_changed(path: Path, changed: bool) -> None:
+            rows = []
+            for y in range(height):
+                row = bytearray()
+                for x in range(width):
+                    if changed and x < width // 2:
+                        row.extend((250, 20, 20))
+                    else:
+                        row.extend((30 + x % 80, 40 + y % 80, 70))
+                rows.append(b"\x00" + bytes(row))
+            path.write_bytes(
+                signature
+                + chunk(b"IHDR", ihdr)
+                + chunk(b"IDAT", zlib.compress(b"".join(rows)))
+                + chunk(b"IEND", b"")
+            )
+
+        write_half_changed(before, False)
+        write_half_changed(after, True)
+        raw_diff = image_difference(before, after)
+        masked_diff = image_difference(
+            before,
+            after,
+            masks=[{"x": 0.0, "y": 0.0, "width": 0.5, "height": 1.0}],
+            heatmap_path=heatmap,
+        )
+        assert raw_diff["mean_abs_rgb_diff"] > 20
+        assert masked_diff["mean_abs_rgb_diff"] < 0.1
+        assert masked_diff["masked_ratio"] > 0.45
+        assert heatmap.is_file() and heatmap.stat().st_size > 0
+
+        baseline_ui = root / "baseline.xml"
+        current_ui = root / "current.xml"
+        baseline_ui.write_text(
+            '<hierarchy><node package="com.example.app" class="android.widget.TextView" '
+            'text="Time 12:34" bounds="[0,0][80,40]"/></hierarchy>',
+            encoding="utf-8",
+        )
+        current_ui.write_text(
+            '<hierarchy><node package="com.example.app" class="android.widget.TextView" '
+            'text="Time 12:35" bounds="[0,0][80,40]"/></hierarchy>',
+            encoding="utf-8",
+        )
+        ignored = ui_difference(
+            baseline_ui,
+            current_ui,
+            "com.example.app",
+            [r"^time \\d{2}:\\d{2}$"],
+        )
+        assert ignored["text_jaccard_similarity"] == 1.0
+
     print("AppLab Visual Regression self-test PASS")
 
 
