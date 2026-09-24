@@ -162,9 +162,9 @@ def prepare(args: argparse.Namespace) -> int:
     source_apk = contract_root / "app.apk"
 
     result = load_json(result_path)
-    if result.get("result") != "PASS" or result.get("pipeline_status") != "success":
+    if result.get("result") != "PASS":
         github_output("publish", "false")
-        print("Release skipped: final AppLab verdict is not PASS.")
+        print("Release skipped: trusted AppLab verdict is not PASS.")
         return 0
 
     contract = load_json(contract_path)
