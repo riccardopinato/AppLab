@@ -1,5 +1,13 @@
 # AppLab
 
+## v0.7.4 — Persistence & Restart Lab
+
+The trusted Android gate now force-stops and relaunches the target across repeated lifecycle cycles, captures post-restart screenshot/UI evidence, and fails on relaunch failure, target ANR, or fatal exception. Projects can optionally define persisted-state assertions with `.maestro/applab-persistence.json`, using expected/forbidden UI-text regular expressions after every restart.
+
+Evidence includes `persistence-lab.json`, `persistence-lab.md`, and per-cycle screenshots/UI hierarchies. The verdict is propagated through Repo Watcher history and the Control Center.
+
+See `integration/persistence/PERSISTENCE_RESTART_LAB.md`.
+
 ## v0.7.3 — Network & Offline Lab
 
 The trusted Android gate now removes and restores connectivity, verifies that
