@@ -36,6 +36,7 @@ jobs:
             scripts/interaction_crawler.py \
             scripts/system_lab.py \
             scripts/performance_lab.py \
+            scripts/network_lab.py \
             scripts/prepare_performance_baseline.py \
             scripts/project_autodiscover.py \
             scripts/contract_fingerprint.py \
@@ -53,7 +54,8 @@ jobs:
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/interaction_crawler.py --self-test
           python scripts/system_lab.py --self-test
-          python scripts/performance_lab.py --self-test\n          python scripts/network_lab.py --self-test
+          python scripts/performance_lab.py --self-test
+          python scripts/network_lab.py --self-test
           python scripts/prepare_performance_baseline.py --self-test
           python scripts/project_autodiscover.py --self-test
           python scripts/prepare_visual_baseline.py --self-test
