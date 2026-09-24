@@ -235,7 +235,7 @@ jobs:
     with:
       repository: ${{ matrix.repository }}
       ref: ${{ matrix.resolved_sha }}
-      run_maestro: ${{ matrix.run_maestro || true }}
+      run_maestro: true
       history_key: ${{ matrix.key }}
       cache_verification: true
       cache_epoch: ${{ matrix.cache_epoch }}
