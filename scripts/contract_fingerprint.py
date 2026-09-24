@@ -20,7 +20,7 @@ CONTRACT_FILES = (
     "scripts/install_maestro.sh",
     "scripts/interaction_crawler.py",
     "scripts/system_lab.py",
-    "scripts/performance_lab.py",
+    "scripts/performance_lab.py",\n    "scripts/network_lab.py",
     "scripts/prepare_performance_baseline.py",
     "scripts/project_autodiscover.py",
     ".github/workflows/external-project-runner.yml",
