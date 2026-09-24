@@ -77,6 +77,10 @@ def main() -> int:
     if data.get("schema_version") != 1:
         raise SystemExit("Unsupported watchlist schema_version")
 
+    cache_epoch = str(data.get("cache_epoch", "1")).strip() or "1"
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", cache_epoch):
+        raise SystemExit("watchlist cache_epoch must be alphanumeric/dot/dash")
+
     entries = data.get("repositories")
     if not isinstance(entries, list):
         raise SystemExit("watchlist repositories must be an array")
@@ -118,7 +122,7 @@ def main() -> int:
         }
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
-            cache_key = f"applab-v0.5-{entry['key']}-{sha}"
+            cache_key = f"applab-v0.5-e{cache_epoch}-{entry['key']}-{sha}"
             cached = False if args.force else cache_exists(
                 applab_repository, cache_key, token
             )
@@ -131,7 +135,9 @@ def main() -> int:
                 }
             )
             if args.force or not cached:
-                matrix.append({**entry, "resolved_sha": sha})
+                matrix.append(
+                    {**entry, "resolved_sha": sha, "cache_epoch": cache_epoch}
+                )
         except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
             item_status.update({"scheduled": False, "error": str(exc)})
         status.append(item_status)

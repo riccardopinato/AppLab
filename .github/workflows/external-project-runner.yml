@@ -97,6 +97,11 @@ on:
         required: false
         default: false
         type: boolean
+      cache_epoch:
+        description: Watcher cache epoch; bump when AppLab verification semantics change
+        required: false
+        default: "1"
+        type: string
   workflow_call:
     inputs:
       repository:
@@ -193,6 +198,11 @@ on:
         required: false
         default: false
         type: boolean
+      cache_epoch:
+        description: Watcher cache epoch; bump when AppLab verification semantics change
+        required: false
+        default: "1"
+        type: string
 
 permissions:
   contents: read
@@ -429,18 +439,23 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .applab-watch-cache
-          key: applab-v0.5-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
+          key: applab-v0.5-e${{ inputs.cache_epoch }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
 
       - name: Publish AppLab summary
         if: always()
         shell: bash
+        env:
+          APPLAB_TARGET_REPOSITORY: ${{ inputs.repository }}
+          APPLAB_TARGET_REF: ${{ inputs.ref }}
+          APPLAB_TARGET_WORKDIR: ${{ inputs.working_directory }}
+          APPLAB_VERIFY_OUTCOME: ${{ steps.verify.outcome }}
         run: |
           {
             echo "## AppLab External Project Runner"
             echo
-            echo "- Target: `${{ inputs.repository }}@${{ inputs.ref }}`"
-            echo "- Working directory: `${{ inputs.working_directory }}`"
-            echo "- Android verification: `${{ steps.verify.outcome }}`"
+            printf -- '- Target: `%s@%s`\n' "$APPLAB_TARGET_REPOSITORY" "$APPLAB_TARGET_REF"
+            printf -- '- Working directory: `%s`\n' "$APPLAB_TARGET_WORKDIR"
+            printf -- '- Android verification: `%s`\n' "$APPLAB_VERIFY_OUTCOME"
             echo
             if [[ -f "$GITHUB_WORKSPACE/applab-report/summary.md" ]]; then
               cat "$GITHUB_WORKSPACE/applab-report/summary.md"

@@ -31,7 +31,7 @@
       "flutter_channel": "stable",
       "flutter_version": "",
       "java_version": "17",
-      "prepare_command": "$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh",
+      "prepare_command": "bash \"$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh\"",
       "post_pub_get_command": "",
       "android_prepare_command": "",
       "api_level": "35",
@@ -52,7 +52,7 @@
       "flutter_channel": "stable",
       "flutter_version": "",
       "java_version": "17",
-      "prepare_command": "$GITHUB_WORKSPACE/.applab/watch-profiles/notes_ecosistema.sh",
+      "prepare_command": "bash \"$GITHUB_WORKSPACE/.applab/watch-profiles/notes_ecosistema.sh\"",
       "post_pub_get_command": "",
       "android_prepare_command": "",
       "api_level": "35",
@@ -64,5 +64,6 @@
       "run_maestro": true,
       "maestro_flow": ""
     }
-  ]
+  ],
+  "cache_epoch": 2
 }

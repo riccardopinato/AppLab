@@ -158,6 +158,7 @@ jobs:
       maestro_flow: ${{ matrix.maestro_flow }}
       history_key: ${{ matrix.key }}
       cache_verification: true
+      cache_epoch: ${{ matrix.cache_epoch }}
 
   aggregate:
     name: Update central watcher history
