@@ -478,3 +478,18 @@ pre {
     grid-column: 2;
   }
 }
+
+.cc-release-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid #315b48;
+  border-radius: 9px;
+  background: rgba(53, 197, 113, .10);
+  color: #8fe0b4;
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: none;
+}
+.cc-release-link:hover { background: rgba(53, 197, 113, .17); }

@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+type ReleaseMeta = {
+  artifact_url?: string;
+  artifact_name?: string;
+  changelog_summary?: string;
+  apk?: {
+    filename?: string;
+    version_name?: string;
+    version_code?: string;
+    size_human?: string;
+    sha256?: string;
+  };
+};
+
 type ProjectRow = {
   repository: string;
   key: string;
@@ -18,6 +31,7 @@ type ProjectRow = {
   recorded_at: string;
   watcher_run_id: string;
   watcher_run_url: string;
+  release?: ReleaseMeta;
 };
 
 type RecentRow = {
@@ -35,6 +49,7 @@ type RecentRow = {
   watcher_run_id?: string;
   watcher_run_url?: string;
   applab_version?: string;
+  release?: ReleaseMeta;
 };
 
 type Snapshot = {
@@ -163,6 +178,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>Journey</th>
                   <th>Crawler</th>
                   <th>System</th>
+                  <th>Release APK</th>
                 </tr>
               </thead>
               <tbody>
@@ -188,6 +204,26 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     <td>{gate(project.visual_journey)}</td>
                     <td>{gate(project.interaction_crawl)}</td>
                     <td>{gate(project.system_lab)}</td>
+                    <td>
+                      {project.release?.artifact_url ? (
+                        <a
+                          className="cc-release-link"
+                          href={project.release.artifact_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={project.release.changelog_summary || "Verified installable APK"}
+                        >
+                          {project.release.apk?.version_name
+                            ? `v${project.release.apk.version_name}`
+                            : "Download"}
+                          {project.release.apk?.size_human
+                            ? ` · ${project.release.apk.size_human}`
+                            : ""}
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
