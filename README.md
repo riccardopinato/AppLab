@@ -1,5 +1,23 @@
 # AppLab
 
+## v0.6.7 — Permissions, Notifications & System UI Lab
+
+AppLab now validates Android system behaviour after the visual and interaction
+gates. The trusted verifier records permission/app-op state, notification
+evidence, running/foreground services, battery-idle state, background/foreground
+recovery, and force-stop/relaunch behaviour.
+
+Projects can optionally add `.maestro/applab-system.json` to declare runtime
+permission grants/revokes, package-scoped deep links, optional biometric
+emulator events, and notification requirements. The policy is copied through
+the isolated build contract and validated before the trusted emulator runs.
+
+Evidence is published as `system-lab.json` and `system-lab.md`, while
+`result.json` and Repo Watcher history expose the aggregated `system_lab`
+verdict.
+
+See `integration/system/SYSTEM_UI_LAB.md`.
+
 ## v0.6.6 — Safe Interaction Crawler
 
 After launch and scripted visual journeys, AppLab now performs a conservative
