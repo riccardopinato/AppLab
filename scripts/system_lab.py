@@ -309,11 +309,15 @@ def exercise_deep_links(
             "android.intent.action.VIEW",
             "-d",
             uri,
+            "-p",
             package_id,
         )
         time.sleep(0.8)
         alive = bool(pid_of(package_id))
-        success = result.returncode == 0 and alive
+        command_error = bool(
+            re.search(r"(?i)(?:^|\\n)(?:error:|unable to resolve|activity not started)", result.stdout)
+        )
+        success = result.returncode == 0 and alive and not command_error
         results.append(
             {
                 "uri": uri,
