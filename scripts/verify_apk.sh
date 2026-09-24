@@ -9,7 +9,8 @@ START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
 RUN_MAESTRO="${RUN_MAESTRO:-false}"
-APPLAB_VERSION="${APPLAB_VERSION:-0.4.0}"
+APPLAB_VERSION="${APPLAB_VERSION:-0.6.0}"
+VISUAL_QA_RESULT="SKIPPED"
 
 write_result_json() {
   local result="$1"
@@ -19,13 +20,13 @@ write_result_json() {
 
   mkdir -p "$REPORT_DIR"
   if command -v python3 >/dev/null 2>&1; then
-    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" <<'PY'
+    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-output, result, package_id, maestro, pid_value, reason, version, apk_path = sys.argv[1:]
+output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa = sys.argv[1:]
 payload = {
     "schema_version": 1,
     "applab_version": version,
@@ -36,6 +37,7 @@ payload = {
     "package_id": package_id,
     "pid": pid_value,
     "maestro": maestro,
+    "visual_qa": visual_qa,
     "evidence": {
         "summary": "summary.md",
         "launch_screenshot": "launch.png",
@@ -43,6 +45,8 @@ payload = {
         "ui_hierarchy": "window.xml",
         "logcat": "logcat.txt",
         "app_logcat": "app-logcat.txt",
+        "visual_qa_json": "visual-qa.json",
+        "visual_qa_summary": "visual-qa.md",
     },
 }
 Path(output).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -81,7 +85,9 @@ is_true() {
 command -v adb >/dev/null 2>&1 || fail "adb is not available on PATH."
 
 mkdir -p "$REPORT_DIR"
-rm -f   "$REPORT_DIR/launch.png"   "$REPORT_DIR/post-maestro.png"   "$REPORT_DIR/window.xml"   "$REPORT_DIR/post-maestro-window.xml"   "$REPORT_DIR/logcat.txt"
+rm -f   "$REPORT_DIR/launch.png"   "$REPORT_DIR/post-maestro.png"   "$REPORT_DIR/window.xml"   "$REPORT_DIR/post-maestro-window.xml"   "$REPORT_DIR/logcat.txt" \
+  "$REPORT_DIR/visual-qa.json" \
+  "$REPORT_DIR/visual-qa.md"
 
 detect_package() {
   local apk="$1"
@@ -143,6 +149,55 @@ assert_runtime_healthy() {
   fi
 
   printf '%s' "$pid"
+}
+
+run_visual_qa() {
+  local screenshot="$REPORT_DIR/launch.png"
+  local hierarchy="$REPORT_DIR/launch-window.xml"
+  local status=0
+
+  if [[ -s "$REPORT_DIR/post-maestro.png" && -s "$REPORT_DIR/post-maestro-window.xml" ]]; then
+    screenshot="$REPORT_DIR/post-maestro.png"
+    hierarchy="$REPORT_DIR/post-maestro-window.xml"
+  fi
+
+  [[ -s "$screenshot" ]] || fail "Smart Visual QA screenshot is missing."
+  [[ -s "$hierarchy" ]] || fail "Smart Visual QA UI hierarchy is missing."
+
+  log "running Smart Visual QA..."
+  set +e
+  python3 "$(dirname "$0")/visual_qa.py" \
+    --screenshot "$screenshot" \
+    --ui-hierarchy "$hierarchy" \
+    --package-id "$PACKAGE_ID" \
+    --output-json "$REPORT_DIR/visual-qa.json" \
+    --output-md "$REPORT_DIR/visual-qa.md"
+  status="$?"
+  set -e
+
+  if [[ -s "$REPORT_DIR/visual-qa.json" ]]; then
+    VISUAL_QA_RESULT="$(
+      python3 - "$REPORT_DIR/visual-qa.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+try:
+    payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    print(str(payload.get("result", "UNKNOWN")))
+except Exception:
+    print("UNKNOWN")
+PY
+    )"
+  else
+    VISUAL_QA_RESULT="ERROR"
+  fi
+
+  if [[ "$status" -ne 0 || "$VISUAL_QA_RESULT" == "FAIL" || "$VISUAL_QA_RESULT" == "ERROR" ]]; then
+    fail "Smart Visual QA detected a high-confidence visual/runtime anomaly."
+  fi
+
+  log "Smart Visual QA: $VISUAL_QA_RESULT"
 }
 
 if [[ -z "$PACKAGE_ID" ]]; then
@@ -283,6 +338,8 @@ EOF
   PID_AFTER="$(assert_runtime_healthy "post-maestro")"
 fi
 
+run_visual_qa
+
 {
   echo "# AppLab report"
   echo
@@ -292,6 +349,7 @@ fi
   printf -- '- Package: %s\n' "$PACKAGE_ID"
   printf -- '- PID after verification: %s\n' "$PID_AFTER"
   echo "- Maestro: $MAESTRO_RESULT"
+  echo "- Smart Visual QA: $VISUAL_QA_RESULT"
   printf -- '- Screenshot: launch.png\n'
   if [[ "$MAESTRO_RESULT" == "PASS" ]]; then
     printf -- '- Post-Maestro screenshot: post-maestro.png\n'
@@ -300,6 +358,8 @@ fi
   printf -- '- UI hierarchy: window.xml\n'
   printf -- '- Logcat: logcat.txt\n'
   printf -- '- App Logcat: app-logcat.txt\n'
+  printf -- '- Visual QA JSON: visual-qa.json\n'
+  printf -- '- Visual QA summary: visual-qa.md\n'
 } > "$REPORT_DIR/summary.md"
 
 write_result_json "PASS" "" "$PID_AFTER" "$MAESTRO_RESULT"
