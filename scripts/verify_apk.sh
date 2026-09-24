@@ -9,13 +9,14 @@ START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
 RUN_MAESTRO="${RUN_MAESTRO:-false}"
-APPLAB_VERSION="${APPLAB_VERSION:-0.6.5}"
+APPLAB_VERSION="${APPLAB_VERSION:-0.6.6}"
 VISUAL_BASELINE_DIR="${VISUAL_BASELINE_DIR:-${APPLAB_VISUAL_BASELINE_DIR:-}}"
 TARGET_ROOT="${APPLAB_TARGET_ROOT:-}"
 PROJECT_ROOT="${APPLAB_PROJECT_ROOT:-$TARGET_ROOT}"
 VISUAL_QA_RESULT="SKIPPED"
 VISUAL_REGRESSION_RESULT="NO_BASELINE"
 VISUAL_JOURNEY_RESULT="SKIPPED"
+INTERACTION_CRAWL_RESULT="SKIPPED"
 
 write_result_json() {
   local result="$1"
@@ -25,13 +26,13 @@ write_result_json() {
 
   mkdir -p "$REPORT_DIR"
   if command -v python3 >/dev/null 2>&1; then
-    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" <<'PY'
+    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression, visual_journey = sys.argv[1:]
+output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression, visual_journey, interaction_crawl = sys.argv[1:]
 payload = {
     "schema_version": 1,
     "applab_version": version,
@@ -45,6 +46,7 @@ payload = {
     "visual_qa": visual_qa,
     "visual_regression": visual_regression,
     "visual_journey": visual_journey,
+    "interaction_crawl": interaction_crawl,
     "evidence": {
         "summary": "summary.md",
         "launch_screenshot": "launch.png",
@@ -58,6 +60,8 @@ payload = {
         "visual_regression_summary": "visual-regression.md",
         "visual_journey_json": "visual-journey.json",
         "visual_journey_summary": "visual-journey.md",
+        "interaction_crawl_json": "interaction-crawl.json",
+        "interaction_crawl_summary": "interaction-crawl.md",
     },
 }
 Path(output).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -102,8 +106,10 @@ rm -f   "$REPORT_DIR/launch.png"   "$REPORT_DIR/post-maestro.png"   "$REPORT_DIR
   "$REPORT_DIR/visual-regression.json" \
   "$REPORT_DIR/visual-regression.md" \
   "$REPORT_DIR/visual-journey.json" \
-  "$REPORT_DIR/visual-journey.md"
-rm -rf "$REPORT_DIR/visual-journey"
+  "$REPORT_DIR/visual-journey.md" \
+  "$REPORT_DIR/interaction-crawl.json" \
+  "$REPORT_DIR/interaction-crawl.md"
+rm -rf "$REPORT_DIR/visual-journey" "$REPORT_DIR/interaction-crawl"
 mkdir -p "$REPORT_DIR/visual-journey/current"
 
 detect_package() {
@@ -373,6 +379,36 @@ elif [[ -n "$TARGET_ROOT" && -f "$TARGET_ROOT/.maestro/applab-visual.json" ]]; t
   log "Visual Regression Pro config: repository checkpoint policy"
 fi
 
+CRAWL_STATUS=0
+set +e
+python3 "$(dirname "$0")/interaction_crawler.py" \
+  --package-id "$PACKAGE_ID" \
+  --report-dir "$REPORT_DIR" \
+  --max-actions 4 \
+  --settle-seconds 1.5
+CRAWL_STATUS="$?"
+set -e
+
+if [[ -s "$REPORT_DIR/interaction-crawl.json" ]]; then
+  INTERACTION_CRAWL_RESULT="$(
+    python3 - "$REPORT_DIR/interaction-crawl.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(payload.get("result", "ERROR"))
+PY
+  )"
+else
+  INTERACTION_CRAWL_RESULT="ERROR"
+fi
+
+if [[ "$CRAWL_STATUS" -ne 0 || "$INTERACTION_CRAWL_RESULT" == "FAIL" || "$INTERACTION_CRAWL_RESULT" == "ERROR" ]]; then
+  fail "Safe Interaction Crawler detected an application runtime failure."
+fi
+PID_AFTER="$(assert_runtime_healthy "interaction-crawl")"
+log "Safe Interaction Crawler: $INTERACTION_CRAWL_RESULT"
+
 JOURNEY_STATUS=0
 set +e
 if [[ -n "$VISUAL_BASELINE_DIR" && -d "$VISUAL_BASELINE_DIR/journey" ]]; then
@@ -433,6 +469,7 @@ log "Multi-Screen Visual Journey: $VISUAL_JOURNEY_RESULT (single visual engine)"
   echo "- Smart Visual QA: $VISUAL_QA_RESULT"
   echo "- Visual Regression: $VISUAL_REGRESSION_RESULT"
   echo "- Multi-Screen Visual Journey: $VISUAL_JOURNEY_RESULT"
+  echo "- Safe Interaction Crawler: $INTERACTION_CRAWL_RESULT"
   printf -- '- Screenshot: launch.png\n'
   if [[ "$MAESTRO_RESULT" == "PASS" ]]; then
     printf -- '- Post-Maestro screenshot: post-maestro.png\n'
@@ -449,6 +486,8 @@ log "Multi-Screen Visual Journey: $VISUAL_JOURNEY_RESULT (single visual engine)"
   fi
   printf -- '- Visual Journey JSON: visual-journey.json\n'
   printf -- '- Visual Journey summary: visual-journey.md\n'
+  printf -- '- Interaction Crawler JSON: interaction-crawl.json\n'
+  printf -- '- Interaction Crawler summary: interaction-crawl.md\n'
 } > "$REPORT_DIR/summary.md"
 
 write_result_json "PASS" "" "$PID_AFTER" "$MAESTRO_RESULT"

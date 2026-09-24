@@ -1,5 +1,18 @@
 # AppLab
 
+## v0.6.6 — Safe Interaction Crawler
+
+After launch and scripted visual journeys, AppLab now performs a conservative
+runtime exploration pass. It discovers only clearly labelled navigation
+controls from the app UI hierarchy, excludes destructive or transactional
+actions, relaunches the app before every probe, taps a bounded number of safe
+targets, and checks for process death, ANR, or fatal exceptions after each tap.
+
+The report includes `interaction-crawl.json`, `interaction-crawl.md`, and
+per-action screenshot/UI evidence. A crawler-detected crash fails the gate;
+screens that do not expose a conservative safe candidate are reported as
+`SKIPPED` rather than treated as failures.
+
 ## v0.6.5 — Visual Regression Pro
 
 Visual Regression is now configurable per checkpoint. Projects can use

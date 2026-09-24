@@ -102,7 +102,7 @@ def main() -> int:
     p=argparse.ArgumentParser()
     p.add_argument("--report-dir"); p.add_argument("--baseline-dir")
     p.add_argument("--repository",default=""); p.add_argument("--resolved-sha",default="")
-    p.add_argument("--run-id",default=""); p.add_argument("--version",default="0.6.5")
+    p.add_argument("--run-id",default=""); p.add_argument("--version",default="0.6.6")
     p.add_argument("--github-output",default="")
     p.add_argument("--approve-current", action="store_true")
     p.add_argument("--self-test",action="store_true")
