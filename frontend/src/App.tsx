@@ -381,7 +381,7 @@ export default function App() {
           <p className="eyebrow">ANDROID VERIFICATION LAB</p>
           <div className="title-row">
             <h1>AppLab</h1>
-            <span className="version">v0.3.1</span>
+            <span className="version">v0.6.3</span>
           </div>
           <p className="subtitle">Live Android Emulator · WebRTC · ADB · Maestro · Diagnostics</p>
         </div>
