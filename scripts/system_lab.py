@@ -121,7 +121,7 @@ def pid_of(package_id: str) -> str:
     return result.stdout.strip().split()[0] if result.stdout.strip() else ""
 
 
-def wait_for_pid(package_id: str, timeout: float = 15.0) -> str:
+def wait_for_pid(package_id: str, timeout: float = 30.0) -> str:
     started = time.monotonic()
     while time.monotonic() - started < timeout:
         pid = pid_of(package_id)
@@ -147,9 +147,27 @@ def app_crash_state(package_id: str) -> tuple[bool, str]:
 
 
 def relaunch(package_id: str) -> str:
-    run("adb", "shell", "monkey", "-p", package_id, "-c",
-        "android.intent.category.LAUNCHER", "1")
-    return wait_for_pid(package_id)
+    # Hosted AVDs can briefly stall PackageManager after UI automation or
+    # force-stop, especially for apps with heavy native/platform-view startup.
+    # Retry once before declaring a real restart failure.
+    for attempt in range(2):
+        run(
+            "adb",
+            "shell",
+            "monkey",
+            "-p",
+            package_id,
+            "-c",
+            "android.intent.category.LAUNCHER",
+            "1",
+        )
+        pid = wait_for_pid(package_id, timeout=30.0)
+        if pid:
+            return pid
+        if attempt == 0:
+            run("adb", "wait-for-device")
+            time.sleep(2.0)
+    return ""
 
 
 def permission_snapshot(package_id: str) -> dict[str, Any]:
