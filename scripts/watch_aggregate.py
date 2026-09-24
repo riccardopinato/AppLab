@@ -76,8 +76,8 @@ def main() -> int:
     if current:
         lines.extend(
             [
-                "| Repository | SHA | Result | Maestro | Visual QA | Regression | Journey | Crawler | System | Performance |",
-                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                "| Repository | SHA | Result | Maestro | Visual QA | Regression | Journey | Crawler | System | Network | Performance |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
             ]
         )
         for item in current:
@@ -91,11 +91,12 @@ def main() -> int:
             visual_journey = str(item.get("visual_journey", "—"))
             interaction_crawl = str(item.get("interaction_crawl", "—"))
             system_lab = str(item.get("system_lab", "—"))
+            network_lab = str(item.get("network_lab", "—"))
             performance_lab = str(item.get("performance_lab", "—"))
             lines.append(
                 f"| {repository} | `{short_sha}` | **{result}** | {maestro} | "
                 f"{visual_qa} | {visual_regression} | {visual_journey} | "
-                f"{interaction_crawl} | {system_lab} | {performance_lab} |"
+                f"{interaction_crawl} | {system_lab} | {network_lab} | {performance_lab} |"
             )
     else:
         lines.append("No new repository commits required AppLab verification in this run.")
