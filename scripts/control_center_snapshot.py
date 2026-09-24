@@ -65,6 +65,7 @@ def build_snapshot(
                 "system_lab": result.get("system_lab", "—"),
                 "network_lab": result.get("network_lab", "—"),
                 "persistence_lab": result.get("persistence_lab", "—"),
+                "configuration_lab": result.get("configuration_lab", "—"),
                 "upgrade_lab": result.get("upgrade_lab", "—"),
                 "performance_lab": result.get("performance_lab", "—"),
                 "performance": result.get("performance", {}),
@@ -100,6 +101,7 @@ def build_snapshot(
                     "system_lab",
                     "network_lab",
                     "persistence_lab",
+                    "configuration_lab",
                     "upgrade_lab",
                     "performance_lab",
                     "performance",
@@ -161,6 +163,7 @@ def self_test() -> None:
             "release": {"artifact_url": "https://example.test/artifact"},
             "network_lab": "PASS",
             "persistence_lab": "PASS",
+            "configuration_lab": "PASS",
             "upgrade_lab": "PASS",
             "performance_lab": "PASS",
             "performance": {
@@ -183,6 +186,7 @@ def self_test() -> None:
     assert first["release"]["artifact_url"] == "https://example.test/artifact"
     assert first["network_lab"] == "PASS"
     assert first["persistence_lab"] == "PASS"
+    assert first["configuration_lab"] == "PASS"
     assert first["upgrade_lab"] == "PASS"
     assert first["performance_lab"] == "PASS"
     assert first["performance"]["startup"]["cold"]["total_time_ms"] == 850
