@@ -1,0 +1,5 @@
+appId: dev.applab.selftest
+---
+- tapOn: "OPEN SETTINGS"
+- assertVisible: "SETTINGS_SCREEN"
+- assertVisible: "VISUAL_JOURNEY_SETTINGS_OK"
