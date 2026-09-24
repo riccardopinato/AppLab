@@ -1,6 +1,15 @@
 name: AppLab Repo Watcher
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "watchlist.json"
+      - "watch-profiles/**"
+      - "scripts/watch_*.py"
+      - "scripts/finalize_external_result.py"
+      - ".github/workflows/repo-watcher.yml"
+      - ".github/workflows/external-project-runner.yml"
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
