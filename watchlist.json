@@ -29,8 +29,7 @@
       "enabled": true,
       "repository": "riccardopinato/Battery_Guard",
       "ref": "main",
-      "run_maestro": true,
-      "cache_epoch": 14
+      "run_maestro": true
     },
     {
       "key": "watch-notes-ecosistema",
@@ -52,8 +51,7 @@
       "run_flutter_tests": true,
       "run_maestro": true,
       "maestro_flow": "",
-      "engine": "flutter",
-      "cache_epoch": 12
+      "engine": "flutter"
     },
     {
       "key": "watch-send-to-pc",
@@ -61,9 +59,7 @@
       "enabled": true,
       "repository": "riccardopinato/Send-to-pc",
       "ref": "main",
-      "run_maestro": true,
-      "cache_epoch": 5
+      "run_maestro": true
     }
-  ],
-  "cache_epoch": 3
+  ]
 }
