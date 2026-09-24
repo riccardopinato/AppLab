@@ -141,9 +141,6 @@ jobs:
         with:
           repository: riccardopinato/AppLab
           path: .applab
-        with:
-          repository: riccardopinato/AppLab
-          path: .applab
 
       - name: Install Maestro
         if: inputs.run_maestro
