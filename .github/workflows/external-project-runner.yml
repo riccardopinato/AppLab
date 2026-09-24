@@ -291,8 +291,8 @@ jobs:
       - name: Checkout AppLab
         uses: actions/checkout@v7
         with:
-          repository: riccardopinato/AppLab
-          ref: ${{ github.sha }}
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           path: .applab
           persist-credentials: false
 
@@ -414,11 +414,13 @@ jobs:
 
       - name: Restore trusted AppLab verifier
         shell: bash
+        env:
+          APPLAB_TRUSTED_SHA: ${{ job.workflow_sha }}
         run: |
           set -Eeuo pipefail
-          git -C "$GITHUB_WORKSPACE/.applab" reset --hard "$GITHUB_SHA"
+          git -C "$GITHUB_WORKSPACE/.applab" reset --hard "$APPLAB_TRUSTED_SHA"
           git -C "$GITHUB_WORKSPACE/.applab" clean -ffd
-          test "$(git -C "$GITHUB_WORKSPACE/.applab" rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C "$GITHUB_WORKSPACE/.applab" rev-parse HEAD)" = "$APPLAB_TRUSTED_SHA"
 
       - name: Install Maestro
         if: inputs.run_maestro
@@ -453,7 +455,7 @@ jobs:
           APPLAB_TARGET_ROOT: ${{ github.workspace }}/target
           APPLAB_PROJECT_ROOT: ${{ github.workspace }}/target/${{ inputs.working_directory }}
           APPLAB_TRUSTED_ROOT: ${{ github.workspace }}/.applab
-          APPLAB_TRUSTED_SHA: ${{ github.sha }}
+          APPLAB_TRUSTED_SHA: ${{ job.workflow_sha }}
           APPLAB_REPORT_DIR: ${{ github.workspace }}/applab-report
           APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
           APPLAB_VERSION: "0.6.3"
