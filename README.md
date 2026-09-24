@@ -1,5 +1,13 @@
 # AppLab
 
+## v0.7.6 — Configuration & Lifecycle Stress Lab
+
+AppLab now exercises repeated orientation changes and foreground/background transitions before the upgrade gate. It preserves and restores emulator rotation settings, captures per-stage screenshot/UI evidence, verifies process health after each transition, and detects target ANRs or fatal exceptions.
+
+Projects can optionally define `.maestro/applab-configuration.json` to choose rotation/background cycle counts and assert UI state that must survive lifecycle/configuration changes. Unsupported or fixed landscape behaviour is advisory by default; target crashes and failed foreground recovery remain hard failures.
+
+See `integration/configuration/CONFIGURATION_LIFECYCLE_STRESS_LAB.md`.
+
 ## v0.7.5 — Upgrade & Migration Lab
 
 AppLab now restores the latest PASS-only APK for each project and exercises a real in-place upgrade to the current candidate. Previous/current APK copies are temporarily re-signed with the same run-local AppLab test key so CI debug-key rotation cannot invalidate the migration test; the original verified APK bytes remain untouched.
