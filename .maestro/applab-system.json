@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "permissions": {
+    "grant": [
+      "android.permission.POST_NOTIFICATIONS"
+    ],
+    "revoke": []
+  },
+  "deep_links": [
+    {
+      "uri": "applab://selftest",
+      "required": true
+    }
+  ],
+  "biometric": {
+    "enabled": false,
+    "finger_id": 1,
+    "required": false
+  },
+  "require_notification": false
+}
