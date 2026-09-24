@@ -85,11 +85,30 @@ jobs:
             assert report["visual_qa"] == "PASS", report
             PY
 
+            RUN_MAESTRO=false \
+            REPORT_DIR="$GITHUB_WORKSPACE/applab-report-no-maestro" \
+            APPLAB_TARGET_ROOT="$GITHUB_WORKSPACE" \
+            APPLAB_PROJECT_ROOT="$GITHUB_WORKSPACE" \
+            APPLAB_VERSION="0.6.3" \
+            ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk" "dev.applab.selftest"
+            python - <<'PY'
+            import json
+            from pathlib import Path
+            report = json.loads(Path("applab-report-no-maestro/result.json").read_text())
+            journey = json.loads(Path("applab-report-no-maestro/visual-journey.json").read_text())
+            assert report["result"] == "PASS", report
+            assert report["maestro"] == "SKIPPED", report
+            assert journey["checkpoint_count"] == 2, journey
+            assert {x["name"] for x in journey["checkpoints"]} == {"launch", "final"}, journey
+            PY
+
       - name: Publish runtime evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: applab-emulator-self-test
-          path: applab-report/
+          path: |
+            applab-report/
+            applab-report-no-maestro/
           if-no-files-found: warn
           retention-days: 14
