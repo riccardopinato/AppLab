@@ -165,6 +165,24 @@ def detect_flutter_version(workflows: str) -> str:
     )
 
 
+def detect_repo_owner(root: Path) -> str:
+    config = read_text(root / ".git" / "config")
+    owner = first_regex(
+        config,
+        [
+            r"github\.com[/:]([A-Za-z0-9_.-]+)/[A-Za-z0-9_.-]+(?:\.git)?",
+        ],
+    )
+    return re.sub(r"[^A-Za-z0-9_]", "_", owner).lower()
+
+
+def detect_pubspec_name(project: Path) -> str:
+    return first_regex(
+        read_text(project / "pubspec.yaml"),
+        [r"^name:\s*([A-Za-z0-9_]+)\s*$"],
+    )
+
+
 def detect_gradle_version(project: Path, workflows: str) -> str:
     wrapper = project / "gradle" / "wrapper" / "gradle-wrapper.properties"
     value = first_regex(
@@ -254,6 +272,22 @@ def flutter_profile(root: Path, project: Path, workflows: str) -> dict[str, Any]
     build_runner = bool(
         re.search(r"^\s*(build_runner|drift_dev):", pubspec, re.MULTILINE)
     )
+    owner = detect_repo_owner(root)
+    project_name = detect_pubspec_name(project)
+    package_id = detect_package_id(project)
+    prepare_command = ""
+
+    if not android_exists:
+        if owner:
+            organization = f"com.{owner}"
+            prepare_command = (
+                f"flutter create --platforms=android --org {organization} ."
+            )
+            if not package_id and project_name:
+                package_id = f"{organization}.{project_name}"
+        else:
+            prepare_command = "flutter create --platforms=android ."
+
     return {
         "schema_version": 1,
         "detected": True,
@@ -262,7 +296,7 @@ def flutter_profile(root: Path, project: Path, workflows: str) -> dict[str, Any]
         "flutter_channel": "stable",
         "flutter_version": detect_flutter_version(workflows),
         "java_version": detect_java_version(root, project, workflows),
-        "prepare_command": "" if android_exists else "flutter create --platforms=android .",
+        "prepare_command": prepare_command,
         "post_pub_get_command": (
             "dart run build_runner build --delete-conflicting-outputs"
             if build_runner
@@ -272,7 +306,7 @@ def flutter_profile(root: Path, project: Path, workflows: str) -> dict[str, Any]
         "api_level": "35",
         "emulator_profile": "pixel_7_pro",
         "apk_path": "build/app/outputs/flutter-apk/app-debug.apk",
-        "package_id": detect_package_id(project),
+        "package_id": package_id,
         "build_command": "flutter build apk --debug",
         "run_flutter_tests": True,
         "run_maestro": True,
