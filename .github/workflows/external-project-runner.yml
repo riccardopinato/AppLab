@@ -233,6 +233,11 @@ on:
         required: false
         default: "manual"
         type: string
+      approve_visual_baseline:
+        description: Explicitly accept a visual WARN as the new baseline
+        required: false
+        default: false
+        type: boolean
       config_fingerprint:
         description: Fingerprint of this target's watcher/build configuration
         required: false
