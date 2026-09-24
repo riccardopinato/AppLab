@@ -2,6 +2,23 @@
 
 AppLab is a reusable Android APK verification lab.
 
+## v0.6.2 — Multi-Screen Visual Journey
+
+AppLab now validates a sequence of runtime screens instead of only the final
+screen. Every verification captures at least `launch` and `final`, runs
+Smart Visual QA on each checkpoint, and compares each one with its own last
+passing baseline.
+
+Repositories can add `.maestro/applab-journey.json` to define additional
+sequential checkpoints such as Settings, detail screens, dialogs or other
+critical UI states. Each checkpoint flow is executed in the same emulator
+session and AppLab captures screenshot + UI hierarchy after it succeeds.
+
+Visual baseline cache generation is now `v2` and stores one baseline per
+checkpoint. The main report exposes an aggregated `visual_journey` verdict.
+
+See `integration/visual-qa/MULTI_SCREEN_JOURNEY.md`.
+
 ## v0.6.1 — Visual Regression Baseline
 
 AppLab now preserves the last passing final screen for each watched project in
