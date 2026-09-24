@@ -1,5 +1,13 @@
 # AppLab
 
+## v0.7.7 — Resource Pressure & Process Death Lab
+
+AppLab now exercises Android memory-pressure callbacks and background process death before the upgrade gate. It sends validated `trim-memory` levels, backgrounds the target, simulates operating-system-style process death with `am kill`, relaunches the app, captures recovery evidence, and checks target ANRs/fatal exceptions.
+
+Projects can optionally define `.maestro/applab-resource.json` to select safe trim levels, process-death cycles, settling time, and persisted UI assertions. Runtime limitations are advisory by default; crashes, unexpected process loss during trim handling, and failed recovery are hard failures.
+
+See `integration/resources/RESOURCE_PRESSURE_PROCESS_DEATH_LAB.md`.
+
 ## v0.7.6 — Configuration & Lifecycle Stress Lab
 
 AppLab now exercises repeated orientation changes and foreground/background transitions before the upgrade gate. It preserves and restores emulator rotation settings, captures per-stage screenshot/UI evidence, verifies process health after each transition, and detects target ANRs or fatal exceptions.
