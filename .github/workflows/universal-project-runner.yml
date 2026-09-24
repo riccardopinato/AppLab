@@ -17,6 +17,11 @@ on:
         required: false
         default: true
         type: boolean
+      approve_visual_baseline:
+        description: Explicitly accept a visual WARN as the new baseline
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       repository:
