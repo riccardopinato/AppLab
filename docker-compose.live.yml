@@ -29,7 +29,7 @@ services:
         VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:8000}
         VITE_GATEWAY_URI: ${VITE_GATEWAY_URI:-localhost:8080}
     ports:
-      - "5173:80"
+      - "127.0.0.1:5173:80"
 
 volumes:
   applab-live-data:
