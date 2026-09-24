@@ -11,6 +11,8 @@ from pathlib import Path, PurePosixPath
 import visual_policy
 import system_lab
 import network_lab
+import persistence_lab
+import upgrade_lab
 
 ALLOWED_SUFFIXES = {".yaml", ".yml", ".json"}
 MAX_APK_BYTES = 600 * 1024 * 1024
@@ -114,6 +116,20 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
                     raise ValueError(
                         f"Invalid AppLab network policy: {relative}: {exc}"
                     ) from exc
+            elif path.name == "applab-persistence.json":
+                try:
+                    persistence_lab.load_config(path)
+                except (ValueError, json.JSONDecodeError) as exc:
+                    raise ValueError(
+                        f"Invalid AppLab persistence policy: {relative}: {exc}"
+                    ) from exc
+            elif path.name == "applab-upgrade.json":
+                try:
+                    upgrade_lab.load_config(path)
+                except (ValueError, json.JSONDecodeError) as exc:
+                    raise ValueError(
+                        f"Invalid AppLab upgrade policy: {relative}: {exc}"
+                    ) from exc
 
     if flow:
         flow_path = evidence / Path(flow)
@@ -147,6 +163,14 @@ def self_test() -> None:
         flow.write_text("appId: example\n---\n- assertVisible: Home\n", encoding="utf-8")
         (root / "target-evidence/.maestro/applab-network.json").write_text(
             '{"schema_version":1,"required":false,"offline_seconds":1.0}',
+            encoding="utf-8",
+        )
+        (root / "target-evidence/.maestro/applab-persistence.json").write_text(
+            '{"schema_version":1,"required":false,"restart_cycles":2}',
+            encoding="utf-8",
+        )
+        (root / "target-evidence/.maestro/applab-upgrade.json").write_text(
+            '{"schema_version":1,"required":false,"settle_seconds":1.0}',
             encoding="utf-8",
         )
         payload = {
