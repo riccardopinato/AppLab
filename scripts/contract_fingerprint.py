@@ -28,7 +28,7 @@ CONTRACT_FILES = (
     ".github/workflows/universal-project-runner.yml",
     ".github/workflows/trusted-apk-verifier.yml",
 )
-CONTRACT_VERSION = "0.7.2"
+CONTRACT_VERSION = "0.7.3"
 
 def compute(root: Path) -> str:
     digest = hashlib.sha256()
