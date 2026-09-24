@@ -46,6 +46,10 @@ on:
         required: false
         default: "manual"
         type: string
+      approve_visual_baseline:
+        required: false
+        default: false
+        type: boolean
       config_fingerprint:
         required: false
         default: "manual"
@@ -137,6 +141,7 @@ jobs:
       cache_epoch: ${{ inputs.cache_epoch }}
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
+      approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
 
   verify_native:
     name: Auto native Android verification
@@ -168,3 +173,4 @@ jobs:
       cache_epoch: ${{ inputs.cache_epoch }}
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
+      approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
