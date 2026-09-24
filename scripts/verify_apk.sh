@@ -125,13 +125,42 @@ runtime_pid() {
   adb shell pidof "$PACKAGE_ID" 2>/dev/null | tr -d '\r' | awk '{print $1}' || true
 }
 
-capture_evidence() {
+capture_ui_hierarchy() {
   local prefix="$1"
   local remote_xml="/sdcard/applab-${prefix}.xml"
+  local output="$REPORT_DIR/${prefix}-window.xml"
+  local log_file="$REPORT_DIR/${prefix}-uiautomator.txt"
+  local attempt
+
+  rm -f "$output"
+  : > "$log_file"
+
+  for attempt in 1 2 3 4; do
+    adb shell rm -f "$remote_xml" >/dev/null 2>&1 || true
+    if adb shell uiautomator dump "$remote_xml" >> "$log_file" 2>&1 &&
+       adb pull "$remote_xml" "$output" >/dev/null 2>&1 &&
+       [[ -s "$output" ]]; then
+      return 0
+    fi
+
+    adb shell rm -f "$remote_xml" >/dev/null 2>&1 || true
+    if adb shell uiautomator dump --compressed "$remote_xml" >> "$log_file" 2>&1 &&
+       adb pull "$remote_xml" "$output" >/dev/null 2>&1 &&
+       [[ -s "$output" ]]; then
+      return 0
+    fi
+
+    sleep 2
+  done
+
+  return 1
+}
+
+capture_evidence() {
+  local prefix="$1"
 
   adb exec-out screencap -p > "$REPORT_DIR/${prefix}.png" || true
-  adb shell uiautomator dump "$remote_xml" > "$REPORT_DIR/${prefix}-uiautomator.txt" 2>&1 || true
-  adb pull "$remote_xml" "$REPORT_DIR/${prefix}-window.xml" > /dev/null 2>&1 || true
+  capture_ui_hierarchy "$prefix" || true
   adb shell dumpsys activity activities > "$REPORT_DIR/${prefix}-activity.txt" 2>&1 || true
   adb shell dumpsys window windows > "$REPORT_DIR/${prefix}-window-dumpsys.txt" 2>&1 || true
   adb logcat -b all -d -v threadtime > "$REPORT_DIR/logcat.txt" 2>&1 || true
@@ -218,6 +247,9 @@ sleep "$SETTLE_SECONDS"
 python3 "$(dirname "$0")/dismiss_foreign_anr.py" --package-id "$PACKAGE_ID" || true
 
 capture_evidence "launch"
+[[ -s "$REPORT_DIR/launch.png" ]] || fail "Launch screenshot could not be captured."
+[[ -s "$REPORT_DIR/launch-window.xml" ]] ||
+  fail "Launch UI hierarchy could not be captured after retries."
 mkdir -p "$REPORT_DIR/visual-journey/current/launch"
 cp "$REPORT_DIR/launch.png" "$REPORT_DIR/visual-journey/current/launch/screenshot.png"
 cp "$REPORT_DIR/launch-window.xml" "$REPORT_DIR/visual-journey/current/launch/window.xml"
