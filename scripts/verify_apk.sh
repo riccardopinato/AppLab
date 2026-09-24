@@ -9,7 +9,7 @@ START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
 RUN_MAESTRO="${RUN_MAESTRO:-false}"
-APPLAB_VERSION="${APPLAB_VERSION:-0.6.6}"
+APPLAB_VERSION="${APPLAB_VERSION:-0.6.7}"
 VISUAL_BASELINE_DIR="${VISUAL_BASELINE_DIR:-${APPLAB_VISUAL_BASELINE_DIR:-}}"
 TARGET_ROOT="${APPLAB_TARGET_ROOT:-}"
 PROJECT_ROOT="${APPLAB_PROJECT_ROOT:-$TARGET_ROOT}"
@@ -17,6 +17,7 @@ VISUAL_QA_RESULT="SKIPPED"
 VISUAL_REGRESSION_RESULT="NO_BASELINE"
 VISUAL_JOURNEY_RESULT="SKIPPED"
 INTERACTION_CRAWL_RESULT="SKIPPED"
+SYSTEM_LAB_RESULT="SKIPPED"
 
 write_result_json() {
   local result="$1"
@@ -26,13 +27,13 @@ write_result_json() {
 
   mkdir -p "$REPORT_DIR"
   if command -v python3 >/dev/null 2>&1; then
-    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" <<'PY'
+    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" "${SYSTEM_LAB_RESULT:-SKIPPED}" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression, visual_journey, interaction_crawl = sys.argv[1:]
+output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression, visual_journey, interaction_crawl, system_lab = sys.argv[1:]
 payload = {
     "schema_version": 1,
     "applab_version": version,
@@ -47,6 +48,7 @@ payload = {
     "visual_regression": visual_regression,
     "visual_journey": visual_journey,
     "interaction_crawl": interaction_crawl,
+    "system_lab": system_lab,
     "evidence": {
         "summary": "summary.md",
         "launch_screenshot": "launch.png",
@@ -62,6 +64,8 @@ payload = {
         "visual_journey_summary": "visual-journey.md",
         "interaction_crawl_json": "interaction-crawl.json",
         "interaction_crawl_summary": "interaction-crawl.md",
+        "system_lab_json": "system-lab.json",
+        "system_lab_summary": "system-lab.md",
     },
 }
 Path(output).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -108,7 +112,9 @@ rm -f   "$REPORT_DIR/launch.png"   "$REPORT_DIR/post-maestro.png"   "$REPORT_DIR
   "$REPORT_DIR/visual-journey.json" \
   "$REPORT_DIR/visual-journey.md" \
   "$REPORT_DIR/interaction-crawl.json" \
-  "$REPORT_DIR/interaction-crawl.md"
+  "$REPORT_DIR/interaction-crawl.md" \
+  "$REPORT_DIR/system-lab.json" \
+  "$REPORT_DIR/system-lab.md"
 rm -rf "$REPORT_DIR/visual-journey" "$REPORT_DIR/interaction-crawl"
 mkdir -p "$REPORT_DIR/visual-journey/current"
 
@@ -324,22 +330,15 @@ EOF
     fi
 
     adb logcat -b all -d -v threadtime > "$system_log" 2>&1 || true
-
-    # Hosted AVDs occasionally restart system_server or lose the accessibility
-    # manager while Maestro is interacting with the app. In that case the app
-    # can receive DeadSystemException and disappear even though its own code did
-    # not crash. Treat this as infrastructure failure and retry the flow.
     if grep -Eqi "DeadSystemException|registerUiTestAutomationService.*null object reference|UiAutomationConnection.*NullPointerException|system_server.*(died|crash|restarting)|ServiceManager.*(dead|Bad file descriptor)" "$system_log"; then
       return 0
     fi
-
     return 1
   }
 
   recover_emulator_after_transient_failure() {
     log "transient emulator/system failure detected; recovering before retry..."
     adb wait-for-device || true
-
     for _ in {1..30}; do
       BOOT_COMPLETED="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
       if [[ "$BOOT_COMPLETED" == "1" ]] &&
@@ -349,7 +348,6 @@ EOF
       fi
       sleep 2
     done
-
     adb shell am force-stop "$PACKAGE_ID" >/dev/null 2>&1 || true
     adb logcat -b all -c >/dev/null 2>&1 || true
     sleep 3
@@ -489,6 +487,44 @@ fi
 
 log "Multi-Screen Visual Journey: $VISUAL_JOURNEY_RESULT (single visual engine)"
 
+SYSTEM_CONFIG_ARGS=()
+if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-system.json" ]]; then
+  SYSTEM_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-system.json")
+  log "System UI Lab config: project policy"
+elif [[ -n "$TARGET_ROOT" && -f "$TARGET_ROOT/.maestro/applab-system.json" ]]; then
+  SYSTEM_CONFIG_ARGS=(--config "$TARGET_ROOT/.maestro/applab-system.json")
+  log "System UI Lab config: repository policy"
+fi
+
+SYSTEM_STATUS=0
+set +e
+python3 "$(dirname "$0")/system_lab.py" \
+  --package-id "$PACKAGE_ID" \
+  --report-dir "$REPORT_DIR" \
+  "${SYSTEM_CONFIG_ARGS[@]}"
+SYSTEM_STATUS="$?"
+set -e
+
+if [[ -s "$REPORT_DIR/system-lab.json" ]]; then
+  SYSTEM_LAB_RESULT="$(
+    python3 - "$REPORT_DIR/system-lab.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(payload.get("result", "ERROR"))
+PY
+  )"
+else
+  SYSTEM_LAB_RESULT="ERROR"
+fi
+
+if [[ "$SYSTEM_STATUS" -ne 0 || "$SYSTEM_LAB_RESULT" == "FAIL" || "$SYSTEM_LAB_RESULT" == "ERROR" ]]; then
+  fail "System UI Lab detected a required Android system/runtime failure."
+fi
+PID_AFTER="$(assert_runtime_healthy "system-lab")"
+log "System UI Lab: $SYSTEM_LAB_RESULT"
+
 {
   echo "# AppLab report"
   echo
@@ -502,6 +538,7 @@ log "Multi-Screen Visual Journey: $VISUAL_JOURNEY_RESULT (single visual engine)"
   echo "- Visual Regression: $VISUAL_REGRESSION_RESULT"
   echo "- Multi-Screen Visual Journey: $VISUAL_JOURNEY_RESULT"
   echo "- Safe Interaction Crawler: $INTERACTION_CRAWL_RESULT"
+  echo "- System UI Lab: $SYSTEM_LAB_RESULT"
   printf -- '- Screenshot: launch.png\n'
   if [[ "$MAESTRO_RESULT" == "PASS" ]]; then
     printf -- '- Post-Maestro screenshot: post-maestro.png\n'
@@ -520,6 +557,8 @@ log "Multi-Screen Visual Journey: $VISUAL_JOURNEY_RESULT (single visual engine)"
   printf -- '- Visual Journey summary: visual-journey.md\n'
   printf -- '- Interaction Crawler JSON: interaction-crawl.json\n'
   printf -- '- Interaction Crawler summary: interaction-crawl.md\n'
+  printf -- '- System UI Lab JSON: system-lab.json\n'
+  printf -- '- System UI Lab summary: system-lab.md\n'
 } > "$REPORT_DIR/summary.md"
 
 write_result_json "PASS" "" "$PID_AFTER" "$MAESTRO_RESULT"

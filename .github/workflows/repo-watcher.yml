@@ -12,6 +12,7 @@ on:
       - "scripts/dismiss_foreign_anr.py"
       - "scripts/install_maestro.sh"
       - "scripts/interaction_crawler.py"
+      - "scripts/system_lab.py"
       - "scripts/contract_fingerprint.py"
       - "scripts/prepare_visual_baseline.py"
       - "scripts/package_build_contract.py"
