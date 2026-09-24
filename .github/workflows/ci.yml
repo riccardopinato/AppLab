@@ -15,13 +15,23 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
-          shellcheck scripts/*.sh
+          shellcheck scripts/*.sh watch-profiles/*.sh
 
       - name: Python tests
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements-dev.txt
           PYTHONPATH=backend pytest backend/tests -q
+
+      - name: Validate watcher tooling
+        run: |
+          python -m py_compile \
+            scripts/finalize_external_result.py \
+            scripts/watch_discover.py \
+            scripts/watch_aggregate.py
+          python scripts/watch_discover.py \
+            --watchlist watchlist.json \
+            --validate-only
 
       - name: Frontend build
         run: |

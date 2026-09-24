@@ -87,6 +87,112 @@ on:
         required: false
         default: ""
         type: string
+      history_key:
+        description: Stable identifier used by AppLab Watcher history and caches
+        required: false
+        default: external
+        type: string
+      cache_verification:
+        description: Save this resolved commit as already verified by AppLab Watcher
+        required: false
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      repository:
+        description: Public GitHub repository in owner/name format
+        required: true
+        type: string
+      ref:
+        description: Branch, tag, or commit SHA to verify
+        required: false
+        default: main
+        type: string
+      working_directory:
+        description: Flutter project directory inside the target repository
+        required: false
+        default: "."
+        type: string
+      flutter_channel:
+        description: Flutter channel used when flutter_version is empty
+        required: false
+        default: stable
+        type: string
+      flutter_version:
+        description: Optional exact Flutter version
+        required: false
+        default: ""
+        type: string
+      java_version:
+        description: Java version used to build the target project
+        required: false
+        default: "17"
+        type: string
+      prepare_command:
+        description: Optional repository-specific command run before flutter pub get
+        required: false
+        default: ""
+        type: string
+      post_pub_get_command:
+        description: Optional repository-specific command run after flutter pub get
+        required: false
+        default: ""
+        type: string
+      android_prepare_command:
+        description: Optional command run with ADB available after a preliminary APK install
+        required: false
+        default: ""
+        type: string
+      api_level:
+        description: Android emulator API level
+        required: false
+        default: "35"
+        type: string
+      emulator_profile:
+        description: Android emulator hardware profile
+        required: false
+        default: pixel_7_pro
+        type: string
+      apk_path:
+        description: APK path relative to working_directory
+        required: false
+        default: build/app/outputs/flutter-apk/app-debug.apk
+        type: string
+      package_id:
+        description: Optional Android application id; empty enables automatic detection
+        required: false
+        default: ""
+        type: string
+      build_command:
+        description: Flutter APK build command
+        required: false
+        default: flutter build apk --debug
+        type: string
+      run_flutter_tests:
+        description: Run flutter analyze and flutter test
+        required: false
+        default: true
+        type: boolean
+      run_maestro:
+        description: Run Maestro after launch
+        required: false
+        default: true
+        type: boolean
+      maestro_flow:
+        description: Optional Maestro flow path relative to target repository root
+        required: false
+        default: ""
+        type: string
+      history_key:
+        description: Stable identifier used by AppLab Watcher history and caches
+        required: false
+        default: external
+        type: string
+      cache_verification:
+        description: Save this resolved commit as already verified by AppLab Watcher
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -146,13 +252,16 @@ jobs:
           persist-credentials: false
 
       - name: Prepare evidence directory
+        id: target
         shell: bash
         run: |
           mkdir -p "$GITHUB_WORKSPACE/applab-report"
+          RESOLVED_SHA="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
+          echo "resolved_sha=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
           {
             echo "repository=${{ inputs.repository }}"
             echo "ref=${{ inputs.ref }}"
-            echo "resolved_sha=$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
+            echo "resolved_sha=$RESOLVED_SHA"
             echo "working_directory=${{ inputs.working_directory }}"
             echo "apk_path=${{ inputs.apk_path }}"
           } | tee "$GITHUB_WORKSPACE/applab-report/project.txt"
@@ -289,8 +398,38 @@ jobs:
             RUN_MAESTRO="$APPLAB_RUN_MAESTRO" \
             MAESTRO_FLOW="$FLOW_PATH" \
             REPORT_DIR="$GITHUB_WORKSPACE/applab-report" \
-            APPLAB_VERSION="0.4.1" \
+            APPLAB_VERSION="0.5.0" \
             .applab/scripts/verify_apk.sh "$APPLAB_APK_FILE" "${{ inputs.package_id }}"
+
+      - name: Finalize external result contract
+        if: always()
+        env:
+          APPLAB_PIPELINE_STATUS: ${{ job.status }}
+          APPLAB_RESOLVED_SHA: ${{ steps.target.outputs.resolved_sha }}
+        run: |
+          python .applab/scripts/finalize_external_result.py \
+            --report-dir "$GITHUB_WORKSPACE/applab-report" \
+            --repository "${{ inputs.repository }}" \
+            --ref "${{ inputs.ref }}" \
+            --resolved-sha "$APPLAB_RESOLVED_SHA" \
+            --history-key "${{ inputs.history_key }}" \
+            --pipeline-status "$APPLAB_PIPELINE_STATUS" \
+            --run-id "$GITHUB_RUN_ID"
+
+      - name: Prepare verification cache payload
+        if: always() && inputs.cache_verification && steps.target.outputs.resolved_sha != ''
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/.applab-watch-cache"
+          mkdir -p "$GITHUB_WORKSPACE/.applab-watch-cache"
+          cp "$GITHUB_WORKSPACE/applab-report/result.json" "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
+          cp "$GITHUB_WORKSPACE/applab-report/summary.md" "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
+
+      - name: Mark resolved commit as checked
+        if: always() && inputs.cache_verification && steps.target.outputs.resolved_sha != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .applab-watch-cache
+          key: applab-v0.5-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
 
       - name: Publish AppLab summary
         if: always()
@@ -315,7 +454,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: external-applab-report-${{ github.run_id }}
+          name: applab-${{ inputs.history_key }}-${{ github.run_id }}
           path: applab-report/
           if-no-files-found: warn
           retention-days: 14

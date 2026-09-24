@@ -2,6 +2,22 @@
 
 AppLab is a reusable Android APK verification lab.
 
+## v0.5 — Automatic Repo Watcher
+
+AppLab now watches configured public Flutter repositories centrally. Every hour
+it resolves each target's current SHA, skips commits already verified, and runs
+the existing External Project Runner only for new commits.
+
+The first live watchlist contains TrailPath, Battery Guard and the Flutter port
+of Notes-Ecosistema. Each repository keeps its own build profile while AppLab
+owns the emulator verification contract.
+
+Watcher results are aggregated into a cumulative `history.jsonl` stored in
+GitHub Actions cache and published as a 90-day artifact. Both PASS and FAIL
+commits are marked as checked; a manual forced run can retry the same SHA.
+
+See `integration/flutter/WATCHER.md`.
+
 ## v0.4.1 — External Project Runner
 
 AppLab can also test a public Flutter repository **from AppLab itself**, without

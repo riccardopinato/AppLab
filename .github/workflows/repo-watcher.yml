@@ -1,0 +1,207 @@
+name: AppLab Repo Watcher
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Re-run configured repositories even if their current SHA is cached
+        required: false
+        default: false
+        type: boolean
+      repository:
+        description: Optional owner/name to run only one configured repository
+        required: false
+        default: ""
+        type: string
+  repository_dispatch:
+    types: [applab-watch]
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: applab-repo-watcher
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Discover changed repositories
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      has_work: ${{ steps.matrix.outputs.has_work }}
+      scheduled_count: ${{ steps.matrix.outputs.scheduled_count }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve watcher matrix
+        id: matrix
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FORCE_INPUT: ${{ inputs.force }}
+          DISPATCH_REPOSITORY: ${{ github.event.client_payload.repository }}
+          MANUAL_REPOSITORY: ${{ inputs.repository }}
+        run: |
+          set -Eeuo pipefail
+          FORCE=false
+          if [[ "$FORCE_INPUT" == "true" ]]; then
+            FORCE=true
+          fi
+
+          ONLY_REPOSITORY="$MANUAL_REPOSITORY"
+          if [[ -z "$ONLY_REPOSITORY" && -n "$DISPATCH_REPOSITORY" ]]; then
+            ONLY_REPOSITORY="$DISPATCH_REPOSITORY"
+          fi
+
+          ARGS=(
+            --watchlist watchlist.json
+            --applab-repository "$GITHUB_REPOSITORY"
+            --matrix-output "$RUNNER_TEMP/watch-matrix.json"
+            --status-output "$GITHUB_WORKSPACE/watch-discovery.json"
+          )
+          if [[ "$FORCE" == "true" ]]; then
+            ARGS+=(--force)
+          fi
+          if [[ -n "$ONLY_REPOSITORY" ]]; then
+            ARGS+=(--only-repository "$ONLY_REPOSITORY")
+          fi
+
+          python scripts/watch_discover.py "${ARGS[@]}"
+
+          MATRIX="$(cat "$RUNNER_TEMP/watch-matrix.json")"
+          COUNT="$(python -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["include"]))' "$RUNNER_TEMP/watch-matrix.json")"
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "scheduled_count=$COUNT" >> "$GITHUB_OUTPUT"
+          if [[ "$COUNT" -gt 0 ]]; then
+            echo "has_work=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_work=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Discovery summary
+        shell: bash
+        run: |
+          {
+            echo "## AppLab watcher discovery"
+            echo
+            python - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("watch-discovery.json").read_text())
+          rows = data.get("repositories", [])
+          print(f"- Scheduled: {data.get('scheduled_count', 0)}")
+          print()
+          print("| Repository | SHA | State |")
+          print("| --- | --- | --- |")
+          for item in rows:
+              sha = str(item.get("resolved_sha", ""))[:8] or "—"
+              if item.get("error"):
+                  state = "ERROR"
+              elif item.get("cached"):
+                  state = "cached"
+              elif item.get("scheduled"):
+                  state = "scheduled"
+              else:
+                  state = "skipped"
+              print(f"| {item.get('repository', '—')} | `{sha}` | {state} |")
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload discovery evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: applab-watch-discovery-${{ github.run_id }}
+          path: watch-discovery.json
+          if-no-files-found: error
+          retention-days: 30
+
+  verify:
+    name: Verify ${{ matrix.repository }}
+    if: needs.discover.outputs.has_work == 'true'
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    uses: ./.github/workflows/external-project-runner.yml
+    with:
+      repository: ${{ matrix.repository }}
+      ref: ${{ matrix.resolved_sha }}
+      working_directory: ${{ matrix.working_directory }}
+      flutter_channel: ${{ matrix.flutter_channel }}
+      flutter_version: ${{ matrix.flutter_version }}
+      java_version: ${{ matrix.java_version }}
+      prepare_command: ${{ matrix.prepare_command }}
+      post_pub_get_command: ${{ matrix.post_pub_get_command }}
+      android_prepare_command: ${{ matrix.android_prepare_command }}
+      api_level: ${{ matrix.api_level }}
+      emulator_profile: ${{ matrix.emulator_profile }}
+      apk_path: ${{ matrix.apk_path }}
+      package_id: ${{ matrix.package_id }}
+      build_command: ${{ matrix.build_command }}
+      run_flutter_tests: ${{ matrix.run_flutter_tests }}
+      run_maestro: ${{ matrix.run_maestro }}
+      maestro_flow: ${{ matrix.maestro_flow }}
+      history_key: ${{ matrix.key }}
+      cache_verification: true
+
+  aggregate:
+    name: Update central watcher history
+    if: always()
+    needs: [discover, verify]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Restore central history
+        id: history
+        uses: actions/cache/restore@v4
+        with:
+          path: .applab-history
+          key: applab-watch-history-${{ github.run_id }}
+          restore-keys: |
+            applab-watch-history-
+
+      - name: Download current watcher reports
+        uses: actions/download-artifact@v6
+        with:
+          pattern: applab-watch-*
+          path: watch-results
+          merge-multiple: false
+        continue-on-error: true
+
+      - name: Aggregate current results
+        shell: bash
+        run: |
+          mkdir -p .applab-history
+          python scripts/watch_aggregate.py \
+            --results-dir watch-results \
+            --history-file .applab-history/history.jsonl \
+            --summary-output watch-summary.md \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          cat watch-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save central history
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .applab-history
+          key: applab-watch-history-${{ github.run_id }}
+
+      - name: Upload central history
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: applab-watch-history-${{ github.run_id }}
+          path: |
+            watch-summary.md
+            .applab-history/history.jsonl
+          if-no-files-found: warn
+          retention-days: 90
