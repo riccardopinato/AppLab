@@ -133,6 +133,15 @@ jobs:
           restore-keys: |
             applab-performance-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-
 
+      - name: Restore previous passing upgrade baseline
+        id: upgrade_baseline
+        uses: actions/cache/restore@v6
+        with:
+          path: .applab-upgrade-baseline
+          key: applab-upgrade-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
+          restore-keys: |
+            applab-upgrade-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-
+
       - name: Verify APK inside trusted Android runtime
         id: verify
         uses: reactivecircus/android-emulator-runner@v2
@@ -149,7 +158,8 @@ jobs:
           APPLAB_REPORT_DIR: ${{ github.workspace }}/applab-report
           APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
           APPLAB_PERFORMANCE_BASELINE_JSON: ${{ github.workspace }}/.applab-performance-baseline/performance-lab.json
-          APPLAB_VERSION: "0.7.4"
+          APPLAB_UPGRADE_BASELINE_APK: ${{ github.workspace }}/.applab-upgrade-baseline/baseline.apk
+          APPLAB_VERSION: "0.7.5"
           START_TIMEOUT: ${{ inputs.start_timeout }}
           SETTLE_SECONDS: ${{ inputs.settle_seconds }}
         with:
@@ -177,7 +187,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.7.4" \
+            --version "0.7.5" \
             --github-output "$GITHUB_OUTPUT" \
             "${EXTRA_ARGS[@]}"
 
@@ -199,7 +209,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.7.4" \
+            --version "0.7.5" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Save PASS-only performance baseline
@@ -208,6 +218,26 @@ jobs:
         with:
           path: .applab-performance-baseline
           key: applab-performance-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}-${{ github.run_id }}
+
+      - name: Prepare PASS-only upgrade baseline
+        id: upgrade_baseline_prepare
+        if: steps.verify.outcome == 'success'
+        shell: bash
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/.applab-upgrade-baseline"
+          python .applab/scripts/prepare_upgrade_baseline.py \
+            --source-apk "${{ steps.contract.outputs.apk_file }}" \
+            --baseline-dir "$GITHUB_WORKSPACE/.applab-upgrade-baseline" \
+            --repository "${{ inputs.repository }}" \
+            --resolved-sha "${{ inputs.resolved_sha }}" \
+            --version "0.7.5"
+
+      - name: Save PASS-only upgrade baseline
+        if: steps.verify.outcome == 'success'
+        uses: actions/cache/save@v6
+        with:
+          path: .applab-upgrade-baseline
+          key: applab-upgrade-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}-${{ github.run_id }}
 
       - name: Prepare PASS-only installable release
         id: release
@@ -280,7 +310,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v0.7.4 Trusted APK Verification"
+            echo "## AppLab v0.7.5 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"

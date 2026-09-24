@@ -1,5 +1,13 @@
 # AppLab
 
+## v0.7.5 — Upgrade & Migration Lab
+
+AppLab now restores the latest PASS-only APK for each project and exercises a real in-place upgrade to the current candidate. Previous/current APK copies are temporarily re-signed with the same run-local AppLab test key so CI debug-key rotation cannot invalidate the migration test; the original verified APK bytes remain untouched.
+
+The gate verifies previous-version launch, `adb install -r` upgrade, post-upgrade launch, crash/ANR health, screenshot/UI evidence, and optional persisted-state assertions from `.maestro/applab-upgrade.json`. Projects without a previous PASS APK report `NO_BASELINE` and seed one after their first successful verification.
+
+See `integration/upgrade/UPGRADE_MIGRATION_LAB.md`.
+
 ## v0.7.4 — Persistence & Restart Lab
 
 The trusted Android gate now force-stops and relaunches the target across repeated lifecycle cycles, captures post-restart screenshot/UI evidence, and fails on relaunch failure, target ANR, or fatal exception. Projects can optionally define persisted-state assertions with `.maestro/applab-persistence.json`, using expected/forbidden UI-text regular expressions after every restart.

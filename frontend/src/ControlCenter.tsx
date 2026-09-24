@@ -39,6 +39,7 @@ type ProjectRow = {
   system_lab: string;
   network_lab: string;
   persistence_lab: string;
+  upgrade_lab: string;
   performance_lab: string;
   performance?: PerformanceMetrics;
   applab_version: string;
@@ -62,6 +63,7 @@ type RecentRow = {
   system_lab?: string;
   network_lab?: string;
   persistence_lab?: string;
+  upgrade_lab?: string;
   performance_lab?: string;
   performance?: PerformanceMetrics;
   watcher_run_id?: string;
@@ -198,6 +200,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>System</th>
                   <th>Network</th>
                   <th>Persistence</th>
+                  <th>Upgrade</th>
                   <th>Performance</th>
                   <th>Release APK</th>
                 </tr>
@@ -227,6 +230,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     <td>{gate(project.system_lab)}</td>
                     <td>{gate(project.network_lab)}</td>
                     <td>{gate(project.persistence_lab)}</td>
+                    <td>{gate(project.upgrade_lab)}</td>
                     <td>
                       <div className="cc-project">
                         <span className={badgeClass(project.performance_lab)}>
