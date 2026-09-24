@@ -92,6 +92,17 @@ def apk_identity(apk: Path) -> dict[str, str]:
             match = re.search(pattern, package_line)
             if match:
                 result[key] = match.group(1).strip()
+
+    apkanalyzer = shutil.which("apkanalyzer")
+    if apkanalyzer:
+        commands = {
+            "package_id": ["manifest", "application-id"],
+            "version_name": ["manifest", "version-name"],
+            "version_code": ["manifest", "version-code"],
+        }
+        for key, parts in commands.items():
+            if not result[key]:
+                result[key] = run_text([apkanalyzer, *parts, str(apk)]).strip()
     return result
 
 
@@ -191,7 +202,10 @@ def prepare(args: argparse.Namespace) -> int:
         "artifact_name": artifact_name,
         "artifact_id": "",
         "artifact_url": "",
-        "changelog_summary": commit_summary(args.repository, args.resolved_sha),
+        "changelog_summary": (
+            args.changelog_summary.strip()
+            or commit_summary(args.repository, args.resolved_sha)
+        ),
         "apk": {
             "filename": apk_name,
             "package_id": package_id,
@@ -261,6 +275,7 @@ def self_test() -> int:
             history_key="watch-test",
             run_id="1",
             run_url="https://github.com/owner/AppLab/actions/runs/1",
+            changelog_summary="Test release",
         ))
         payload = load_json(report / "result.json")
         assert payload["release"]["apk"]["sha256"] == digest
@@ -291,6 +306,7 @@ def main() -> int:
     p.add_argument("--history-key", required=True)
     p.add_argument("--run-id", required=True)
     p.add_argument("--run-url", required=True)
+    p.add_argument("--changelog-summary", default="")
 
     b = sub.add_parser("bind")
     b.add_argument("--report-dir", required=True)
