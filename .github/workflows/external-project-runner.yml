@@ -107,6 +107,16 @@ on:
         required: false
         default: "manual"
         type: string
+      start_timeout:
+        description: Seconds allowed for the app process to start
+        required: false
+        default: "30"
+        type: string
+      settle_seconds:
+        description: Seconds to let the app settle before visual verification
+        required: false
+        default: "5"
+        type: string
   workflow_call:
     inputs:
       repository:
@@ -212,6 +222,16 @@ on:
         description: Automatic AppLab verification contract fingerprint
         required: false
         default: "manual"
+        type: string
+      start_timeout:
+        description: Seconds allowed for the app process to start
+        required: false
+        default: "30"
+        type: string
+      settle_seconds:
+        description: Seconds to let the app settle before visual verification
+        required: false
+        default: "5"
         type: string
 
 permissions:
@@ -427,6 +447,8 @@ jobs:
           APPLAB_REPORT_DIR: ${{ github.workspace }}/applab-report
           APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
           APPLAB_VERSION: "0.6.3"
+          START_TIMEOUT: ${{ inputs.start_timeout }}
+          SETTLE_SECONDS: ${{ inputs.settle_seconds }}
         with:
           api-level: ${{ inputs.api_level }}
           target: google_apis
