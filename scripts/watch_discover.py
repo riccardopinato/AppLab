@@ -117,8 +117,8 @@ def main() -> int:
     if data.get("schema_version") != 1:
         raise SystemExit("Unsupported watchlist schema_version")
 
-    cache_epoch = str(data.get("cache_epoch", "1")).strip() or "1"
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+", cache_epoch):
+    global_cache_epoch = str(data.get("cache_epoch", "1")).strip() or "1"
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", global_cache_epoch):
         raise SystemExit("watchlist cache_epoch must be alphanumeric/dot/dash")
 
     entries = data.get("repositories")
@@ -168,6 +168,13 @@ def main() -> int:
 
         repository = str(entry["repository"])
         engine = str(entry.get("engine", "flutter"))
+        cache_epoch = str(
+            entry.get("cache_epoch", global_cache_epoch)
+        ).strip() or global_cache_epoch
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", cache_epoch):
+            raise ValueError(
+                f"Invalid cache_epoch for {repository}: {cache_epoch!r}"
+            )
         if only_repository and repository != only_repository:
             continue
 
