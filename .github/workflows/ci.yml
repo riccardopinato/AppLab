@@ -32,6 +32,7 @@ jobs:
           python -m py_compile \
             scripts/dismiss_foreign_anr.py \
             scripts/finalize_external_result.py \
+            scripts/interaction_crawler.py \
             scripts/project_autodiscover.py \
             scripts/contract_fingerprint.py \
             scripts/prepare_visual_baseline.py \
@@ -45,6 +46,7 @@ jobs:
             scripts/watch_discover.py \
             scripts/watch_aggregate.py
           python scripts/dismiss_foreign_anr.py --self-test
+          python scripts/interaction_crawler.py --self-test
           python scripts/project_autodiscover.py --self-test
           python scripts/prepare_visual_baseline.py --self-test
           python scripts/package_build_contract.py --self-test
