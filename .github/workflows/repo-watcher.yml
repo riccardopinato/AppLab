@@ -9,6 +9,12 @@ on:
       - "scripts/watch_*.py"
       - "scripts/finalize_external_result.py"
       - "scripts/run_external_android_gate.sh"
+      - "scripts/dismiss_foreign_anr.py"
+      - "scripts/install_maestro.sh"
+      - "scripts/contract_fingerprint.py"
+      - "scripts/prepare_visual_baseline.py"
+      - "scripts/visual_*.py"
+      - "scripts/verify_apk.sh"
       - ".github/workflows/repo-watcher.yml"
       - ".github/workflows/external-project-runner.yml"
       - ".github/workflows/external-native-android-runner.yml"
@@ -193,6 +199,7 @@ jobs:
       cache_verification: true
       cache_epoch: ${{ matrix.cache_epoch }}
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
+      config_fingerprint: ${{ matrix.config_fingerprint }}
 
   verify_native:
     name: Native Android ${{ matrix.repository }}
@@ -226,6 +233,7 @@ jobs:
       cache_verification: true
       cache_epoch: ${{ matrix.cache_epoch }}
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
+      config_fingerprint: ${{ matrix.config_fingerprint }}
 
   verify_auto:
     name: Auto ${{ matrix.repository }}
@@ -243,6 +251,7 @@ jobs:
       cache_verification: true
       cache_epoch: ${{ matrix.cache_epoch }}
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
+      config_fingerprint: ${{ matrix.config_fingerprint }}
 
   aggregate:
     name: Update central watcher history
