@@ -1,6 +1,7 @@
 FROM python:3.12-slim
 
 ARG EMULATOR_SCRIPTS_REF=0654f694b46794fae4b178f1e1a17cb60c5d2d34
+ARG MAESTRO_VERSION=2.10.0
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -15,7 +16,9 @@ RUN apt-get update \
        adb bash ca-certificates curl default-jre-headless git unzip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -Ls "https://get.maestro.mobile.dev" | bash
+RUN export MAESTRO_VERSION="$MAESTRO_VERSION" MAESTRO_CLI_NO_ANALYTICS=1 \
+    && curl -fsSL "https://get.maestro.mobile.dev" | bash \
+    && maestro --version | grep -F "$MAESTRO_VERSION"
 
 # Install Google's current Python WebRTC signaling gateway. The gateway build
 # generates its protobuf stubs from the Android Emulator AEMU proto sources.
