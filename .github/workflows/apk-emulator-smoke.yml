@@ -29,13 +29,13 @@ jobs:
     timeout-minutes: 40
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Download APK
         run: curl --fail --location --retry 3 "${{ inputs.apk_url }}" --output app-under-test.apk
 
       - name: Setup Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
@@ -68,7 +68,7 @@ jobs:
 
       - name: Upload AppLab report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: applab-report
           path: applab-report/
