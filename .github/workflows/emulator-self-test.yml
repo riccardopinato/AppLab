@@ -73,27 +73,10 @@ jobs:
             test -s "$GITHUB_WORKSPACE/applab-report/launch.png"
             test -s "$GITHUB_WORKSPACE/applab-report/post-maestro.png"
             test -s "$GITHUB_WORKSPACE/applab-report/logcat.txt"
-            python - <<'PY'
-            import json
-            from pathlib import Path
-            report = json.loads(Path("applab-report/visual-journey.json").read_text())
-            names = {item["name"] for item in report["checkpoints"]}
-            assert {"launch", "final", "settings", "dialog"} <= names, names
-            assert report["checkpoint_count"] >= 4, report
-            assert report["visual_qa"] == "PASS", report
-            PY
+            python -c 'import json,pathlib; report=json.loads(pathlib.Path("applab-report/visual-journey.json").read_text()); names={item["name"] for item in report["checkpoints"]}; assert {"launch","final","settings","dialog"} <= names, names; assert report["checkpoint_count"] >= 4, report; assert report["visual_qa"] == "PASS", report'
 
             RUN_MAESTRO=false REPORT_DIR="$GITHUB_WORKSPACE/applab-report-no-maestro" APPLAB_TARGET_ROOT="$GITHUB_WORKSPACE" APPLAB_PROJECT_ROOT="$GITHUB_WORKSPACE" APPLAB_VERSION="0.6.3" ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk" "dev.applab.selftest"
-            python - <<'PY'
-            import json
-            from pathlib import Path
-            report = json.loads(Path("applab-report-no-maestro/result.json").read_text())
-            journey = json.loads(Path("applab-report-no-maestro/visual-journey.json").read_text())
-            assert report["result"] == "PASS", report
-            assert report["maestro"] == "SKIPPED", report
-            assert journey["checkpoint_count"] == 2, journey
-            assert {x["name"] for x in journey["checkpoints"]} == {"launch", "final"}, journey
-            PY
+            python -c 'import json,pathlib; report=json.loads(pathlib.Path("applab-report-no-maestro/result.json").read_text()); journey=json.loads(pathlib.Path("applab-report-no-maestro/visual-journey.json").read_text()); assert report["result"] == "PASS", report; assert report["maestro"] == "SKIPPED", report; assert journey["checkpoint_count"] == 2, journey; assert {x["name"] for x in journey["checkpoints"]} == {"launch","final"}, journey'
 
       - name: Publish runtime evidence
         if: always()
