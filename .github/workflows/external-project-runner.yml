@@ -406,6 +406,34 @@ jobs:
           set -o pipefail
           flutter test 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-test.txt"
 
+      - name: Tune Gradle memory for hosted build
+        working-directory: target/${{ inputs.working_directory }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          GRADLE_PROPERTIES="android/gradle.properties"
+          if [[ -f "$GRADLE_PROPERTIES" ]]; then
+            python3 - "$GRADLE_PROPERTIES" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          managed = {
+              "org.gradle.jvmargs": "-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8",
+              "org.gradle.workers.max": "2",
+              "kotlin.compiler.execution.strategy": "in-process",
+          }
+          lines = path.read_text(encoding="utf-8").splitlines()
+          prefixes = tuple(f"{key}=" for key in managed)
+          lines = [line for line in lines if not line.startswith(prefixes)]
+          lines.append("")
+          lines.append("# AppLab hosted-runner memory profile")
+          lines.extend(f"{key}={value}" for key, value in managed.items())
+          path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+          PY
+            cp "$GRADLE_PROPERTIES" "$GITHUB_WORKSPACE/applab-report/gradle-properties-effective.txt"
+          fi
+
       - name: Build APK
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
