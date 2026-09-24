@@ -94,7 +94,8 @@ def first_regex(text: str, patterns: list[str]) -> str:
     for pattern in patterns:
         match = re.search(pattern, text, re.MULTILINE | re.IGNORECASE)
         if match:
-            return match.group(1).strip()
+            value = match.group(1)
+            return value.strip() if value is not None else ""
     return ""
 
 
@@ -217,11 +218,7 @@ def pick_gradle_command(lines: list[str], token: str) -> str:
 
 
 def infer_apk_path(build_command: str) -> str:
-    task = first_regex(
-        build_command,
-        [r"(?:^|\s)(?::([A-Za-z0-9_.-]+):)?assemble([A-Za-z0-9_.-]+)"],
-    )
-    # first_regex only returns group 1, so handle module/variant explicitly here.
+    # Handle module/variant explicitly because the module group is optional.
     match = re.search(
         r"(?:^|\s)(?::([A-Za-z0-9_.-]+):)?assemble([A-Za-z0-9_.-]+)",
         build_command,
