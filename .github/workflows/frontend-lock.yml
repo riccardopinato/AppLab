@@ -9,6 +9,9 @@ on:
       - ".github/workflows/frontend-lock.yml"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: applab-frontend-lock
   cancel-in-progress: true
@@ -34,6 +37,14 @@ jobs:
           path: frontend/package-lock.json
           if-no-files-found: error
           retention-days: 7
-      - name: Verify committed lockfile
-        if: hashFiles('frontend/package-lock.json') != ''
-        run: git diff --exit-code -- frontend/package-lock.json
+      - name: Commit lockfile when dependency graph changes
+        run: |
+          git add frontend/package-lock.json
+          if git diff --cached --quiet; then
+            echo "frontend/package-lock.json is already current."
+            exit 0
+          fi
+          git config user.name "AppLab Lock Bot"
+          git config user.email "applab-lock-bot@users.noreply.github.com"
+          git commit -m "chore(frontend): refresh package lock"
+          git push
