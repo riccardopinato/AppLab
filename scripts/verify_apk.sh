@@ -9,8 +9,10 @@ START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
 RUN_MAESTRO="${RUN_MAESTRO:-false}"
-APPLAB_VERSION="${APPLAB_VERSION:-0.6.0}"
+APPLAB_VERSION="${APPLAB_VERSION:-0.6.1}"
+VISUAL_BASELINE_DIR="${VISUAL_BASELINE_DIR:-}"
 VISUAL_QA_RESULT="SKIPPED"
+VISUAL_REGRESSION_RESULT="NO_BASELINE"
 
 write_result_json() {
   local result="$1"
@@ -20,13 +22,13 @@ write_result_json() {
 
   mkdir -p "$REPORT_DIR"
   if command -v python3 >/dev/null 2>&1; then
-    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" <<'PY'
+    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa = sys.argv[1:]
+output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression = sys.argv[1:]
 payload = {
     "schema_version": 1,
     "applab_version": version,
@@ -38,6 +40,7 @@ payload = {
     "pid": pid_value,
     "maestro": maestro,
     "visual_qa": visual_qa,
+    "visual_regression": visual_regression,
     "evidence": {
         "summary": "summary.md",
         "launch_screenshot": "launch.png",
@@ -47,6 +50,8 @@ payload = {
         "app_logcat": "app-logcat.txt",
         "visual_qa_json": "visual-qa.json",
         "visual_qa_summary": "visual-qa.md",
+        "visual_regression_json": "visual-regression.json",
+        "visual_regression_summary": "visual-regression.md",
     },
 }
 Path(output).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -87,7 +92,9 @@ command -v adb >/dev/null 2>&1 || fail "adb is not available on PATH."
 mkdir -p "$REPORT_DIR"
 rm -f   "$REPORT_DIR/launch.png"   "$REPORT_DIR/post-maestro.png"   "$REPORT_DIR/window.xml"   "$REPORT_DIR/post-maestro-window.xml"   "$REPORT_DIR/logcat.txt" \
   "$REPORT_DIR/visual-qa.json" \
-  "$REPORT_DIR/visual-qa.md"
+  "$REPORT_DIR/visual-qa.md" \
+  "$REPORT_DIR/visual-regression.json" \
+  "$REPORT_DIR/visual-regression.md"
 
 detect_package() {
   local apk="$1"
@@ -198,6 +205,74 @@ PY
   fi
 
   log "Smart Visual QA: $VISUAL_QA_RESULT"
+}
+
+run_visual_regression() {
+  local current_screenshot="$REPORT_DIR/launch.png"
+  local current_hierarchy="$REPORT_DIR/launch-window.xml"
+  local baseline_screenshot=""
+  local baseline_hierarchy=""
+  local baseline_metadata=""
+  local status=0
+
+  if [[ -s "$REPORT_DIR/post-maestro.png" && -s "$REPORT_DIR/post-maestro-window.xml" ]]; then
+    current_screenshot="$REPORT_DIR/post-maestro.png"
+    current_hierarchy="$REPORT_DIR/post-maestro-window.xml"
+  fi
+
+  if [[ -z "$VISUAL_BASELINE_DIR" || ! -d "$VISUAL_BASELINE_DIR" ]]; then
+    VISUAL_REGRESSION_RESULT="NO_BASELINE"
+    log "Visual Regression: NO_BASELINE — current PASS will become the first baseline."
+    return 0
+  fi
+
+  baseline_screenshot="$VISUAL_BASELINE_DIR/screenshot.png"
+  baseline_hierarchy="$VISUAL_BASELINE_DIR/window.xml"
+  baseline_metadata="$VISUAL_BASELINE_DIR/metadata.json"
+
+  if [[ ! -s "$baseline_screenshot" || ! -s "$baseline_hierarchy" ]]; then
+    VISUAL_REGRESSION_RESULT="NO_BASELINE"
+    log "Visual Regression: NO_BASELINE — baseline cache is incomplete."
+    return 0
+  fi
+
+  log "running Visual Regression against last passing baseline..."
+  set +e
+  python3 "$(dirname "$0")/visual_regression.py" \
+    --baseline-screenshot "$baseline_screenshot" \
+    --baseline-ui "$baseline_hierarchy" \
+    --baseline-metadata "$baseline_metadata" \
+    --current-screenshot "$current_screenshot" \
+    --current-ui "$current_hierarchy" \
+    --package-id "$PACKAGE_ID" \
+    --output-json "$REPORT_DIR/visual-regression.json" \
+    --output-md "$REPORT_DIR/visual-regression.md"
+  status="$?"
+  set -e
+
+  if [[ -s "$REPORT_DIR/visual-regression.json" ]]; then
+    VISUAL_REGRESSION_RESULT="$(
+      python3 - "$REPORT_DIR/visual-regression.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+try:
+    payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    print(str(payload.get("result", "UNKNOWN")))
+except Exception:
+    print("UNKNOWN")
+PY
+    )"
+  else
+    VISUAL_REGRESSION_RESULT="ERROR"
+  fi
+
+  if [[ "$status" -ne 0 || "$VISUAL_REGRESSION_RESULT" == "FAIL" || "$VISUAL_REGRESSION_RESULT" == "ERROR" ]]; then
+    fail "Visual Regression detected a high-confidence regression against the last passing baseline."
+  fi
+
+  log "Visual Regression: $VISUAL_REGRESSION_RESULT"
 }
 
 if [[ -z "$PACKAGE_ID" ]]; then
@@ -339,6 +414,7 @@ EOF
 fi
 
 run_visual_qa
+run_visual_regression
 
 {
   echo "# AppLab report"
@@ -350,6 +426,7 @@ run_visual_qa
   printf -- '- PID after verification: %s\n' "$PID_AFTER"
   echo "- Maestro: $MAESTRO_RESULT"
   echo "- Smart Visual QA: $VISUAL_QA_RESULT"
+  echo "- Visual Regression: $VISUAL_REGRESSION_RESULT"
   printf -- '- Screenshot: launch.png\n'
   if [[ "$MAESTRO_RESULT" == "PASS" ]]; then
     printf -- '- Post-Maestro screenshot: post-maestro.png\n'
@@ -360,6 +437,10 @@ run_visual_qa
   printf -- '- App Logcat: app-logcat.txt\n'
   printf -- '- Visual QA JSON: visual-qa.json\n'
   printf -- '- Visual QA summary: visual-qa.md\n'
+  if [[ "$VISUAL_REGRESSION_RESULT" != "NO_BASELINE" ]]; then
+    printf -- '- Visual Regression JSON: visual-regression.json\n'
+    printf -- '- Visual Regression summary: visual-regression.md\n'
+  fi
 } > "$REPORT_DIR/summary.md"
 
 write_result_json "PASS" "" "$PID_AFTER" "$MAESTRO_RESULT"
