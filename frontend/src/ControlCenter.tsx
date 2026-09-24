@@ -13,6 +13,16 @@ type ReleaseMeta = {
   };
 };
 
+type PerformanceMetrics = {
+  startup?: {
+    cold?: { total_time_ms?: number | null };
+    warm?: { total_time_ms?: number | null };
+  };
+  memory?: { pss_kb?: number | null };
+  gfx?: { janky_percent?: number | null };
+  apk?: { host_apk_bytes?: number | null };
+};
+
 type ProjectRow = {
   repository: string;
   key: string;
@@ -27,6 +37,8 @@ type ProjectRow = {
   visual_journey: string;
   interaction_crawl: string;
   system_lab: string;
+  performance_lab: string;
+  performance?: PerformanceMetrics;
   applab_version: string;
   recorded_at: string;
   watcher_run_id: string;
@@ -46,6 +58,8 @@ type RecentRow = {
   visual_journey?: string;
   interaction_crawl?: string;
   system_lab?: string;
+  performance_lab?: string;
+  performance?: PerformanceMetrics;
   watcher_run_id?: string;
   watcher_run_url?: string;
   applab_version?: string;
@@ -178,6 +192,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>Journey</th>
                   <th>Crawler</th>
                   <th>System</th>
+                  <th>Performance</th>
                   <th>Release APK</th>
                 </tr>
               </thead>
@@ -204,6 +219,18 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     <td>{gate(project.visual_journey)}</td>
                     <td>{gate(project.interaction_crawl)}</td>
                     <td>{gate(project.system_lab)}</td>
+                    <td>
+                      <div className="cc-project">
+                        <span className={badgeClass(project.performance_lab)}>
+                          {gate(project.performance_lab)}
+                        </span>
+                        <small>
+                          {project.performance?.startup?.cold?.total_time_ms != null
+                            ? `${project.performance.startup.cold.total_time_ms} ms cold`
+                            : "no baseline"}
+                        </small>
+                      </div>
+                    </td>
                     <td>
                       {project.release?.artifact_url ? (
                         <a

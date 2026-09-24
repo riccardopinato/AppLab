@@ -20,13 +20,15 @@ CONTRACT_FILES = (
     "scripts/install_maestro.sh",
     "scripts/interaction_crawler.py",
     "scripts/system_lab.py",
+    "scripts/performance_lab.py",
+    "scripts/prepare_performance_baseline.py",
     "scripts/project_autodiscover.py",
     ".github/workflows/external-project-runner.yml",
     ".github/workflows/external-native-android-runner.yml",
     ".github/workflows/universal-project-runner.yml",
     ".github/workflows/trusted-apk-verifier.yml",
 )
-CONTRACT_VERSION = "0.6.7"
+CONTRACT_VERSION = "0.7.2"
 
 def compute(root: Path) -> str:
     digest = hashlib.sha256()

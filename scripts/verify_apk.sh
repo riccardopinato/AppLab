@@ -9,7 +9,7 @@ START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
 RUN_MAESTRO="${RUN_MAESTRO:-false}"
-APPLAB_VERSION="${APPLAB_VERSION:-0.6.7}"
+APPLAB_VERSION="${APPLAB_VERSION:-0.7.2}"
 VISUAL_BASELINE_DIR="${VISUAL_BASELINE_DIR:-${APPLAB_VISUAL_BASELINE_DIR:-}}"
 TARGET_ROOT="${APPLAB_TARGET_ROOT:-}"
 PROJECT_ROOT="${APPLAB_PROJECT_ROOT:-$TARGET_ROOT}"
@@ -18,6 +18,7 @@ VISUAL_REGRESSION_RESULT="NO_BASELINE"
 VISUAL_JOURNEY_RESULT="SKIPPED"
 INTERACTION_CRAWL_RESULT="SKIPPED"
 SYSTEM_LAB_RESULT="SKIPPED"
+PERFORMANCE_LAB_RESULT="SKIPPED"
 
 write_result_json() {
   local result="$1"
@@ -27,13 +28,13 @@ write_result_json() {
 
   mkdir -p "$REPORT_DIR"
   if command -v python3 >/dev/null 2>&1; then
-    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" "${SYSTEM_LAB_RESULT:-SKIPPED}" <<'PY'
+    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" "${SYSTEM_LAB_RESULT:-SKIPPED}" "${PERFORMANCE_LAB_RESULT:-SKIPPED}" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression, visual_journey, interaction_crawl, system_lab = sys.argv[1:]
+output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression, visual_journey, interaction_crawl, system_lab, performance_lab = sys.argv[1:]
 payload = {
     "schema_version": 1,
     "applab_version": version,
@@ -49,6 +50,7 @@ payload = {
     "visual_journey": visual_journey,
     "interaction_crawl": interaction_crawl,
     "system_lab": system_lab,
+    "performance_lab": performance_lab,
     "evidence": {
         "summary": "summary.md",
         "launch_screenshot": "launch.png",
@@ -66,8 +68,20 @@ payload = {
         "interaction_crawl_summary": "interaction-crawl.md",
         "system_lab_json": "system-lab.json",
         "system_lab_summary": "system-lab.md",
+        "performance_lab_json": "performance-lab.json",
+        "performance_lab_summary": "performance-lab.md",
     },
 }
+performance_path = Path(output).parent / "performance-lab.json"
+if performance_path.is_file():
+    try:
+        performance_payload = json.loads(performance_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        performance_payload = {}
+    if isinstance(performance_payload, dict):
+        payload["performance"] = performance_payload.get("metrics", {})
+        payload["performance_findings"] = performance_payload.get("findings", [])
+
 Path(output).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
   else
@@ -114,7 +128,9 @@ rm -f   "$REPORT_DIR/launch.png"   "$REPORT_DIR/post-maestro.png"   "$REPORT_DIR
   "$REPORT_DIR/interaction-crawl.json" \
   "$REPORT_DIR/interaction-crawl.md" \
   "$REPORT_DIR/system-lab.json" \
-  "$REPORT_DIR/system-lab.md"
+  "$REPORT_DIR/system-lab.md" \
+  "$REPORT_DIR/performance-lab.json" \
+  "$REPORT_DIR/performance-lab.md"
 rm -rf "$REPORT_DIR/visual-journey" "$REPORT_DIR/interaction-crawl"
 mkdir -p "$REPORT_DIR/visual-journey/current"
 
@@ -525,6 +541,33 @@ fi
 PID_AFTER="$(assert_runtime_healthy "system-lab")"
 log "System UI Lab: $SYSTEM_LAB_RESULT"
 
+PERFORMANCE_BASELINE_ARGS=()
+if [[ -n "${APPLAB_PERFORMANCE_BASELINE_JSON:-}" && -f "${APPLAB_PERFORMANCE_BASELINE_JSON}" ]]; then
+  PERFORMANCE_BASELINE_ARGS=(--baseline-json "$APPLAB_PERFORMANCE_BASELINE_JSON")
+fi
+
+python3 "$(dirname "$0")/performance_lab.py" \
+  --package-id "$PACKAGE_ID" \
+  --apk "$APK_PATH" \
+  --report-dir "$REPORT_DIR" \
+  "${PERFORMANCE_BASELINE_ARGS[@]}"
+
+if [[ -s "$REPORT_DIR/performance-lab.json" ]]; then
+  PERFORMANCE_LAB_RESULT="$(
+    python3 - "$REPORT_DIR/performance-lab.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(payload.get("result", "WARN"))
+PY
+  )"
+else
+  PERFORMANCE_LAB_RESULT="WARN"
+fi
+PID_AFTER="$(assert_runtime_healthy "performance-lab")"
+log "Performance Lab: $PERFORMANCE_LAB_RESULT"
+
 {
   echo "# AppLab report"
   echo
@@ -539,6 +582,7 @@ log "System UI Lab: $SYSTEM_LAB_RESULT"
   echo "- Multi-Screen Visual Journey: $VISUAL_JOURNEY_RESULT"
   echo "- Safe Interaction Crawler: $INTERACTION_CRAWL_RESULT"
   echo "- System UI Lab: $SYSTEM_LAB_RESULT"
+  echo "- Performance Lab: $PERFORMANCE_LAB_RESULT"
   printf -- '- Screenshot: launch.png\n'
   if [[ "$MAESTRO_RESULT" == "PASS" ]]; then
     printf -- '- Post-Maestro screenshot: post-maestro.png\n'
@@ -559,6 +603,8 @@ log "System UI Lab: $SYSTEM_LAB_RESULT"
   printf -- '- Interaction Crawler summary: interaction-crawl.md\n'
   printf -- '- System UI Lab JSON: system-lab.json\n'
   printf -- '- System UI Lab summary: system-lab.md\n'
+  printf -- '- Performance Lab JSON: performance-lab.json\n'
+  printf -- '- Performance Lab summary: performance-lab.md\n'
 } > "$REPORT_DIR/summary.md"
 
 write_result_json "PASS" "" "$PID_AFTER" "$MAESTRO_RESULT"
