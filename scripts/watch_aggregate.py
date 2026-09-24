@@ -76,8 +76,8 @@ def main() -> int:
     if current:
         lines.extend(
             [
-                "| Repository | SHA | Result | Maestro | Visual QA |",
-                "| --- | --- | --- | --- | --- |",
+                "| Repository | SHA | Result | Maestro | Visual QA | Regression |",
+                "| --- | --- | --- | --- | --- | --- |",
             ]
         )
         for item in current:
