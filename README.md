@@ -1,5 +1,22 @@
 # AppLab
 
+## v0.6.5 — Visual Regression Pro
+
+Visual Regression is now configurable per checkpoint. Projects can use
+`strict`, `standard`, or `dynamic` profiles, define normalized screen masks,
+ignore known dynamic text with regular expressions, and let AppLab
+automatically mask native dynamic surfaces such as maps, WebViews, camera
+previews, SurfaceViews, and TextureViews.
+
+Regression evidence now includes perceptual-difference metrics and a heatmap
+per comparable checkpoint. Intentional visual changes can be promoted only
+through the explicit `approve_visual_baseline` input; ordinary WARN runs do
+not overwrite the last known-good baseline, and FAIL runs remain
+non-approvable.
+
+The v0.6.4 trusted Build -> Artifact -> Verify isolation remains in force:
+target repositories are never checked out in the emulator verification job.
+
 AppLab is a reusable Android APK verification lab.
 
 ## v0.6.3 — Hardening & Architecture Consolidation
