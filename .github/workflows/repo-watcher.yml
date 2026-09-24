@@ -53,7 +53,7 @@ jobs:
       scheduled_count: ${{ steps.matrix.outputs.scheduled_count }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Resolve watcher matrices
         id: matrix
@@ -156,7 +156,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload discovery evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: applab-watch-discovery-${{ github.run_id }}
           path: watch-discovery.json
@@ -251,11 +251,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Restore central history
         id: history
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .applab-history
           key: applab-watch-history-${{ github.run_id }}
@@ -263,7 +263,7 @@ jobs:
             applab-watch-history-
 
       - name: Download current watcher reports
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           pattern: applab-watch-*
           path: watch-results
@@ -284,14 +284,14 @@ jobs:
 
       - name: Save central history
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .applab-history
           key: applab-watch-history-${{ github.run_id }}
 
       - name: Upload central history
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: applab-watch-history-${{ github.run_id }}
           path: |
