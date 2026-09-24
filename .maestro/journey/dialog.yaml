@@ -1,0 +1,6 @@
+appId: dev.applab.selftest
+---
+- tapOn: "BACK TO HOME"
+- tapOn: "OPEN DIALOG"
+- assertVisible: "CONFIRM_ACTION"
+- assertVisible: "DIALOG_SCREEN"
