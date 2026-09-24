@@ -64,6 +64,7 @@ def build_snapshot(
                 "interaction_crawl": result.get("interaction_crawl", "—"),
                 "system_lab": result.get("system_lab", "—"),
                 "network_lab": result.get("network_lab", "—"),
+                "persistence_lab": result.get("persistence_lab", "—"),
                 "performance_lab": result.get("performance_lab", "—"),
                 "performance": result.get("performance", {}),
                 "applab_version": result.get("applab_version", ""),
@@ -97,6 +98,7 @@ def build_snapshot(
                     "interaction_crawl",
                     "system_lab",
                     "network_lab",
+                    "persistence_lab",
                     "performance_lab",
                     "performance",
                     "watcher_run_id",
@@ -156,6 +158,7 @@ def self_test() -> None:
             "resolved_sha": "new",
             "release": {"artifact_url": "https://example.test/artifact"},
             "network_lab": "PASS",
+            "persistence_lab": "PASS",
             "performance_lab": "PASS",
             "performance": {
                 "startup": {"cold": {"total_time_ms": 850}},
@@ -176,6 +179,7 @@ def self_test() -> None:
     assert first["resolved_sha"] == "new"
     assert first["release"]["artifact_url"] == "https://example.test/artifact"
     assert first["network_lab"] == "PASS"
+    assert first["persistence_lab"] == "PASS"
     assert first["performance_lab"] == "PASS"
     assert first["performance"]["startup"]["cold"]["total_time_ms"] == 850
     print("AppLab Control Center snapshot self-test PASS")

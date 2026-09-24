@@ -149,7 +149,7 @@ jobs:
           APPLAB_REPORT_DIR: ${{ github.workspace }}/applab-report
           APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
           APPLAB_PERFORMANCE_BASELINE_JSON: ${{ github.workspace }}/.applab-performance-baseline/performance-lab.json
-          APPLAB_VERSION: "0.7.3"
+          APPLAB_VERSION: "0.7.4"
           START_TIMEOUT: ${{ inputs.start_timeout }}
           SETTLE_SECONDS: ${{ inputs.settle_seconds }}
         with:
@@ -177,7 +177,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.7.3" \
+            --version "0.7.4" \
             --github-output "$GITHUB_OUTPUT" \
             "${EXTRA_ARGS[@]}"
 
@@ -199,7 +199,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.7.3" \
+            --version "0.7.4" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Save PASS-only performance baseline
@@ -280,7 +280,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v0.7.3 Trusted APK Verification"
+            echo "## AppLab v0.7.4 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"

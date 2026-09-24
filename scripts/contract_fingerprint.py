@@ -22,6 +22,7 @@ CONTRACT_FILES = (
     "scripts/system_lab.py",
     "scripts/performance_lab.py",
     "scripts/network_lab.py",
+    "scripts/persistence_lab.py",
     "scripts/prepare_performance_baseline.py",
     "scripts/project_autodiscover.py",
     ".github/workflows/external-project-runner.yml",
@@ -29,7 +30,7 @@ CONTRACT_FILES = (
     ".github/workflows/universal-project-runner.yml",
     ".github/workflows/trusted-apk-verifier.yml",
 )
-CONTRACT_VERSION = "0.7.3"
+CONTRACT_VERSION = "0.7.4"
 
 def compute(root: Path) -> str:
     digest = hashlib.sha256()

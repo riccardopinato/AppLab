@@ -9,7 +9,7 @@ START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
 RUN_MAESTRO="${RUN_MAESTRO:-false}"
-APPLAB_VERSION="${APPLAB_VERSION:-0.7.3}"
+APPLAB_VERSION="${APPLAB_VERSION:-0.7.4}"
 VISUAL_BASELINE_DIR="${VISUAL_BASELINE_DIR:-${APPLAB_VISUAL_BASELINE_DIR:-}}"
 TARGET_ROOT="${APPLAB_TARGET_ROOT:-}"
 PROJECT_ROOT="${APPLAB_PROJECT_ROOT:-$TARGET_ROOT}"
@@ -19,6 +19,7 @@ VISUAL_JOURNEY_RESULT="SKIPPED"
 INTERACTION_CRAWL_RESULT="SKIPPED"
 SYSTEM_LAB_RESULT="SKIPPED"
 NETWORK_LAB_RESULT="SKIPPED"
+PERSISTENCE_LAB_RESULT="SKIPPED"
 PERFORMANCE_LAB_RESULT="SKIPPED"
 
 write_result_json() {
@@ -29,13 +30,13 @@ write_result_json() {
 
   mkdir -p "$REPORT_DIR"
   if command -v python3 >/dev/null 2>&1; then
-    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" "${SYSTEM_LAB_RESULT:-SKIPPED}" "${NETWORK_LAB_RESULT:-SKIPPED}" "${PERFORMANCE_LAB_RESULT:-SKIPPED}" <<'PY'
+    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" "${SYSTEM_LAB_RESULT:-SKIPPED}" "${NETWORK_LAB_RESULT:-SKIPPED}" "${PERSISTENCE_LAB_RESULT:-SKIPPED}" "${PERFORMANCE_LAB_RESULT:-SKIPPED}" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression, visual_journey, interaction_crawl, system_lab, network_lab, performance_lab = sys.argv[1:]
+output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression, visual_journey, interaction_crawl, system_lab, network_lab, persistence_lab, performance_lab = sys.argv[1:]
 payload = {
     "schema_version": 1,
     "applab_version": version,
@@ -52,6 +53,7 @@ payload = {
     "interaction_crawl": interaction_crawl,
     "system_lab": system_lab,
     "network_lab": network_lab,
+    "persistence_lab": persistence_lab,
     "performance_lab": performance_lab,
     "evidence": {
         "summary": "summary.md",
@@ -74,6 +76,8 @@ payload = {
         "network_lab_summary": "network-lab.md",
         "network_offline_screenshot": "network-offline.png",
         "network_recovered_screenshot": "network-recovered.png",
+        "persistence_lab_json": "persistence-lab.json",
+        "persistence_lab_summary": "persistence-lab.md",
         "performance_lab_json": "performance-lab.json",
         "performance_lab_summary": "performance-lab.md",
     },
@@ -139,6 +143,10 @@ rm -f   "$REPORT_DIR/launch.png"   "$REPORT_DIR/post-maestro.png"   "$REPORT_DIR
   "$REPORT_DIR/network-lab.md" \
   "$REPORT_DIR/network-offline.png" \
   "$REPORT_DIR/network-recovered.png" \
+  "$REPORT_DIR/persistence-lab.json" \
+  "$REPORT_DIR/persistence-lab.md" \
+  "$REPORT_DIR/persistence-cycle-"*.png \
+  "$REPORT_DIR/persistence-cycle-"*.xml \
   "$REPORT_DIR/performance-lab.json" \
   "$REPORT_DIR/performance-lab.md"
 rm -rf "$REPORT_DIR/visual-journey" "$REPORT_DIR/interaction-crawl"
@@ -618,6 +626,44 @@ fi
 PID_AFTER="$(assert_runtime_healthy "network-lab")"
 log "Network & Offline Lab: $NETWORK_LAB_RESULT"
 
+PERSISTENCE_CONFIG_ARGS=()
+if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-persistence.json" ]]; then
+  PERSISTENCE_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-persistence.json")
+  log "Persistence & Restart Lab config: project policy"
+elif [[ -n "$TARGET_ROOT" && -f "$TARGET_ROOT/.maestro/applab-persistence.json" ]]; then
+  PERSISTENCE_CONFIG_ARGS=(--config "$TARGET_ROOT/.maestro/applab-persistence.json")
+  log "Persistence & Restart Lab config: repository policy"
+fi
+
+PERSISTENCE_STATUS=0
+set +e
+python3 "$(dirname "$0")/persistence_lab.py" \
+  --package-id "$PACKAGE_ID" \
+  --report-dir "$REPORT_DIR" \
+  "${PERSISTENCE_CONFIG_ARGS[@]}"
+PERSISTENCE_STATUS="$?"
+set -e
+
+if [[ -s "$REPORT_DIR/persistence-lab.json" ]]; then
+  PERSISTENCE_LAB_RESULT="$(
+    python3 - "$REPORT_DIR/persistence-lab.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(payload.get("result", "ERROR"))
+PY
+  )"
+else
+  PERSISTENCE_LAB_RESULT="ERROR"
+fi
+
+if [[ "$PERSISTENCE_STATUS" -ne 0 || "$PERSISTENCE_LAB_RESULT" == "FAIL" || "$PERSISTENCE_LAB_RESULT" == "ERROR" ]]; then
+  fail "Persistence & Restart Lab detected a lifecycle/state failure."
+fi
+PID_AFTER="$(assert_runtime_healthy "persistence-lab")"
+log "Persistence & Restart Lab: $PERSISTENCE_LAB_RESULT"
+
 {
   echo "# AppLab report"
   echo
@@ -633,6 +679,7 @@ log "Network & Offline Lab: $NETWORK_LAB_RESULT"
   echo "- Safe Interaction Crawler: $INTERACTION_CRAWL_RESULT"
   echo "- System UI Lab: $SYSTEM_LAB_RESULT"
   echo "- Network & Offline Lab: $NETWORK_LAB_RESULT"
+  echo "- Persistence & Restart Lab: $PERSISTENCE_LAB_RESULT"
   echo "- Performance Lab: $PERFORMANCE_LAB_RESULT"
   printf -- '- Screenshot: launch.png\n'
   if [[ "$MAESTRO_RESULT" == "PASS" ]]; then
@@ -658,6 +705,8 @@ log "Network & Offline Lab: $NETWORK_LAB_RESULT"
   printf -- '- Network Lab summary: network-lab.md\n'
   printf -- '- Network offline screenshot: network-offline.png\n'
   printf -- '- Network recovered screenshot: network-recovered.png\n'
+  printf -- '- Persistence Lab JSON: persistence-lab.json\n'
+  printf -- '- Persistence Lab summary: persistence-lab.md\n'
   printf -- '- Performance Lab JSON: performance-lab.json\n'
   printf -- '- Performance Lab summary: performance-lab.md\n'
 } > "$REPORT_DIR/summary.md"
