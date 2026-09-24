@@ -19,6 +19,7 @@ on:
       - "scripts/configuration_lab.py"
       - "scripts/resource_pressure_lab.py"
       - "scripts/background_lab.py"
+      - "scripts/storage_lab.py"
       - "scripts/upgrade_lab.py"
       - "scripts/prepare_upgrade_baseline.py"
       - "scripts/prepare_performance_baseline.py"
