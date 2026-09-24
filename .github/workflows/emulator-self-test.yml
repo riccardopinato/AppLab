@@ -8,6 +8,14 @@ on:
       - "scripts/**"
       - "selftest/**"
       - "tests/flows/selftest.yaml"
+      - ".maestro/**"
+      - ".github/workflows/emulator-self-test.yml"
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "selftest/**"
+      - "tests/flows/selftest.yaml"
+      - ".maestro/**"
       - ".github/workflows/emulator-self-test.yml"
 
 concurrency:
