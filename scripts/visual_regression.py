@@ -394,6 +394,16 @@ def evaluate(
 
 def write_markdown(path: Path, report: dict[str, Any]) -> None:
     baseline = report.get("baseline_metadata", {})
+    if report.get("result") == "NO_BASELINE":
+        path.write_text(
+            "# AppLab Visual Regression\n\n"
+            "- Result: **NO_BASELINE**\n"
+            "- No previous passing checkpoint exists yet.\n"
+            "- The current full-PASS run may become the first baseline.\n",
+            encoding="utf-8",
+        )
+        return
+
     lines = [
         "# AppLab Visual Regression",
         "",
