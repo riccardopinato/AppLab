@@ -11,13 +11,14 @@ from fastapi.responses import Response
 from pydantic import BaseModel, field_validator
 
 from .adb import AdbController, AdbError, validate_package_id
+from .control_center import load_snapshot
 from .diagnostics import analyze_logcat
 from .journal import SessionJournal
 from .maestro import MaestroError, MaestroRunner
 from .runtime import LiveRuntimeError, LiveRuntimeManager
 
 
-APP_VERSION = "0.6.3"
+APP_VERSION = "0.7.0"
 MAX_APK_BYTES = int(os.getenv("APPLAB_MAX_APK_BYTES", str(512 * 1024 * 1024)))
 CORS_ORIGINS = [
     item.strip()
@@ -122,6 +123,7 @@ def health() -> dict:
             "visual-regression",
             "multi-screen-journey",
             "repo-watcher",
+            "control-center",
         ],
     }
 
@@ -375,3 +377,8 @@ def run_test(request: TestRequest) -> dict:
 @app.get("/api/history")
 def history(limit: int = Query(default=30, ge=1, le=200)) -> dict:
     return {"entries": journal.recent(limit)}
+
+
+@app.get("/api/control-center")
+def control_center() -> dict:
+    return load_snapshot()
