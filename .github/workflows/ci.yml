@@ -28,9 +28,11 @@ jobs:
           python -m py_compile \
             scripts/finalize_external_result.py \
             scripts/project_autodiscover.py \
+            scripts/visual_qa.py \
             scripts/watch_discover.py \
             scripts/watch_aggregate.py
           python scripts/project_autodiscover.py --self-test
+          python scripts/visual_qa.py --self-test
           python scripts/watch_discover.py \
             --watchlist watchlist.json \
             --validate-only
