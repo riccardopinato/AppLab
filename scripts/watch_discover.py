@@ -12,6 +12,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from contract_fingerprint import compute as compute_contract_fingerprint
+
 
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 KEY_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -119,9 +121,9 @@ def main() -> int:
     if data.get("schema_version") != 1:
         raise SystemExit("Unsupported watchlist schema_version")
 
-    global_cache_epoch = str(data.get("cache_epoch", "1")).strip() or "1"
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+", global_cache_epoch):
-        raise SystemExit("watchlist cache_epoch must be alphanumeric/dot/dash")
+    contract_fingerprint = compute_contract_fingerprint(
+        Path(__file__).resolve().parent.parent
+    )[:16]
 
     entries = data.get("repositories")
     if not isinstance(entries, list):
@@ -172,13 +174,7 @@ def main() -> int:
 
         repository = str(entry["repository"])
         engine = str(entry.get("engine", "flutter"))
-        cache_epoch = str(
-            entry.get("cache_epoch", global_cache_epoch)
-        ).strip() or global_cache_epoch
-        if not re.fullmatch(r"[A-Za-z0-9_.-]+", cache_epoch):
-            raise ValueError(
-                f"Invalid cache_epoch for {repository}: {cache_epoch!r}"
-            )
+        cache_epoch = str(entry.get("cache_epoch", "legacy")).strip() or "legacy"
         if only_repository and repository != only_repository:
             continue
 
@@ -191,7 +187,7 @@ def main() -> int:
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
-            cache_key = f"applab-v0.5-e{cache_epoch}-{entry['key']}-{sha}"
+            cache_key = f"applab-c{contract_fingerprint}-{entry['key']}-{sha}"
             cached = False if args.force else cache_exists(
                 applab_repository, cache_key, token
             )
@@ -210,6 +206,7 @@ def main() -> int:
                     "engine": engine,
                     "resolved_sha": sha,
                     "cache_epoch": cache_epoch,
+                    "contract_fingerprint": contract_fingerprint,
                 }
                 matrix.append(resolved)
                 if engine == "flutter":
@@ -234,6 +231,7 @@ def main() -> int:
         "schema_version": 1,
         "force": args.force,
         "only_repository": only_repository,
+        "contract_fingerprint": contract_fingerprint,
         "scheduled_count": len(matrix),
         "flutter_scheduled_count": len(flutter_matrix),
         "native_scheduled_count": len(native_matrix),
