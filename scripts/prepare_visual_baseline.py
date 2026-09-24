@@ -6,9 +6,21 @@ from pathlib import Path
 
 PASSABLE_REGRESSION = {"PASS", "NO_BASELINE"}
 
-def should_promote(payload: dict) -> tuple[bool, str]:
+def should_promote(
+    payload: dict,
+    approve_current: bool = False,
+) -> tuple[bool, str]:
     if payload.get("result") != "PASS":
         return False, f"overall result is {payload.get('result', 'UNKNOWN')}"
+
+    if approve_current:
+        allowed = {"PASS", "WARN", "NO_BASELINE"}
+        for key in ("visual_journey", "visual_qa", "visual_regression"):
+            value = str(payload.get(key, "UNKNOWN"))
+            if value not in allowed:
+                return False, f"{key} cannot be approved: {value}"
+        return True, "current visual state explicitly approved"
+
     if payload.get("visual_journey") != "PASS":
         return False, f"visual_journey is {payload.get('visual_journey', 'UNKNOWN')}"
     if payload.get("visual_qa") != "PASS":
@@ -17,12 +29,20 @@ def should_promote(payload: dict) -> tuple[bool, str]:
         return False, f"visual_regression is {payload.get('visual_regression', 'UNKNOWN')}"
     return True, "full visual gate passed"
 
-def prepare(report_dir: Path, baseline_dir: Path, repository: str, resolved_sha: str, run_id: str, version: str) -> tuple[bool, str]:
+def prepare(
+    report_dir: Path,
+    baseline_dir: Path,
+    repository: str,
+    resolved_sha: str,
+    run_id: str,
+    version: str,
+    approve_current: bool = False,
+) -> tuple[bool, str]:
     result_path = report_dir / "result.json"
     if not result_path.is_file():
         return False, "result.json is missing"
     payload = json.loads(result_path.read_text(encoding="utf-8"))
-    promote, reason = should_promote(payload)
+    promote, reason = should_promote(payload, approve_current)
     if not promote:
         return False, reason
     journey = report_dir / "visual-journey" / "current"
@@ -46,7 +66,9 @@ def prepare(report_dir: Path, baseline_dir: Path, repository: str, resolved_sha:
         "workflow_run_id": run_id,
         "source_stage": source.name,
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "promotion_policy": "pass-only",
+        "promotion_policy": (
+            "explicit-approval" if approve_current else "pass-only"
+        ),
     }
     text = json.dumps(metadata, indent=2, sort_keys=True) + "\n"
     (baseline_dir / "metadata.json").write_text(text, encoding="utf-8")
@@ -57,8 +79,23 @@ def prepare(report_dir: Path, baseline_dir: Path, repository: str, resolved_sha:
 
 def self_test() -> None:
     assert should_promote({"result":"PASS","visual_journey":"PASS","visual_qa":"PASS","visual_regression":"NO_BASELINE"})[0]
-    assert not should_promote({"result":"PASS","visual_journey":"WARN","visual_qa":"WARN","visual_regression":"WARN"})[0]
-    assert not should_promote({"result":"FAIL","visual_journey":"PASS","visual_qa":"PASS","visual_regression":"PASS"})[0]
+    warning = {
+        "result": "PASS",
+        "visual_journey": "WARN",
+        "visual_qa": "PASS",
+        "visual_regression": "WARN",
+    }
+    assert not should_promote(warning)[0]
+    assert should_promote(warning, approve_current=True)[0]
+    assert not should_promote(
+        {
+            "result": "FAIL",
+            "visual_journey": "PASS",
+            "visual_qa": "PASS",
+            "visual_regression": "PASS",
+        },
+        approve_current=True,
+    )[0]
     print("AppLab baseline promotion self-test PASS")
 
 def main() -> int:
@@ -66,11 +103,21 @@ def main() -> int:
     p.add_argument("--report-dir"); p.add_argument("--baseline-dir")
     p.add_argument("--repository",default=""); p.add_argument("--resolved-sha",default="")
     p.add_argument("--run-id",default=""); p.add_argument("--version",default="0.6.4")
-    p.add_argument("--github-output",default=""); p.add_argument("--self-test",action="store_true")
+    p.add_argument("--github-output",default="")
+    p.add_argument("--approve-current", action="store_true")
+    p.add_argument("--self-test",action="store_true")
     a=p.parse_args()
     if a.self_test: self_test(); return 0
     if not a.report_dir or not a.baseline_dir: raise SystemExit("--report-dir and --baseline-dir are required")
-    promote, reason=prepare(Path(a.report_dir),Path(a.baseline_dir),a.repository,a.resolved_sha,a.run_id,a.version)
+    promote, reason=prepare(
+        Path(a.report_dir),
+        Path(a.baseline_dir),
+        a.repository,
+        a.resolved_sha,
+        a.run_id,
+        a.version,
+        approve_current=a.approve_current,
+    )
     print(f"AppLab baseline promotion: {'PROMOTE' if promote else 'SKIP'} — {reason}")
     if a.github_output:
         with Path(a.github_output).open("a",encoding="utf-8") as h:
