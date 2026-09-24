@@ -395,6 +395,15 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Restore previous passing visual baseline
+        id: visual_baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: .applab-visual-baseline
+          key: applab-visual-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
+          restore-keys: |
+            applab-visual-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-
+
       - name: Verify APK on Android
         id: verify
         uses: reactivecircus/android-emulator-runner@v2
@@ -406,7 +415,8 @@ jobs:
           APPLAB_PACKAGE_ID: ${{ inputs.package_id }}
           APPLAB_TARGET_ROOT: ${{ github.workspace }}/target
           APPLAB_REPORT_DIR: ${{ github.workspace }}/applab-report
-          APPLAB_VERSION: "0.6.0"
+          APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
+          APPLAB_VERSION: "0.6.1"
         with:
           api-level: ${{ inputs.api_level }}
           target: google_apis
@@ -414,6 +424,57 @@ jobs:
           profile: ${{ inputs.emulator_profile }}
           disable-animations: true
           script: bash .applab/scripts/run_external_android_gate.sh
+
+      - name: Prepare passing visual baseline
+        if: steps.verify.outcome == 'success'
+        shell: bash
+        env:
+          APPLAB_BASELINE_REPOSITORY: ${{ inputs.repository }}
+          APPLAB_BASELINE_SHA: ${{ steps.target.outputs.resolved_sha }}
+        run: |
+          set -Eeuo pipefail
+          BASELINE_DIR="$GITHUB_WORKSPACE/.applab-visual-baseline"
+          REPORT_DIR="$GITHUB_WORKSPACE/applab-report"
+          rm -rf "$BASELINE_DIR"
+          mkdir -p "$BASELINE_DIR"
+
+          if [[ -s "$REPORT_DIR/post-maestro.png" && -s "$REPORT_DIR/post-maestro-window.xml" ]]; then
+            cp "$REPORT_DIR/post-maestro.png" "$BASELINE_DIR/screenshot.png"
+            cp "$REPORT_DIR/post-maestro-window.xml" "$BASELINE_DIR/window.xml"
+            SOURCE_STAGE="post-maestro"
+          else
+            cp "$REPORT_DIR/launch.png" "$BASELINE_DIR/screenshot.png"
+            cp "$REPORT_DIR/launch-window.xml" "$BASELINE_DIR/window.xml"
+            SOURCE_STAGE="launch"
+          fi
+
+          APPLAB_BASELINE_STAGE="$SOURCE_STAGE" python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          payload = {
+              "schema_version": 1,
+              "applab_version": "0.6.1",
+              "repository": os.environ["APPLAB_BASELINE_REPOSITORY"],
+              "resolved_sha": os.environ["APPLAB_BASELINE_SHA"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+              "source_stage": os.environ["APPLAB_BASELINE_STAGE"],
+              "created_at": datetime.now(timezone.utc).isoformat(),
+          }
+          Path(".applab-visual-baseline/metadata.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Save passing visual baseline
+        if: steps.verify.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: .applab-visual-baseline
+          key: applab-visual-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}-${{ github.run_id }}
 
       - name: Finalize external result contract
         if: always()
