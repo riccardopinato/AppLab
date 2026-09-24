@@ -294,6 +294,10 @@ jobs:
             --summary-output watch-summary.md \
             --run-id "$GITHUB_RUN_ID" \
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          python scripts/control_center_snapshot.py \
+            --watchlist watchlist.json \
+            --history-file .applab-history/history.jsonl \
+            --output .applab-history/control-center.json
           cat watch-summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save central history
@@ -311,5 +315,6 @@ jobs:
           path: |
             watch-summary.md
             .applab-history/history.jsonl
+            .applab-history/control-center.json
           if-no-files-found: warn
           retention-days: 90
