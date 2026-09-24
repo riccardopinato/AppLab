@@ -30,7 +30,7 @@
       "repository": "riccardopinato/Battery_Guard",
       "ref": "main",
       "run_maestro": true,
-      "cache_epoch": 12
+      "cache_epoch": 13
     },
     {
       "key": "watch-notes-ecosistema",
