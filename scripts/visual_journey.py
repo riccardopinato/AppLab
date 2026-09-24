@@ -159,6 +159,32 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_compat_reports(report_dir: Path, report: dict[str, Any]) -> None:
+    checkpoints = report.get("checkpoints", [])
+    if not checkpoints:
+        return
+    selected = next(
+        (item for item in checkpoints if item.get("name") == "final"),
+        checkpoints[-1],
+    )
+    qa = selected["visual_qa"]
+    regression = selected["visual_regression"]
+    report_dir.mkdir(parents=True, exist_ok=True)
+    (report_dir / "visual-qa.json").write_text(
+        json.dumps(qa, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    visual_qa.write_markdown(report_dir / "visual-qa.md", qa)
+    (report_dir / "visual-regression.json").write_text(
+        json.dumps(regression, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    visual_regression.write_markdown(
+        report_dir / "visual-regression.md",
+        regression,
+    )
+
+
 def validate_manifest(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -265,6 +291,7 @@ def main() -> int:
     parser.add_argument("--package-id", default="")
     parser.add_argument("--output-json")
     parser.add_argument("--output-md")
+    parser.add_argument("--compat-report-dir")
     parser.add_argument("--validate-manifest")
     parser.add_argument("--normalized-manifest")
     parser.add_argument("--self-test", action="store_true")
@@ -302,6 +329,8 @@ def main() -> int:
 
     if args.output_md:
         write_markdown(Path(args.output_md), report)
+    if args.compat_report_dir:
+        write_compat_reports(Path(args.compat_report_dir), report)
 
     print(f"AppLab Multi-Screen Visual Journey: {report['result']}")
     return 2 if report["result"] == "FAIL" else 0
