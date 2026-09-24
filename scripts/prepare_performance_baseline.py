@@ -8,11 +8,34 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+REGRESSION_CODES = {
+    "startup_regression",
+    "memory_regression",
+    "jank_regression",
+}
+
+
 def should_promote(payload: dict) -> tuple[bool, str]:
     result = str(payload.get("result", "UNKNOWN"))
-    if result != "PASS":
-        return False, f"performance result is {result}"
-    return True, "performance gate passed without advisory regressions"
+    if result == "PASS":
+        return True, "performance gate passed without advisory regressions"
+
+    baseline = str(payload.get("baseline", "NO_BASELINE"))
+    findings = payload.get("findings", [])
+    codes = {
+        str(item.get("code", ""))
+        for item in findings
+        if isinstance(item, dict)
+    }
+    has_regression = bool(codes & REGRESSION_CODES)
+
+    if result == "WARN" and baseline == "NO_BASELINE" and not has_regression:
+        return True, "initial baseline accepted with non-regression advisories"
+
+    return False, (
+        "performance regression/advisory run is not eligible "
+        f"(result={result}, baseline={baseline})"
+    )
 
 
 def prepare(
@@ -55,7 +78,20 @@ def prepare(
 
 def self_test() -> None:
     assert should_promote({"result": "PASS"})[0]
-    assert not should_promote({"result": "WARN"})[0]
+    assert should_promote(
+        {
+            "result": "WARN",
+            "baseline": "NO_BASELINE",
+            "findings": [{"code": "slow_cold_start"}],
+        }
+    )[0]
+    assert not should_promote(
+        {
+            "result": "WARN",
+            "baseline": "AVAILABLE",
+            "findings": [{"code": "startup_regression"}],
+        }
+    )[0]
     assert not should_promote({"result": "FAIL"})[0]
     print("AppLab performance baseline self-test PASS")
 
