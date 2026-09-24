@@ -115,6 +115,11 @@ on:
         required: false
         default: "manual"
         type: string
+      config_fingerprint:
+        description: Fingerprint of this target's watcher/build configuration
+        required: false
+        default: "manual"
+        type: string
   workflow_call:
     inputs:
       repository:
@@ -203,6 +208,10 @@ on:
         default: "1"
         type: string
       contract_fingerprint:
+        required: false
+        default: "manual"
+        type: string
+      config_fingerprint:
         required: false
         default: "manual"
         type: string
@@ -500,7 +509,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: .applab-watch-cache
-          key: applab-c${{ inputs.contract_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
+          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
 
       - name: Publish AppLab summary
         if: always()
