@@ -178,24 +178,9 @@ jobs:
           path: .applab-visual-baseline
           key: applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}-${{ github.run_id }}
 
-      - name: Finalize trusted result contract
-        if: always()
-        env:
-          APPLAB_PIPELINE_STATUS: ${{ job.status }}
-        run: |
-          python .applab/scripts/finalize_external_result.py \
-            --report-dir "$GITHUB_WORKSPACE/applab-report" \
-            --repository "${{ inputs.repository }}" \
-            --ref "${{ inputs.ref }}" \
-            --resolved-sha "${{ inputs.resolved_sha }}" \
-            --history-key "${{ inputs.history_key }}" \
-            --engine "${{ inputs.engine }}" \
-            --pipeline-status "$APPLAB_PIPELINE_STATUS" \
-            --run-id "$GITHUB_RUN_ID"
-
       - name: Prepare PASS-only installable release
         id: release
-        if: always()
+        if: steps.verify.outcome == 'success'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -226,6 +211,21 @@ jobs:
             --report-dir "$GITHUB_WORKSPACE/applab-report" \
             --artifact-id "${{ steps.release_upload.outputs.artifact-id }}" \
             --artifact-url "${{ steps.release_upload.outputs.artifact-url }}"
+
+      - name: Finalize trusted result contract
+        if: always()
+        env:
+          APPLAB_PIPELINE_STATUS: ${{ job.status }}
+        run: |
+          python .applab/scripts/finalize_external_result.py \
+            --report-dir "$GITHUB_WORKSPACE/applab-report" \
+            --repository "${{ inputs.repository }}" \
+            --ref "${{ inputs.ref }}" \
+            --resolved-sha "${{ inputs.resolved_sha }}" \
+            --history-key "${{ inputs.history_key }}" \
+            --engine "${{ inputs.engine }}" \
+            --pipeline-status "$APPLAB_PIPELINE_STATUS" \
+            --run-id "$GITHUB_RUN_ID"
 
       - name: Prepare verification cache payload
         if: always() && inputs.cache_verification
