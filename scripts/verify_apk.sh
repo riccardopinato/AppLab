@@ -9,7 +9,7 @@ START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
 RUN_MAESTRO="${RUN_MAESTRO:-false}"
-APPLAB_VERSION="${APPLAB_VERSION:-0.7.6}"
+APPLAB_VERSION="${APPLAB_VERSION:-0.7.7}"
 VISUAL_BASELINE_DIR="${VISUAL_BASELINE_DIR:-${APPLAB_VISUAL_BASELINE_DIR:-}}"
 TARGET_ROOT="${APPLAB_TARGET_ROOT:-}"
 PROJECT_ROOT="${APPLAB_PROJECT_ROOT:-$TARGET_ROOT}"
@@ -21,6 +21,7 @@ SYSTEM_LAB_RESULT="SKIPPED"
 NETWORK_LAB_RESULT="SKIPPED"
 PERSISTENCE_LAB_RESULT="SKIPPED"
 CONFIGURATION_LAB_RESULT="SKIPPED"
+RESOURCE_PRESSURE_LAB_RESULT="SKIPPED"
 UPGRADE_LAB_RESULT="NO_BASELINE"
 PERFORMANCE_LAB_RESULT="SKIPPED"
 
@@ -32,13 +33,13 @@ write_result_json() {
 
   mkdir -p "$REPORT_DIR"
   if command -v python3 >/dev/null 2>&1; then
-    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" "${SYSTEM_LAB_RESULT:-SKIPPED}" "${NETWORK_LAB_RESULT:-SKIPPED}" "${PERSISTENCE_LAB_RESULT:-SKIPPED}" "${CONFIGURATION_LAB_RESULT:-SKIPPED}" "${UPGRADE_LAB_RESULT:-NO_BASELINE}" "${PERFORMANCE_LAB_RESULT:-SKIPPED}" <<'PY'
+    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" "${SYSTEM_LAB_RESULT:-SKIPPED}" "${NETWORK_LAB_RESULT:-SKIPPED}" "${PERSISTENCE_LAB_RESULT:-SKIPPED}" "${CONFIGURATION_LAB_RESULT:-SKIPPED}" "${RESOURCE_PRESSURE_LAB_RESULT:-SKIPPED}" "${UPGRADE_LAB_RESULT:-NO_BASELINE}" "${PERFORMANCE_LAB_RESULT:-SKIPPED}" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression, visual_journey, interaction_crawl, system_lab, network_lab, persistence_lab, configuration_lab, upgrade_lab, performance_lab = sys.argv[1:]
+output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression, visual_journey, interaction_crawl, system_lab, network_lab, persistence_lab, configuration_lab, resource_pressure_lab, upgrade_lab, performance_lab = sys.argv[1:]
 payload = {
     "schema_version": 1,
     "applab_version": version,
@@ -57,6 +58,7 @@ payload = {
     "network_lab": network_lab,
     "persistence_lab": persistence_lab,
     "configuration_lab": configuration_lab,
+    "resource_pressure_lab": resource_pressure_lab,
     "upgrade_lab": upgrade_lab,
     "performance_lab": performance_lab,
     "evidence": {
@@ -84,6 +86,8 @@ payload = {
         "persistence_lab_summary": "persistence-lab.md",
         "configuration_lab_json": "configuration-lab.json",
         "configuration_lab_summary": "configuration-lab.md",
+        "resource_pressure_lab_json": "resource-pressure-lab.json",
+        "resource_pressure_lab_summary": "resource-pressure-lab.md",
         "upgrade_lab_json": "upgrade-lab.json",
         "upgrade_lab_summary": "upgrade-lab.md",
         "upgrade_before_screenshot": "upgrade-before.png",
@@ -161,6 +165,10 @@ rm -f   "$REPORT_DIR/launch.png"   "$REPORT_DIR/post-maestro.png"   "$REPORT_DIR
   "$REPORT_DIR/configuration-lab.md" \
   "$REPORT_DIR/config-"*.png \
   "$REPORT_DIR/config-"*.xml \
+  "$REPORT_DIR/resource-pressure-lab.json" \
+  "$REPORT_DIR/resource-pressure-lab.md" \
+  "$REPORT_DIR/resource-recovery-"*.png \
+  "$REPORT_DIR/resource-recovery-"*.xml \
   "$REPORT_DIR/upgrade-lab.json" \
   "$REPORT_DIR/upgrade-lab.md" \
   "$REPORT_DIR/upgrade-before.png" \
@@ -731,6 +739,44 @@ fi
 PID_AFTER="$(assert_runtime_healthy "configuration-lab")"
 log "Configuration & Lifecycle Stress Lab: $CONFIGURATION_LAB_RESULT"
 
+RESOURCE_CONFIG_ARGS=()
+if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-resource.json" ]]; then
+  RESOURCE_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-resource.json")
+  log "Resource Pressure & Process Death Lab config: project policy"
+elif [[ -n "$TARGET_ROOT" && -f "$TARGET_ROOT/.maestro/applab-resource.json" ]]; then
+  RESOURCE_CONFIG_ARGS=(--config "$TARGET_ROOT/.maestro/applab-resource.json")
+  log "Resource Pressure & Process Death Lab config: repository policy"
+fi
+
+RESOURCE_STATUS=0
+set +e
+python3 "$(dirname "$0")/resource_pressure_lab.py" \
+  --package-id "$PACKAGE_ID" \
+  --report-dir "$REPORT_DIR" \
+  "${RESOURCE_CONFIG_ARGS[@]}"
+RESOURCE_STATUS="$?"
+set -e
+
+if [[ -s "$REPORT_DIR/resource-pressure-lab.json" ]]; then
+  RESOURCE_PRESSURE_LAB_RESULT="$(
+    python3 - "$REPORT_DIR/resource-pressure-lab.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(payload.get("result", "ERROR"))
+PY
+  )"
+else
+  RESOURCE_PRESSURE_LAB_RESULT="ERROR"
+fi
+
+if [[ "$RESOURCE_STATUS" -ne 0 || "$RESOURCE_PRESSURE_LAB_RESULT" == "FAIL" || "$RESOURCE_PRESSURE_LAB_RESULT" == "ERROR" ]]; then
+  fail "Resource Pressure & Process Death Lab detected an application recovery/runtime failure."
+fi
+PID_AFTER="$(assert_runtime_healthy "resource-pressure-lab")"
+log "Resource Pressure & Process Death Lab: $RESOURCE_PRESSURE_LAB_RESULT"
+
 UPGRADE_CONFIG_ARGS=()
 if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-upgrade.json" ]]; then
   UPGRADE_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-upgrade.json")
@@ -793,6 +839,7 @@ log "Upgrade & Migration Lab: $UPGRADE_LAB_RESULT"
   echo "- Network & Offline Lab: $NETWORK_LAB_RESULT"
   echo "- Persistence & Restart Lab: $PERSISTENCE_LAB_RESULT"
   echo "- Configuration & Lifecycle Stress Lab: $CONFIGURATION_LAB_RESULT"
+  echo "- Resource Pressure & Process Death Lab: $RESOURCE_PRESSURE_LAB_RESULT"
   echo "- Upgrade & Migration Lab: $UPGRADE_LAB_RESULT"
   echo "- Performance Lab: $PERFORMANCE_LAB_RESULT"
   printf -- '- Screenshot: launch.png\n'
@@ -823,6 +870,8 @@ log "Upgrade & Migration Lab: $UPGRADE_LAB_RESULT"
   printf -- '- Persistence Lab summary: persistence-lab.md\n'
   printf -- '- Configuration Lab JSON: configuration-lab.json\n'
   printf -- '- Configuration Lab summary: configuration-lab.md\n'
+  printf -- '- Resource Pressure Lab JSON: resource-pressure-lab.json\n'
+  printf -- '- Resource Pressure Lab summary: resource-pressure-lab.md\n'
   printf -- '- Upgrade Lab JSON: upgrade-lab.json\n'
   printf -- '- Upgrade Lab summary: upgrade-lab.md\n'
   printf -- '- Upgrade before screenshot: upgrade-before.png\n'
