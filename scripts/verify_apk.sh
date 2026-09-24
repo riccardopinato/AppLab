@@ -9,9 +9,10 @@ START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
 RUN_MAESTRO="${RUN_MAESTRO:-false}"
-APPLAB_VERSION="${APPLAB_VERSION:-0.6.2}"
+APPLAB_VERSION="${APPLAB_VERSION:-0.6.3}"
 VISUAL_BASELINE_DIR="${VISUAL_BASELINE_DIR:-${APPLAB_VISUAL_BASELINE_DIR:-}}"
 TARGET_ROOT="${APPLAB_TARGET_ROOT:-}"
+PROJECT_ROOT="${APPLAB_PROJECT_ROOT:-$TARGET_ROOT}"
 VISUAL_QA_RESULT="SKIPPED"
 VISUAL_REGRESSION_RESULT="NO_BASELINE"
 VISUAL_JOURNEY_RESULT="SKIPPED"
@@ -167,123 +168,6 @@ assert_runtime_healthy() {
   printf '%s' "$pid"
 }
 
-run_visual_qa() {
-  local screenshot="$REPORT_DIR/launch.png"
-  local hierarchy="$REPORT_DIR/launch-window.xml"
-  local status=0
-
-  if [[ -s "$REPORT_DIR/post-maestro.png" && -s "$REPORT_DIR/post-maestro-window.xml" ]]; then
-    screenshot="$REPORT_DIR/post-maestro.png"
-    hierarchy="$REPORT_DIR/post-maestro-window.xml"
-  fi
-
-  [[ -s "$screenshot" ]] || fail "Smart Visual QA screenshot is missing."
-  [[ -s "$hierarchy" ]] || fail "Smart Visual QA UI hierarchy is missing."
-
-  log "running Smart Visual QA..."
-  set +e
-  python3 "$(dirname "$0")/visual_qa.py" \
-    --screenshot "$screenshot" \
-    --ui-hierarchy "$hierarchy" \
-    --package-id "$PACKAGE_ID" \
-    --output-json "$REPORT_DIR/visual-qa.json" \
-    --output-md "$REPORT_DIR/visual-qa.md"
-  status="$?"
-  set -e
-
-  if [[ -s "$REPORT_DIR/visual-qa.json" ]]; then
-    VISUAL_QA_RESULT="$(
-      python3 - "$REPORT_DIR/visual-qa.json" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-try:
-    payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-    print(str(payload.get("result", "UNKNOWN")))
-except Exception:
-    print("UNKNOWN")
-PY
-    )"
-  else
-    VISUAL_QA_RESULT="ERROR"
-  fi
-
-  if [[ "$status" -ne 0 || "$VISUAL_QA_RESULT" == "FAIL" || "$VISUAL_QA_RESULT" == "ERROR" ]]; then
-    fail "Smart Visual QA detected a high-confidence visual/runtime anomaly."
-  fi
-
-  log "Smart Visual QA: $VISUAL_QA_RESULT"
-}
-
-run_visual_regression() {
-  local current_screenshot="$REPORT_DIR/launch.png"
-  local current_hierarchy="$REPORT_DIR/launch-window.xml"
-  local baseline_screenshot=""
-  local baseline_hierarchy=""
-  local baseline_metadata=""
-  local status=0
-
-  if [[ -s "$REPORT_DIR/post-maestro.png" && -s "$REPORT_DIR/post-maestro-window.xml" ]]; then
-    current_screenshot="$REPORT_DIR/post-maestro.png"
-    current_hierarchy="$REPORT_DIR/post-maestro-window.xml"
-  fi
-
-  if [[ -z "$VISUAL_BASELINE_DIR" || ! -d "$VISUAL_BASELINE_DIR" ]]; then
-    VISUAL_REGRESSION_RESULT="NO_BASELINE"
-    log "Visual Regression: NO_BASELINE — current PASS will become the first baseline."
-    return 0
-  fi
-
-  baseline_screenshot="$VISUAL_BASELINE_DIR/screenshot.png"
-  baseline_hierarchy="$VISUAL_BASELINE_DIR/window.xml"
-  baseline_metadata="$VISUAL_BASELINE_DIR/metadata.json"
-
-  if [[ ! -s "$baseline_screenshot" || ! -s "$baseline_hierarchy" ]]; then
-    VISUAL_REGRESSION_RESULT="NO_BASELINE"
-    log "Visual Regression: NO_BASELINE — baseline cache is incomplete."
-    return 0
-  fi
-
-  log "running Visual Regression against last passing baseline..."
-  set +e
-  python3 "$(dirname "$0")/visual_regression.py" \
-    --baseline-screenshot "$baseline_screenshot" \
-    --baseline-ui "$baseline_hierarchy" \
-    --baseline-metadata "$baseline_metadata" \
-    --current-screenshot "$current_screenshot" \
-    --current-ui "$current_hierarchy" \
-    --package-id "$PACKAGE_ID" \
-    --output-json "$REPORT_DIR/visual-regression.json" \
-    --output-md "$REPORT_DIR/visual-regression.md"
-  status="$?"
-  set -e
-
-  if [[ -s "$REPORT_DIR/visual-regression.json" ]]; then
-    VISUAL_REGRESSION_RESULT="$(
-      python3 - "$REPORT_DIR/visual-regression.json" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-try:
-    payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-    print(str(payload.get("result", "UNKNOWN")))
-except Exception:
-    print("UNKNOWN")
-PY
-    )"
-  else
-    VISUAL_REGRESSION_RESULT="ERROR"
-  fi
-
-  if [[ "$status" -ne 0 || "$VISUAL_REGRESSION_RESULT" == "FAIL" || "$VISUAL_REGRESSION_RESULT" == "ERROR" ]]; then
-    fail "Visual Regression detected a high-confidence regression against the last passing baseline."
-  fi
-
-  log "Visual Regression: $VISUAL_REGRESSION_RESULT"
-}
-
 if [[ -z "$PACKAGE_ID" ]]; then
   PACKAGE_ID="$(detect_package "$APK_PATH")"
 fi
@@ -437,16 +321,16 @@ else
   cp "$REPORT_DIR/launch-window.xml" "$REPORT_DIR/visual-journey/current/final/window.xml"
 fi
 
-if [[ -n "$TARGET_ROOT" ]]; then
+if [[ -n "$TARGET_ROOT" ]] && is_true "$RUN_MAESTRO"; then
   python3 "$(dirname "$0")/visual_journey_runtime.py" \
     --target-root "$TARGET_ROOT" \
+    --project-root "$PROJECT_ROOT" \
     --report-dir "$REPORT_DIR" \
     --package-id "$PACKAGE_ID"
   PID_AFTER="$(assert_runtime_healthy "visual-journey")"
+elif [[ -n "$TARGET_ROOT" ]]; then
+  log "custom Visual Journey skipped because Maestro is disabled."
 fi
-
-run_visual_qa
-run_visual_regression
 
 JOURNEY_STATUS=0
 set +e
@@ -456,13 +340,15 @@ if [[ -n "$VISUAL_BASELINE_DIR" && -d "$VISUAL_BASELINE_DIR/journey" ]]; then
     --baseline-root "$VISUAL_BASELINE_DIR/journey" \
     --package-id "$PACKAGE_ID" \
     --output-json "$REPORT_DIR/visual-journey.json" \
-    --output-md "$REPORT_DIR/visual-journey.md"
+    --output-md "$REPORT_DIR/visual-journey.md" \
+    --compat-report-dir "$REPORT_DIR"
 else
   python3 "$(dirname "$0")/visual_journey.py" \
     --current-root "$REPORT_DIR/visual-journey/current" \
     --package-id "$PACKAGE_ID" \
     --output-json "$REPORT_DIR/visual-journey.json" \
-    --output-md "$REPORT_DIR/visual-journey.md"
+    --output-md "$REPORT_DIR/visual-journey.md" \
+    --compat-report-dir "$REPORT_DIR"
 fi
 JOURNEY_STATUS="$?"
 set -e
@@ -490,7 +376,7 @@ if [[ "$JOURNEY_STATUS" -ne 0 || "$VISUAL_JOURNEY_RESULT" == "FAIL" || "$VISUAL_
   fail "Multi-Screen Visual Journey detected a high-confidence visual regression."
 fi
 
-log "Multi-Screen Visual Journey: $VISUAL_JOURNEY_RESULT"
+log "Multi-Screen Visual Journey: $VISUAL_JOURNEY_RESULT (single visual engine)"
 
 {
   echo "# AppLab report"
