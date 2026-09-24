@@ -2,6 +2,23 @@
 
 AppLab is a reusable Android APK verification lab.
 
+## v0.6 — Smart Visual QA
+
+The Android verification gate now performs deterministic visual checks after
+launch/Maestro using the final screenshot plus the matching uiautomator
+hierarchy.
+
+High-confidence anomalies such as blank screens, target app not being in the
+foreground, visible crash/ANR dialogs and impossible interactive bounds fail
+the gate. Smaller touch targets, partially off-screen controls and likely
+permission/system dialogs are reported as warnings.
+
+Every report now includes `visual-qa.json`, `visual-qa.md` and a
+`visual_qa` field inside the main `result.json`. Repo Watcher history also
+surfaces the visual QA verdict.
+
+See `integration/visual-qa/SMART_VISUAL_QA.md`.
+
 ## v0.5.2 — Universal Project Auto-Discovery
 
 AppLab can now start from only `owner/repository + ref`. The Universal Runner
