@@ -159,7 +159,7 @@ jobs:
           APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
           APPLAB_PERFORMANCE_BASELINE_JSON: ${{ github.workspace }}/.applab-performance-baseline/performance-lab.json
           APPLAB_UPGRADE_BASELINE_APK: ${{ github.workspace }}/.applab-upgrade-baseline/baseline.apk
-          APPLAB_VERSION: "0.7.8"
+          APPLAB_VERSION: "0.7.9"
           START_TIMEOUT: ${{ inputs.start_timeout }}
           SETTLE_SECONDS: ${{ inputs.settle_seconds }}
         with:
@@ -187,7 +187,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.7.8" \
+            --version "0.7.9" \
             --github-output "$GITHUB_OUTPUT" \
             "${EXTRA_ARGS[@]}"
 
@@ -209,7 +209,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.7.8" \
+            --version "0.7.9" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Save PASS-only performance baseline
@@ -230,7 +230,7 @@ jobs:
             --baseline-dir "$GITHUB_WORKSPACE/.applab-upgrade-baseline" \
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
-            --version "0.7.8"
+            --version "0.7.9"
 
       - name: Save PASS-only upgrade baseline
         if: steps.verify.outcome == 'success'
@@ -310,7 +310,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v0.7.8 Trusted APK Verification"
+            echo "## AppLab v0.7.9 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"
