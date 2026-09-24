@@ -23,7 +23,7 @@ ENGINES = {"auto", "flutter", "native_android"}
 def api_json(url: str, token: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "AppLab-Repo-Watcher/0.5.1",
+        "User-Agent": "AppLab-Repo-Watcher/0.6.3",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     if token:
