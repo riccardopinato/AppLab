@@ -9,7 +9,7 @@ jobs:
   static:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Shellcheck
         run: |
@@ -61,7 +61,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.3.1"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.6.3"'; then
               healthy=true
               break
             fi
