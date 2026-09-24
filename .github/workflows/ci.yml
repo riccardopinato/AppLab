@@ -41,6 +41,7 @@ jobs:
             scripts/configuration_lab.py \
             scripts/resource_pressure_lab.py \
             scripts/background_lab.py \
+            scripts/storage_lab.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
             scripts/prepare_performance_baseline.py \
@@ -66,6 +67,7 @@ jobs:
           python scripts/configuration_lab.py --self-test
           python scripts/resource_pressure_lab.py --self-test
           python scripts/background_lab.py --self-test
+          python scripts/storage_lab.py --self-test
           python scripts/upgrade_lab.py --self-test
           python scripts/prepare_upgrade_baseline.py --self-test
           python scripts/prepare_performance_baseline.py --self-test
@@ -97,7 +99,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.7.8"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.7.9"'; then
               healthy=true
               break
             fi
