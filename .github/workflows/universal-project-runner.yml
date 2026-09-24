@@ -1,0 +1,157 @@
+name: Universal Android Project Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Public GitHub repository in owner/name format
+        required: true
+        type: string
+      ref:
+        description: Branch, tag, or commit SHA
+        required: false
+        default: main
+        type: string
+      run_maestro:
+        description: Run Maestro after app launch
+        required: false
+        default: true
+        type: boolean
+  workflow_call:
+    inputs:
+      repository:
+        required: true
+        type: string
+      ref:
+        required: false
+        default: main
+        type: string
+      run_maestro:
+        required: false
+        default: true
+        type: boolean
+      history_key:
+        required: false
+        default: universal
+        type: string
+      cache_verification:
+        required: false
+        default: false
+        type: boolean
+      cache_epoch:
+        required: false
+        default: "1"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Auto-discover project
+    runs-on: ubuntu-latest
+    outputs:
+      engine: ${{ steps.detect.outputs.engine }}
+      profile: ${{ steps.detect.outputs.profile }}
+
+    steps:
+      - name: Checkout AppLab
+        uses: actions/checkout@v6
+        with:
+          path: .applab
+
+      - name: Checkout target project
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          path: target
+          persist-credentials: false
+
+      - name: Detect project engine and build profile
+        id: detect
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/applab-autodiscovery"
+          python .applab/scripts/project_autodiscover.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --output "$GITHUB_WORKSPACE/applab-autodiscovery/profile.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Publish discovery summary
+        shell: bash
+        run: |
+          {
+            echo "## AppLab Universal Auto-Discovery"
+            echo
+            echo "Repository: ${{ inputs.repository }}"
+            echo "Ref: ${{ inputs.ref }}"
+            echo "Detected engine: ${{ steps.detect.outputs.engine }}"
+            echo
+            cat "$GITHUB_WORKSPACE/applab-autodiscovery/profile.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload discovery profile
+        uses: actions/upload-artifact@v4
+        with:
+          name: applab-autodiscovery-${{ github.run_id }}
+          path: applab-autodiscovery/profile.json
+          if-no-files-found: error
+          retention-days: 30
+
+  verify_flutter:
+    name: Auto Flutter verification
+    if: needs.discover.outputs.engine == 'flutter'
+    needs: discover
+    uses: ./.github/workflows/external-project-runner.yml
+    with:
+      repository: ${{ inputs.repository }}
+      ref: ${{ inputs.ref }}
+      working_directory: ${{ fromJSON(needs.discover.outputs.profile).working_directory }}
+      flutter_channel: ${{ fromJSON(needs.discover.outputs.profile).flutter_channel }}
+      flutter_version: ${{ fromJSON(needs.discover.outputs.profile).flutter_version }}
+      java_version: ${{ fromJSON(needs.discover.outputs.profile).java_version }}
+      prepare_command: ${{ fromJSON(needs.discover.outputs.profile).prepare_command }}
+      post_pub_get_command: ${{ fromJSON(needs.discover.outputs.profile).post_pub_get_command }}
+      android_prepare_command: ${{ fromJSON(needs.discover.outputs.profile).android_prepare_command }}
+      api_level: ${{ fromJSON(needs.discover.outputs.profile).api_level }}
+      emulator_profile: ${{ fromJSON(needs.discover.outputs.profile).emulator_profile }}
+      apk_path: ${{ fromJSON(needs.discover.outputs.profile).apk_path }}
+      package_id: ${{ fromJSON(needs.discover.outputs.profile).package_id }}
+      build_command: ${{ fromJSON(needs.discover.outputs.profile).build_command }}
+      run_flutter_tests: ${{ fromJSON(needs.discover.outputs.profile).run_flutter_tests }}
+      run_maestro: ${{ inputs.run_maestro }}
+      maestro_flow: ${{ fromJSON(needs.discover.outputs.profile).maestro_flow }}
+      history_key: ${{ inputs.history_key }}
+      cache_verification: ${{ inputs.cache_verification }}
+      cache_epoch: ${{ inputs.cache_epoch }}
+
+  verify_native:
+    name: Auto native Android verification
+    if: needs.discover.outputs.engine == 'native_android'
+    needs: discover
+    uses: ./.github/workflows/external-native-android-runner.yml
+    with:
+      repository: ${{ inputs.repository }}
+      ref: ${{ inputs.ref }}
+      working_directory: ${{ fromJSON(needs.discover.outputs.profile).working_directory }}
+      java_version: ${{ fromJSON(needs.discover.outputs.profile).java_version }}
+      gradle_version: ${{ fromJSON(needs.discover.outputs.profile).gradle_version }}
+      compile_sdk: ${{ fromJSON(needs.discover.outputs.profile).compile_sdk }}
+      build_tools: ${{ fromJSON(needs.discover.outputs.profile).build_tools }}
+      prepare_command: ${{ fromJSON(needs.discover.outputs.profile).prepare_command }}
+      test_command: ${{ fromJSON(needs.discover.outputs.profile).test_command }}
+      lint_command: ${{ fromJSON(needs.discover.outputs.profile).lint_command }}
+      build_command: ${{ fromJSON(needs.discover.outputs.profile).build_command }}
+      apk_path: ${{ fromJSON(needs.discover.outputs.profile).apk_path }}
+      package_id: ${{ fromJSON(needs.discover.outputs.profile).package_id }}
+      verify_signature: ${{ fromJSON(needs.discover.outputs.profile).verify_signature }}
+      android_prepare_command: ${{ fromJSON(needs.discover.outputs.profile).android_prepare_command }}
+      api_level: ${{ fromJSON(needs.discover.outputs.profile).api_level }}
+      emulator_profile: ${{ fromJSON(needs.discover.outputs.profile).emulator_profile }}
+      run_maestro: ${{ inputs.run_maestro }}
+      maestro_flow: ${{ fromJSON(needs.discover.outputs.profile).maestro_flow }}
+      history_key: ${{ inputs.history_key }}
+      cache_verification: ${{ inputs.cache_verification }}
+      cache_epoch: ${{ inputs.cache_epoch }}
