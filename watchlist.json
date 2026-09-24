@@ -89,7 +89,8 @@
       "api_level": "35",
       "emulator_profile": "pixel_7_pro",
       "run_maestro": true,
-      "maestro_flow": ""
+      "maestro_flow": "",
+      "cache_epoch": 4
     }
   ],
   "cache_epoch": 3
