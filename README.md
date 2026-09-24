@@ -2,6 +2,35 @@
 
 AppLab is a reusable Android APK verification lab.
 
+## v0.6.3 — Hardening & Architecture Consolidation
+
+v0.6.3 consolidates the verification contract introduced across v0.5–v0.6.2.
+
+Key changes:
+
+- Visual Journey is the single visual verification engine; final-screen
+  `visual-qa.*` and `visual-regression.*` files are compatibility views of
+  the `final` checkpoint instead of a second analysis pass.
+- Visual baselines are promoted only after a full visual `PASS`. A `WARN`
+  run never replaces the last known-good baseline.
+- Journey manifests are discovered both at repository root and inside the
+  configured project `working_directory`; custom flows are skipped cleanly
+  when Maestro is disabled.
+- External runners restore the pinned AppLab checkout after target build hooks,
+  remove persisted GitHub credentials, and restrict Android preparation hooks
+  to explicit `pm grant` permission commands before the trusted verifier runs.
+- Watcher cache invalidation uses an automatic contract fingerprint plus a
+  per-project configuration fingerprint instead of manual cache epochs.
+- The reusable Flutter gate delegates to the same external v0.6.3 verifier.
+- GitHub Actions were moved to Node-24-ready major versions, Maestro is pinned,
+  frontend dependencies are lockfile-driven, and AEMU proto sources are pinned.
+- AppLab Live reports v0.6.3, defaults CORS to localhost, binds Docker ports to
+  localhost, and streams APK uploads with a configurable size limit.
+- The Android self-test now verifies real multi-screen checkpoints
+  (`launch`, `final`, `settings`, `dialog`) plus a Maestro-disabled path.
+
+See `integration/HARDENING_0_6_3.md`.
+
 ## v0.6.2 — Multi-Screen Visual Journey
 
 AppLab now validates a sequence of runtime screens instead of only the final
