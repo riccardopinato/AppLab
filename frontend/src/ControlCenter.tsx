@@ -38,6 +38,7 @@ type ProjectRow = {
   interaction_crawl: string;
   system_lab: string;
   network_lab: string;
+  persistence_lab: string;
   performance_lab: string;
   performance?: PerformanceMetrics;
   applab_version: string;
@@ -60,6 +61,7 @@ type RecentRow = {
   interaction_crawl?: string;
   system_lab?: string;
   network_lab?: string;
+  persistence_lab?: string;
   performance_lab?: string;
   performance?: PerformanceMetrics;
   watcher_run_id?: string;
@@ -195,6 +197,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>Crawler</th>
                   <th>System</th>
                   <th>Network</th>
+                  <th>Persistence</th>
                   <th>Performance</th>
                   <th>Release APK</th>
                 </tr>
@@ -223,6 +226,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     <td>{gate(project.interaction_crawl)}</td>
                     <td>{gate(project.system_lab)}</td>
                     <td>{gate(project.network_lab)}</td>
+                    <td>{gate(project.persistence_lab)}</td>
                     <td>
                       <div className="cc-project">
                         <span className={badgeClass(project.performance_lab)}>
