@@ -251,7 +251,10 @@ jobs:
       - name: Checkout AppLab
         uses: actions/checkout@v6
         with:
+          repository: riccardopinato/AppLab
+          ref: main
           path: .applab
+          persist-credentials: false
 
       - name: Checkout target project
         uses: actions/checkout@v6
