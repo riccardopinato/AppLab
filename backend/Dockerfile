@@ -1,6 +1,7 @@
 FROM python:3.12-slim
 
 ARG EMULATOR_SCRIPTS_REF=0654f694b46794fae4b178f1e1a17cb60c5d2d34
+ARG AEMU_REF=b556b00ac5fffde13c5cbad1b659c528832f9da6
 ARG MAESTRO_VERSION=2.10.0
 
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -23,10 +24,13 @@ RUN export MAESTRO_VERSION="$MAESTRO_VERSION" MAESTRO_CLI_NO_ANALYTICS=1 \
 # Install Google's current Python WebRTC signaling gateway. The gateway build
 # generates its protobuf stubs from the Android Emulator AEMU proto sources.
 RUN mkdir -p /opt/aemu-root/hardware/google \
-    && git clone --depth 1 --branch emu-main-dev --filter=blob:none --sparse \
+    && git init /opt/aemu-root/hardware/google/aemu \
+    && git -C /opt/aemu-root/hardware/google/aemu remote add origin \
        https://android.googlesource.com/platform/hardware/google/aemu \
-       /opt/aemu-root/hardware/google/aemu \
+    && git -C /opt/aemu-root/hardware/google/aemu sparse-checkout init --cone \
     && git -C /opt/aemu-root/hardware/google/aemu sparse-checkout set protos \
+    && git -C /opt/aemu-root/hardware/google/aemu fetch --depth 1 origin "$AEMU_REF" \
+    && git -C /opt/aemu-root/hardware/google/aemu checkout --detach FETCH_HEAD \
     && git clone --filter=blob:none --no-checkout \
        https://github.com/google/android-emulator-container-scripts.git \
        /tmp/emulator-scripts \
