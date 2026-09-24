@@ -8,7 +8,9 @@ RUN_MAESTRO="${APPLAB_RUN_MAESTRO:-true}"
 MAESTRO_FLOW_INPUT="${APPLAB_MAESTRO_FLOW:-}"
 ANDROID_PREPARE_COMMAND="${APPLAB_ANDROID_PREPARE_COMMAND:-}"
 PACKAGE_ID="${APPLAB_PACKAGE_ID:-}"
-VERSION="${APPLAB_VERSION:-0.6.2}"
+VERSION="${APPLAB_VERSION:-0.6.3}"
+TRUSTED_ROOT="${APPLAB_TRUSTED_ROOT:-}"
+TRUSTED_SHA="${APPLAB_TRUSTED_SHA:-}"
 
 FLOW_PATH=""
 if [[ -n "$MAESTRO_FLOW_INPUT" ]]; then
@@ -19,13 +21,42 @@ if [[ -n "$MAESTRO_FLOW_INPUT" ]]; then
   fi
 fi
 
+validate_android_prepare_hook() {
+  local line trimmed
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    trimmed="$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    [[ -z "$trimmed" ]] && continue
+    if [[ ! "$trimmed" =~ ^adb[[:space:]]+shell[[:space:]]+pm[[:space:]]+grant[[:space:]]+[A-Za-z0-9._]+[[:space:]]+android\.permission\.[A-Z0-9_]+([[:space:]]+\|\|[[:space:]]+true)?$ ]]; then
+      echo "[AppLab] ERROR: unsafe android_prepare_command rejected: $trimmed" >&2
+      exit 2
+    fi
+  done <<< "$ANDROID_PREPARE_COMMAND"
+}
+
+restore_trusted_verifier() {
+  [[ -n "$TRUSTED_ROOT" && -n "$TRUSTED_SHA" ]] || return 0
+  [[ -d "$TRUSTED_ROOT/.git" ]] || {
+    echo "[AppLab] ERROR: trusted AppLab checkout is missing." >&2
+    exit 2
+  }
+  git -C "$TRUSTED_ROOT" reset --hard "$TRUSTED_SHA" >/dev/null
+  git -C "$TRUSTED_ROOT" clean -ffd >/dev/null
+  actual="$(git -C "$TRUSTED_ROOT" rev-parse HEAD)"
+  [[ "$actual" == "$TRUSTED_SHA" ]] || {
+    echo "[AppLab] ERROR: trusted verifier SHA mismatch." >&2
+    exit 2
+  }
+}
+
 if [[ -n "$ANDROID_PREPARE_COMMAND" ]]; then
-  echo "[AppLab] installing APK for Android preparation hook..."
+  validate_android_prepare_hook
+  echo "[AppLab] installing APK for restricted Android preparation hook..."
   adb install -r -t "$APK_FILE"
-  echo "[AppLab] running Android preparation hook..."
+  echo "[AppLab] running restricted Android preparation hook..."
   bash -Eeuo pipefail -c "$ANDROID_PREPARE_COMMAND"
 fi
 
+restore_trusted_verifier
 echo "[AppLab] starting external Android gate..."
 RUN_MAESTRO="$RUN_MAESTRO" \
 MAESTRO_FLOW="$FLOW_PATH" \
