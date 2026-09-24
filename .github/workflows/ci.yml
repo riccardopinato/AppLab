@@ -29,6 +29,8 @@ jobs:
             scripts/dismiss_foreign_anr.py \
             scripts/finalize_external_result.py \
             scripts/project_autodiscover.py \
+            scripts/contract_fingerprint.py \
+            scripts/prepare_visual_baseline.py \
             scripts/visual_qa.py \
             scripts/visual_regression.py \
             scripts/visual_journey.py \
@@ -37,6 +39,7 @@ jobs:
             scripts/watch_aggregate.py
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/project_autodiscover.py --self-test
+          python scripts/prepare_visual_baseline.py --self-test
           python scripts/visual_qa.py --self-test
           python scripts/visual_regression.py --self-test
           python scripts/visual_journey.py --self-test
