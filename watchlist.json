@@ -52,7 +52,8 @@
       "run_flutter_tests": true,
       "run_maestro": true,
       "maestro_flow": "",
-      "engine": "flutter"
+      "engine": "flutter",
+      "cache_epoch": 12
     },
     {
       "key": "watch-send-to-pc",
