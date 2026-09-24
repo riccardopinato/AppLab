@@ -22,4 +22,5 @@ def test_health() -> None:
     assert "multi-screen-journey" in payload["features"]
 
     assert "control-center" in payload["features"]
-    assert "performance-lab" in payload["features"]\n    assert "network-offline-lab" in payload["features"]
+    assert "performance-lab" in payload["features"]
+    assert "network-offline-lab" in payload["features"]
