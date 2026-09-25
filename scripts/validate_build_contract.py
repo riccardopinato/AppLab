@@ -38,7 +38,7 @@ def safe_relative(raw: str) -> PurePosixPath:
         raise ValueError(f"Unsafe path in build contract: {raw!r}")
     return path
 
-def validate(root: Path, expected_repository: str, expected_sha: str, expected_engine: str) -> dict:
+def validate(root: Path, expected_repository: str, expected_sha: str, expected_engine: str, expected_analysis_mode: str = "full") -> dict:
     root = root.resolve()
     contract_path = root / "contract.json"
     apk = root / "app.apk"
@@ -77,6 +77,8 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
     analysis_mode = str(payload.get("analysis_mode", "full")).strip().lower()
     if analysis_mode not in {"fast", "full"}:
         raise ValueError("Invalid analysis mode in build contract")
+    if expected_analysis_mode and analysis_mode != expected_analysis_mode:
+        raise ValueError("Build contract analysis mode mismatch")
     if payload.get("analysis_plan") != "analysis-plan.json":
         raise ValueError("Missing trusted analysis plan reference")
     if not analysis_plan_path.is_file() or analysis_plan_path.is_symlink():
@@ -248,7 +250,7 @@ def self_test() -> None:
             encoding="utf-8",
         )
         (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
-        result = validate(root, "owner/repo", "a"*40, "flutter")
+        result = validate(root, "owner/repo", "a"*40, "flutter", "fast")
         assert result["package_id"] == "com.example.app"
         assert result["analysis_mode"] == "fast"
         flow.write_text("appId: x\n---\n- runScript: evil.js\n", encoding="utf-8")
@@ -266,6 +268,7 @@ def main() -> int:
     parser.add_argument("--expected-repository", default="")
     parser.add_argument("--expected-sha", default="")
     parser.add_argument("--expected-engine", choices=("flutter","native_android"), default="flutter")
+    parser.add_argument("--expected-analysis-mode", choices=("fast","full"), default="full")
     parser.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT", ""))
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
@@ -274,7 +277,7 @@ def main() -> int:
         return 0
     if not args.root:
         raise SystemExit("--root is required")
-    result = validate(Path(args.root), args.expected_repository, args.expected_sha, args.expected_engine)
+    result = validate(Path(args.root), args.expected_repository, args.expected_sha, args.expected_engine, args.expected_analysis_mode)
     emit_github_output(args.github_output, result)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
