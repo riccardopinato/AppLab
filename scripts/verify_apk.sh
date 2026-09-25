@@ -21,12 +21,20 @@ should_run_lab() {
   fi
   python3 - "$ANALYSIS_PLAN_JSON" "$lab" <<'PY'
 import json
-import os
 import sys
 from pathlib import Path
-payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-selected = payload.get("selected_labs", {})
-raise SystemExit(0 if selected.get(sys.argv[2], True) else 1)
+try:
+    payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    selected = payload.get("selected_labs", {})
+    if not isinstance(selected, dict):
+        raise ValueError("selected_labs must be an object")
+    run_lab = selected.get(sys.argv[2], True)
+    if not isinstance(run_lab, bool):
+        raise ValueError("lab selection must be boolean")
+except Exception as exc:
+    print(f"[AppLab] WARN: invalid FAST analysis plan; running {sys.argv[2]} fail-safe: {exc}", file=sys.stderr)
+    raise SystemExit(0)
+raise SystemExit(0 if run_lab else 1)
 PY
 }
 VISUAL_BASELINE_DIR="${VISUAL_BASELINE_DIR:-${APPLAB_VISUAL_BASELINE_DIR:-}}"
