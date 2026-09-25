@@ -56,6 +56,7 @@ write_result_json() {
   if command -v python3 >/dev/null 2>&1; then
     python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" "${SYSTEM_LAB_RESULT:-SKIPPED}" "${NETWORK_LAB_RESULT:-SKIPPED}" "${PERSISTENCE_LAB_RESULT:-SKIPPED}" "${CONFIGURATION_LAB_RESULT:-SKIPPED}" "${RESOURCE_PRESSURE_LAB_RESULT:-SKIPPED}" "${BACKGROUND_LAB_RESULT:-SKIPPED}" "${STORAGE_LAB_RESULT:-SKIPPED}" "${UPGRADE_LAB_RESULT:-NO_BASELINE}" "${PERFORMANCE_LAB_RESULT:-SKIPPED}" <<'PY'
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
