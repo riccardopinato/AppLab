@@ -315,7 +315,8 @@ jobs:
             --history-key "${{ inputs.history_key }}" \
             --engine "${{ inputs.engine }}" \
             --pipeline-status "$APPLAB_PIPELINE_STATUS" \
-            --run-id "$GITHUB_RUN_ID"
+            --run-id "$GITHUB_RUN_ID" \
+            --analysis-mode "${{ steps.analysis.outputs.effective_mode }}"
 
       - name: Prepare verification cache payload
         if: always() && inputs.cache_verification
