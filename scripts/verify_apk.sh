@@ -12,6 +12,7 @@ RUN_MAESTRO="${RUN_MAESTRO:-false}"
 APPLAB_VERSION="${APPLAB_VERSION:-0.7.10}"
 ANALYSIS_PLAN_JSON="${APPLAB_ANALYSIS_PLAN_JSON:-}"
 ANALYSIS_MODE="${APPLAB_ANALYSIS_MODE:-full}"
+export APPLAB_EFFECTIVE_ANALYSIS_MODE="$ANALYSIS_MODE"
 
 should_run_lab() {
   local lab="$1"
@@ -20,6 +21,7 @@ should_run_lab() {
   fi
   python3 - "$ANALYSIS_PLAN_JSON" "$lab" <<'PY'
 import json
+import os
 import sys
 from pathlib import Path
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
@@ -62,6 +64,7 @@ output, result, package_id, maestro, pid_value, reason, version, apk_path, visua
 payload = {
     "schema_version": 1,
     "applab_version": version,
+    "analysis_mode": os.environ.get("APPLAB_EFFECTIVE_ANALYSIS_MODE", "full"),
     "generated_at": datetime.now(timezone.utc).isoformat(),
     "result": result,
     "reason": reason or None,
