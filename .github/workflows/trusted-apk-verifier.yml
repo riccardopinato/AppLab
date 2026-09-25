@@ -61,6 +61,10 @@ on:
         required: false
         default: false
         type: boolean
+      analysis_mode:
+        required: false
+        default: full
+        type: string
 
 permissions:
   contents: read
@@ -142,6 +146,26 @@ jobs:
           restore-keys: |
             applab-upgrade-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-
 
+      - name: Resolve effective analysis mode
+        id: analysis
+        shell: bash
+        env:
+          REQUESTED_MODE: ${{ inputs.analysis_mode }}
+        run: |
+          set -Eeuo pipefail
+          MODE="$REQUESTED_MODE"
+          if [[ "$MODE" != "fast" && "$MODE" != "full" ]]; then
+            echo "Unsupported analysis mode: $MODE" >&2
+            exit 2
+          fi
+          if [[ "$MODE" == "fast" ]]; then
+            if [[ ! -s "$GITHUB_WORKSPACE/.applab-upgrade-baseline/baseline.apk" || ! -d "$GITHUB_WORKSPACE/.applab-visual-baseline" ]]; then
+              MODE="full"
+              echo "FAST requested but no previous full baseline is available; falling back to FULL."
+            fi
+          fi
+          echo "effective_mode=$MODE" >> "$GITHUB_OUTPUT"
+
       - name: Verify APK inside trusted Android runtime
         id: verify
         uses: reactivecircus/android-emulator-runner@v2
@@ -159,7 +183,9 @@ jobs:
           APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
           APPLAB_PERFORMANCE_BASELINE_JSON: ${{ github.workspace }}/.applab-performance-baseline/performance-lab.json
           APPLAB_UPGRADE_BASELINE_APK: ${{ github.workspace }}/.applab-upgrade-baseline/baseline.apk
-          APPLAB_VERSION: "0.7.9"
+          APPLAB_VERSION: "0.7.10"
+          APPLAB_ANALYSIS_MODE: ${{ steps.analysis.outputs.effective_mode }}
+          APPLAB_ANALYSIS_PLAN_JSON: ${{ steps.contract.outputs.analysis_plan_file }}
           START_TIMEOUT: ${{ inputs.start_timeout }}
           SETTLE_SECONDS: ${{ inputs.settle_seconds }}
         with:
@@ -187,7 +213,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.7.9" \
+            --version "0.7.10" \
             --github-output "$GITHUB_OUTPUT" \
             "${EXTRA_ARGS[@]}"
 
@@ -200,7 +226,7 @@ jobs:
 
       - name: Prepare PASS-only performance baseline
         id: performance_baseline_prepare
-        if: steps.verify.outcome == 'success'
+        if: steps.verify.outcome == 'success' && steps.analysis.outputs.effective_mode == 'full'
         shell: bash
         run: |
           python .applab/scripts/prepare_performance_baseline.py \
@@ -209,11 +235,11 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.7.9" \
+            --version "0.7.10" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Save PASS-only performance baseline
-        if: steps.performance_baseline_prepare.outputs.promote == 'true'
+        if: steps.performance_baseline_prepare.outputs.promote == 'true' && steps.analysis.outputs.effective_mode == 'full'
         uses: actions/cache/save@v6
         with:
           path: .applab-performance-baseline
@@ -221,7 +247,7 @@ jobs:
 
       - name: Prepare PASS-only upgrade baseline
         id: upgrade_baseline_prepare
-        if: steps.verify.outcome == 'success'
+        if: steps.verify.outcome == 'success' && steps.analysis.outputs.effective_mode == 'full'
         shell: bash
         run: |
           rm -rf "$GITHUB_WORKSPACE/.applab-upgrade-baseline"
@@ -230,10 +256,10 @@ jobs:
             --baseline-dir "$GITHUB_WORKSPACE/.applab-upgrade-baseline" \
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
-            --version "0.7.9"
+            --version "0.7.10"
 
       - name: Save PASS-only upgrade baseline
-        if: steps.verify.outcome == 'success'
+        if: steps.verify.outcome == 'success' && steps.analysis.outputs.effective_mode == 'full'
         uses: actions/cache/save@v6
         with:
           path: .applab-upgrade-baseline
@@ -241,7 +267,7 @@ jobs:
 
       - name: Prepare PASS-only installable release
         id: release
-        if: steps.verify.outcome == 'success'
+        if: steps.verify.outcome == 'success' && steps.analysis.outputs.effective_mode == 'full'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -310,10 +336,11 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v0.7.9 Trusted APK Verification"
+            echo "## AppLab v0.7.10 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"
+            echo "- Analysis: \`${{ steps.analysis.outputs.effective_mode }}\`"
             echo "- Build job repository checkout: **not present in this job**"
             echo
             if [[ -f "$GITHUB_WORKSPACE/applab-report/summary.md" ]]; then
