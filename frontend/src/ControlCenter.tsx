@@ -47,6 +47,7 @@ type ProjectRow = {
   performance_lab: string;
   performance?: PerformanceMetrics;
   applab_version: string;
+  analysis_mode?: string;
   recorded_at: string;
   watcher_run_id: string;
   watcher_run_url: string;
