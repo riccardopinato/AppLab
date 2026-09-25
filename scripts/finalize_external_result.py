@@ -17,7 +17,7 @@ def main() -> int:
     parser.add_argument("--engine", default="flutter")
     parser.add_argument("--pipeline-status", required=True)
     parser.add_argument("--run-id", required=True)
-    parser.add_argument("--analysis-mode", choices=("fast", "full"), default="full")
+    parser.add_argument("--analysis-mode", choices=("fast", "full", "certification"), default="full")
     args = parser.parse_args()
 
     report_dir = Path(args.report_dir)
@@ -36,7 +36,7 @@ def main() -> int:
     if not payload:
         payload = {
             "schema_version": 1,
-            "applab_version": "0.7.10",
+            "applab_version": "0.8.0",
             "result": "FAIL",
             "analysis_mode": args.analysis_mode,
             "reason": "Pipeline ended before the Android verifier produced a result.",
