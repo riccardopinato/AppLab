@@ -1,5 +1,13 @@
 # AppLab
 
+## v0.7.9 — Storage & Data Integrity Lab
+
+AppLab now performs a non-destructive storage integrity pass before the upgrade gate. It records free space, snapshots bounded private app files when `run-as` is available, hashes persistent files, force-stops/relaunches the target, compares before/after storage state, and validates recovery UI plus crash/ANR health.
+
+Projects can optionally define `.maestro/applab-storage.json` to require persistent file patterns, mark specific files as hash-stable across restart, set storage limits, and assert post-recovery UI state. Release APKs that do not expose `run-as` receive an advisory WARN by default; strict projects can promote that limitation to FAIL.
+
+See `integration/storage/STORAGE_DATA_INTEGRITY_LAB.md`.
+
 ## v0.7.8 — Background Execution, Doze & Recovery Lab
 
 AppLab now validates background execution under Android power-management constraints before the upgrade gate. The trusted verifier backgrounds the app, exercises App Standby and forced Doze when available, inspects foreground services, JobScheduler/WorkManager evidence, notifications and device-idle state, then verifies foreground recovery with screenshot/UI evidence and crash/ANR scanning.

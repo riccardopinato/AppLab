@@ -15,6 +15,7 @@ import persistence_lab
 import configuration_lab
 import resource_pressure_lab
 import background_lab
+import storage_lab
 import upgrade_lab
 
 ALLOWED_SUFFIXES = {".yaml", ".yml", ".json"}
@@ -147,6 +148,13 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
                     raise ValueError(
                         f"Invalid AppLab background policy: {relative}: {exc}"
                     ) from exc
+            elif path.name == "applab-storage.json":
+                try:
+                    storage_lab.load_config(path)
+                except (ValueError, json.JSONDecodeError) as exc:
+                    raise ValueError(
+                        f"Invalid AppLab storage policy: {relative}: {exc}"
+                    ) from exc
             elif path.name == "applab-upgrade.json":
                 try:
                     upgrade_lab.load_config(path)
@@ -203,6 +211,10 @@ def self_test() -> None:
         )
         (root / "target-evidence/.maestro/applab-background.json").write_text(
             '{"schema_version":1,"required":false,"background_cycles":1,"force_doze":true,"app_standby":true}',
+            encoding="utf-8",
+        )
+        (root / "target-evidence/.maestro/applab-storage.json").write_text(
+            '{"schema_version":1,"required":false,"max_files":50,"minimum_free_mb":64}',
             encoding="utf-8",
         )
         (root / "target-evidence/.maestro/applab-upgrade.json").write_text(

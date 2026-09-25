@@ -9,7 +9,7 @@ START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
 RUN_MAESTRO="${RUN_MAESTRO:-false}"
-APPLAB_VERSION="${APPLAB_VERSION:-0.7.8}"
+APPLAB_VERSION="${APPLAB_VERSION:-0.7.9}"
 VISUAL_BASELINE_DIR="${VISUAL_BASELINE_DIR:-${APPLAB_VISUAL_BASELINE_DIR:-}}"
 TARGET_ROOT="${APPLAB_TARGET_ROOT:-}"
 PROJECT_ROOT="${APPLAB_PROJECT_ROOT:-$TARGET_ROOT}"
@@ -23,6 +23,7 @@ PERSISTENCE_LAB_RESULT="SKIPPED"
 CONFIGURATION_LAB_RESULT="SKIPPED"
 RESOURCE_PRESSURE_LAB_RESULT="SKIPPED"
 BACKGROUND_LAB_RESULT="SKIPPED"
+STORAGE_LAB_RESULT="SKIPPED"
 UPGRADE_LAB_RESULT="NO_BASELINE"
 PERFORMANCE_LAB_RESULT="SKIPPED"
 
@@ -34,13 +35,13 @@ write_result_json() {
 
   mkdir -p "$REPORT_DIR"
   if command -v python3 >/dev/null 2>&1; then
-    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" "${SYSTEM_LAB_RESULT:-SKIPPED}" "${NETWORK_LAB_RESULT:-SKIPPED}" "${PERSISTENCE_LAB_RESULT:-SKIPPED}" "${CONFIGURATION_LAB_RESULT:-SKIPPED}" "${RESOURCE_PRESSURE_LAB_RESULT:-SKIPPED}" "${BACKGROUND_LAB_RESULT:-SKIPPED}" "${UPGRADE_LAB_RESULT:-NO_BASELINE}" "${PERFORMANCE_LAB_RESULT:-SKIPPED}" <<'PY'
+    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" "${SYSTEM_LAB_RESULT:-SKIPPED}" "${NETWORK_LAB_RESULT:-SKIPPED}" "${PERSISTENCE_LAB_RESULT:-SKIPPED}" "${CONFIGURATION_LAB_RESULT:-SKIPPED}" "${RESOURCE_PRESSURE_LAB_RESULT:-SKIPPED}" "${BACKGROUND_LAB_RESULT:-SKIPPED}" "${STORAGE_LAB_RESULT:-SKIPPED}" "${UPGRADE_LAB_RESULT:-NO_BASELINE}" "${PERFORMANCE_LAB_RESULT:-SKIPPED}" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression, visual_journey, interaction_crawl, system_lab, network_lab, persistence_lab, configuration_lab, resource_pressure_lab, background_lab, upgrade_lab, performance_lab = sys.argv[1:]
+output, result, package_id, maestro, pid_value, reason, version, apk_path, visual_qa, visual_regression, visual_journey, interaction_crawl, system_lab, network_lab, persistence_lab, configuration_lab, resource_pressure_lab, background_lab, storage_lab, upgrade_lab, performance_lab = sys.argv[1:]
 payload = {
     "schema_version": 1,
     "applab_version": version,
@@ -61,6 +62,7 @@ payload = {
     "configuration_lab": configuration_lab,
     "resource_pressure_lab": resource_pressure_lab,
     "background_lab": background_lab,
+    "storage_lab": storage_lab,
     "upgrade_lab": upgrade_lab,
     "performance_lab": performance_lab,
     "evidence": {
@@ -92,6 +94,8 @@ payload = {
         "resource_pressure_lab_summary": "resource-pressure-lab.md",
         "background_lab_json": "background-lab.json",
         "background_lab_summary": "background-lab.md",
+        "storage_lab_json": "storage-lab.json",
+        "storage_lab_summary": "storage-lab.md",
         "upgrade_lab_json": "upgrade-lab.json",
         "upgrade_lab_summary": "upgrade-lab.md",
         "upgrade_before_screenshot": "upgrade-before.png",
@@ -177,6 +181,10 @@ rm -f   "$REPORT_DIR/launch.png"   "$REPORT_DIR/post-maestro.png"   "$REPORT_DIR
   "$REPORT_DIR/background-lab.md" \
   "$REPORT_DIR/background-recovery-"*.png \
   "$REPORT_DIR/background-recovery-"*.xml \
+  "$REPORT_DIR/storage-lab.json" \
+  "$REPORT_DIR/storage-lab.md" \
+  "$REPORT_DIR/storage-recovery.png" \
+  "$REPORT_DIR/storage-recovery.xml" \
   "$REPORT_DIR/upgrade-lab.json" \
   "$REPORT_DIR/upgrade-lab.md" \
   "$REPORT_DIR/upgrade-before.png" \
@@ -823,6 +831,44 @@ fi
 PID_AFTER="$(assert_runtime_healthy "background-lab")"
 log "Background Execution, Doze & Recovery Lab: $BACKGROUND_LAB_RESULT"
 
+STORAGE_CONFIG_ARGS=()
+if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-storage.json" ]]; then
+  STORAGE_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-storage.json")
+  log "Storage & Data Integrity Lab config: project policy"
+elif [[ -n "$TARGET_ROOT" && -f "$TARGET_ROOT/.maestro/applab-storage.json" ]]; then
+  STORAGE_CONFIG_ARGS=(--config "$TARGET_ROOT/.maestro/applab-storage.json")
+  log "Storage & Data Integrity Lab config: repository policy"
+fi
+
+STORAGE_STATUS=0
+set +e
+python3 "$(dirname "$0")/storage_lab.py" \
+  --package-id "$PACKAGE_ID" \
+  --report-dir "$REPORT_DIR" \
+  "${STORAGE_CONFIG_ARGS[@]}"
+STORAGE_STATUS="$?"
+set -e
+
+if [[ -s "$REPORT_DIR/storage-lab.json" ]]; then
+  STORAGE_LAB_RESULT="$(
+    python3 - "$REPORT_DIR/storage-lab.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(payload.get("result", "ERROR"))
+PY
+  )"
+else
+  STORAGE_LAB_RESULT="ERROR"
+fi
+
+if [[ "$STORAGE_STATUS" -ne 0 || "$STORAGE_LAB_RESULT" == "FAIL" || "$STORAGE_LAB_RESULT" == "ERROR" ]]; then
+  fail "Storage & Data Integrity Lab detected a storage/recovery failure."
+fi
+PID_AFTER="$(assert_runtime_healthy "storage-lab")"
+log "Storage & Data Integrity Lab: $STORAGE_LAB_RESULT"
+
 UPGRADE_CONFIG_ARGS=()
 if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-upgrade.json" ]]; then
   UPGRADE_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-upgrade.json")
@@ -887,6 +933,7 @@ log "Upgrade & Migration Lab: $UPGRADE_LAB_RESULT"
   echo "- Configuration & Lifecycle Stress Lab: $CONFIGURATION_LAB_RESULT"
   echo "- Resource Pressure & Process Death Lab: $RESOURCE_PRESSURE_LAB_RESULT"
   echo "- Background Execution, Doze & Recovery Lab: $BACKGROUND_LAB_RESULT"
+  echo "- Storage & Data Integrity Lab: $STORAGE_LAB_RESULT"
   echo "- Upgrade & Migration Lab: $UPGRADE_LAB_RESULT"
   echo "- Performance Lab: $PERFORMANCE_LAB_RESULT"
   printf -- '- Screenshot: launch.png\n'
@@ -921,6 +968,8 @@ log "Upgrade & Migration Lab: $UPGRADE_LAB_RESULT"
   printf -- '- Resource Pressure Lab summary: resource-pressure-lab.md\n'
   printf -- '- Background Lab JSON: background-lab.json\n'
   printf -- '- Background Lab summary: background-lab.md\n'
+  printf -- '- Storage Lab JSON: storage-lab.json\n'
+  printf -- '- Storage Lab summary: storage-lab.md\n'
   printf -- '- Upgrade Lab JSON: upgrade-lab.json\n'
   printf -- '- Upgrade Lab summary: upgrade-lab.md\n'
   printf -- '- Upgrade before screenshot: upgrade-before.png\n'

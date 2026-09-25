@@ -68,6 +68,7 @@ def build_snapshot(
                 "configuration_lab": result.get("configuration_lab", "—"),
                 "resource_pressure_lab": result.get("resource_pressure_lab", "—"),
                 "background_lab": result.get("background_lab", "—"),
+                "storage_lab": result.get("storage_lab", "—"),
                 "upgrade_lab": result.get("upgrade_lab", "—"),
                 "performance_lab": result.get("performance_lab", "—"),
                 "performance": result.get("performance", {}),
@@ -106,6 +107,7 @@ def build_snapshot(
                     "configuration_lab",
                     "resource_pressure_lab",
                     "background_lab",
+                    "storage_lab",
                     "upgrade_lab",
                     "performance_lab",
                     "performance",
@@ -170,6 +172,7 @@ def self_test() -> None:
             "configuration_lab": "PASS",
             "resource_pressure_lab": "PASS",
             "background_lab": "PASS",
+            "storage_lab": "PASS",
             "upgrade_lab": "PASS",
             "performance_lab": "PASS",
             "performance": {
@@ -195,6 +198,7 @@ def self_test() -> None:
     assert first["configuration_lab"] == "PASS"
     assert first["resource_pressure_lab"] == "PASS"
     assert first["background_lab"] == "PASS"
+    assert first["storage_lab"] == "PASS"
     assert first["upgrade_lab"] == "PASS"
     assert first["performance_lab"] == "PASS"
     assert first["performance"]["startup"]["cold"]["total_time_ms"] == 850
