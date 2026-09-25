@@ -263,7 +263,7 @@ jobs:
 
       - name: Prepare PASS-only upgrade baseline
         id: upgrade_baseline_prepare
-        if: steps.verify.outcome == 'success' && steps.analysis.outputs.effective_mode == 'full'
+        if: steps.verify.outcome == 'success' && (steps.analysis.outputs.effective_mode == 'full' || steps.certification.outputs.status == 'CERTIFIED')
         shell: bash
         run: |
           rm -rf "$GITHUB_WORKSPACE/.applab-upgrade-baseline"
