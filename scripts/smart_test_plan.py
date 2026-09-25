@@ -151,7 +151,7 @@ def validate_plan(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
         raise ValueError("invalid analysis plan schema")
     mode = str(payload.get("mode", "")).lower()
-    if mode not in {"fast", "full"}:
+    if mode not in {"fast", "full", "certification"}:
         raise ValueError("invalid analysis plan mode")
     selected = payload.get("selected_labs")
     if not isinstance(selected, dict) or set(selected) != set(LABS):
