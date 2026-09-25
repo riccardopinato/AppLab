@@ -568,7 +568,8 @@ jobs:
             --history-key "${{ inputs.history_key }}" \
             --engine "flutter" \
             --pipeline-status failure \
-            --run-id "$GITHUB_RUN_ID"
+            --run-id "$GITHUB_RUN_ID" \
+            --analysis-mode "${{ inputs.analysis_mode }}"
 
       - name: Prepare failed verification cache payload
         if: inputs.cache_verification && needs.build.outputs.resolved_sha != ''
