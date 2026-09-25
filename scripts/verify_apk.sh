@@ -9,7 +9,24 @@ START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
 RUN_MAESTRO="${RUN_MAESTRO:-false}"
-APPLAB_VERSION="${APPLAB_VERSION:-0.7.9}"
+APPLAB_VERSION="${APPLAB_VERSION:-0.7.10}"
+ANALYSIS_PLAN_JSON="${APPLAB_ANALYSIS_PLAN_JSON:-}"
+ANALYSIS_MODE="${APPLAB_ANALYSIS_MODE:-full}"
+
+should_run_lab() {
+  local lab="$1"
+  if [[ "$ANALYSIS_MODE" != "fast" || -z "$ANALYSIS_PLAN_JSON" || ! -s "$ANALYSIS_PLAN_JSON" ]]; then
+    return 0
+  fi
+  python3 - "$ANALYSIS_PLAN_JSON" "$lab" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+selected = payload.get("selected_labs", {})
+raise SystemExit(0 if selected.get(sys.argv[2], True) else 1)
+PY
+}
 VISUAL_BASELINE_DIR="${VISUAL_BASELINE_DIR:-${APPLAB_VISUAL_BASELINE_DIR:-}}"
 TARGET_ROOT="${APPLAB_TARGET_ROOT:-}"
 PROJECT_ROOT="${APPLAB_PROJECT_ROOT:-$TARGET_ROOT}"
@@ -130,6 +147,7 @@ fail() {
     echo
     echo "- Result: FAIL"
     echo "- AppLab: $APPLAB_VERSION"
+  echo "- Analysis mode: $ANALYSIS_MODE"
     echo "- Reason: $reason"
   } > "$REPORT_DIR/summary.md"
   write_result_json "FAIL" "$reason" "" "${MAESTRO_RESULT:-SKIPPED}"
@@ -574,6 +592,7 @@ fi
 
 log "Multi-Screen Visual Journey: $VISUAL_JOURNEY_RESULT (single visual engine)"
 
+if should_run_lab "system"; then
 SYSTEM_CONFIG_ARGS=()
 if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-system.json" ]]; then
   SYSTEM_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-system.json")
@@ -611,9 +630,13 @@ if [[ "$SYSTEM_STATUS" -ne 0 || "$SYSTEM_LAB_RESULT" == "FAIL" || "$SYSTEM_LAB_R
 fi
 PID_AFTER="$(assert_runtime_healthy "system-lab")"
 log "System UI Lab: $SYSTEM_LAB_RESULT"
+else
+  log "System UI Lab: SKIPPED by Smart Test Planner"
+fi
 
 
 
+if should_run_lab "performance"; then
 PERFORMANCE_BASELINE_ARGS=()
 if [[ -n "${APPLAB_PERFORMANCE_BASELINE_JSON:-}" && -f "${APPLAB_PERFORMANCE_BASELINE_JSON}" ]]; then
   PERFORMANCE_BASELINE_ARGS=(--baseline-json "$APPLAB_PERFORMANCE_BASELINE_JSON")
@@ -640,7 +663,11 @@ else
 fi
 PID_AFTER="$(assert_runtime_healthy "performance-lab")"
 log "Performance Lab: $PERFORMANCE_LAB_RESULT"
+else
+  log "Performance Lab: SKIPPED by Smart Test Planner"
+fi
 
+if should_run_lab "network"; then
 NETWORK_CONFIG_ARGS=()
 if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-network.json" ]]; then
   NETWORK_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-network.json")
@@ -678,7 +705,11 @@ if [[ "$NETWORK_STATUS" -ne 0 || "$NETWORK_LAB_RESULT" == "FAIL" || "$NETWORK_LA
 fi
 PID_AFTER="$(assert_runtime_healthy "network-lab")"
 log "Network & Offline Lab: $NETWORK_LAB_RESULT"
+else
+  log "Network & Offline Lab: SKIPPED by Smart Test Planner"
+fi
 
+if should_run_lab "persistence"; then
 PERSISTENCE_CONFIG_ARGS=()
 if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-persistence.json" ]]; then
   PERSISTENCE_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-persistence.json")
@@ -716,7 +747,11 @@ if [[ "$PERSISTENCE_STATUS" -ne 0 || "$PERSISTENCE_LAB_RESULT" == "FAIL" || "$PE
 fi
 PID_AFTER="$(assert_runtime_healthy "persistence-lab")"
 log "Persistence & Restart Lab: $PERSISTENCE_LAB_RESULT"
+else
+  log "Persistence & Restart Lab: SKIPPED by Smart Test Planner"
+fi
 
+if should_run_lab "configuration"; then
 CONFIGURATION_CONFIG_ARGS=()
 if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-configuration.json" ]]; then
   CONFIGURATION_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-configuration.json")
@@ -754,7 +789,11 @@ if [[ "$CONFIGURATION_STATUS" -ne 0 || "$CONFIGURATION_LAB_RESULT" == "FAIL" || 
 fi
 PID_AFTER="$(assert_runtime_healthy "configuration-lab")"
 log "Configuration & Lifecycle Stress Lab: $CONFIGURATION_LAB_RESULT"
+else
+  log "Configuration & Lifecycle Stress Lab: SKIPPED by Smart Test Planner"
+fi
 
+if should_run_lab "resource_pressure"; then
 RESOURCE_CONFIG_ARGS=()
 if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-resource.json" ]]; then
   RESOURCE_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-resource.json")
@@ -792,7 +831,11 @@ if [[ "$RESOURCE_STATUS" -ne 0 || "$RESOURCE_PRESSURE_LAB_RESULT" == "FAIL" || "
 fi
 PID_AFTER="$(assert_runtime_healthy "resource-pressure-lab")"
 log "Resource Pressure & Process Death Lab: $RESOURCE_PRESSURE_LAB_RESULT"
+else
+  log "Resource Pressure & Process Death Lab: SKIPPED by Smart Test Planner"
+fi
 
+if should_run_lab "background"; then
 BACKGROUND_CONFIG_ARGS=()
 if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-background.json" ]]; then
   BACKGROUND_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-background.json")
@@ -830,7 +873,11 @@ if [[ "$BACKGROUND_STATUS" -ne 0 || "$BACKGROUND_LAB_RESULT" == "FAIL" || "$BACK
 fi
 PID_AFTER="$(assert_runtime_healthy "background-lab")"
 log "Background Execution, Doze & Recovery Lab: $BACKGROUND_LAB_RESULT"
+else
+  log "Background Execution, Doze & Recovery Lab: SKIPPED by Smart Test Planner"
+fi
 
+if should_run_lab "storage"; then
 STORAGE_CONFIG_ARGS=()
 if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-storage.json" ]]; then
   STORAGE_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-storage.json")
@@ -868,7 +915,11 @@ if [[ "$STORAGE_STATUS" -ne 0 || "$STORAGE_LAB_RESULT" == "FAIL" || "$STORAGE_LA
 fi
 PID_AFTER="$(assert_runtime_healthy "storage-lab")"
 log "Storage & Data Integrity Lab: $STORAGE_LAB_RESULT"
+else
+  log "Storage & Data Integrity Lab: SKIPPED by Smart Test Planner"
+fi
 
+if should_run_lab "upgrade"; then
 UPGRADE_CONFIG_ARGS=()
 if [[ -n "$PROJECT_ROOT" && -f "$PROJECT_ROOT/.maestro/applab-upgrade.json" ]]; then
   UPGRADE_CONFIG_ARGS=(--config "$PROJECT_ROOT/.maestro/applab-upgrade.json")
@@ -913,6 +964,9 @@ if [[ "$UPGRADE_STATUS" -ne 0 || "$UPGRADE_LAB_RESULT" == "FAIL" || "$UPGRADE_LA
 fi
 PID_AFTER="$(assert_runtime_healthy "upgrade-lab")"
 log "Upgrade & Migration Lab: $UPGRADE_LAB_RESULT"
+else
+  log "Upgrade & Migration Lab: SKIPPED by Smart Test Planner"
+fi
 
 {
   echo "# AppLab report"
