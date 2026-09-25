@@ -1,0 +1,156 @@
+name: Production Certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Target repository in owner/name format
+        required: true
+        type: string
+      ref:
+        description: Branch, tag or commit to certify
+        required: false
+        default: main
+        type: string
+      api_level:
+        description: Controlled Android API certification lane
+        required: false
+        default: "35"
+        type: string
+      emulator_profile:
+        description: Controlled emulator profile certification lane
+        required: false
+        default: pixel_7_pro
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: applab-production-certification-${{ inputs.repository }}-${{ inputs.ref }}
+  cancel-in-progress: true
+
+jobs:
+  resolve:
+    name: Resolve certification profile
+    runs-on: ubuntu-latest
+    outputs:
+      history_key: ${{ steps.profile.outputs.history_key }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve stable history key
+        id: profile
+        shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+        run: |
+          set -Eeuo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          repository = os.environ["TARGET_REPOSITORY"].strip()
+          if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+              raise SystemExit(f"Invalid repository: {repository!r}")
+
+          watchlist = json.loads(Path("watchlist.json").read_text(encoding="utf-8"))
+          key = ""
+          for item in watchlist.get("repositories", []):
+              if isinstance(item, dict) and item.get("repository") == repository:
+                  key = str(item.get("key", "")).strip()
+                  break
+          if not key:
+              key = "cert-" + re.sub(r"[^A-Za-z0-9_.-]+", "-", repository).strip("-").lower()
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"history_key={key}\n")
+          print(f"Certification history key: {key}")
+          PY
+
+  certify:
+    name: Certify ${{ inputs.repository }}
+    needs: resolve
+    uses: ./.github/workflows/universal-project-runner.yml
+    with:
+      repository: ${{ inputs.repository }}
+      ref: ${{ inputs.ref }}
+      run_maestro: true
+      history_key: ${{ needs.resolve.outputs.history_key }}
+      cache_verification: false
+      contract_fingerprint: production-certification-v0.8.0
+      config_fingerprint: production-certification-v0.8.0
+      approve_visual_baseline: false
+      analysis_mode: certification
+      api_level_override: ${{ inputs.api_level }}
+      emulator_profile_override: ${{ inputs.emulator_profile }}
+
+  aggregate:
+    name: Record certification in Control Center
+    if: always()
+    needs: [resolve, certify]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Restore central history
+        uses: actions/cache/restore@v6
+        with:
+          path: .applab-history
+          key: applab-watch-history-${{ github.run_id }}
+          restore-keys: |
+            applab-watch-history-
+
+      - name: Download certification evidence
+        uses: actions/download-artifact@v8
+        with:
+          pattern: applab-*
+          path: certification-results
+          merge-multiple: false
+        continue-on-error: true
+
+      - name: Aggregate certification result
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p .applab-history
+          python scripts/watch_aggregate.py \
+            --results-dir certification-results \
+            --history-file .applab-history/history.jsonl \
+            --summary-output certification-summary.md \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          python scripts/control_center_snapshot.py \
+            --watchlist watchlist.json \
+            --history-file .applab-history/history.jsonl \
+            --output .applab-history/control-center.json
+          {
+            echo "## AppLab v0.8.0 Production Certification"
+            echo
+            echo "- Target: `${{ inputs.repository }}@${{ inputs.ref }}`"
+            echo "- Runtime: API `${{ inputs.api_level }}` / `${{ inputs.emulator_profile }}`"
+            echo
+            cat certification-summary.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save central history
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: .applab-history
+          key: applab-watch-history-${{ github.run_id }}
+
+      - name: Upload certification history
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-certification-history-${{ github.run_id }}
+          path: |
+            certification-summary.md
+            .applab-history/history.jsonl
+            .applab-history/control-center.json
+          if-no-files-found: warn
+          retention-days: 90
