@@ -1,5 +1,15 @@
 # AppLab
 
+## v0.8.0 — Production Certification Gate
+
+AppLab now separates continuous verification from production certification. FAST remains the default Repo Watcher path, FULL remains the complete diagnostic path, and the new CERTIFICATION mode runs the complete trusted suite and then applies a strict production decision: `CERTIFIED`, `BLOCKED`, or `NOT_CERTIFIED`.
+
+Certification requires PASS evidence across Maestro, visual regression/journeys, system, network, persistence, lifecycle, resource pressure, background/Doze, storage, upgrade and performance. WARN/SKIPPED/NO_BASELINE are never promoted to production PASS. The tested APK SHA-256 is rebound to the isolated build contract, and the verified installable APK is published only after `CERTIFIED`.
+
+The Control Center preserves the latest production certification independently from newer FAST runs. A dedicated **Production Certification** workflow records an explicit Android API/emulator lane and feeds its result back into central history.
+
+See `integration/certification/PRODUCTION_CERTIFICATION_GATE.md`.
+
 ## v0.7.10 — Fast Analysis Engine & Smart Test Orchestration
 
 AppLab now supports two runtime verification modes. `FULL` keeps the complete lab suite; `FAST` keeps the core launch/crash/visual/interaction checks and uses a trusted changed-file plan to run only the specialist labs relevant to the current commit.
