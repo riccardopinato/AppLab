@@ -143,7 +143,7 @@ jobs:
             CERT_STATUS=$?
             set -e
             python -c 'import json,pathlib; c=json.loads(pathlib.Path("applab-report-certification/certification.json").read_text()); assert c["status"] in {"CERTIFIED","BLOCKED"}, c; assert c["status"] != "NOT_CERTIFIED", c'
-            python -c 'import json,pathlib; c=json.loads(pathlib.Path("applab-report-certification/certification.json").read_text()); import sys; sys.exit(0 if (c["status"] == "CERTIFIED" and int("'"$CERT_STATUS"'") == 0) or (c["status"] == "BLOCKED" and int("'"$CERT_STATUS"'") != 0) else 1)'
+            CERT_STATUS="$CERT_STATUS" python -c 'import json,os,pathlib,sys; c=json.loads(pathlib.Path("applab-report-certification/certification.json").read_text()); status=int(os.environ["CERT_STATUS"]); sys.exit(0 if (c["status"] == "CERTIFIED" and status == 0) or (c["status"] == "BLOCKED" and status != 0) else 1)'
 
       - name: Publish runtime evidence
         if: always()
