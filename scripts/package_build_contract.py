@@ -91,7 +91,7 @@ def package(args: argparse.Namespace) -> dict:
 
     contract = {
         "schema_version": 1,
-        "applab_version": "0.7.10",
+        "applab_version": "0.8.0",
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
         "engine": args.engine,
@@ -158,7 +158,7 @@ def main() -> int:
     parser.add_argument("--working-directory", default=".")
     parser.add_argument("--package-id", default="")
     parser.add_argument("--maestro-flow", default="")
-    parser.add_argument("--analysis-mode", choices=("fast", "full"), default="full")
+    parser.add_argument("--analysis-mode", choices=("fast", "full", "certification"), default="full")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
