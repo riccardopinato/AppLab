@@ -76,8 +76,8 @@ def git_changed_files(repo_root: Path) -> list[str]:
 
 def classify(files: list[str], mode: str) -> dict[str, Any]:
     mode = mode.lower().strip()
-    if mode not in {"fast", "full"}:
-        raise ValueError("analysis mode must be fast or full")
+    if mode not in {"fast", "full", "certification"}:
+        raise ValueError("analysis mode must be fast, full or certification")
 
     selected = {lab: True for lab in LABS}
     reasons: dict[str, list[str]] = {lab: [] for lab in LABS}
@@ -87,7 +87,7 @@ def classify(files: list[str], mode: str) -> dict[str, Any]:
             reasons[lab].append("FULL mode")
         return {
             "schema_version": 1,
-            "planner_version": "0.7.10",
+            "planner_version": "0.8.0",
             "mode": "full",
             "changed_files": files,
             "selected_labs": selected,
@@ -100,7 +100,7 @@ def classify(files: list[str], mode: str) -> dict[str, Any]:
             reasons[lab].append("no reliable changed-file set; safe FULL fallback")
         return {
             "schema_version": 1,
-            "planner_version": "0.7.10",
+            "planner_version": "0.8.0",
             "mode": "full",
             "requested_mode": "fast",
             "changed_files": [],
@@ -138,7 +138,7 @@ def classify(files: list[str], mode: str) -> dict[str, Any]:
 
     return {
         "schema_version": 1,
-        "planner_version": "0.7.10",
+        "planner_version": "0.8.0",
         "mode": "fast",
         "changed_files": files,
         "selected_labs": selected,
@@ -182,7 +182,7 @@ def self_test() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root")
-    parser.add_argument("--mode", choices=("fast", "full"), default="full")
+    parser.add_argument("--mode", choices=("fast", "full", "certification"), default="full")
     parser.add_argument("--output")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
