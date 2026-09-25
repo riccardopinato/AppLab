@@ -78,6 +78,7 @@ type RecentRow = {
   watcher_run_id?: string;
   watcher_run_url?: string;
   applab_version?: string;
+  analysis_mode?: string;
   release?: ReleaseMeta;
 };
 
@@ -201,6 +202,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>Project</th>
                   <th>SHA</th>
                   <th>Engine</th>
+                  <th>Mode</th>
                   <th>Verdict</th>
                   <th>Maestro</th>
                   <th>Visual</th>
@@ -231,6 +233,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <code>{shortSha(project.resolved_sha)}</code>
                     </td>
                     <td>{project.engine}</td>
+                    <td>{project.analysis_mode ?? "full"}</td>
                     <td>
                       <span className={badgeClass(project.result)}>
                         {project.result}
