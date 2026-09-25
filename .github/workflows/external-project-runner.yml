@@ -325,6 +325,7 @@ jobs:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
           path: target
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Prepare evidence directory
