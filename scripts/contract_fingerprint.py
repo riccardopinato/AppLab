@@ -7,6 +7,7 @@ from pathlib import Path
 
 CONTRACT_FILES = (
     "scripts/verify_apk.sh",
+    "scripts/certification_gate.py",
     "scripts/run_external_android_gate.sh",
     "scripts/dismiss_foreign_anr.py",
     "scripts/visual_qa.py",
@@ -36,8 +37,9 @@ CONTRACT_FILES = (
     ".github/workflows/external-native-android-runner.yml",
     ".github/workflows/universal-project-runner.yml",
     ".github/workflows/trusted-apk-verifier.yml",
+    ".github/workflows/production-certification.yml",
 )
-CONTRACT_VERSION = "0.7.10"
+CONTRACT_VERSION = "0.8.0"
 
 def compute(root: Path) -> str:
     digest = hashlib.sha256()
