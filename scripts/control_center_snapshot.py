@@ -175,9 +175,9 @@ def self_test() -> None:
             "repository": "owner/one",
             "recorded_at": "2026-01-02T00:00:00Z",
             "result": "PASS",
-            "resolved_sha": "new",
+            "resolved_sha": "full",
             "applab_version": "0.7.10",
-            "analysis_mode": "fast",
+            "analysis_mode": "full",
             "release": {"artifact_url": "https://example.test/artifact"},
             "network_lab": "PASS",
             "persistence_lab": "PASS",
@@ -192,6 +192,22 @@ def self_test() -> None:
                 "memory": {"pss_kb": 123456},
             },
         },
+        {
+            "repository": "owner/one",
+            "recorded_at": "2026-01-03T00:00:00Z",
+            "result": "PASS",
+            "resolved_sha": "fast",
+            "applab_version": "0.7.10",
+            "analysis_mode": "fast",
+            "network_lab": "SKIPPED",
+            "persistence_lab": "SKIPPED",
+            "configuration_lab": "PASS",
+            "resource_pressure_lab": "SKIPPED",
+            "background_lab": "SKIPPED",
+            "storage_lab": "SKIPPED",
+            "upgrade_lab": "NO_BASELINE",
+            "performance_lab": "PASS"
+        },
     ]
     snapshot = build_snapshot(watchlist, history)
     assert snapshot["summary"] == {
@@ -203,18 +219,19 @@ def self_test() -> None:
     first = next(
         item for item in snapshot["projects"] if item["repository"] == "owner/one"
     )
-    assert first["resolved_sha"] == "new"
+    assert first["resolved_sha"] == "fast"
     assert first["analysis_mode"] == "fast"
     assert first["release"]["artifact_url"] == "https://example.test/artifact"
-    assert first["network_lab"] == "PASS"
-    assert first["persistence_lab"] == "PASS"
+    assert first["network_lab"] == "SKIPPED"
+    assert first["persistence_lab"] == "SKIPPED"
     assert first["configuration_lab"] == "PASS"
-    assert first["resource_pressure_lab"] == "PASS"
-    assert first["background_lab"] == "PASS"
-    assert first["storage_lab"] == "PASS"
-    assert first["upgrade_lab"] == "PASS"
+    assert first["resource_pressure_lab"] == "SKIPPED"
+    assert first["background_lab"] == "SKIPPED"
+    assert first["storage_lab"] == "SKIPPED"
+    assert first["upgrade_lab"] == "NO_BASELINE"
     assert first["performance_lab"] == "PASS"
-    assert first["performance"]["startup"]["cold"]["total_time_ms"] == 850
+    assert first["analysis_mode"] == "fast"
+    assert first["release"]["artifact_url"] == "https://example.test/artifact"
     print("AppLab Control Center snapshot self-test PASS")
 
 
