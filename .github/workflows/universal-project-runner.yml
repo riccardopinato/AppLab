@@ -22,6 +22,11 @@ on:
         required: false
         default: false
         type: boolean
+      analysis_mode:
+        description: AppLab analysis mode (fast or full)
+        required: false
+        default: full
+        type: string
   workflow_call:
     inputs:
       repository:
