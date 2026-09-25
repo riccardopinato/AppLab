@@ -33,6 +33,7 @@ def build_snapshot(
     }
 
     latest: dict[str, dict[str, Any]] = {}
+    latest_release: dict[str, dict[str, Any]] = {}
     for item in history:
         repository = str(item.get("repository", "")).strip()
         if not repository:
@@ -42,6 +43,13 @@ def build_snapshot(
             current.get("recorded_at", "")
         ):
             latest[repository] = item
+        release = item.get("release")
+        if isinstance(release, dict) and release.get("artifact_url"):
+            previous_release = latest_release.get(repository)
+            if previous_release is None or str(item.get("recorded_at", "")) >= str(
+                previous_release.get("recorded_at", "")
+            ):
+                latest_release[repository] = item
 
     repositories = sorted(set(configured) | set(latest))
     projects: list[dict[str, Any]] = []
@@ -77,7 +85,7 @@ def build_snapshot(
                 "recorded_at": result.get("recorded_at", ""),
                 "watcher_run_id": result.get("watcher_run_id", ""),
                 "watcher_run_url": result.get("watcher_run_url", ""),
-                "release": result.get("release", {}),
+                "release": result.get("release", {}) or latest_release.get(repository, {}).get("release", {}),
             }
         )
 
