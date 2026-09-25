@@ -238,7 +238,7 @@ def evaluate(
     if not config["enabled"]:
         return {
             "schema_version": 1,
-            "network_lab_version": "0.7.3",
+            "network_lab_version": "0.8.0",
             "result": "SKIPPED",
             "package_id": package_id,
             "config": config,
@@ -268,6 +268,9 @@ def evaluate(
     recovered_pid = ""
 
     try:
+        # Scope crash/ANR evidence to this network stage. Hosted AVDs can carry
+        # stale logcat from earlier lifecycle labs.
+        adb("logcat", "-b", "all", "-c", timeout=15)
         offline_action = set_airplane_mode(True)
         if not offline_action["success"]:
             severity = "error" if config["required"] else "warning"
@@ -295,16 +298,30 @@ def evaluate(
         time.sleep(config["offline_seconds"])
         offline_pid = pid_of(package_id)
         if not offline_pid:
+            # Process lifetime is not a valid connectivity oracle: Android may
+            # reclaim a background process while radios/network capabilities
+            # are changing. Treat the disappearance as advisory and judge the
+            # app by whether it can recover plus crash/ANR evidence.
             findings.append(
                 Finding(
-                    "error",
-                    "process_died_offline",
-                    "Application process died after connectivity was removed.",
+                    "warning",
+                    "process_restarted_offline",
+                    "Application process was not running after the offline transition; AppLab attempted a clean relaunch.",
                     {},
                 )
             )
-
-        if offline_pid and config["relaunch_while_offline"]:
+            if config["relaunch_while_offline"]:
+                offline_relaunch_pid = relaunch(package_id)
+                if not offline_relaunch_pid:
+                    findings.append(
+                        Finding(
+                            "error",
+                            "offline_relaunch_failed",
+                            "Application failed to relaunch during the offline stage.",
+                            {},
+                        )
+                    )
+        elif config["relaunch_while_offline"]:
             adb("shell", "am", "force-stop", package_id, timeout=10)
             offline_relaunch_pid = relaunch(package_id)
             if not offline_relaunch_pid:
@@ -317,6 +334,8 @@ def evaluate(
                     )
                 )
 
+        # Only classify an absent process as runtime failure after the recovery
+        # attempt above. Fatal exception / ANR evidence remains a hard failure.
         crashed, reason = app_crash_state(package_id)
         if crashed:
             findings.append(
@@ -383,7 +402,7 @@ def evaluate(
 
     return {
         "schema_version": 1,
-        "network_lab_version": "0.7.3",
+        "network_lab_version": "0.8.0",
         "result": result,
         "package_id": package_id,
         "config": config,
