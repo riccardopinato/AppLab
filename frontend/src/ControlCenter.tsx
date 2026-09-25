@@ -48,6 +48,17 @@ type ProjectRow = {
   performance?: PerformanceMetrics;
   applab_version: string;
   analysis_mode?: string;
+  certification_status: string;
+  certified_sha?: string;
+  certification?: {
+    status?: string;
+    matrix?: Array<{
+      api_level?: string;
+      emulator_profile?: string;
+      target?: string;
+      arch?: string;
+    }>;
+  };
   recorded_at: string;
   watcher_run_id: string;
   watcher_run_url: string;
@@ -79,6 +90,16 @@ type RecentRow = {
   watcher_run_url?: string;
   applab_version?: string;
   analysis_mode?: string;
+  certification_status?: string;
+  certification?: {
+    status?: string;
+    matrix?: Array<{
+      api_level?: string;
+      emulator_profile?: string;
+      target?: string;
+      arch?: string;
+    }>;
+  };
   release?: ReleaseMeta;
 };
 
@@ -90,15 +111,19 @@ type Snapshot = {
     pass: number;
     fail: number;
     not_run: number;
+    certified: number;
+    certification_blocked: number;
+    not_certified: number;
   };
   projects: ProjectRow[];
   recent: RecentRow[];
 };
 
 function badgeClass(value: string) {
-  if (value === "PASS") return "cc-badge good";
-  if (value === "FAIL" || value === "ERROR") return "cc-badge bad";
-  if (value === "WARN") return "cc-badge warn";
+  if (value === "PASS" || value === "CERTIFIED") return "cc-badge good";
+  if (value === "FAIL" || value === "ERROR" || value === "NOT_CERTIFIED")
+    return "cc-badge bad";
+  if (value === "WARN" || value === "BLOCKED") return "cc-badge warn";
   return "cc-badge neutral";
 }
 
@@ -185,6 +210,10 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <span>PASS</span>
               <strong>{snapshot.summary.pass}</strong>
             </div>
+            <div className="good">
+              <span>Certified</span>
+              <strong>{snapshot.summary.certified}</strong>
+            </div>
             <div className="bad">
               <span>FAIL</span>
               <strong>{snapshot.summary.fail}</strong>
@@ -203,6 +232,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>SHA</th>
                   <th>Engine</th>
                   <th>Mode</th>
+                  <th>Certification</th>
                   <th>Verdict</th>
                   <th>Maestro</th>
                   <th>Visual</th>
@@ -234,6 +264,18 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     </td>
                     <td>{project.engine}</td>
                     <td>{project.analysis_mode ?? "full"}</td>
+                    <td>
+                      <div className="cc-project">
+                        <span className={badgeClass(project.certification_status)}>
+                          {gate(project.certification_status)}
+                        </span>
+                        <small>
+                          {project.certified_sha
+                            ? `${shortSha(project.certified_sha)} · API ${project.certification?.matrix?.[0]?.api_level ?? "?"}`
+                            : "no production certification"}
+                        </small>
+                      </div>
+                    </td>
                     <td>
                       <span className={badgeClass(project.result)}>
                         {project.result}
@@ -312,6 +354,10 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <small>
                     {shortSha(item.resolved_sha || "")}
                     {item.engine ? ` · ${item.engine}` : ""}
+                    {item.certification_status &&
+                    item.certification_status !== "NOT_REQUESTED"
+                      ? ` · ${item.certification_status}`
+                      : ""}
                   </small>
                 </div>
                 <time>
