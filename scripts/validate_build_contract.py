@@ -17,6 +17,7 @@ import resource_pressure_lab
 import background_lab
 import storage_lab
 import upgrade_lab
+import smart_test_plan
 
 ALLOWED_SUFFIXES = {".yaml", ".yml", ".json"}
 MAX_APK_BYTES = 600 * 1024 * 1024
@@ -42,6 +43,7 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
     contract_path = root / "contract.json"
     apk = root / "app.apk"
     evidence = root / "target-evidence"
+    analysis_plan_path = root / "analysis-plan.json"
     if not contract_path.is_file() or contract_path.is_symlink():
         raise ValueError("contract.json is missing or invalid")
     if not apk.is_file() or apk.is_symlink():
@@ -72,6 +74,16 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
     flow_raw = str(payload.get("maestro_flow", "")).strip()
     flow = safe_relative(flow_raw) if flow_raw else None
     package_id = str(payload.get("package_id", "")).strip()
+    analysis_mode = str(payload.get("analysis_mode", "full")).strip().lower()
+    if analysis_mode not in {"fast", "full"}:
+        raise ValueError("Invalid analysis mode in build contract")
+    if payload.get("analysis_plan") != "analysis-plan.json":
+        raise ValueError("Missing trusted analysis plan reference")
+    if not analysis_plan_path.is_file() or analysis_plan_path.is_symlink():
+        raise ValueError("analysis-plan.json is missing or invalid")
+    analysis_plan = smart_test_plan.validate_plan(
+        json.loads(analysis_plan_path.read_text(encoding="utf-8"))
+    )
     if package_id and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package_id):
         raise ValueError("Invalid package id in build contract")
 
@@ -176,6 +188,8 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         "package_id": package_id,
         "working_directory": str(working),
         "evidence_bytes": total,
+        "analysis_mode": analysis_mode,
+        "analysis_plan_file": str(analysis_plan_path),
     }
 
 def emit_github_output(path: str, values: dict) -> None:
@@ -225,11 +239,18 @@ def self_test() -> None:
             "schema_version": 1, "repository": "owner/repo", "resolved_sha": "a"*40,
             "engine": "flutter", "working_directory": ".", "package_id": "com.example.app",
             "maestro_flow": ".maestro/smoke.yaml",
+            "analysis_mode": "fast",
+            "analysis_plan": "analysis-plan.json",
             "apk": {"path":"app.apk","size_bytes":3,"sha256":sha256(root/"app.apk")},
         }
+        (root / "analysis-plan.json").write_text(
+            json.dumps(smart_test_plan.classify(["lib/home.dart"], "fast")),
+            encoding="utf-8",
+        )
         (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
         result = validate(root, "owner/repo", "a"*40, "flutter")
         assert result["package_id"] == "com.example.app"
+        assert result["analysis_mode"] == "fast"
         flow.write_text("appId: x\n---\n- runScript: evil.js\n", encoding="utf-8")
         try:
             validate(root, "owner/repo", "a"*40, "flutter")
