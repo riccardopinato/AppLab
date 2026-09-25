@@ -114,6 +114,7 @@ def build_snapshot(
                     "watcher_run_id",
                     "watcher_run_url",
                     "applab_version",
+                    "analysis_mode",
                     "release",
                 }
             }
