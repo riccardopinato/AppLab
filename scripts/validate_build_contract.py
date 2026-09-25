@@ -75,7 +75,7 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
     flow = safe_relative(flow_raw) if flow_raw else None
     package_id = str(payload.get("package_id", "")).strip()
     analysis_mode = str(payload.get("analysis_mode", "full")).strip().lower()
-    if analysis_mode not in {"fast", "full"}:
+    if analysis_mode not in {"fast", "full", "certification"}:
         raise ValueError("Invalid analysis mode in build contract")
     if expected_analysis_mode and analysis_mode != expected_analysis_mode:
         raise ValueError("Build contract analysis mode mismatch")
@@ -268,7 +268,7 @@ def main() -> int:
     parser.add_argument("--expected-repository", default="")
     parser.add_argument("--expected-sha", default="")
     parser.add_argument("--expected-engine", choices=("flutter","native_android"), default="flutter")
-    parser.add_argument("--expected-analysis-mode", choices=("fast","full"), default="full")
+    parser.add_argument("--expected-analysis-mode", choices=("fast","full","certification"), default="full")
     parser.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT", ""))
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
