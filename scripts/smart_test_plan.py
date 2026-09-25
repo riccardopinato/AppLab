@@ -82,13 +82,14 @@ def classify(files: list[str], mode: str) -> dict[str, Any]:
     selected = {lab: True for lab in LABS}
     reasons: dict[str, list[str]] = {lab: [] for lab in LABS}
 
-    if mode == "full":
+    if mode in {"full", "certification"}:
+        label = "FULL mode" if mode == "full" else "CERTIFICATION mode"
         for lab in LABS:
-            reasons[lab].append("FULL mode")
+            reasons[lab].append(label)
         return {
             "schema_version": 1,
             "planner_version": "0.8.0",
-            "mode": "full",
+            "mode": mode,
             "changed_files": files,
             "selected_labs": selected,
             "reasons": reasons,
@@ -176,7 +177,11 @@ def self_test() -> None:
     assert ui["selected_labs"]["performance"]
     full = classify([], "fast")
     assert full["mode"] == "full" and full["fallback_full"]
+    cert = classify(["README.md"], "certification")
+    assert cert["mode"] == "certification"
+    assert all(cert["selected_labs"].values())
     validate_plan(db)
+    validate_plan(cert)
     print("AppLab Smart Test Planner self-test PASS")
 
 def main() -> int:
