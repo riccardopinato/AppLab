@@ -73,6 +73,7 @@ def build_snapshot(
                 "performance_lab": result.get("performance_lab", "—"),
                 "performance": result.get("performance", {}),
                 "applab_version": result.get("applab_version", ""),
+                "analysis_mode": result.get("analysis_mode", "full"),
                 "recorded_at": result.get("recorded_at", ""),
                 "watcher_run_id": result.get("watcher_run_id", ""),
                 "watcher_run_url": result.get("watcher_run_url", ""),
@@ -167,6 +168,8 @@ def self_test() -> None:
             "recorded_at": "2026-01-02T00:00:00Z",
             "result": "PASS",
             "resolved_sha": "new",
+            "applab_version": "0.7.10",
+            "analysis_mode": "fast",
             "release": {"artifact_url": "https://example.test/artifact"},
             "network_lab": "PASS",
             "persistence_lab": "PASS",
@@ -193,6 +196,7 @@ def self_test() -> None:
         item for item in snapshot["projects"] if item["repository"] == "owner/one"
     )
     assert first["resolved_sha"] == "new"
+    assert first["analysis_mode"] == "fast"
     assert first["release"]["artifact_url"] == "https://example.test/artifact"
     assert first["network_lab"] == "PASS"
     assert first["persistence_lab"] == "PASS"
