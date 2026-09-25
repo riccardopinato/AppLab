@@ -8,6 +8,7 @@ on:
       - "watch-profiles/**"
       - "scripts/watch_*.py"
       - "scripts/finalize_external_result.py"
+      - "scripts/certification_gate.py"
       - "scripts/run_external_android_gate.sh"
       - "scripts/dismiss_foreign_anr.py"
       - "scripts/install_maestro.sh"
@@ -35,6 +36,7 @@ on:
       - ".github/workflows/external-native-android-runner.yml"
       - ".github/workflows/universal-project-runner.yml"
       - ".github/workflows/trusted-apk-verifier.yml"
+      - ".github/workflows/production-certification.yml"
       - "scripts/project_autodiscover.py"
   schedule:
     - cron: "17 * * * *"
