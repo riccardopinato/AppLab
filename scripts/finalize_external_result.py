@@ -17,6 +17,7 @@ def main() -> int:
     parser.add_argument("--engine", default="flutter")
     parser.add_argument("--pipeline-status", required=True)
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--analysis-mode", choices=("fast", "full"), default="full")
     args = parser.parse_args()
 
     report_dir = Path(args.report_dir)
@@ -37,6 +38,7 @@ def main() -> int:
             "schema_version": 1,
             "applab_version": "0.7.10",
             "result": "FAIL",
+            "analysis_mode": args.analysis_mode,
             "reason": "Pipeline ended before the Android verifier produced a result.",
             "apk": "",
             "package_id": "",
@@ -67,6 +69,7 @@ def main() -> int:
             "engine": args.engine,
             "pipeline_status": args.pipeline_status,
             "workflow_run_id": args.run_id,
+            "analysis_mode": payload.get("analysis_mode") or args.analysis_mode,
             "observed_at": datetime.now(timezone.utc).isoformat(),
         }
     )
@@ -86,6 +89,7 @@ def main() -> int:
             f"- Result: {payload.get('result', 'FAIL')}\n"
             f"- Repository: {args.repository}\n"
             f"- Ref: {args.ref}\n"
+            f"- Analysis mode: {payload.get('analysis_mode', args.analysis_mode)}\n"
             f"- Resolved SHA: {args.resolved_sha or 'unavailable'}\n"
             f"- Reason: {payload.get('reason') or 'See workflow logs.'}\n",
             encoding="utf-8",
