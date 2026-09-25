@@ -215,6 +215,7 @@ jobs:
       cache_epoch: ${{ matrix.cache_epoch }}
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
+      analysis_mode: fast
 
   verify_native:
     name: Native Android ${{ matrix.repository }}
@@ -249,6 +250,7 @@ jobs:
       cache_epoch: ${{ matrix.cache_epoch }}
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
+      analysis_mode: fast
 
   verify_auto:
     name: Auto ${{ matrix.repository }}
@@ -267,6 +269,7 @@ jobs:
       cache_epoch: ${{ matrix.cache_epoch }}
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
+      analysis_mode: fast
 
   aggregate:
     name: Update central watcher history
