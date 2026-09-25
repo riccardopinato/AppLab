@@ -118,18 +118,62 @@ def wait_for_pid(package_id: str, timeout: float = 15.0) -> str:
     return ""
 
 
-def launch(package_id: str) -> str:
-    adb(
-        "shell",
-        "monkey",
-        "-p",
-        package_id,
-        "-c",
-        "android.intent.category.LAUNCHER",
-        "1",
-        timeout=20,
+def activity_dump_has_foreground(package_id: str, dump: str) -> bool:
+    escaped = re.escape(package_id)
+    return bool(
+        re.search(
+            rf"(?:mResumedActivity|topResumedActivity|ResumedActivity)"
+            rf"[^\n]*\b{escaped}/",
+            dump,
+        )
     )
-    return wait_for_pid(package_id)
+
+
+def is_foreground(package_id: str) -> bool:
+    result = adb("shell", "dumpsys", "activity", "activities", timeout=15)
+    return result.returncode == 0 and activity_dump_has_foreground(
+        package_id, result.stdout
+    )
+
+
+def launch(package_id: str, timeout: float = 20.0) -> str:
+    def send_launch() -> None:
+        adb(
+            "shell",
+            "monkey",
+            "-p",
+            package_id,
+            "-c",
+            "android.intent.category.LAUNCHER",
+            "1",
+            timeout=20,
+        )
+
+    send_launch()
+    start = time.monotonic()
+    relaunched_after_process_loss = False
+    while time.monotonic() - start < timeout:
+        pid = pid_of(package_id)
+        if pid and is_foreground(package_id):
+            return pid
+
+        # Android is allowed to kill a background process. Do not mistake the
+        # stale pre-kill PID for a successful foreground return: if it
+        # disappears during the transition, explicitly launch once more and
+        # keep waiting for a resumed activity.
+        if (
+            not pid
+            and not relaunched_after_process_loss
+            and time.monotonic() - start >= 1.5
+        ):
+            send_launch()
+            relaunched_after_process_loss = True
+        time.sleep(0.5)
+    return ""
+
+
+def clear_logcat() -> None:
+    adb("logcat", "-b", "all", "-c", timeout=15)
 
 
 def runtime_unhealthy(package_id: str) -> str:
@@ -256,7 +300,7 @@ def evaluate(
     if not config["enabled"]:
         return {
             "schema_version": 1,
-            "configuration_lab_version": "0.7.6",
+            "configuration_lab_version": "0.7.7",
             "result": "SKIPPED",
             "package_id": package_id,
             "config": config,
@@ -278,6 +322,7 @@ def evaluate(
     try:
         adb("shell", "settings", "put", "system", "accelerometer_rotation", "0", timeout=10)
         for cycle in range(1, config["rotation_cycles"] + 1):
+            clear_logcat()
             adb("shell", "settings", "put", "system", "user_rotation", "1", timeout=10)
             time.sleep(config["settle_seconds"])
             stage, extra = snapshot_stage(
@@ -286,6 +331,7 @@ def evaluate(
             stages.append(stage)
             findings.extend(extra)
 
+            clear_logcat()
             adb("shell", "settings", "put", "system", "user_rotation", "0", timeout=10)
             time.sleep(config["settle_seconds"])
             stage, extra = snapshot_stage(
@@ -295,6 +341,7 @@ def evaluate(
             findings.extend(extra)
 
         for cycle in range(1, config["background_cycles"] + 1):
+            clear_logcat()
             adb("shell", "input", "keyevent", "KEYCODE_HOME", timeout=10)
             time.sleep(config["settle_seconds"])
             background_pid = pid_of(package_id)
@@ -346,7 +393,7 @@ def evaluate(
     result = "FAIL" if errors else ("WARN" if warnings else "PASS")
     return {
         "schema_version": 1,
-        "configuration_lab_version": "0.7.6",
+        "configuration_lab_version": "0.7.7",
         "result": result,
         "package_id": package_id,
         "config": config,
@@ -385,6 +432,14 @@ def self_test() -> None:
     cfg = load_config(None)
     assert cfg["rotation_cycles"] == 2
     assert cfg["background_cycles"] == 2
+    assert activity_dump_has_foreground(
+        "com.example.app",
+        "mResumedActivity: ActivityRecord{123 u0 com.example.app/.MainActivity t42}",
+    )
+    assert not activity_dump_has_foreground(
+        "com.example.app",
+        "mResumedActivity: ActivityRecord{123 u0 com.other.app/.MainActivity t42}",
+    )
     import tempfile
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "policy.json"
