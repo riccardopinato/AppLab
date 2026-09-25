@@ -1,11 +1,12 @@
 # AppLab v0.7.10 — Fast Analysis Engine & Smart Test Orchestration
 
-AppLab v0.7.10 adds a safe fast path for continuous project analysis while preserving FULL verification for certification and release.
+AppLab v0.7.10 adds a safe fast path for continuous project analysis. AppLab v0.8.0 keeps FULL as the complete diagnostic path and adds a distinct CERTIFICATION mode for production release.
 
 ## Modes
 
-- `full`: runs the complete trusted runtime suite.
+- `full`: runs the complete trusted runtime suite and can seed/refresh trusted baselines.
 - `fast`: always keeps launch, crash/ANR detection, Maestro when enabled, Visual Journey and Safe Interaction Crawler, then runs only specialist labs selected by the trusted Smart Test Planner.
+- `certification`: runs every specialist lab and then applies the v0.8.0 Production Certification Gate.
 
 Manual project runs default to `full`. Repo Watcher runs default to `fast`.
 
@@ -36,11 +37,11 @@ FAST runs do not:
 - promote the Upgrade baseline;
 - publish the verified release APK.
 
-Those operations require an effective FULL run. The v0.8.0 Production Certification Gate will always use FULL.
+Performance and Upgrade baseline promotion requires FULL or a successful CERTIFICATION run. Publishing the verified installable APK requires `CERTIFIED`; FULL no longer publishes a production release artifact.
 
 ## Evidence
 
 - `contract.json` records the requested analysis mode;
 - `analysis-plan.json` records changed files, selected specialist labs and selection reasons;
 - `result.json` records the effective `analysis_mode`;
-- the Control Center shows FAST/FULL for the latest project result.
+- the Control Center shows FAST/FULL/CERTIFICATION for the latest project result and preserves the most recent production certification separately.
