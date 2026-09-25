@@ -126,7 +126,7 @@ on:
         default: "manual"
         type: string
       analysis_mode:
-        description: AppLab analysis mode (fast or full)
+        description: AppLab analysis mode (fast, full or certification)
         required: false
         default: full
         type: string
