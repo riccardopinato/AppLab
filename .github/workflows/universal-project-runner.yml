@@ -59,6 +59,10 @@ on:
         required: false
         default: "manual"
         type: string
+      analysis_mode:
+        required: false
+        default: full
+        type: string
 
 permissions:
   contents: read
@@ -147,6 +151,7 @@ jobs:
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
+      analysis_mode: ${{ inputs.analysis_mode }}
 
   verify_native:
     name: Auto native Android verification
@@ -179,3 +184,4 @@ jobs:
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
+      analysis_mode: ${{ inputs.analysis_mode }}
