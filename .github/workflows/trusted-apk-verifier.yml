@@ -106,6 +106,8 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
           cp "$GITHUB_WORKSPACE/.applab-build/contract.json" \
              "$GITHUB_WORKSPACE/applab-report/build-contract.json"
+          cp "$GITHUB_WORKSPACE/.applab-build/analysis-plan.json" \
+             "$GITHUB_WORKSPACE/applab-report/analysis-plan.json"
 
       - name: Install Maestro
         if: inputs.run_maestro
@@ -159,7 +161,7 @@ jobs:
             exit 2
           fi
           if [[ "$MODE" == "fast" ]]; then
-            if [[ ! -s "$GITHUB_WORKSPACE/.applab-upgrade-baseline/baseline.apk" || ! -d "$GITHUB_WORKSPACE/.applab-visual-baseline" ]]; then
+            if [[ ! -s "$GITHUB_WORKSPACE/.applab-upgrade-baseline/baseline.apk" || -z "$(find "$GITHUB_WORKSPACE/.applab-visual-baseline" -type f -print -quit 2>/dev/null)" ]]; then
               MODE="full"
               echo "FAST requested but no previous full baseline is available; falling back to FULL."
             fi
