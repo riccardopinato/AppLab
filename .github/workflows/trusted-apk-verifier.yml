@@ -103,6 +103,7 @@ jobs:
             --expected-repository "${{ inputs.repository }}" \
             --expected-sha "${{ inputs.resolved_sha }}" \
             --expected-engine "${{ inputs.engine }}" \
+            --expected-analysis-mode "${{ inputs.analysis_mode }}" \
             --github-output "$GITHUB_OUTPUT"
           cp "$GITHUB_WORKSPACE/.applab-build/contract.json" \
              "$GITHUB_WORKSPACE/applab-report/build-contract.json"
