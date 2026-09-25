@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import shutil
+import smart_test_plan
 from pathlib import Path, PurePosixPath
 
 ALLOWED_EVIDENCE_SUFFIXES = {".yaml", ".yml", ".json"}
@@ -90,13 +91,15 @@ def package(args: argparse.Namespace) -> dict:
 
     contract = {
         "schema_version": 1,
-        "applab_version": "0.7.3",
+        "applab_version": "0.7.10",
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
         "engine": args.engine,
         "working_directory": str(working),
         "package_id": args.package_id.strip(),
         "maestro_flow": str(flow) if flow else "",
+        "analysis_mode": args.analysis_mode,
+        "analysis_plan": "analysis-plan.json",
         "apk": {
             "path": "app.apk",
             "size_bytes": (output / "app.apk").stat().st_size,
@@ -104,6 +107,16 @@ def package(args: argparse.Namespace) -> dict:
         },
         "evidence_bytes": total,
     }
+    plan = smart_test_plan.classify(
+        smart_test_plan.git_changed_files(repo_root),
+        args.analysis_mode,
+    )
+    smart_test_plan.validate_plan(plan)
+    (output / "analysis-plan.json").write_text(
+        json.dumps(plan, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
     (output / "contract.json").write_text(
         json.dumps(contract, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -126,10 +139,12 @@ def self_test() -> None:
             repository="owner/repo", resolved_sha="a"*40, engine="flutter",
             working_directory=".", package_id="com.example.app",
             maestro_flow=".maestro/smoke.yaml",
+            analysis_mode="fast",
         )
         contract = package(args)
         assert contract["apk"]["sha256"] == sha256(out / "app.apk")
         assert (out / "target-evidence/.maestro/smoke.yaml").is_file()
+        assert (out / "analysis-plan.json").is_file()
     print("AppLab build contract packager self-test PASS")
 
 def main() -> int:
@@ -143,6 +158,7 @@ def main() -> int:
     parser.add_argument("--working-directory", default=".")
     parser.add_argument("--package-id", default="")
     parser.add_argument("--maestro-flow", default="")
+    parser.add_argument("--analysis-mode", choices=("fast", "full"), default="full")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:

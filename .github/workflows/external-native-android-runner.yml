@@ -125,6 +125,11 @@ on:
         required: false
         default: "manual"
         type: string
+      analysis_mode:
+        description: AppLab analysis mode (fast or full)
+        required: false
+        default: full
+        type: string
   workflow_call:
     inputs:
       repository:
@@ -224,6 +229,10 @@ on:
         required: false
         default: "manual"
         type: string
+      analysis_mode:
+        required: false
+        default: full
+        type: string
 
 permissions:
   contents: read
@@ -288,6 +297,7 @@ jobs:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
           path: target
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Prepare evidence directory
@@ -442,7 +452,8 @@ jobs:
             --engine "native_android" \
             --working-directory "${{ inputs.working_directory }}" \
             --package-id "${{ inputs.package_id }}" \
-            --maestro-flow "${{ inputs.maestro_flow }}"
+            --maestro-flow "${{ inputs.maestro_flow }}" \
+            --analysis-mode "${{ inputs.analysis_mode }}"
 
       - name: Upload isolated APK contract
         uses: actions/upload-artifact@v7
@@ -479,6 +490,7 @@ jobs:
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
+      analysis_mode: ${{ inputs.analysis_mode }}
       run_maestro: ${{ inputs.run_maestro }}
       android_prepare_command: ${{ inputs.android_prepare_command }}
       api_level: ${{ inputs.api_level }}
@@ -515,7 +527,8 @@ jobs:
             --history-key "${{ inputs.history_key }}" \
             --engine "native_android" \
             --pipeline-status failure \
-            --run-id "$GITHUB_RUN_ID"
+            --run-id "$GITHUB_RUN_ID" \
+            --analysis-mode "${{ inputs.analysis_mode }}"
 
       - name: Prepare failed verification cache payload
         if: inputs.cache_verification && needs.build.outputs.resolved_sha != ''

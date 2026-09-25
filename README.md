@@ -1,5 +1,15 @@
 # AppLab
 
+## v0.7.10 — Fast Analysis Engine & Smart Test Orchestration
+
+AppLab now supports two runtime verification modes. `FULL` keeps the complete lab suite; `FAST` keeps the core launch/crash/visual/interaction checks and uses a trusted changed-file plan to run only the specialist labs relevant to the current commit.
+
+Repo Watcher uses FAST by default, while manual verification remains FULL by default. FAST automatically falls back to FULL when no previous trusted baseline exists or when the changed-file set cannot be determined safely. Skipped labs remain explicitly `SKIPPED`.
+
+For release safety, FAST runs never promote Performance/Upgrade baselines and never publish the verified release APK. Production certification remains a FULL-only operation.
+
+See `integration/performance/FAST_ANALYSIS_ENGINE.md`.
+
 ## v0.7.9 — Storage & Data Integrity Lab
 
 AppLab now performs a non-destructive storage integrity pass before the upgrade gate. It records free space, snapshots bounded private app files when `run-as` is available, hashes persistent files, force-stops/relaunches the target, compares before/after storage state, and validates recovery UI plus crash/ANR health.

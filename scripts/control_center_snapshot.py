@@ -33,6 +33,7 @@ def build_snapshot(
     }
 
     latest: dict[str, dict[str, Any]] = {}
+    latest_release: dict[str, dict[str, Any]] = {}
     for item in history:
         repository = str(item.get("repository", "")).strip()
         if not repository:
@@ -42,6 +43,13 @@ def build_snapshot(
             current.get("recorded_at", "")
         ):
             latest[repository] = item
+        release = item.get("release")
+        if isinstance(release, dict) and release.get("artifact_url"):
+            previous_release = latest_release.get(repository)
+            if previous_release is None or str(item.get("recorded_at", "")) >= str(
+                previous_release.get("recorded_at", "")
+            ):
+                latest_release[repository] = item
 
     repositories = sorted(set(configured) | set(latest))
     projects: list[dict[str, Any]] = []
@@ -73,10 +81,11 @@ def build_snapshot(
                 "performance_lab": result.get("performance_lab", "—"),
                 "performance": result.get("performance", {}),
                 "applab_version": result.get("applab_version", ""),
+                "analysis_mode": result.get("analysis_mode", "full"),
                 "recorded_at": result.get("recorded_at", ""),
                 "watcher_run_id": result.get("watcher_run_id", ""),
                 "watcher_run_url": result.get("watcher_run_url", ""),
-                "release": result.get("release", {}),
+                "release": result.get("release", {}) or latest_release.get(repository, {}).get("release", {}),
             }
         )
 
@@ -114,6 +123,7 @@ def build_snapshot(
                     "watcher_run_id",
                     "watcher_run_url",
                     "applab_version",
+                    "analysis_mode",
                     "release",
                 }
             }
@@ -165,7 +175,9 @@ def self_test() -> None:
             "repository": "owner/one",
             "recorded_at": "2026-01-02T00:00:00Z",
             "result": "PASS",
-            "resolved_sha": "new",
+            "resolved_sha": "full",
+            "applab_version": "0.7.10",
+            "analysis_mode": "full",
             "release": {"artifact_url": "https://example.test/artifact"},
             "network_lab": "PASS",
             "persistence_lab": "PASS",
@@ -180,6 +192,22 @@ def self_test() -> None:
                 "memory": {"pss_kb": 123456},
             },
         },
+        {
+            "repository": "owner/one",
+            "recorded_at": "2026-01-03T00:00:00Z",
+            "result": "PASS",
+            "resolved_sha": "fast",
+            "applab_version": "0.7.10",
+            "analysis_mode": "fast",
+            "network_lab": "SKIPPED",
+            "persistence_lab": "SKIPPED",
+            "configuration_lab": "PASS",
+            "resource_pressure_lab": "SKIPPED",
+            "background_lab": "SKIPPED",
+            "storage_lab": "SKIPPED",
+            "upgrade_lab": "NO_BASELINE",
+            "performance_lab": "PASS"
+        },
     ]
     snapshot = build_snapshot(watchlist, history)
     assert snapshot["summary"] == {
@@ -191,17 +219,19 @@ def self_test() -> None:
     first = next(
         item for item in snapshot["projects"] if item["repository"] == "owner/one"
     )
-    assert first["resolved_sha"] == "new"
+    assert first["resolved_sha"] == "fast"
+    assert first["analysis_mode"] == "fast"
     assert first["release"]["artifact_url"] == "https://example.test/artifact"
-    assert first["network_lab"] == "PASS"
-    assert first["persistence_lab"] == "PASS"
+    assert first["network_lab"] == "SKIPPED"
+    assert first["persistence_lab"] == "SKIPPED"
     assert first["configuration_lab"] == "PASS"
-    assert first["resource_pressure_lab"] == "PASS"
-    assert first["background_lab"] == "PASS"
-    assert first["storage_lab"] == "PASS"
-    assert first["upgrade_lab"] == "PASS"
+    assert first["resource_pressure_lab"] == "SKIPPED"
+    assert first["background_lab"] == "SKIPPED"
+    assert first["storage_lab"] == "SKIPPED"
+    assert first["upgrade_lab"] == "NO_BASELINE"
     assert first["performance_lab"] == "PASS"
-    assert first["performance"]["startup"]["cold"]["total_time_ms"] == 850
+    assert first["analysis_mode"] == "fast"
+    assert first["release"]["artifact_url"] == "https://example.test/artifact"
     print("AppLab Control Center snapshot self-test PASS")
 
 
