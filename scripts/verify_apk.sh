@@ -88,6 +88,7 @@ payload = {
     "performance_lab": performance_lab,
     "evidence": {
         "summary": "summary.md",
+        "analysis_plan": "analysis-plan.json",
         "launch_screenshot": "launch.png",
         "post_maestro_screenshot": "post-maestro.png",
         "ui_hierarchy": "window.xml",
