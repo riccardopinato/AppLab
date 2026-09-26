@@ -105,11 +105,6 @@ on:
         required: false
         default: "manual"
         type: string
-      approve_visual_baseline:
-        description: Explicitly accept a visual WARN as the new baseline
-        required: false
-        default: false
-        type: boolean
       config_fingerprint:
         description: Fingerprint of this target's watcher/build configuration
         required: false
@@ -125,11 +120,6 @@ on:
         required: false
         default: ""
         type: string
-      publish_release_artifact:
-        description: Allow CERTIFIED runs to publish the verified APK
-        required: false
-        default: true
-        type: boolean
   workflow_call:
     inputs:
       repository:
@@ -218,10 +208,6 @@ on:
         required: false
         default: "manual"
         type: string
-      approve_visual_baseline:
-        required: false
-        default: false
-        type: boolean
       config_fingerprint:
         required: false
         default: "manual"
@@ -234,10 +220,6 @@ on:
         required: false
         default: ""
         type: string
-      publish_release_artifact:
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   contents: read
@@ -612,9 +594,9 @@ jobs:
       cache_verification: ${{ inputs.cache_verification }}
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
-      approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
+      approve_visual_baseline: false
       analysis_mode: ${{ inputs.analysis_mode }}
-      publish_release_artifact: ${{ inputs.publish_release_artifact }}
+      publish_release_artifact: false
       run_maestro: ${{ inputs.run_maestro }}
       android_prepare_command: ${{ inputs.android_prepare_command }}
       api_level: ${{ inputs.api_level }}
