@@ -114,6 +114,13 @@ jobs:
           cp "$GITHUB_WORKSPACE/.applab-build/analysis-plan.json" \
              "$GITHUB_WORKSPACE/applab-report/analysis-plan.json"
 
+      - name: Restore pinned Maestro cache
+        if: inputs.run_maestro
+        uses: actions/cache@v6
+        with:
+          path: ~/.maestro
+          key: applab-maestro-linux-2.10.0-v1
+
       - name: Install Maestro
         if: inputs.run_maestro
         run: |
@@ -125,6 +132,28 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+
+      - name: Restore clean Android AVD snapshot
+        id: avd_cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: applab-avd-v1-api${{ inputs.api_level }}-google_apis-x86_64-${{ inputs.emulator_profile }}
+
+      - name: Create clean AVD snapshot
+        if: steps.avd_cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ inputs.api_level }}
+          target: google_apis
+          arch: x86_64
+          profile: ${{ inputs.emulator_profile }}
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated clean AppLab AVD snapshot."
 
       - name: Restore previous passing visual baseline
         id: visual_baseline
@@ -158,20 +187,34 @@ jobs:
         shell: bash
         env:
           REQUESTED_MODE: ${{ inputs.analysis_mode }}
+          PLAN_FILE: ${{ steps.contract.outputs.analysis_plan_file }}
         run: |
           set -Eeuo pipefail
           MODE="$REQUESTED_MODE"
+          SHADOW="false"
           if [[ "$MODE" != "fast" && "$MODE" != "full" && "$MODE" != "certification" ]]; then
             echo "Unsupported analysis mode: $MODE" >&2
             exit 2
           fi
           if [[ "$MODE" == "fast" ]]; then
-            if [[ ! -s "$GITHUB_WORKSPACE/.applab-upgrade-baseline/baseline.apk" || -z "$(find "$GITHUB_WORKSPACE/.applab-visual-baseline" -type f -print -quit 2>/dev/null)" ]]; then
+            SHADOW="$(python - "$PLAN_FILE" <<'PY'
+import json,sys
+try:
+    print(str(bool(json.load(open(sys.argv[1])).get("shadow_full", False))).lower())
+except Exception:
+    print("false")
+PY
+            )"
+            if [[ "$SHADOW" == "true" ]]; then
+              MODE="full"
+              echo "FAST shadow sample selected; executing FULL runtime while preserving the FAST prediction."
+            elif [[ ! -s "$GITHUB_WORKSPACE/.applab-upgrade-baseline/baseline.apk" || -z "$(find "$GITHUB_WORKSPACE/.applab-visual-baseline" -type f -print -quit 2>/dev/null)" ]]; then
               MODE="full"
               echo "FAST requested but no previous full baseline is available; falling back to FULL."
             fi
           fi
           echo "effective_mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "shadow_sample=$SHADOW" >> "$GITHUB_OUTPUT"
 
       - name: Verify APK inside trusted Android runtime
         id: verify
@@ -200,8 +243,21 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: ${{ inputs.emulator_profile }}
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: bash .applab/scripts/run_external_android_gate.sh
+
+      - name: Evaluate FAST shadow calibration
+        if: always()
+        shell: bash
+        run: |
+          if [[ -s "$GITHUB_WORKSPACE/applab-report/result.json" ]]; then
+            python .applab/scripts/shadow_calibration.py \
+              --plan "${{ steps.contract.outputs.analysis_plan_file }}" \
+              --result "$GITHUB_WORKSPACE/applab-report/result.json" \
+              --output "$GITHUB_WORKSPACE/applab-report/shadow-calibration.json"
+          fi
 
       - name: Evaluate production certification
         id: certification
@@ -357,7 +413,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v0.8.0 Trusted APK Verification"
+            echo "## AppLab v0.9.0 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"
