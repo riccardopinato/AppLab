@@ -42,6 +42,11 @@ on:
         required: false
         default: ""
         type: string
+      historical_risk_json:
+        description: Compact recent failure history used by the adaptive risk engine
+        required: false
+        default: "{}"
+        type: string
       force_release_build:
         description: Force the release build profile without changing analysis mode
         required: false
@@ -104,6 +109,10 @@ on:
       baseline_sha:
         required: false
         default: ""
+        type: string
+      historical_risk_json:
+        required: false
+        default: "{}"
         type: string
       force_release_build:
         required: false
@@ -203,6 +212,7 @@ jobs:
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
+      historical_risk_json: ${{ inputs.historical_risk_json }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
 
   verify_native:
@@ -238,4 +248,5 @@ jobs:
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
+      historical_risk_json: ${{ inputs.historical_risk_json }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
