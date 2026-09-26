@@ -38,7 +38,11 @@ cache generated in a separate preparation job. Verification jobs restore but do
 not save that AVD cache, so target-app state cannot contaminate the shared clean
 snapshot.
 
-Repo Watcher baselines are now scoped by repository, watcher history key and ref.
+Repo Watcher baselines and historical-failure risk are now scoped by repository,
+watcher history key and source ref, preventing unrelated branch history from
+inflating or weakening the current plan. Successful `NO_RUNTIME_CHANGE` and
+`STATIC_ONLY` runs are cached by resolved SHA exactly like runtime runs, so an
+unchanged non-runtime commit is not needlessly rescheduled by the hourly watcher.
 Per-domain contract fingerprints use the specialist labs exercised by the
 previous trusted run, reducing unnecessary invalidation while keeping core and
 visual verification changes globally relevant. Project auto-discovery prefers
