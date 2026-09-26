@@ -138,20 +138,11 @@ def latest_history_sha(path: str, repository: str, history_key: str = "", ref: s
     return str(latest_history_entry(path, repository, history_key, ref).get("resolved_sha", "")).strip().lower()
 
 def adaptive_contract_fingerprint(root: Path, previous: dict[str, Any]) -> str:
-    domains = domain_fingerprint.compute(root)
     selected = previous.get("selected_labs") if isinstance(previous, dict) else {}
-    if isinstance(selected, dict) and selected:
-        names = {"core", "visual"}
-        names.update(lab for lab, enabled in selected.items() if enabled and lab in domains)
-    else:
-        names = set(domains)
-    digest = hashlib.sha256()
-    for name in sorted(names):
-        digest.update(name.encode())
-        digest.update(b"\0")
-        digest.update(domains.get(name, "").encode())
-        digest.update(b"\0")
-    return digest.hexdigest()[:16]
+    return domain_fingerprint.adaptive_digest(
+        root,
+        selected if isinstance(selected, dict) else {},
+    )
 
 def self_test_history() -> None:
     import tempfile
