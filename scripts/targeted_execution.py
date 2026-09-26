@@ -87,7 +87,11 @@ def native_commands(
     if lane == "NO_RUNTIME_CHANGE":
         return {"test": "", "lint": "", "build": "", "batch": "", "batch_safe": False}
 
-    commands = {"test": test_command, "lint": lint_command, "build": build_command}
+    commands = {
+        "test": test_command,
+        "lint": lint_command,
+        "build": "" if lane == "STATIC_ONLY" else build_command,
+    }
     if confidence >= 0.82 and lane in {"STATIC_ONLY", "FAST_RUNTIME"} and modules:
         for key in ("test", "lint"):
             parsed = gradle_parts(commands[key])
