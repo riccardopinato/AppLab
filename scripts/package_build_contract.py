@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import smart_test_plan
+import contract_fingerprint
 from pathlib import Path, PurePosixPath
 
 ALLOWED_EVIDENCE_SUFFIXES = {".yaml", ".yml", ".json"}
@@ -213,6 +214,7 @@ def package(args: argparse.Namespace) -> dict:
         "build": normalize_check_state(args.build_status),
     }
 
+    verification_contract = contract_fingerprint.manifest(Path(__file__).resolve().parent.parent)
     contract = {
         "schema_version": 1,
         "applab_version": "0.9.0",
@@ -225,6 +227,7 @@ def package(args: argparse.Namespace) -> dict:
         "analysis_mode": args.analysis_mode,
         "analysis_baseline_sha": args.baseline_sha.strip().lower(),
         "analysis_plan": "analysis-plan.json",
+        "verification_contract": verification_contract,
         "certification_policy": certification_policy,
         "apk": {
             "path": "app.apk",
