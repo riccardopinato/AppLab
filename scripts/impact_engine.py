@@ -235,7 +235,7 @@ def lightweight_dependency_impact(root: Path, changed_paths: set[str], files: li
                 elif imp.startswith("."):
                     candidate = (Path(rel).parent / imp).as_posix()
                     try:
-                        normalized = Path(candidate).resolve().relative_to(root.resolve()).as_posix()
+                        normalized = (root / candidate).resolve().relative_to(root.resolve()).as_posix()
                     except Exception:
                         normalized = candidate
                     if normalized in changed_dart or any(normalized.endswith(Path(p).name) for p in changed_dart):
@@ -367,7 +367,7 @@ def analyze_repository(
         return payload
 
     if state != "trusted":
-        payload = analyze_repository(root, "full", baseline_sha, repository, history_file)
+        payload = analyze_repository(root, "full", baseline_sha, repository, history_file, historical_risk)
         payload.update({
             "requested_mode": "fast",
             "effective_mode": "full",
@@ -382,7 +382,7 @@ def analyze_repository(
     try:
         records = parse_name_status(root, baseline_sha)
     except RuntimeError as exc:
-        payload = analyze_repository(root, "full", baseline_sha, repository, history_file)
+        payload = analyze_repository(root, "full", baseline_sha, repository, history_file, historical_risk)
         payload.update({
             "requested_mode": "fast",
             "effective_mode": "full",
@@ -394,7 +394,7 @@ def analyze_repository(
         return payload
 
     if len(records) > MAX_CHANGED_FILES:
-        payload = analyze_repository(root, "full", baseline_sha, repository, history_file)
+        payload = analyze_repository(root, "full", baseline_sha, repository, history_file, historical_risk)
         payload.update({
             "requested_mode": "fast",
             "effective_mode": "full",
