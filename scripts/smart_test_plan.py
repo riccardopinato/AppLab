@@ -484,6 +484,7 @@ def static_plan(repo_root: Path, paths: list[str], engine: str, working_director
                 continue
             normalized = normalized[len(marker):]
         scoped.append(normalized)
+    project_root = repo_root / prefix if prefix and prefix != "." else repo_root
     dart = [p for p in scoped if p.lower().endswith(".dart") and not is_generated(p)]
     analyze_targets: set[str] = set()
     test_targets: set[str] = set()
@@ -496,7 +497,7 @@ def static_plan(repo_root: Path, paths: list[str], engine: str, working_director
                 analyze_targets.add("lib")
             candidate = Path("test") / Path(*parts[1:])
             candidate = candidate.with_name(candidate.stem + "_test.dart")
-            if (repo_root / candidate).is_file():
+            if (project_root / candidate).is_file():
                 test_targets.add(candidate.as_posix())
         if is_test(p):
             test_targets.add(p)
