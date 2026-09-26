@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import smart_test_plan
+import contract_fingerprint
 from pathlib import Path, PurePosixPath
 
 ALLOWED_EVIDENCE_SUFFIXES = {".yaml", ".yml", ".json"}
@@ -213,9 +214,10 @@ def package(args: argparse.Namespace) -> dict:
         "build": normalize_check_state(args.build_status),
     }
 
+    verification_contract = contract_fingerprint.manifest(Path(__file__).resolve().parent.parent)
     contract = {
         "schema_version": 1,
-        "applab_version": "0.8.1",
+        "applab_version": "0.9.0",
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
         "engine": args.engine,
@@ -225,6 +227,7 @@ def package(args: argparse.Namespace) -> dict:
         "analysis_mode": args.analysis_mode,
         "analysis_baseline_sha": args.baseline_sha.strip().lower(),
         "analysis_plan": "analysis-plan.json",
+        "verification_contract": verification_contract,
         "certification_policy": certification_policy,
         "apk": {
             "path": "app.apk",
@@ -240,10 +243,13 @@ def package(args: argparse.Namespace) -> dict:
         "quality_evidence": quality_evidence,
         "evidence_bytes": total,
     }
-    plan = smart_test_plan.classify(
-        smart_test_plan.git_changed_files(repo_root, args.baseline_sha),
+    plan = smart_test_plan.plan_repository(
+        repo_root,
         args.analysis_mode,
         args.baseline_sha,
+        repository=args.repository,
+        resolved_sha=args.resolved_sha,
+        shadow_rate=0,
     )
     smart_test_plan.validate_plan(plan)
     (output / "analysis-plan.json").write_text(
@@ -282,7 +288,7 @@ def self_test() -> None:
         assert contract["apk"]["sha256"] == sha256(out / "app.apk")
         assert (out / "target-evidence/.maestro/smoke.yaml").is_file()
         assert (out / "analysis-plan.json").is_file()
-    print("AppLab build contract packager self-test PASS")
+    print("AppLab v0.9 build contract packager self-test PASS")
 
 def main() -> int:
     parser = argparse.ArgumentParser()
