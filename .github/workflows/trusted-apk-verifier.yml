@@ -216,6 +216,7 @@ jobs:
           set -Eeuo pipefail
           MODE="$(python -c 'import json; print(json.load(open("applab-report/analysis-plan.json")).get("mode","full"))')"
           LANE="$(python -c 'import json; print(json.load(open("applab-report/analysis-plan.json")).get("lane","FULL_RUNTIME"))')"
+          BASELINE_FALLBACK=false
           if [[ "$REQUESTED_MODE" == "certification" ]]; then
             MODE="certification"
           fi
@@ -227,8 +228,33 @@ jobs:
             if [[ ! -s "$GITHUB_WORKSPACE/.applab-upgrade-baseline/baseline.apk" || -z "$(find "$GITHUB_WORKSPACE/.applab-visual-baseline" -type f -print -quit 2>/dev/null)" ]]; then
               MODE="full"
               LANE="FULL_RUNTIME"
+              BASELINE_FALLBACK=true
               echo "FAST requested but no previous full baseline is available; falling back to FULL."
             fi
+          fi
+          if [[ "$BASELINE_FALLBACK" == "true" ]]; then
+            python - "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" "${{ steps.contract.outputs.analysis_plan_file }}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          for raw in sys.argv[1:]:
+              path = Path(raw)
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              payload["mode"] = "full"
+              payload["lane"] = "FULL_RUNTIME"
+              payload["fallback_full"] = True
+              selected = payload.get("selected_labs", {})
+              payload["selected_labs"] = {key: True for key in selected}
+              reasons = payload.get("reasons", {})
+              for key in payload["selected_labs"]:
+                  values = reasons.setdefault(key, [])
+                  marker = "missing trusted runtime baseline; effective FULL fallback"
+                  if marker not in values:
+                      values.append(marker)
+              payload["reasons"] = reasons
+              path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
+          PY
           fi
           echo "effective_mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "lane=$LANE" >> "$GITHUB_OUTPUT"
