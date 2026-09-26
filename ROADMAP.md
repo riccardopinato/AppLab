@@ -60,6 +60,18 @@ publish a certified release artifact.
   trust boundaries for a small network-only saving.
 - [x] Update backend/frontend/runtime identity to v0.9.0.
 - [x] Update README and canonical ROADMAP.
+- [x] Classify renames with both source and destination paths so runtime code
+  moved into tests/docs cannot downgrade verification.
+- [x] Restrict documentation-only shortcuts to known documentation locations;
+  shipped `.md`/`.txt` assets remain runtime changes.
+- [x] Preserve full Flutter unit-test fallback when no safe targeted test exists.
+- [x] Refuse unsafe Gradle command consolidation when an option carries an
+  argument or otherwise cannot be reordered safely.
+- [x] Treat trusted empty target diffs after contract/cache invalidation as FULL.
+- [x] Persist effective FULL fallback lane/mode into trusted result evidence.
+- [x] Make domain fingerprints cover every contract-affecting input by default.
+- [x] Preserve exact APK bytes, restore/clean target source, and recompute/compare
+  the adaptive plan after untrusted build execution before trusted packaging.
 
 ### v0.8.1 — Certification Integrity & Release Artifact Hardening
 
