@@ -54,7 +54,7 @@ type ProjectRow = {
   shadow_full?: boolean;
   verification_fingerprint?: string;
   cache_domains?: string[];
-  telemetry?: { planner_duration_ms?: number };
+  telemetry?: { planner_duration_ms?: number; pipeline_after_plan_ms?: number };
   certification_status: string;
   certification_display_status?: string;
   certified_sha?: string;
@@ -104,7 +104,7 @@ type RecentRow = {
   shadow_full?: boolean;
   verification_fingerprint?: string;
   cache_domains?: string[];
-  telemetry?: { planner_duration_ms?: number };
+  telemetry?: { planner_duration_ms?: number; pipeline_after_plan_ms?: number };
   certification_status?: string;
   certification?: {
     status?: string;
@@ -136,6 +136,11 @@ type Snapshot = {
     no_runtime?: number;
     shadow_runs?: number;
     shadow_false_negatives?: number;
+    timing_samples?: number;
+    pipeline_after_plan_p50_ms?: number | null;
+    pipeline_after_plan_p95_ms?: number | null;
+    planner_p50_ms?: number | null;
+    planner_p95_ms?: number | null;
   };
   projects: ProjectRow[];
   recent: RecentRow[];
@@ -244,6 +249,22 @@ export default function ControlCenter({ backend }: { backend: string }) {
             <div>
               <span>Not run</span>
               <strong>{snapshot.summary.not_run}</strong>
+            </div>
+            <div>
+              <span>Pipeline p50</span>
+              <strong>
+                {snapshot.summary.pipeline_after_plan_p50_ms != null
+                  ? `${Math.round(snapshot.summary.pipeline_after_plan_p50_ms / 1000)}s`
+                  : "—"}
+              </strong>
+            </div>
+            <div>
+              <span>Pipeline p95</span>
+              <strong>
+                {snapshot.summary.pipeline_after_plan_p95_ms != null
+                  ? `${Math.round(snapshot.summary.pipeline_after_plan_p95_ms / 1000)}s`
+                  : "—"}
+              </strong>
             </div>
           </div>
 
