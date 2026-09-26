@@ -13,7 +13,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from contract_fingerprint import compute as compute_contract_fingerprint
+from contract_fingerprint import (
+    compute as compute_contract_fingerprint,
+    compute_selected as compute_selected_contract_fingerprint,
+)
 
 
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -118,7 +121,8 @@ def _matching_history(
             continue
         # v0.9 is deliberately strict. Old history without identity metadata
         # is not trusted as a FAST baseline; this produces a safe FULL fallback.
-        if ref and str(item.get("ref", "")).strip() != ref:
+        item_ref = str(item.get("ref") or item.get("requested_ref") or "").strip()
+        if ref and item_ref != ref:
             continue
         if history_key and str(item.get("history_key", "")).strip() != history_key:
             continue
@@ -126,6 +130,22 @@ def _matching_history(
             continue
         matches.append(item)
     return matches
+
+
+def latest_history_record(
+    path: str,
+    repository: str,
+    ref: str = "",
+    history_key: str = "",
+    engine: str = "",
+) -> dict[str, Any]:
+    rows = _matching_history(path, repository, ref, history_key, engine)
+    rows = [
+        item for item in rows
+        if str(item.get("result", "")).strip().upper() == "PASS"
+    ]
+    rows.sort(key=lambda item: str(item.get("recorded_at", "")), reverse=True)
+    return rows[0] if rows else {}
 
 
 def latest_history_sha(
@@ -179,6 +199,9 @@ def self_test_history() -> None:
         assert latest_history_sha(str(path), "owner/app", "beta", "app-beta", "auto") == "c" * 40
         assert latest_history_sha(str(path), "owner/app", "other", "app", "auto") == ""
         assert recent_failure_count(str(path), "owner/app", "main", "app", "auto") == 1
+        rows.append({"repository": "owner/auto", "requested_ref": "main", "history_key": "auto", "engine": "flutter", "recorded_at": "2026-01-05T00:00:00Z", "result": "PASS", "resolved_sha": "e" * 40})
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+        assert latest_history_sha(str(path), "owner/auto", "main", "auto", "") == "e" * 40
 
 def entry_fingerprint(entry: dict[str, Any]) -> str:
     normalized = {
@@ -292,22 +315,46 @@ def main() -> int:
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
+            history_engine = "" if engine == "auto" else engine
             previous_verified_sha = latest_history_sha(
                 args.history_file,
                 repository,
                 str(entry["ref"]),
                 str(entry["key"]),
-                engine,
+                history_engine,
             )
             historical_failure_count = recent_failure_count(
                 args.history_file,
                 repository,
                 str(entry["ref"]),
                 str(entry["key"]),
-                engine,
+                history_engine,
             )
+            latest_record = latest_history_record(
+                args.history_file,
+                repository,
+                str(entry["ref"]),
+                str(entry["key"]),
+                history_engine,
+            )
+            verification_fingerprint = contract_fingerprint
+            previous_domains = latest_record.get("cache_domains", [])
+            if (
+                str(latest_record.get("resolved_sha", "")).strip().lower() == sha
+                and isinstance(previous_domains, list)
+                and previous_domains
+                and all(isinstance(value, str) for value in previous_domains)
+            ):
+                try:
+                    verification_fingerprint = compute_selected_contract_fingerprint(
+                        Path(__file__).resolve().parent.parent,
+                        set(previous_domains),
+                    )[:16]
+                except ValueError:
+                    verification_fingerprint = contract_fingerprint
+
             cache_key = (
-                f"applab-c{contract_fingerprint}-"
+                f"applab-c{verification_fingerprint}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
             )
             cached = False if args.force else cache_exists(
@@ -322,6 +369,8 @@ def main() -> int:
                     "scheduled": scheduled,
                     "previous_verified_sha": previous_verified_sha,
                     "historical_failure_count": historical_failure_count,
+                    "verification_fingerprint": verification_fingerprint,
+                    "cache_domains": previous_domains if isinstance(previous_domains, list) else [],
                 }
             )
             if scheduled:
@@ -332,7 +381,7 @@ def main() -> int:
                     "previous_verified_sha": previous_verified_sha,
                     "historical_failure_count": historical_failure_count,
                     "cache_epoch": cache_epoch,
-                    "contract_fingerprint": contract_fingerprint,
+                    "contract_fingerprint": verification_fingerprint,
                     "config_fingerprint": config_fingerprint,
                 }
                 matrix.append(resolved)
