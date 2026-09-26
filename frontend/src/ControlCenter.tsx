@@ -49,6 +49,7 @@ type ProjectRow = {
   applab_version: string;
   analysis_mode?: string;
   certification_status: string;
+  certification_display_status?: string;
   certified_sha?: string;
   certification?: {
     status?: string;
@@ -112,6 +113,8 @@ type Snapshot = {
     fail: number;
     not_run: number;
     certified: number;
+    certified_current?: number;
+    certified_stale?: number;
     certification_blocked: number;
     not_certified: number;
   };
@@ -120,7 +123,8 @@ type Snapshot = {
 };
 
 function badgeClass(value: string) {
-  if (value === "PASS" || value === "CERTIFIED") return "cc-badge good";
+  if (value === "PASS" || value === "CERTIFIED" || value === "CERTIFIED_CURRENT") return "cc-badge good";
+  if (value === "CERTIFIED_STALE") return "cc-badge warn";
   if (value === "FAIL" || value === "ERROR" || value === "NOT_CERTIFIED")
     return "cc-badge bad";
   if (value === "WARN" || value === "BLOCKED") return "cc-badge warn";
@@ -211,8 +215,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <strong>{snapshot.summary.pass}</strong>
             </div>
             <div className="good">
-              <span>Certified</span>
-              <strong>{snapshot.summary.certified}</strong>
+              <span>Certified current</span>
+              <strong>{snapshot.summary.certified_current ?? snapshot.summary.certified}</strong>
             </div>
             <div className="bad">
               <span>FAIL</span>
@@ -266,12 +270,12 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     <td>{project.analysis_mode ?? "full"}</td>
                     <td>
                       <div className="cc-project">
-                        <span className={badgeClass(project.certification_status)}>
-                          {gate(project.certification_status)}
+                        <span className={badgeClass(project.certification_display_status ?? project.certification_status)}>
+                          {gate(project.certification_display_status ?? project.certification_status)}
                         </span>
                         <small>
                           {project.certified_sha
-                            ? `${shortSha(project.certified_sha)} · API ${project.certification?.matrix?.[0]?.api_level ?? "?"}`
+                            ? `${shortSha(project.certified_sha)} · API ${project.certification?.matrix?.[0]?.api_level ?? "?"}${project.certification_display_status === "CERTIFIED_STALE" ? " · newer SHA not certified" : ""}`
                             : "no production certification"}
                         </small>
                       </div>

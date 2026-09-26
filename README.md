@@ -1,3 +1,15 @@
+## v0.8.1 — Certification Integrity & Release Artifact Hardening
+
+AppLab v0.8.1 closes the release-integrity gaps found in the v0.8.0 audit. Production Certification now routes auto-discovered projects through an explicit **RELEASE** build profile, rejects DEBUG artifacts and Android Debug certificates, records the signing-certificate SHA-256, and can enforce an expected production signer from project policy.
+
+FAST planning now compares **last verified SHA → current SHA**, so relevant changes in intermediate commits are not lost. If that baseline commit cannot be retrieved safely, AppLab falls back to FULL rather than reducing coverage.
+
+Production Certification now requires a primary deep lane plus a release-profile compatibility lane on a second Android API. The final release is produced only after the matrix passes and is copied byte-for-byte from the primary certified contract. Release bundles retain the APK together with certification/evidence metadata for 90 days.
+
+The Control Center distinguishes **CERTIFIED_CURRENT** from **CERTIFIED_STALE** when newer commits exist. Projects that require physical hardware can set `requires_real_device=true`; hosted CI then returns `BLOCKED` until trusted physical-device evidence exists rather than pretending the emulator covered it.
+
+See `integration/certification/PRODUCTION_CERTIFICATION_GATE.md` and `integration/performance/FAST_ANALYSIS_ENGINE.md`.
+
 ## v0.8.0 — Production Certification Gate
 
 AppLab now separates FAST/FULL verification from explicit production certification. A build can become `CERTIFIED` only when required build-quality checks, every mandatory runtime lab, APK identity/version/size audit and byte-for-byte SHA-256 integrity are all backed by current-run evidence. Missing or advisory evidence returns `BLOCKED`; hard failures return `NOT_CERTIFIED`.
@@ -10,7 +22,7 @@ AppLab now supports two runtime verification modes. `FULL` keeps the complete la
 
 Repo Watcher uses FAST by default, while manual verification remains FULL by default. FAST automatically falls back to FULL when no previous trusted baseline exists or when the changed-file set cannot be determined safely. Skipped labs remain explicitly `SKIPPED`.
 
-For release safety, FAST runs never promote Performance/Upgrade baselines and never publish the verified release APK. Production certification remains a FULL-only operation.
+For release safety, FAST runs never promote Performance/Upgrade baselines and never publish the verified release APK. Production certification uses the distinct CERTIFICATION mode and is never inferred from a FAST or FULL result.
 
 See `integration/performance/FAST_ANALYSIS_ENGINE.md`.
 

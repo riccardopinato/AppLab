@@ -61,9 +61,23 @@ RULES: dict[str, tuple[str, ...]] = {
     ),
 }
 
-def git_changed_files(repo_root: Path) -> list[str]:
+def git_changed_files(repo_root: Path, baseline_sha: str = "") -> list[str]:
+    baseline = baseline_sha.strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}", baseline):
+        return []
+
+    exists = subprocess.run(
+        ["git", "-C", str(repo_root), "cat-file", "-e", f"{baseline}^{{commit}}"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+        timeout=15,
+    )
+    if exists.returncode != 0:
+        return []
+
     result = subprocess.run(
-        ["git", "-C", str(repo_root), "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", "HEAD"],
+        ["git", "-C", str(repo_root), "diff", "--name-only", "--find-renames", f"{baseline}..HEAD"],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -74,7 +88,7 @@ def git_changed_files(repo_root: Path) -> list[str]:
         return []
     return sorted({line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()})
 
-def classify(files: list[str], mode: str) -> dict[str, Any]:
+def classify(files: list[str], mode: str, baseline_sha: str = "") -> dict[str, Any]:
     mode = mode.lower().strip()
     if mode not in {"fast", "full", "certification"}:
         raise ValueError("analysis mode must be fast, full or certification")
@@ -88,8 +102,9 @@ def classify(files: list[str], mode: str) -> dict[str, Any]:
             reasons[lab].append(label)
         return {
             "schema_version": 1,
-            "planner_version": "0.8.0",
+            "planner_version": "0.8.1",
             "mode": mode,
+            "baseline_sha": baseline_sha,
             "changed_files": files,
             "selected_labs": selected,
             "reasons": reasons,
@@ -101,8 +116,9 @@ def classify(files: list[str], mode: str) -> dict[str, Any]:
             reasons[lab].append("no reliable changed-file set; safe FULL fallback")
         return {
             "schema_version": 1,
-            "planner_version": "0.8.0",
+            "planner_version": "0.8.1",
             "mode": "full",
+            "baseline_sha": baseline_sha,
             "requested_mode": "fast",
             "changed_files": [],
             "selected_labs": selected,
@@ -139,8 +155,9 @@ def classify(files: list[str], mode: str) -> dict[str, Any]:
 
     return {
         "schema_version": 1,
-        "planner_version": "0.8.0",
+        "planner_version": "0.8.1",
         "mode": "fast",
+        "baseline_sha": baseline_sha,
         "changed_files": files,
         "selected_labs": selected,
         "reasons": reasons,
@@ -151,6 +168,9 @@ def validate_plan(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
         raise ValueError("invalid analysis plan schema")
     mode = str(payload.get("mode", "")).lower()
+    baseline_sha = str(payload.get("baseline_sha", "")).strip().lower()
+    if baseline_sha and not re.fullmatch(r"[0-9a-f]{40}", baseline_sha):
+        raise ValueError("invalid analysis plan baseline SHA")
     if mode not in {"fast", "full", "certification"}:
         raise ValueError("invalid analysis plan mode")
     selected = payload.get("selected_labs")
@@ -167,27 +187,65 @@ def validate_plan(payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 def self_test() -> None:
-    docs = classify(["README.md"], "fast")
+    docs = classify(["README.md"], "fast", "a" * 40)
     assert not any(docs["selected_labs"].values())
-    db = classify(["app/src/main/java/x/AppDatabase.kt"], "fast")
+    db = classify(["app/src/main/java/x/AppDatabase.kt"], "fast", "a" * 40)
     assert db["selected_labs"]["storage"]
     assert db["selected_labs"]["persistence"]
-    ui = classify(["lib/screens/home_page.dart"], "fast")
+    ui = classify(["lib/screens/home_page.dart"], "fast", "a" * 40)
     assert ui["selected_labs"]["configuration"]
     assert ui["selected_labs"]["performance"]
-    full = classify([], "fast")
+    full = classify([], "fast", "")
     assert full["mode"] == "full" and full["fallback_full"]
-    cert = classify(["README.md"], "certification")
+    cert = classify(["README.md"], "certification", "a" * 40)
     assert cert["mode"] == "certification"
     assert all(cert["selected_labs"].values())
     validate_plan(db)
     validate_plan(cert)
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw)
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.email", "applab@example.test"], check=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.name", "AppLab Self Test"], check=True)
+
+        (root / "README.md").write_text("base\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "base"], check=True)
+        baseline = subprocess.check_output(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True
+        ).strip()
+
+        db_file = root / "app" / "src" / "main" / "java" / "x" / "AppDatabase.kt"
+        db_file.parent.mkdir(parents=True)
+        db_file.write_text("class AppDatabase\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "database change"], check=True)
+
+        (root / "README.md").write_text("docs-only final commit\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "docs change"], check=True)
+
+        changed = git_changed_files(root, baseline)
+        assert "README.md" in changed
+        assert "app/src/main/java/x/AppDatabase.kt" in changed
+        range_plan = classify(changed, "fast", baseline)
+        assert range_plan["selected_labs"]["persistence"]
+        assert range_plan["selected_labs"]["storage"]
+        assert range_plan["selected_labs"]["upgrade"]
+
+        missing = git_changed_files(root, "f" * 40)
+        fallback = classify(missing, "fast", "f" * 40)
+        assert fallback["mode"] == "full" and fallback["fallback_full"]
+
     print("AppLab Smart Test Planner self-test PASS")
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root")
     parser.add_argument("--mode", choices=("fast", "full", "certification"), default="full")
+    parser.add_argument("--baseline-sha", default="")
     parser.add_argument("--output")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
@@ -196,8 +254,8 @@ def main() -> int:
         return 0
     if not args.repo_root or not args.output:
         raise SystemExit("--repo-root and --output are required")
-    files = git_changed_files(Path(args.repo_root).resolve())
-    payload = classify(files, args.mode)
+    files = git_changed_files(Path(args.repo_root).resolve(), args.baseline_sha)
+    payload = classify(files, args.mode, args.baseline_sha)
     validate_plan(payload)
     Path(args.output).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(payload, indent=2, sort_keys=True))

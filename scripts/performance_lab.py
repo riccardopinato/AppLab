@@ -28,6 +28,8 @@ REGRESSION_RATIO = 1.35
 STARTUP_REGRESSION_ABS_MS = 500
 PSS_REGRESSION_ABS_KB = 64 * 1024
 JANK_REGRESSION_ABS_PERCENT = 10.0
+APK_REGRESSION_RATIO = 1.35
+APK_REGRESSION_ABS_BYTES = 1 * 1024 * 1024
 
 
 def run(*args: str, timeout: int = 30, check: bool = False) -> subprocess.CompletedProcess[str]:
@@ -232,6 +234,25 @@ def regression_findings(current: dict[str, Any], baseline: dict[str, Any] | None
                 )
             )
 
+    current_apk = current_metrics.get("apk", {}).get("host_apk_bytes")
+    baseline_apk = baseline_metrics.get("apk", {}).get("host_apk_bytes")
+    if isinstance(current_apk, (int, float)) and isinstance(baseline_apk, (int, float)) and baseline_apk > 0:
+        delta = current_apk - baseline_apk
+        if current_apk >= baseline_apk * APK_REGRESSION_RATIO and delta >= APK_REGRESSION_ABS_BYTES:
+            findings.append(
+                Finding(
+                    "warning",
+                    "apk_size_regression",
+                    "APK size increased materially from the previous passing baseline.",
+                    {
+                        "current_bytes": current_apk,
+                        "baseline_bytes": baseline_apk,
+                        "delta_bytes": delta,
+                        "ratio": current_apk / baseline_apk,
+                    },
+                )
+            )
+
     current_jank = current_metrics.get("gfx", {}).get("janky_percent")
     baseline_jank = baseline_metrics.get("gfx", {}).get("janky_percent")
     if isinstance(current_jank, (int, float)) and isinstance(baseline_jank, (int, float)):
@@ -317,7 +338,7 @@ def evaluate(
 
     payload: dict[str, Any] = {
         "schema_version": 1,
-        "performance_lab_version": "0.7.2",
+        "performance_lab_version": "0.8.1",
         "result": "PASS",
         "package_id": package_id,
         "baseline": "AVAILABLE" if baseline_path and baseline_path.is_file() else "NO_BASELINE",

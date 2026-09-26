@@ -37,6 +37,21 @@ on:
         required: false
         default: ""
         type: string
+      baseline_sha:
+        description: Last verified SHA used for FAST changed-file planning
+        required: false
+        default: ""
+        type: string
+      force_release_build:
+        description: Force the release build profile without changing analysis mode
+        required: false
+        default: false
+        type: boolean
+      publish_release_artifact:
+        description: Allow a CERTIFIED lane to publish its verified APK
+        required: false
+        default: true
+        type: boolean
   workflow_call:
     inputs:
       repository:
@@ -86,6 +101,18 @@ on:
         required: false
         default: ""
         type: string
+      baseline_sha:
+        required: false
+        default: ""
+        type: string
+      force_release_build:
+        required: false
+        default: false
+        type: boolean
+      publish_release_artifact:
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -162,9 +189,9 @@ jobs:
       android_prepare_command: ${{ fromJSON(needs.discover.outputs.profile).android_prepare_command }}
       api_level: ${{ inputs.api_level_override != '' && inputs.api_level_override || fromJSON(needs.discover.outputs.profile).api_level }}
       emulator_profile: ${{ inputs.emulator_profile_override != '' && inputs.emulator_profile_override || fromJSON(needs.discover.outputs.profile).emulator_profile }}
-      apk_path: ${{ fromJSON(needs.discover.outputs.profile).apk_path }}
+      apk_path: ${{ (inputs.analysis_mode == 'certification' || inputs.force_release_build) && fromJSON(needs.discover.outputs.profile).certification_apk_path || fromJSON(needs.discover.outputs.profile).apk_path }}
       package_id: ${{ fromJSON(needs.discover.outputs.profile).package_id }}
-      build_command: ${{ fromJSON(needs.discover.outputs.profile).build_command }}
+      build_command: ${{ (inputs.analysis_mode == 'certification' || inputs.force_release_build) && fromJSON(needs.discover.outputs.profile).certification_build_command || fromJSON(needs.discover.outputs.profile).build_command }}
       run_flutter_tests: ${{ fromJSON(needs.discover.outputs.profile).run_flutter_tests }}
       run_maestro: ${{ inputs.run_maestro }}
       maestro_flow: ${{ fromJSON(needs.discover.outputs.profile).maestro_flow }}
@@ -175,6 +202,8 @@ jobs:
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
+      baseline_sha: ${{ inputs.baseline_sha }}
+      publish_release_artifact: ${{ inputs.publish_release_artifact }}
 
   verify_native:
     name: Auto native Android verification
@@ -192,8 +221,8 @@ jobs:
       prepare_command: ${{ fromJSON(needs.discover.outputs.profile).prepare_command }}
       test_command: ${{ fromJSON(needs.discover.outputs.profile).test_command }}
       lint_command: ${{ fromJSON(needs.discover.outputs.profile).lint_command }}
-      build_command: ${{ fromJSON(needs.discover.outputs.profile).build_command }}
-      apk_path: ${{ fromJSON(needs.discover.outputs.profile).apk_path }}
+      build_command: ${{ (inputs.analysis_mode == 'certification' || inputs.force_release_build) && fromJSON(needs.discover.outputs.profile).certification_build_command || fromJSON(needs.discover.outputs.profile).build_command }}
+      apk_path: ${{ (inputs.analysis_mode == 'certification' || inputs.force_release_build) && fromJSON(needs.discover.outputs.profile).certification_apk_path || fromJSON(needs.discover.outputs.profile).apk_path }}
       package_id: ${{ fromJSON(needs.discover.outputs.profile).package_id }}
       verify_signature: ${{ fromJSON(needs.discover.outputs.profile).verify_signature }}
       android_prepare_command: ${{ fromJSON(needs.discover.outputs.profile).android_prepare_command }}
@@ -208,3 +237,5 @@ jobs:
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
+      baseline_sha: ${{ inputs.baseline_sha }}
+      publish_release_artifact: ${{ inputs.publish_release_artifact }}

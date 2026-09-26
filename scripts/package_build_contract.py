@@ -15,6 +15,12 @@ ALLOWED_EVIDENCE_SUFFIXES = {".yaml", ".yml", ".json"}
 MAX_FLOW_BYTES = 1_048_576
 MAX_EVIDENCE_BYTES = 10_485_760
 VALID_CHECK_STATES = {"PASS", "FAIL", "NOT_RUN", "N/A"}
+DEFAULT_CERTIFICATION_POLICY = {
+    "schema_version": 1,
+    "requires_real_device": False,
+    "expected_signing_certificate_sha256": "",
+    "max_apk_bytes": 600 * 1024 * 1024,
+}
 
 def run_text(command: list[str]) -> str:
     try:
@@ -23,15 +29,20 @@ def run_text(command: list[str]) -> str:
     except (OSError, subprocess.SubprocessError):
         return ""
 
+def android_build_tool(name: str) -> str:
+    direct = shutil.which(name)
+    if direct:
+        return direct
+    sdk = os.getenv("ANDROID_HOME") or os.getenv("ANDROID_SDK_ROOT")
+    if sdk:
+        candidates = sorted((Path(sdk) / "build-tools").glob(f"*/{name}"), reverse=True)
+        if candidates:
+            return str(candidates[0])
+    return ""
+
 def apk_identity(apk: Path) -> dict[str, str]:
     result = {"package_id": "", "version_name": "", "version_code": ""}
-    aapt = shutil.which("aapt")
-    if not aapt:
-        sdk = os.getenv("ANDROID_HOME") or os.getenv("ANDROID_SDK_ROOT")
-        if sdk:
-            candidates = sorted((Path(sdk) / "build-tools").glob("*/aapt"), reverse=True)
-            if candidates:
-                aapt = str(candidates[0])
+    aapt = android_build_tool("aapt")
     if aapt:
         output = run_text([aapt, "dump", "badging", str(apk)])
         line = next((x for x in output.splitlines() if x.startswith("package:")), "")
@@ -53,6 +64,59 @@ def apk_identity(apk: Path) -> dict[str, str]:
             if not result[key]:
                 result[key] = run_text([apkanalyzer, *parts, str(apk)]).strip()
     return result
+
+def apk_signing(apk: Path) -> dict[str, str]:
+    result = {"certificate_sha256": "", "subject": ""}
+    apksigner = android_build_tool("apksigner")
+    if not apksigner:
+        return result
+    output = run_text([apksigner, "verify", "--print-certs", str(apk)])
+    subject = re.search(r"Signer #1 certificate DN:\s*(.+)", output)
+    digest = re.search(r"Signer #1 certificate SHA-256 digest:\s*([0-9A-Fa-f:]+)", output)
+    if subject:
+        result["subject"] = subject.group(1).strip()
+    if digest:
+        result["certificate_sha256"] = re.sub(r"[^0-9a-f]", "", digest.group(1).lower())
+    return result
+
+def detect_build_variant(build_command: str, apk: Path) -> str:
+    value = f"{build_command} {apk.name}".lower()
+    if "release" in value:
+        return "release"
+    if "debug" in value:
+        return "debug"
+    return "unknown"
+
+def load_certification_policy(repo_root: Path, working: PurePosixPath) -> dict[str, Any]:
+    policy = dict(DEFAULT_CERTIFICATION_POLICY)
+    candidates = [repo_root / ".maestro" / "applab-certification.json"]
+    if working != PurePosixPath("."):
+        candidates.append(repo_root / Path(working) / ".maestro" / "applab-certification.json")
+    for path in candidates:
+        if not path.is_file() or path.is_symlink():
+            continue
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+            raise ValueError(f"Invalid certification policy: {path}")
+        for key in (
+            "requires_real_device",
+            "expected_signing_certificate_sha256",
+            "max_apk_bytes",
+        ):
+            if key in payload:
+                policy[key] = payload[key]
+    if not isinstance(policy["requires_real_device"], bool):
+        raise ValueError("requires_real_device must be boolean")
+    fingerprint = str(policy["expected_signing_certificate_sha256"]).strip().lower()
+    fingerprint = re.sub(r"[^0-9a-f]", "", fingerprint)
+    if fingerprint and len(fingerprint) != 64:
+        raise ValueError("expected_signing_certificate_sha256 must be a SHA-256 digest")
+    policy["expected_signing_certificate_sha256"] = fingerprint
+    max_bytes = int(policy["max_apk_bytes"])
+    if max_bytes <= 0:
+        raise ValueError("max_apk_bytes must be positive")
+    policy["max_apk_bytes"] = max_bytes
+    return policy
 
 def normalize_check_state(value: str) -> str:
     state = value.strip().upper()
@@ -137,7 +201,11 @@ def package(args: argparse.Namespace) -> dict:
     if total > MAX_EVIDENCE_BYTES:
         raise ValueError("Journey evidence exceeds contract size limit")
 
-    identity = apk_identity(output / "app.apk")
+    packaged_apk = output / "app.apk"
+    identity = apk_identity(packaged_apk)
+    signing = apk_signing(packaged_apk)
+    build_variant = detect_build_variant(args.build_command, apk)
+    certification_policy = load_certification_policy(repo_root, working)
     quality_evidence = {
         "analyze": normalize_check_state(args.analyze_status),
         "lint": normalize_check_state(args.lint_status),
@@ -147,7 +215,7 @@ def package(args: argparse.Namespace) -> dict:
 
     contract = {
         "schema_version": 1,
-        "applab_version": "0.8.0",
+        "applab_version": "0.8.1",
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
         "engine": args.engine,
@@ -155,7 +223,9 @@ def package(args: argparse.Namespace) -> dict:
         "package_id": args.package_id.strip(),
         "maestro_flow": str(flow) if flow else "",
         "analysis_mode": args.analysis_mode,
+        "analysis_baseline_sha": args.baseline_sha.strip().lower(),
         "analysis_plan": "analysis-plan.json",
+        "certification_policy": certification_policy,
         "apk": {
             "path": "app.apk",
             "size_bytes": (output / "app.apk").stat().st_size,
@@ -163,13 +233,17 @@ def package(args: argparse.Namespace) -> dict:
             "package_id": identity["package_id"],
             "version_name": identity["version_name"],
             "version_code": identity["version_code"],
+            "build_variant": build_variant,
+            "signing_cert_sha256": signing["certificate_sha256"],
+            "signing_subject": signing["subject"],
         },
         "quality_evidence": quality_evidence,
         "evidence_bytes": total,
     }
     plan = smart_test_plan.classify(
-        smart_test_plan.git_changed_files(repo_root),
+        smart_test_plan.git_changed_files(repo_root, args.baseline_sha),
         args.analysis_mode,
+        args.baseline_sha,
     )
     smart_test_plan.validate_plan(plan)
     (output / "analysis-plan.json").write_text(
@@ -199,7 +273,8 @@ def self_test() -> None:
             repository="owner/repo", resolved_sha="a"*40, engine="flutter",
             working_directory=".", package_id="com.example.app",
             maestro_flow=".maestro/smoke.yaml",
-            analysis_mode="fast",
+            analysis_mode="fast", baseline_sha="",
+            build_command="flutter build apk --debug",
             analyze_status="PASS", lint_status="N/A",
             test_status="PASS", build_status="PASS",
         )
@@ -221,6 +296,8 @@ def main() -> int:
     parser.add_argument("--package-id", default="")
     parser.add_argument("--maestro-flow", default="")
     parser.add_argument("--analysis-mode", choices=("fast", "full", "certification"), default="full")
+    parser.add_argument("--baseline-sha", default="")
+    parser.add_argument("--build-command", default="")
     parser.add_argument("--analyze-status", default="NOT_RUN")
     parser.add_argument("--lint-status", default="NOT_RUN")
     parser.add_argument("--test-status", default="NOT_RUN")

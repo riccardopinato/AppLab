@@ -24,7 +24,7 @@ ENGINES = {"auto", "flutter", "native_android"}
 def api_json(url: str, token: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "AppLab-Repo-Watcher/0.6.3",
+        "User-Agent": "AppLab-Repo-Watcher/0.8.1",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     if token:
@@ -94,6 +94,47 @@ def resolve_sha(repository: str, ref: str, token: str) -> str:
     return sha.lower()
 
 
+def latest_history_sha(path: str, repository: str) -> str:
+    if not path:
+        return ""
+    history = Path(path)
+    if not history.is_file():
+        return ""
+    latest_at = ""
+    latest_sha = ""
+    for raw in history.read_text(encoding="utf-8", errors="ignore").splitlines():
+        try:
+            item = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(item, dict) or str(item.get("repository", "")).strip() != repository:
+            continue
+        if str(item.get("result", "")).strip().upper() != "PASS":
+            continue
+        sha = str(item.get("resolved_sha", "")).strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            continue
+        recorded = str(item.get("recorded_at", ""))
+        if recorded >= latest_at:
+            latest_at = recorded
+            latest_sha = sha
+    return latest_sha
+
+
+def self_test_history() -> None:
+    import tempfile
+    with tempfile.TemporaryDirectory() as raw:
+        path = Path(raw) / "history.jsonl"
+        rows = [
+            {"repository": "owner/app", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
+            {"repository": "owner/app", "recorded_at": "2026-01-02T00:00:00Z", "result": "FAIL", "resolved_sha": "b" * 40},
+            {"repository": "owner/app", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
+        ]
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+        assert latest_history_sha(str(path), "owner/app") == "c" * 40
+        assert latest_history_sha(str(path), "owner/missing") == ""
+
+
 def entry_fingerprint(entry: dict[str, Any]) -> str:
     normalized = {
         key: value
@@ -127,6 +168,7 @@ def main() -> int:
     parser.add_argument("--native-matrix-output")
     parser.add_argument("--auto-matrix-output")
     parser.add_argument("--status-output")
+    parser.add_argument("--history-file", default="")
     parser.add_argument("--only-repository", default="")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--validate-only", action="store_true")
@@ -155,6 +197,7 @@ def main() -> int:
         seen_keys.add(key)
 
     if args.validate_only:
+        self_test_history()
         counts = {
             engine: sum(
                 1
@@ -204,6 +247,7 @@ def main() -> int:
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
+            previous_verified_sha = latest_history_sha(args.history_file, repository)
             cache_key = (
                 f"applab-c{contract_fingerprint}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
@@ -218,6 +262,7 @@ def main() -> int:
                     "cache_key": cache_key,
                     "cached": cached,
                     "scheduled": scheduled,
+                    "previous_verified_sha": previous_verified_sha,
                 }
             )
             if scheduled:
@@ -225,6 +270,7 @@ def main() -> int:
                     **entry,
                     "engine": engine,
                     "resolved_sha": sha,
+                    "previous_verified_sha": previous_verified_sha,
                     "cache_epoch": cache_epoch,
                     "contract_fingerprint": contract_fingerprint,
                     "config_fingerprint": config_fingerprint,

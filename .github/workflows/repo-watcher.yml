@@ -79,6 +79,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Restore central history for FAST diff baseline
+        uses: actions/cache/restore@v6
+        with:
+          path: .applab-history
+          key: applab-watch-history-discovery-${{ github.run_id }}
+          restore-keys: |
+            applab-watch-history-
+
       - name: Resolve watcher matrices
         id: matrix
         shell: bash
@@ -107,6 +115,7 @@ jobs:
             --native-matrix-output "$RUNNER_TEMP/native-matrix.json"
             --auto-matrix-output "$RUNNER_TEMP/auto-matrix.json"
             --status-output "$GITHUB_WORKSPACE/watch-discovery.json"
+            --history-file "$GITHUB_WORKSPACE/.applab-history/history.jsonl"
           )
           if [[ "$FORCE" == "true" ]]; then
             ARGS+=(--force)
@@ -219,6 +228,7 @@ jobs:
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
+      baseline_sha: ${{ matrix.previous_verified_sha }}
 
   verify_native:
     name: Native Android ${{ matrix.repository }}
@@ -254,6 +264,7 @@ jobs:
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
+      baseline_sha: ${{ matrix.previous_verified_sha }}
 
   verify_auto:
     name: Auto ${{ matrix.repository }}
@@ -273,6 +284,7 @@ jobs:
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
+      baseline_sha: ${{ matrix.previous_verified_sha }}
 
   aggregate:
     name: Update central watcher history

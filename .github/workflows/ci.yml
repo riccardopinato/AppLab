@@ -77,6 +77,7 @@ jobs:
           python scripts/prepare_visual_baseline.py --self-test
           python scripts/release_artifact.py --self-test
           python scripts/certification_gate.py --self-test
+          python scripts/finalize_certification_matrix.py --self-test
           python scripts/package_build_contract.py --self-test
           python scripts/validate_build_contract.py --self-test
           python scripts/visual_qa.py --self-test
@@ -102,7 +103,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.8.0"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.8.1"'; then
               healthy=true
               break
             fi
