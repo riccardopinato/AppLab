@@ -48,6 +48,12 @@ type ProjectRow = {
   performance?: PerformanceMetrics;
   applab_version: string;
   analysis_mode?: string;
+  analysis_lane?: string;
+  risk_score?: number | null;
+  risk_level?: string;
+  confidence?: number | null;
+  shadow_full?: boolean;
+  runtime_changed?: boolean | null;
   certification_status: string;
   certification_display_status?: string;
   certified_sha?: string;
@@ -91,6 +97,12 @@ type RecentRow = {
   watcher_run_url?: string;
   applab_version?: string;
   analysis_mode?: string;
+  analysis_lane?: string;
+  risk_score?: number | null;
+  risk_level?: string;
+  confidence?: number | null;
+  shadow_full?: boolean;
+  runtime_changed?: boolean | null;
   certification_status?: string;
   certification?: {
     status?: string;
@@ -117,6 +129,11 @@ type Snapshot = {
     certified_stale?: number;
     certification_blocked: number;
     not_certified: number;
+    fast_runtime?: number;
+    full_runtime?: number;
+    source_only?: number;
+    static_only?: number;
+    shadow_samples?: number;
   };
   projects: ProjectRow[];
   recent: RecentRow[];
@@ -226,6 +243,18 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <span>Not run</span>
               <strong>{snapshot.summary.not_run}</strong>
             </div>
+            <div className="good">
+              <span>FAST runtime</span>
+              <strong>{snapshot.summary.fast_runtime ?? 0}</strong>
+            </div>
+            <div className="warn">
+              <span>FULL escalations</span>
+              <strong>{snapshot.summary.full_runtime ?? 0}</strong>
+            </div>
+            <div>
+              <span>No runtime</span>
+              <strong>{(snapshot.summary.source_only ?? 0) + (snapshot.summary.static_only ?? 0)}</strong>
+            </div>
           </div>
 
           <div className="cc-table-wrap">
@@ -235,7 +264,10 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>Project</th>
                   <th>SHA</th>
                   <th>Engine</th>
-                  <th>Mode</th>
+                  <th>Mode / Lane</th>
+                  <th>Risk</th>
+                  <th>Confidence</th>
+                  <th>Shadow</th>
                   <th>Certification</th>
                   <th>Verdict</th>
                   <th>Maestro</th>
@@ -267,7 +299,22 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <code>{shortSha(project.resolved_sha)}</code>
                     </td>
                     <td>{project.engine}</td>
-                    <td>{project.analysis_mode ?? "full"}</td>
+                    <td>
+                      <div className="cc-project">
+                        <strong>{project.analysis_lane || project.analysis_mode || "full"}</strong>
+                        <small>{project.analysis_mode ?? "full"}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cc-project">
+                        <span className={badgeClass(project.risk_level === "CRITICAL" || project.risk_level === "HIGH" ? "WARN" : "PASS")}>
+                          {project.risk_level || "—"}
+                        </span>
+                        <small>{project.risk_score != null ? `${project.risk_score}/100` : "—"}</small>
+                      </div>
+                    </td>
+                    <td>{project.confidence != null ? `${Math.round(project.confidence * 100)}%` : "—"}</td>
+                    <td>{project.shadow_full ? <span className="cc-badge warn">FULL sample</span> : "—"}</td>
                     <td>
                       <div className="cc-project">
                         <span className={badgeClass(project.certification_display_status ?? project.certification_status)}>
@@ -358,6 +405,9 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <small>
                     {shortSha(item.resolved_sha || "")}
                     {item.engine ? ` · ${item.engine}` : ""}
+                    {item.analysis_lane ? ` · ${item.analysis_lane}` : ""}
+                    {item.risk_score != null ? ` · risk ${item.risk_score}/100` : ""}
+                    {item.confidence != null ? ` · conf ${Math.round(item.confidence * 100)}%` : ""}
                     {item.certification_status &&
                     item.certification_status !== "NOT_REQUESTED"
                       ? ` · ${item.certification_status}`
