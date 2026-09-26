@@ -371,6 +371,7 @@ def self_test() -> None:
         plan=analyze_repository(root,"fast",baseline,shadow_every=0)
         assert "lib/home.dart" in plan["impacted_files"]
         assert plan["run_runtime"]
+        api_head=_run(root,"rev-parse","HEAD").stdout.strip()
         orphan="f"*40
         fallback=analyze_repository(root,"fast",orphan,shadow_every=0)
         assert fallback["mode"]=="full" and fallback["fallback_full"]
@@ -378,7 +379,7 @@ def self_test() -> None:
         (root/"lib"/"other.dart").write_text("void other(){}\n")
         subprocess.run(["git","-C",str(root),"add","."],check=True)
         subprocess.run(["git","-C",str(root),"commit","-qm","other"],check=True)
-        nonancestor=analyze_repository(root,"fast",_run(root,"rev-parse","master").stdout.strip(),shadow_every=0)
+        nonancestor=analyze_repository(root,"fast",api_head,shadow_every=0)
         assert nonancestor["mode"]=="full"
     print("AppLab Adaptive Impact Planner self-test PASS")
 
