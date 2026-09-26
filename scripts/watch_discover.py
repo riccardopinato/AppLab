@@ -94,6 +94,31 @@ def resolve_sha(repository: str, ref: str, token: str) -> str:
     return sha.lower()
 
 
+def latest_history_sha(path: str, repository: str) -> str:
+    if not path:
+        return ""
+    history = Path(path)
+    if not history.is_file():
+        return ""
+    latest_at = ""
+    latest_sha = ""
+    for raw in history.read_text(encoding="utf-8", errors="ignore").splitlines():
+        try:
+            item = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(item, dict) or str(item.get("repository", "")).strip() != repository:
+            continue
+        sha = str(item.get("resolved_sha", "")).strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            continue
+        recorded = str(item.get("recorded_at", ""))
+        if recorded >= latest_at:
+            latest_at = recorded
+            latest_sha = sha
+    return latest_sha
+
+
 def entry_fingerprint(entry: dict[str, Any]) -> str:
     normalized = {
         key: value
@@ -127,6 +152,7 @@ def main() -> int:
     parser.add_argument("--native-matrix-output")
     parser.add_argument("--auto-matrix-output")
     parser.add_argument("--status-output")
+    parser.add_argument("--history-file", default="")
     parser.add_argument("--only-repository", default="")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--validate-only", action="store_true")
@@ -204,6 +230,7 @@ def main() -> int:
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
+            previous_verified_sha = latest_history_sha(args.history_file, repository)
             cache_key = (
                 f"applab-c{contract_fingerprint}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
@@ -218,6 +245,7 @@ def main() -> int:
                     "cache_key": cache_key,
                     "cached": cached,
                     "scheduled": scheduled,
+                    "previous_verified_sha": previous_verified_sha,
                 }
             )
             if scheduled:
@@ -225,6 +253,7 @@ def main() -> int:
                     **entry,
                     "engine": engine,
                     "resolved_sha": sha,
+                    "previous_verified_sha": previous_verified_sha,
                     "cache_epoch": cache_epoch,
                     "contract_fingerprint": contract_fingerprint,
                     "config_fingerprint": config_fingerprint,
