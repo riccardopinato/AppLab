@@ -622,7 +622,7 @@ jobs:
             --working-directory "${{ inputs.working_directory }}" \
             --package-id "${{ inputs.package_id }}" \
             --maestro-flow "${{ inputs.maestro_flow }}" \
-            --analysis-mode "${{ inputs.analysis_mode }}" \
+            --analysis-mode "${{ steps.impact.outputs.effective_mode }}" \
             --baseline-sha "${{ inputs.baseline_sha }}" \
             --impact-plan "$GITHUB_WORKSPACE/applab-report/impact-plan.json" \
             --build-command "${{ inputs.build_command }}" \
