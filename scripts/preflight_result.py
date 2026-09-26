@@ -74,6 +74,12 @@ def main() -> int:
         "analysis_diff": plan.get("diff", {}),
         "impacted_modules": plan.get("impacted_modules", []),
         "planner_elapsed_ms": plan.get("planner_elapsed_ms"),
+        "timings": {
+            "preflight_elapsed_seconds": plan.get("preflight_elapsed_seconds", 0),
+            "preflight_total_elapsed_seconds": plan.get("preflight_total_elapsed_seconds", plan.get("preflight_elapsed_seconds", 0)),
+            "build_job_elapsed_seconds": 0,
+            "runtime_job_elapsed_seconds": 0,
+        },
         "runtime_evidence_inherited_from": str(plan.get("baseline_sha", "")) if lane == "NO_RUNTIME_CHANGE" else "",
         "static_analysis": static_status,
         "apk": "",
