@@ -16,6 +16,9 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "--history-key",
         "--source-ref",
         "Cache analysis-only resolved commit",
+        "Restore target source before trusted packaging",
+        "steps.trusted_target.outputs.apk_file",
+        "--history-file",
     ),
     ".github/workflows/external-native-android-runner.yml": (
         "source_ref:",
@@ -27,6 +30,9 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "--history-key",
         "--source-ref",
         "Cache analysis-only resolved commit",
+        "Restore target source before trusted packaging",
+        "steps.trusted_target.outputs.apk_file",
+        "--history-file",
     ),
     ".github/workflows/universal-project-runner.yml": (
         "source_ref:",
@@ -47,6 +53,8 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "pipeline_metrics.py",
         "shadow_calibration.py",
         "AppLab v0.9.0 Trusted APK Verification",
+        "BASELINE_FALLBACK",
+        "effective FULL fallback",
     ),
     ".github/workflows/production-certification.yml": (
         "analysis_mode: certification",
