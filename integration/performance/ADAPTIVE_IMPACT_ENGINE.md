@@ -93,7 +93,9 @@ The impact plan records:
 - predicted FAST lab selection for shadow runs;
 - historical failure count;
 - cache domains/fingerprint;
-- planner duration.
+- planner duration;
+- post-planning pipeline duration;
+- Control Center p50/p95 latency once historical samples exist.
 
 Control Center surfaces lane, risk, confidence, shadow status and fingerprint.
 
