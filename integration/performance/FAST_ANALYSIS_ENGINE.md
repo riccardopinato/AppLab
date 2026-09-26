@@ -1,50 +1,43 @@
-# AppLab v0.8.1 — Fast Analysis Engine & Smart Test Orchestration
+# AppLab v0.9 — FAST Analysis Engine
 
-AppLab keeps three explicit verification modes:
+FAST is now implemented by the Adaptive Impact Analysis & Incremental
+Verification Engine. The authoritative specification is
+[`ADAPTIVE_IMPACT_ENGINE.md`](ADAPTIVE_IMPACT_ENGINE.md).
 
-- `fast`: continuous analysis with core launch/crash/visual/interaction checks plus only the specialist labs relevant to the changed files;
-- `full`: the complete diagnostic suite and normal baseline-seeding path;
-- `certification`: the production release gate.
+## Compatibility contract
 
-Repo Watcher defaults to FAST. Manual project verification defaults to FULL.
+AppLab still accepts the public analysis modes:
 
-## Trusted changed-file range
+- `fast`
+- `full`
+- `certification`
 
-v0.8.1 does **not** classify only the last commit. Repo Watcher restores central history and supplies the most recent verified SHA for the target repository. The build runner retrieves that commit when available and the Smart Test Planner calculates:
+Internally, FAST resolves to one of:
 
-```
-last verified SHA .. current SHA
-```
+- `NO_RUNTIME_CHANGE`
+- `STATIC_ONLY`
+- `FAST_RUNTIME`
+- `FULL_RUNTIME` (automatic safe escalation)
 
-Every changed path across that whole range participates in specialist-lab selection. This prevents an intermediate database/network/background change from being hidden by a later documentation-only commit.
+FULL resolves to `FULL_RUNTIME`; certification resolves to `CERTIFICATION`.
 
-The range is stored in the isolated contract as `analysis_baseline_sha` and in `analysis-plan.json` as `baseline_sha`. The trusted verifier requires both values to agree.
+## Baseline safety
 
-If the previous SHA is missing, invalid or cannot be retrieved, changed-file discovery yields no trusted range and FAST safely falls back to FULL.
+FAST compares the last trusted PASS for the exact repository/history-key/ref
+against the current SHA. The baseline must exist and be an ancestor of HEAD.
+Shallow runners progressively deepen history to prove ancestry. Missing or
+unprovable ranges become FULL_RUNTIME.
 
-## Specialist selection
+## Runtime safety
 
-Core launch, crash/ANR detection, Maestro when enabled, Visual Journey and Safe Interaction Crawler remain outside selective specialist skipping.
+FAST_RUNTIME always preserves the core runtime sentinels. Only specialist labs
+are selectively skipped. Every skip remains `SKIPPED`, never PASS.
 
-Typical selections include:
+FAST cannot publish a production release artifact. CERTIFICATION remains the
+only release-authoritative mode.
 
-- UI/Compose/Flutter screen change → Configuration + Performance;
-- networking/API/sync → Network and related background/performance coverage;
-- Room/database/migration → Persistence + Storage + Upgrade;
-- service/worker/notification → Background + Resource Pressure/System as matched;
-- manifest/permissions → System UI and Upgrade where applicable.
+## Calibration
 
-Skipped specialist labs remain explicitly `SKIPPED`; they are never converted to PASS.
-
-## Baseline safeguards
-
-FAST still falls back to FULL when trusted visual/upgrade baselines required by the runtime verifier are unavailable. FAST does not promote Performance or Upgrade baselines and cannot publish a production release APK.
-
-## Evidence
-
-- `contract.json`: requested mode and last verified SHA;
-- `analysis-plan.json`: complete changed-file range, selected labs and reasons;
-- `result.json`: effective analysis mode;
-- Control Center: latest FAST/FULL/CERTIFICATION result plus separate production-certification state.
-
-The planner self-test creates a real temporary Git repository with multiple commits and verifies that a database change in an intermediate commit is still detected even when the final commit changes only documentation.
+Periodic deterministic shadow FULL runs retain the FAST prediction while
+executing all labs. Divergence and false-negative evidence is stored alongside
+normal pipeline metrics and is the basis for future threshold tuning.
