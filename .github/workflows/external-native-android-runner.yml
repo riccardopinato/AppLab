@@ -135,6 +135,11 @@ on:
         required: false
         default: ""
         type: string
+      history_risk_bias:
+        description: Historical failure risk bias supplied by Repo Watcher
+        required: false
+        default: 0
+        type: number
       publish_release_artifact:
         description: Allow CERTIFIED runs to publish the verified APK
         required: false
@@ -247,6 +252,10 @@ on:
         required: false
         default: ""
         type: string
+      history_risk_bias:
+        required: false
+        default: 0
+        type: number
       publish_release_artifact:
         required: false
         default: true
@@ -267,6 +276,13 @@ jobs:
     outputs:
       resolved_sha: ${{ steps.target.outputs.resolved_sha }}
       artifact_name: ${{ steps.contract.outputs.artifact_name }}
+      analysis_lane: ${{ steps.impact.outputs.lane }}
+      effective_mode: ${{ steps.impact.outputs.effective_mode }}
+      runtime_required: ${{ steps.impact.outputs.runtime_required }}
+      static_required: ${{ steps.impact.outputs.static_required }}
+      risk_score: ${{ steps.impact.outputs.risk_score }}
+      confidence: ${{ steps.impact.outputs.confidence }}
+      shadow_full: ${{ steps.impact.outputs.shadow_full }}
 
     steps:
       - name: Validate target coordinates
@@ -345,7 +361,38 @@ jobs:
             echo "apk_path=${{ inputs.apk_path }}"
           } | tee "$GITHUB_WORKSPACE/applab-report/project.txt"
 
+      - name: Plan adaptive analysis
+        id: impact
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/smart_test_plan.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --mode "${{ inputs.analysis_mode }}" \
+            --baseline-sha "${{ inputs.baseline_sha }}" \
+            --repository "${{ inputs.repository }}" \
+            --resolved-sha "${{ steps.target.outputs.resolved_sha }}" \
+            --history-risk-bias "${{ inputs.history_risk_bias }}" \
+            --shadow-rate 10 \
+            --output "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Adaptive analysis summary
+        shell: bash
+        run: |
+          {
+            echo "## AppLab v0.9 Adaptive Impact Analysis"
+            echo
+            echo "- Lane: `${{ steps.impact.outputs.lane }}`"
+            echo "- Effective mode: `${{ steps.impact.outputs.effective_mode }}`"
+            echo "- Risk: `${{ steps.impact.outputs.risk_level }}` (${{ steps.impact.outputs.risk_score }}/100)"
+            echo "- Confidence: `${{ steps.impact.outputs.confidence }}`"
+            echo "- Runtime required: `${{ steps.impact.outputs.runtime_required }}`"
+            echo "- Shadow FULL sample: `${{ steps.impact.outputs.shadow_full }}`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Validate Android project
+        if: steps.impact.outputs.static_required == 'true'
         shell: bash
         run: |
           PROJECT_DIR="$GITHUB_WORKSPACE/target/${{ inputs.working_directory }}"
@@ -359,12 +406,14 @@ jobs:
           fi
 
       - name: Setup Java
+        if: steps.impact.outputs.static_required == 'true'
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: ${{ inputs.java_version }}
 
       - name: Install Android SDK components
+        if: steps.impact.outputs.static_required == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -387,51 +436,100 @@ jobs:
             "build-tools;${{ inputs.build_tools }}"
 
       - name: Setup Gradle
+        if: steps.impact.outputs.static_required == 'true'
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: ${{ inputs.gradle_version }}
 
       - name: Target preparation
-        if: inputs.prepare_command != ''
+        if: steps.impact.outputs.static_required == 'true' && inputs.prepare_command != ''
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
         env:
           APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}
         run: bash -Eeuo pipefail -c "$APPLAB_PREPARE_COMMAND"
 
-      - name: Unit tests
-        if: inputs.test_command != ''
+      - name: Adaptive Android quality and build plan
+        if: steps.impact.outputs.static_required == 'true'
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
         env:
-          APPLAB_TEST_COMMAND: ${{ inputs.test_command }}
+          TEST_COMMAND: ${{ inputs.test_command }}
+          LINT_COMMAND: ${{ inputs.lint_command }}
+          BUILD_COMMAND: ${{ inputs.build_command }}
+          RUNTIME_REQUIRED: ${{ steps.impact.outputs.runtime_required }}
+          ANALYSIS_LANE: ${{ steps.impact.outputs.lane }}
+          CONFIDENCE: ${{ steps.impact.outputs.confidence }}
+          MODULES_JSON: ${{ steps.impact.outputs.android_modules }}
         run: |
-          set -o pipefail
-          bash -Eeuo pipefail -c "$APPLAB_TEST_COMMAND" 2>&1 |
-            tee "$GITHUB_WORKSPACE/applab-report/android-test.txt"
-
-      - name: Android lint
-        if: inputs.lint_command != ''
-        working-directory: target/${{ inputs.working_directory }}
-        shell: bash
-        env:
-          APPLAB_LINT_COMMAND: ${{ inputs.lint_command }}
-        run: |
-          set -o pipefail
-          bash -Eeuo pipefail -c "$APPLAB_LINT_COMMAND" 2>&1 |
-            tee "$GITHUB_WORKSPACE/applab-report/android-lint.txt"
-
-      - name: Build APK
-        working-directory: target/${{ inputs.working_directory }}
-        shell: bash
-        env:
-          APPLAB_BUILD_COMMAND: ${{ inputs.build_command }}
-        run: |
-          set -o pipefail
-          bash -Eeuo pipefail -c "$APPLAB_BUILD_COMMAND" 2>&1 |
-            tee "$GITHUB_WORKSPACE/applab-report/android-build.txt"
+          set -Eeuo pipefail
+          python - <<'PY' > "$RUNNER_TEMP/applab-gradle-plan.json"
+          import json, os, re, shlex
+          test=os.environ.get("TEST_COMMAND","").strip()
+          lint=os.environ.get("LINT_COMMAND","").strip()
+          build=os.environ.get("BUILD_COMMAND","").strip() if os.environ.get("RUNTIME_REQUIRED")=="true" else ""
+          commands=[x for x in (test,lint,build) if x]
+          modules=json.loads(os.environ.get("MODULES_JSON") or "[]")
+          confidence=float(os.environ.get("CONFIDENCE") or "0")
+          lane=os.environ.get("ANALYSIS_LANE","")
+          parsed=[]
+          for command in commands:
+              parts=shlex.split(command)
+              parsed.append(parts)
+          can_merge=bool(parsed) and all(p and p[0] in {"gradle","./gradlew","gradlew"} for p in parsed)
+          executable=parsed[0][0] if can_merge else ""
+          tasks=[]
+          flags=[]
+          if can_merge:
+              for parts in parsed:
+                  for part in parts[1:]:
+                      if part.startswith("-"):
+                          if part not in flags: flags.append(part)
+                      elif re.fullmatch(r"[:A-Za-z0-9_.-]+",part):
+                          if part not in tasks: tasks.append(part)
+                      else:
+                          can_merge=False
+              if can_merge and lane in {"fast_runtime","static_only"} and confidence >= .85 and len(modules)==1:
+                  module=modules[0]
+                  scoped=[]
+                  for task in tasks:
+                      if task.startswith(":") or ":" in task:
+                          scoped.append(task)
+                      else:
+                          scoped.append(f":{module}:{task}")
+                  tasks=scoped
+          print(json.dumps({
+              "merge":can_merge,
+              "executable":executable,
+              "tasks":tasks,
+              "flags":flags,
+              "commands":commands,
+          }))
+          PY
+          MERGE="$(python -c 'import json; print("true" if json.load(open("'"$RUNNER_TEMP/applab-gradle-plan.json"'"))["merge"] else "false")')"
+          if [[ "$MERGE" == "true" ]]; then
+            mapfile -t PARTS < <(python - <<'PY'
+          import json, os
+          p=json.load(open(os.environ["RUNNER_TEMP"]+"/applab-gradle-plan.json"))
+          for item in [p["executable"],*p["tasks"],*p["flags"]]: print(item)
+          PY
+            )
+            "${PARTS[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/android-quality-build.txt"
+          else
+            : > "$GITHUB_WORKSPACE/applab-report/android-quality-build.txt"
+            if [[ -n "$TEST_COMMAND" ]]; then
+              bash -Eeuo pipefail -c "$TEST_COMMAND" 2>&1 | tee -a "$GITHUB_WORKSPACE/applab-report/android-quality-build.txt"
+            fi
+            if [[ -n "$LINT_COMMAND" ]]; then
+              bash -Eeuo pipefail -c "$LINT_COMMAND" 2>&1 | tee -a "$GITHUB_WORKSPACE/applab-report/android-quality-build.txt"
+            fi
+            if [[ "$RUNTIME_REQUIRED" == "true" ]]; then
+              bash -Eeuo pipefail -c "$BUILD_COMMAND" 2>&1 | tee -a "$GITHUB_WORKSPACE/applab-report/android-quality-build.txt"
+            fi
+          fi
 
       - name: Resolve APK
+        if: steps.impact.outputs.runtime_required == 'true'
         id: apk
         shell: bash
         run: |
@@ -447,7 +545,7 @@ jobs:
           } | tee "$GITHUB_WORKSPACE/applab-report/apk.txt"
 
       - name: Verify APK signature
-        if: inputs.verify_signature
+        if: steps.impact.outputs.runtime_required == 'true' && inputs.verify_signature
         shell: bash
         run: |
           "$ANDROID_HOME/build-tools/${{ inputs.build_tools }}/apksigner" \
@@ -456,6 +554,7 @@ jobs:
 
 
       - name: Restore trusted AppLab contract packager
+        if: steps.impact.outputs.runtime_required == 'true'
         shell: bash
         env:
           APPLAB_TRUSTED_SHA: ${{ job.workflow_sha }}
@@ -466,6 +565,7 @@ jobs:
           test "$(git -C "$GITHUB_WORKSPACE/.applab" rev-parse HEAD)" = "$APPLAB_TRUSTED_SHA"
 
       - name: Package isolated APK contract
+        if: steps.impact.outputs.runtime_required == 'true'
         id: contract
         shell: bash
         run: |
@@ -491,6 +591,7 @@ jobs:
             --build-status "PASS"
 
       - name: Upload isolated APK contract
+        if: steps.impact.outputs.runtime_required == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.contract.outputs.artifact_name }}
@@ -499,6 +600,45 @@ jobs:
           retention-days: 2
           compression-level: 0
           include-hidden-files: true
+
+      - name: Finalize adaptive non-runtime result
+        if: steps.impact.outputs.runtime_required != 'true'
+        shell: bash
+        run: |
+          python .applab/scripts/non_runtime_result.py \
+            --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
+            --report-dir "$GITHUB_WORKSPACE/applab-report" \
+            --repository "${{ inputs.repository }}" \
+            --ref "${{ inputs.ref }}" \
+            --resolved-sha "${{ steps.target.outputs.resolved_sha }}" \
+            --history-key "${{ inputs.history_key }}" \
+            --engine native_android \
+            --run-id "$GITHUB_RUN_ID" \
+            --static-status PASS
+
+      - name: Upload adaptive non-runtime result
+        if: steps.impact.outputs.runtime_required != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-${{ inputs.history_key }}-${{ github.run_id }}
+          path: applab-report/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Prepare adaptive non-runtime cache
+        if: steps.impact.outputs.runtime_required != 'true' && inputs.cache_verification
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/.applab-watch-cache"
+          mkdir -p "$GITHUB_WORKSPACE/.applab-watch-cache"
+          cp "$GITHUB_WORKSPACE/applab-report/result.json" "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
+          cp "$GITHUB_WORKSPACE/applab-report/summary.md" "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
+
+      - name: Cache adaptive non-runtime result
+        if: steps.impact.outputs.runtime_required != 'true' && inputs.cache_verification
+        uses: actions/cache/save@v6
+        with:
+          path: .applab-watch-cache
+          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
 
       - name: Upload build-phase evidence
         if: always()
@@ -512,7 +652,7 @@ jobs:
   verify:
     name: Trusted verify ${{ inputs.repository }}
     needs: build
-    if: needs.build.result == 'success'
+    if: needs.build.result == 'success' && needs.build.outputs.runtime_required == 'true'
     uses: ./.github/workflows/trusted-apk-verifier.yml
     with:
       build_artifact_name: ${{ needs.build.outputs.artifact_name }}
@@ -525,7 +665,7 @@ jobs:
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
-      analysis_mode: ${{ inputs.analysis_mode }}
+      analysis_mode: ${{ needs.build.outputs.effective_mode }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
       run_maestro: ${{ inputs.run_maestro }}
       android_prepare_command: ${{ inputs.android_prepare_command }}
