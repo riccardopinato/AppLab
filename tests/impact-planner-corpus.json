@@ -77,7 +77,7 @@
       "files": [
         "app/src/main/java/com/example/sync/SyncWorker.kt"
       ],
-      "expected_lane": "FAST_RUNTIME",
+      "expected_lane": "FULL_RUNTIME",
       "required_labs": [
         "background",
         "resource_pressure",
