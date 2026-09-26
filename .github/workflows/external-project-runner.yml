@@ -527,14 +527,9 @@ jobs:
         id: metadata
         shell: bash
         env:
-          REUSABLE_PLAN: ${{ inputs.precomputed_plan_artifact_name }}
           REUSABLE_SOURCE: ${{ inputs.source_artifact_name }}
         run: |
-          if [[ -n "$REUSABLE_PLAN" ]]; then
-            PLAN_NAME="$REUSABLE_PLAN"
-          else
-            PLAN_NAME="applab-preflight-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}"
-          fi
+          PLAN_NAME="applab-preflight-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}"
           if [[ -n "$REUSABLE_SOURCE" ]]; then
             SOURCE_NAME="$REUSABLE_SOURCE"
           else
@@ -543,8 +538,7 @@ jobs:
           echo "plan_artifact_name=$PLAN_NAME" >> "$GITHUB_OUTPUT"
           echo "source_artifact_name=$SOURCE_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Upload adaptive analysis plan
-        if: inputs.precomputed_plan_artifact_name == ''
+      - name: Upload normalized adaptive analysis plan
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.metadata.outputs.plan_artifact_name }}
