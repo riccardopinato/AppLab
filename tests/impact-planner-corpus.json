@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "name": "docs_only",
+      "engine": "flutter",
+      "files": [
+        "README.md",
+        "docs/architecture.md"
+      ],
+      "expected_lane": "NO_RUNTIME_CHANGE",
+      "max_risk": "LOW",
+      "required_labs": []
+    },
+    {
+      "name": "tests_only",
+      "engine": "flutter",
+      "files": [
+        "test/features/home/home_test.dart"
+      ],
+      "expected_lane": "STATIC_ONLY",
+      "max_risk": "LOW",
+      "required_labs": []
+    },
+    {
+      "name": "flutter_ui",
+      "engine": "flutter",
+      "files": [
+        "lib/features/home/home_page.dart"
+      ],
+      "expected_lane": "FAST_RUNTIME",
+      "required_labs": [
+        "configuration",
+        "performance"
+      ]
+    },
+    {
+      "name": "network_api",
+      "engine": "flutter",
+      "files": [
+        "lib/data/network/api_client.dart"
+      ],
+      "expected_lane": "FAST_RUNTIME",
+      "required_labs": [
+        "network",
+        "performance"
+      ]
+    },
+    {
+      "name": "database_migration",
+      "engine": "native_android",
+      "files": [
+        "app/src/main/java/com/example/data/Migration_4_5.kt"
+      ],
+      "expected_lane": "FULL_RUNTIME",
+      "required_labs": [
+        "persistence",
+        "storage",
+        "upgrade"
+      ]
+    },
+    {
+      "name": "manifest_permission",
+      "engine": "native_android",
+      "files": [
+        "app/src/main/AndroidManifest.xml"
+      ],
+      "expected_lane": "FULL_RUNTIME",
+      "required_labs": [
+        "system",
+        "upgrade"
+      ]
+    },
+    {
+      "name": "background_worker",
+      "engine": "native_android",
+      "files": [
+        "app/src/main/java/com/example/sync/SyncWorker.kt"
+      ],
+      "expected_lane": "FAST_RUNTIME",
+      "required_labs": [
+        "background",
+        "resource_pressure",
+        "performance"
+      ]
+    },
+    {
+      "name": "dependency_build_config",
+      "engine": "native_android",
+      "files": [
+        "app/build.gradle.kts"
+      ],
+      "expected_lane": "FULL_RUNTIME",
+      "required_labs": [
+        "performance",
+        "upgrade"
+      ]
+    },
+    {
+      "name": "large_refactor",
+      "engine": "flutter",
+      "generated_count": 501,
+      "generated_pattern": "lib/generated/file_{i}.dart",
+      "expected_lane": "FULL_RUNTIME",
+      "required_labs": [
+        "performance",
+        "configuration"
+      ]
+    }
+  ]
+}
