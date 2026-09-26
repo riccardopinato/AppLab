@@ -72,11 +72,6 @@ on:
         required: false
         default: flutter build apk --debug
         type: string
-      run_flutter_tests:
-        description: Run flutter analyze and flutter test
-        required: false
-        default: true
-        type: boolean
       run_maestro:
         description: Run Maestro after launch
         required: false
@@ -203,11 +198,6 @@ on:
         required: false
         default: flutter build apk --debug
         type: string
-      run_flutter_tests:
-        description: Run flutter analyze and flutter test
-        required: false
-        default: true
-        type: boolean
       run_maestro:
         description: Run Maestro after launch
         required: false
@@ -228,11 +218,6 @@ on:
         required: false
         default: false
         type: boolean
-      cache_epoch:
-        description: Legacy watcher cache epoch (retained for compatibility)
-        required: false
-        default: "1"
-        type: string
       contract_fingerprint:
         description: Automatic AppLab verification contract fingerprint
         required: false
@@ -263,16 +248,6 @@ on:
         required: false
         default: true
         type: boolean
-      start_timeout:
-        description: Seconds allowed for the app process to start
-        required: false
-        default: "30"
-        type: string
-      settle_seconds:
-        description: Seconds to let the app settle before visual verification
-        required: false
-        default: "5"
-        type: string
 
 permissions:
   contents: read
@@ -464,10 +439,6 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          EXTRA=()
-          if [[ "${{ inputs.run_flutter_tests }}" != "true" ]]; then
-            EXTRA+=(--skip-quality)
-          fi
           python .applab/scripts/adaptive_checks.py \
             --plan "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
             --engine flutter \
@@ -475,8 +446,7 @@ jobs:
             --repo-root "$GITHUB_WORKSPACE/target" \
             --report-dir "$GITHUB_WORKSPACE/applab-report" \
             --build-command "${{ inputs.build_command }}" \
-            --github-output "$GITHUB_OUTPUT" \
-            "${EXTRA[@]}"
+            --github-output "$GITHUB_OUTPUT"
 
       - name: Resolve APK
         if: steps.impact.outputs.run_build == 'true'
@@ -647,8 +617,8 @@ jobs:
       android_prepare_command: ${{ inputs.android_prepare_command }}
       api_level: ${{ inputs.api_level }}
       emulator_profile: ${{ inputs.emulator_profile }}
-      start_timeout: ${{ inputs.start_timeout != '' && inputs.start_timeout || '30' }}
-      settle_seconds: ${{ inputs.settle_seconds != '' && inputs.settle_seconds || '5' }}
+      start_timeout: "30"
+      settle_seconds: "5"
 
   report_build_failure:
     name: Report build failure
