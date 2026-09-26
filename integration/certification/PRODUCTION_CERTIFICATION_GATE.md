@@ -1,6 +1,8 @@
-# AppLab v0.8.1 — Production Certification Gate
+# AppLab v0.9.0 — Production Certification Gate
 
 AppLab separates continuous verification from production certification. FAST and FULL are quality-verification modes; only an explicit CERTIFICATION run can authorize the AppLab verified release artifact.
+
+v0.9's Adaptive Impact Engine does **not** weaken this boundary. NO_RUNTIME_CHANGE, STATIC_ONLY and FAST_RUNTIME can save continuous-verification work, while FULL_RUNTIME can be selected automatically for risky changes. None of those adaptive lanes can satisfy CERTIFICATION. A certification request always uses the release profile, complete mandatory evidence and the production matrix below.
 
 ## Verdicts
 
@@ -80,7 +82,7 @@ Safe Interaction Crawler remains supporting evidence because a conservative craw
 
 ## Certification matrix
 
-v0.8.1 uses two Android lanes:
+v0.9.0 uses two Android lanes:
 
 1. **Primary** — deep CERTIFICATION lane, default API 35 / `pixel_7_pro` / `google_apis` / x86_64.
 2. **Compatibility** — release-profile FULL verification on a second API. With `compatibility_api_level=auto`, AppLab derives a representative API from minSdk while keeping it below the primary API when possible.
@@ -109,7 +111,7 @@ The certification gate recomputes SHA-256 from `app.apk`. Release publication re
 
 Hosted certification currently runs Android Emulator x86_64. A universal RELEASE APK that contains compatible x86_64 code can therefore be certified byte-for-byte and published unchanged.
 
-An ARM64-only distribution artifact cannot honestly receive byte-identical runtime certification on this x86_64 lane. Projects that require ARM64-only or hardware-specific final validation should set `requires_real_device=true`; v0.8.1 will remain BLOCKED until a trusted physical/ARM64 device path is available. AppLab does not label emulator evidence as real-device evidence.
+An ARM64-only distribution artifact cannot honestly receive byte-identical runtime certification on this x86_64 lane. Projects that require ARM64-only or hardware-specific final validation should set `requires_real_device=true`; v0.9.0 will remain BLOCKED until a trusted physical/ARM64 device path is available. AppLab does not label emulator evidence as real-device evidence.
 
 ## Real-device evidence
 
