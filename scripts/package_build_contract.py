@@ -213,9 +213,19 @@ def package(args: argparse.Namespace) -> dict:
         "build": normalize_check_state(args.build_status),
     }
 
+    plan = smart_test_plan.build_plan(
+        repo_root,
+        args.analysis_mode,
+        args.baseline_sha,
+        args.engine,
+        args.history_file,
+        args.repository,
+    )
+    smart_test_plan.validate_plan(plan)
+
     contract = {
         "schema_version": 1,
-        "applab_version": "0.8.1",
+        "applab_version": "0.9.0",
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
         "engine": args.engine,
@@ -223,6 +233,11 @@ def package(args: argparse.Namespace) -> dict:
         "package_id": args.package_id.strip(),
         "maestro_flow": str(flow) if flow else "",
         "analysis_mode": args.analysis_mode,
+        "analysis_effective_mode": plan.get("mode", args.analysis_mode),
+        "analysis_lane": plan.get("lane", "FULL_RUNTIME"),
+        "analysis_risk": plan.get("risk", {}),
+        "analysis_confidence": plan.get("confidence", 0),
+        "analysis_shadow_full": bool(plan.get("shadow_full", False)),
         "analysis_baseline_sha": args.baseline_sha.strip().lower(),
         "analysis_plan": "analysis-plan.json",
         "certification_policy": certification_policy,
@@ -240,12 +255,6 @@ def package(args: argparse.Namespace) -> dict:
         "quality_evidence": quality_evidence,
         "evidence_bytes": total,
     }
-    plan = smart_test_plan.classify(
-        smart_test_plan.git_changed_files(repo_root, args.baseline_sha),
-        args.analysis_mode,
-        args.baseline_sha,
-    )
-    smart_test_plan.validate_plan(plan)
     (output / "analysis-plan.json").write_text(
         json.dumps(plan, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -273,7 +282,7 @@ def self_test() -> None:
             repository="owner/repo", resolved_sha="a"*40, engine="flutter",
             working_directory=".", package_id="com.example.app",
             maestro_flow=".maestro/smoke.yaml",
-            analysis_mode="fast", baseline_sha="",
+            analysis_mode="fast", baseline_sha="", history_file="",
             build_command="flutter build apk --debug",
             analyze_status="PASS", lint_status="N/A",
             test_status="PASS", build_status="PASS",
@@ -298,6 +307,7 @@ def main() -> int:
     parser.add_argument("--analysis-mode", choices=("fast", "full", "certification"), default="full")
     parser.add_argument("--baseline-sha", default="")
     parser.add_argument("--build-command", default="")
+    parser.add_argument("--history-file", default="")
     parser.add_argument("--analyze-status", default="NOT_RUN")
     parser.add_argument("--lint-status", default="NOT_RUN")
     parser.add_argument("--test-status", default="NOT_RUN")
