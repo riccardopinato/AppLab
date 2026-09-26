@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import smart_test_plan
+import domain_fingerprint
 from pathlib import Path, PurePosixPath
 
 ALLOWED_EVIDENCE_SUFFIXES = {".yaml", ".yml", ".json"}
@@ -235,6 +236,10 @@ def package(args: argparse.Namespace) -> dict:
     if str(plan.get("requested_mode", args.analysis_mode)).strip().lower() != args.analysis_mode:
         raise ValueError("Preflight analysis plan requested mode does not match build contract")
 
+    selected_contract_fingerprint = domain_fingerprint.selected_fingerprint(
+        Path(__file__).resolve().parent.parent, plan
+    )
+
     contract = {
         "schema_version": 1,
         "applab_version": "0.9.0",
@@ -252,6 +257,7 @@ def package(args: argparse.Namespace) -> dict:
         "analysis_confidence": plan.get("confidence"),
         "analysis_shadow_full": bool(plan.get("shadow_full")),
         "analysis_domains": plan.get("domains", []),
+        "analysis_contract_fingerprint": selected_contract_fingerprint,
         "certification_policy": certification_policy,
         "apk": {
             "path": "app.apk",
