@@ -213,14 +213,24 @@ def package(args: argparse.Namespace) -> dict:
         "build": normalize_check_state(args.build_status),
     }
 
-    plan = smart_test_plan.build_plan(
-        repo_root,
-        args.analysis_mode,
-        args.baseline_sha,
-        args.engine,
-        args.history_file,
-        args.repository,
-    )
+    if args.analysis_plan_input:
+        plan = smart_test_plan.validate_plan(
+            json.loads(Path(args.analysis_plan_input).read_text(encoding="utf-8"))
+        )
+        if str(plan.get("baseline_sha", "")).strip().lower() != args.baseline_sha.strip().lower():
+            raise ValueError("Preflight analysis baseline does not match build contract input")
+        head_sha = str(plan.get("head_sha", "")).strip().lower()
+        if head_sha and head_sha != args.resolved_sha.strip().lower():
+            raise ValueError("Preflight analysis head SHA does not match resolved build SHA")
+    else:
+        plan = smart_test_plan.build_plan(
+            repo_root,
+            args.analysis_mode,
+            args.baseline_sha,
+            args.engine,
+            args.history_file,
+            args.repository,
+        )
     smart_test_plan.validate_plan(plan)
 
     contract = {
@@ -282,7 +292,7 @@ def self_test() -> None:
             repository="owner/repo", resolved_sha="a"*40, engine="flutter",
             working_directory=".", package_id="com.example.app",
             maestro_flow=".maestro/smoke.yaml",
-            analysis_mode="fast", baseline_sha="", history_file="",
+            analysis_mode="fast", baseline_sha="", history_file="", analysis_plan_input="",
             build_command="flutter build apk --debug",
             analyze_status="PASS", lint_status="N/A",
             test_status="PASS", build_status="PASS",
@@ -308,6 +318,7 @@ def main() -> int:
     parser.add_argument("--baseline-sha", default="")
     parser.add_argument("--build-command", default="")
     parser.add_argument("--history-file", default="")
+    parser.add_argument("--analysis-plan-input", default="")
     parser.add_argument("--analyze-status", default="NOT_RUN")
     parser.add_argument("--lint-status", default="NOT_RUN")
     parser.add_argument("--test-status", default="NOT_RUN")
