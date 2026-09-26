@@ -1,3 +1,53 @@
+## v0.9.0 — Adaptive Impact Analysis & Incremental Verification Engine
+
+AppLab v0.9 moves the verification decision **before** expensive static analysis,
+APK build and emulator startup. FAST is no longer only a selective runtime mode:
+the Adaptive Impact Planner inspects the complete trusted baseline range, validates
+that the baseline is an ancestor of the current target, measures file status and
+line churn, samples changed hunks, expands impact through a bounded import graph,
+adds historical failure risk, and produces an explicit risk/confidence decision.
+
+Five execution lanes are now available:
+
+- `NO_RUNTIME_CHANGE`: documentation-only changes reuse the previous trusted
+  runtime evidence and skip SDK setup, APK build and emulator execution.
+- `STATIC_ONLY`: test/tooling-only changes execute the required static checks
+  without producing a redundant APK/runtime run.
+- `FAST_RUNTIME`: builds the APK, keeps core launch/crash/visual/interaction
+  verification and executes only specialist labs selected by impact evidence.
+- `FULL_RUNTIME`: automatically selected for high risk, low confidence,
+  oversized/untrusted diffs, missing/invalid baselines, or periodic shadow runs.
+- `CERTIFICATION`: keeps the complete production certification matrix and
+  release-integrity contract introduced in v0.8.x.
+
+Flutter FAST checks can narrow `dart analyze` and `flutter test` to impacted
+paths when confidence is high. Native Android builds consolidate compatible
+Gradle test/lint/build tasks into one execution graph and can scope tasks to a
+single affected Gradle module when that mapping is unambiguous. Unsafe targeting
+always falls back to broader checks.
+
+Every tenth eligible FAST runtime SHA is deterministically eligible for a
+**shadow FULL** calibration run. The original FAST prediction is retained and
+compared with the complete runtime result, producing explicit divergence and
+false-negative evidence. Pipeline metrics record planner latency, change/impact
+size, selected-lab count, quality-stage timings and shadow calibration results.
+
+Runtime startup is also optimized without weakening isolation: Maestro 2.10.0
+is cached by pinned version, while Android verification restores a clean AVD
+cache generated in a separate preparation job. Verification jobs restore but do
+not save that AVD cache, so target-app state cannot contaminate the shared clean
+snapshot.
+
+Repo Watcher baselines are now scoped by repository, watcher history key and ref.
+Per-domain contract fingerprints use the specialist labs exercised by the
+previous trusted run, reducing unnecessary invalidation while keeping core and
+visual verification changes globally relevant. Project auto-discovery prefers
+`git ls-files` and falls back to filesystem traversal when Git metadata is not
+available.
+
+See `integration/performance/ADAPTIVE_IMPACT_ENGINE.md`,
+`integration/performance/FAST_ANALYSIS_ENGINE.md`, and `ROADMAP.md`.
+
 ## Network Lab cold-relaunch stabilization
 
 The Network & Offline Lab now treats a single transient `pidof` miss during a cold offline relaunch as insufficient evidence of an app failure. It still fails closed on target ANR/fatal exceptions and now requires the relaunched process to survive a short stabilization window before runtime health is marked PASS. Dedicated stage Logcat remains part of the evidence.
