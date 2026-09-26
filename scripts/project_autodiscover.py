@@ -198,6 +198,21 @@ def detect_gradle_version(project: Path, workflows: str) -> str:
     return value or "8.14.3"
 
 
+def detect_min_sdk(project: Path) -> str:
+    text = "\n".join(
+        read_text(path)
+        for path in files_under(project, {"build.gradle", "build.gradle.kts", "AndroidManifest.xml"})
+    )
+    return first_regex(
+        text,
+        [
+            r"minSdk\s*=\s*([0-9]+)",
+            r"minSdkVersion\s+([0-9]+)",
+            r"android:minSdkVersion=[\"']([0-9]+)[\"']",
+        ],
+    ) or "23"
+
+
 def detect_compile_sdk(project: Path) -> str:
     text = "\n".join(
         read_text(path)
@@ -233,6 +248,14 @@ def pick_gradle_command(lines: list[str], token: str) -> str:
             command = re.sub(r"\s+#.*$", "", command).strip()
             return command
     return ""
+
+
+def release_gradle_command(build_command: str, prefix: str) -> str:
+    if re.search(r"release", build_command, re.IGNORECASE):
+        return build_command
+    if re.search(r"debug", build_command, re.IGNORECASE):
+        return re.sub(r"debug", "Release", build_command, count=1, flags=re.IGNORECASE)
+    return f"{prefix} assembleRelease --stacktrace"
 
 
 def infer_apk_path(build_command: str) -> str:
@@ -304,10 +327,13 @@ def flutter_profile(root: Path, project: Path, workflows: str) -> dict[str, Any]
         ),
         "android_prepare_command": "",
         "api_level": "35",
+        "min_sdk": detect_min_sdk(project),
         "emulator_profile": "pixel_7_pro",
         "apk_path": "build/app/outputs/flutter-apk/app-debug.apk",
+        "certification_apk_path": "build/app/outputs/flutter-apk/app-release.apk",
         "package_id": package_id,
         "build_command": "flutter build apk --debug",
+        "certification_build_command": "flutter build apk --release",
         "run_flutter_tests": True,
         "run_maestro": True,
         "maestro_flow": detect_maestro_flow(root),
@@ -336,6 +362,7 @@ def native_profile(root: Path, project: Path, workflows: str) -> dict[str, Any]:
         lint_command = f"{prefix} lintDebug --stacktrace"
 
     compile_sdk = detect_compile_sdk(project)
+    release_build_command = release_gradle_command(build_command, prefix)
     build_tools = first_regex(
         workflows,
         [r"build-tools;([0-9]+(?:\.[0-9]+){1,2})"],
@@ -348,12 +375,15 @@ def native_profile(root: Path, project: Path, workflows: str) -> dict[str, Any]:
         "java_version": detect_java_version(root, project, workflows),
         "gradle_version": detect_gradle_version(project, workflows),
         "compile_sdk": compile_sdk,
+        "min_sdk": detect_min_sdk(project),
         "build_tools": build_tools,
         "prepare_command": "",
         "test_command": test_command,
         "lint_command": lint_command,
         "build_command": build_command,
+        "certification_build_command": release_build_command,
         "apk_path": infer_apk_path(build_command),
+        "certification_apk_path": infer_apk_path(release_build_command),
         "package_id": detect_package_id(project),
         "verify_signature": True,
         "android_prepare_command": "",
@@ -408,6 +438,8 @@ def self_test() -> None:
         assert profile["working_directory"] == "flutter_app"
         assert "flutter create" in profile["prepare_command"]
         assert "build_runner" in profile["post_pub_get_command"]
+        assert profile["certification_build_command"] == "flutter build apk --release"
+        assert profile["certification_apk_path"].endswith("app-release.apk")
 
     with tempfile.TemporaryDirectory() as raw:
         root = Path(raw)
@@ -434,6 +466,8 @@ def self_test() -> None:
         assert profile["gradle_version"] == "9.6.0"
         assert profile["build_command"].startswith("gradle assembleSlim")
         assert profile["apk_path"] == "app/build/outputs/apk/slim/app-slim.apk"
+        assert "assembleRelease" in profile["certification_build_command"]
+        assert profile["certification_apk_path"].endswith("app-release.apk")
 
     print("AppLab universal project auto-discovery self-test PASS")
 
