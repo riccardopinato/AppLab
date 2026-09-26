@@ -18,6 +18,20 @@ LABS = (
 SOURCE_SUFFIXES = {".kt", ".java", ".dart", ".xml", ".gradle", ".kts", ".toml", ".json", ".yaml", ".yml"}
 DOC_PREFIXES = ("docs/", "readme", "changelog", "license", ".github/issue", ".github/pull")
 STATIC_PREFIXES = ("test/", "tests/", "androidtest/", ".github/")
+
+ROOT_DOC_NAMES = {
+    "readme", "readme.md", "readme.txt", "changelog", "changelog.md",
+    "license", "license.md", "license.txt", "contributing.md",
+    "code_of_conduct.md", "security.md",
+}
+
+def is_documentation_path(path: str) -> bool:
+    value = path.replace("\\", "/").lower().lstrip("./")
+    name = value.rsplit("/", 1)[-1]
+    return (
+        value.startswith(("docs/", "documentation/", ".github/issue", ".github/pull"))
+        or ("/" not in value and name in ROOT_DOC_NAMES)
+    )
 GLOBAL_RISK_PATTERNS = (
     r"pubspec\.ya?ml$", r"gradle\.properties$", r"settings\.gradle", r"build\.gradle",
     r"libs\.versions\.toml$", r"androidmanifest\.xml$", r"minSdk", r"targetSdk",
@@ -113,17 +127,16 @@ def tracked_files(repo: Path) -> list[str]:
         return [x.strip().replace("\\", "/") for x in result.stdout.splitlines() if x.strip()]
     return []
 
-def _imports(path: Path) -> list[str]:
-    try:
-        text = path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
+def _imports_from_head(repo: Path, relative: str) -> list[str]:
+    blob = _run(repo, "show", f"HEAD:{relative}", timeout=15)
+    if blob.returncode != 0:
         return []
     found: list[str] = []
     for pattern in (
         r"(?m)^\s*import\s+['\"]([^'\"]+)['\"]",
         r"(?m)^\s*import\s+([A-Za-z0-9_.*]+)",
     ):
-        found.extend(re.findall(pattern, text))
+        found.extend(re.findall(pattern, blob.stdout))
     return found[:100]
 
 def dependency_impacts(repo: Path, changed: list[str], tracked: list[str]) -> list[str]:
@@ -137,7 +150,7 @@ def dependency_impacts(repo: Path, changed: list[str], tracked: list[str]) -> li
     for rel in candidates[:5000]:
         if rel in changed_set:
             continue
-        imports = _imports(repo / rel)
+        imports = _imports_from_head(repo, rel)
         joined = " ".join(imports).lower()
         if any(stem and stem in joined for stem in stems):
             impacted.add(rel)
@@ -218,6 +231,12 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
         raise ValueError("analysis mode must be fast, full or certification")
     impacted = impacted or []
     changed = [str(x.get("path", "")) for x in evidence.get("files", []) if x.get("path")]
+    previous_paths = [
+        str(x.get("previous_path", ""))
+        for x in evidence.get("files", [])
+        if str(x.get("status", "")) == "R" and x.get("previous_path")
+    ]
+    classification_paths = list(dict.fromkeys(changed + previous_paths))
     selected = {lab: mode in {"full", "certification"} for lab in LABS}
     reasons: dict[str, list[str]] = {lab: [] for lab in LABS}
     if mode in {"full", "certification"}:
@@ -233,10 +252,17 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
         return _plan("fast", "full", "FULL_RUNTIME", baseline_sha, evidence,
                      {lab: True for lab in LABS}, reasons, 90, 0.0, impacted, True, False, repository)
 
-    lower_paths = [p.lower() for p in changed]
-    docs_only = bool(changed) and all(p.startswith(DOC_PREFIXES) or Path(p).suffix.lower() in {".md", ".txt"} for p in lower_paths)
-    static_only = bool(changed) and all(
-        p.startswith(STATIC_PREFIXES) or Path(p).suffix.lower() in {".md", ".txt"} for p in lower_paths
+    if not classification_paths:
+        for lab in LABS:
+            reasons[lab].append("trusted empty target diff; contract/cache invalidation requires FULL rerun")
+        return _plan("fast", "full", "FULL_RUNTIME", baseline_sha, evidence,
+                     {lab: True for lab in LABS}, reasons, 80, 0.99, impacted, True, False, repository)
+
+    lower_paths = [p.lower() for p in classification_paths]
+    docs_only = all(is_documentation_path(p) for p in lower_paths)
+    static_only = all(
+        is_documentation_path(p) or p.startswith(STATIC_PREFIXES)
+        for p in lower_paths
     )
     if docs_only:
         return _plan("fast", "fast", "NO_RUNTIME_CHANGE", baseline_sha, evidence,
@@ -246,22 +272,24 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
                      {lab: False for lab in LABS}, reasons, 15, 0.95, impacted, False, False, repository)
 
     risk = 20
-    changed_text = "\n".join(changed + list(evidence.get("hunks", [])))
+    changed_text = "\n".join(classification_paths + list(evidence.get("hunks", [])))
     for item in evidence.get("files", []):
         path = str(item.get("path", ""))
-        lower = path.lower()
-        suffix = Path(lower).suffix
+        prior = str(item.get("previous_path", "")) if item.get("status") == "R" else ""
         churn = int(item.get("additions", 0)) + int(item.get("deletions", 0))
         risk += min(10, churn // 100)
         if item.get("status") in {"D", "R"}:
             risk += 5
-        for lab, patterns in RULES.items():
-            if any(re.search(pattern, lower, re.I) for pattern in patterns):
-                selected[lab] = True
-                reasons[lab].append(path)
-        if suffix in SOURCE_SUFFIXES and ("/src/" in f"/{lower}" or lower.startswith(("lib/", "app/"))):
-            selected["performance"] = True
-            reasons["performance"].append(path)
+        for candidate in [p for p in (path, prior) if p]:
+            lower = candidate.lower()
+            suffix = Path(lower).suffix
+            for lab, patterns in RULES.items():
+                if any(re.search(pattern, lower, re.I) for pattern in patterns):
+                    selected[lab] = True
+                    reasons[lab].append(candidate if candidate == path else f"rename-source:{candidate}")
+            if suffix in SOURCE_SUFFIXES and ("/src/" in f"/{lower}" or lower.startswith(("lib/", "app/"))):
+                selected["performance"] = True
+                reasons["performance"].append(candidate if candidate == path else f"rename-source:{candidate}")
     for pattern in GLOBAL_RISK_PATTERNS:
         if re.search(pattern, changed_text, re.I):
             risk += 8
@@ -414,6 +442,24 @@ def self_test() -> None:
     assert db["selected_labs"]["storage"] and db["selected_labs"]["persistence"]
     static = classify(["test/foo_test.dart"], "fast", "a"*40)
     assert static["lane"] == "STATIC_ONLY"
+    asset = classify(["assets/content.md"], "fast", "a"*40)
+    assert asset["lane"] not in {"NO_RUNTIME_CHANGE", "STATIC_ONLY"}
+    rename = classify_evidence(
+        {
+            "trusted": True, "status": "ok",
+            "files": [{"path": "test/worker_test.dart", "previous_path": "lib/worker.dart",
+                       "status": "R", "additions": 0, "deletions": 0}],
+            "file_count": 1, "too_large": False, "additions": 0, "deletions": 0, "hunks": [],
+        },
+        "fast", "a"*40,
+    )
+    assert rename["lane"] not in {"NO_RUNTIME_CHANGE", "STATIC_ONLY"}
+    empty = classify_evidence(
+        {"trusted": True, "status": "ok", "files": [], "file_count": 0,
+         "too_large": False, "additions": 0, "deletions": 0, "hunks": []},
+        "fast", "a"*40,
+    )
+    assert empty["lane"] == "FULL_RUNTIME" and empty["fallback_full"]
     semantic = classify_evidence(
         {
             "trusted": True,
