@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from contract_fingerprint import compute as compute_contract_fingerprint
+import domain_fingerprint
 
 
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -119,6 +120,30 @@ def latest_history_sha(path: str, repository: str) -> str:
             latest_at = recorded
             latest_sha = sha
     return latest_sha
+
+
+def latest_history_record(path: str, repository: str, resolved_sha: str = "") -> dict[str, Any]:
+    if not path:
+        return {}
+    history = Path(path)
+    if not history.is_file():
+        return {}
+    best: dict[str, Any] = {}
+    best_at = ""
+    for raw in history.read_text(encoding="utf-8", errors="ignore").splitlines():
+        try:
+            item = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(item, dict) or str(item.get("repository", "")).strip() != repository:
+            continue
+        if resolved_sha and str(item.get("resolved_sha", "")).strip().lower() != resolved_sha.lower():
+            continue
+        recorded = str(item.get("recorded_at", ""))
+        if recorded >= best_at:
+            best_at = recorded
+            best = item
+    return best
 
 
 def historical_risk_counts(path: str, repository: str) -> dict[str, int]:
@@ -284,8 +309,19 @@ def main() -> int:
             previous_verified_sha = latest_history_sha(args.history_file, repository)
             historical_risk = historical_risk_counts(args.history_file, repository)
             historical_risk_json = json.dumps(historical_risk, sort_keys=True, separators=(",", ":"))
+            previous_for_sha = latest_history_record(args.history_file, repository, sha)
+            previous_selected = previous_for_sha.get("selected_labs") if isinstance(previous_for_sha, dict) else None
+            effective_contract_fingerprint = contract_fingerprint
+            if isinstance(previous_selected, dict) and previous_selected:
+                try:
+                    effective_contract_fingerprint = domain_fingerprint.selected_fingerprint(
+                        Path(__file__).resolve().parent.parent,
+                        {"selected_labs": previous_selected},
+                    )
+                except (OSError, ValueError):
+                    effective_contract_fingerprint = contract_fingerprint
             cache_key = (
-                f"applab-c{contract_fingerprint}-"
+                f"applab-c{effective_contract_fingerprint}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
             )
             cached = False if args.force else cache_exists(
@@ -300,6 +336,7 @@ def main() -> int:
                     "scheduled": scheduled,
                     "previous_verified_sha": previous_verified_sha,
                     "historical_risk": historical_risk,
+                    "effective_contract_fingerprint": effective_contract_fingerprint,
                 }
             )
             if scheduled:
@@ -310,7 +347,8 @@ def main() -> int:
                     "previous_verified_sha": previous_verified_sha,
                     "historical_risk_json": historical_risk_json,
                     "cache_epoch": cache_epoch,
-                    "contract_fingerprint": contract_fingerprint,
+                    "contract_fingerprint": effective_contract_fingerprint,
+                    "global_contract_fingerprint": contract_fingerprint,
                     "config_fingerprint": config_fingerprint,
                 }
                 matrix.append(resolved)
