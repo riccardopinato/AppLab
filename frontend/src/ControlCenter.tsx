@@ -41,7 +41,8 @@ type AdaptiveTimings = {
 type ShadowCalibration = {
   performed?: boolean;
   false_negatives?: number;
-  over_selection?: number;
+  selected_clean?: number;
+  over_selection_observable?: boolean;
   runtime_divergence?: boolean;
 };
 
@@ -360,7 +361,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                         </span>
                         <small>
                           {project.shadow_calibration?.performed
-                            ? `${project.shadow_calibration.over_selection ?? 0} over-selected`
+                            ? `${project.shadow_calibration.selected_clean ?? 0} selected labs clean`
                             : "sampled automatically"}
                         </small>
                       </div>
