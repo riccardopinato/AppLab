@@ -239,6 +239,7 @@ jobs:
       analysis_lane: ${{ steps.impact.outputs.lane }}
       run_runtime: ${{ steps.impact.outputs.run_runtime }}
       run_build: ${{ steps.impact.outputs.run_build }}
+      contract_fingerprint: ${{ steps.adaptive_contract.outputs.fingerprint }}
 
     steps:
       - name: Validate target coordinates
@@ -329,6 +330,16 @@ jobs:
             --history-key "${{ inputs.history_key }}" \
             --source-ref "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}" \
             --output "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Resolve current adaptive contract fingerprint
+        id: adaptive_contract
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/domain_fingerprint.py \
+            --root "$GITHUB_WORKSPACE/.applab" \
+            --plan "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Prepare evidence directory
@@ -568,7 +579,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: .applab-watch-cache
-          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
+          key: applab-c${{ steps.adaptive_contract.outputs.fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
 
       - name: Upload build-phase evidence
         if: always()
@@ -592,7 +603,7 @@ jobs:
       engine: "native_android"
       history_key: ${{ inputs.history_key }}
       cache_verification: ${{ inputs.cache_verification }}
-      contract_fingerprint: ${{ inputs.contract_fingerprint }}
+      contract_fingerprint: ${{ needs.build.outputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: false
       analysis_mode: ${{ inputs.analysis_mode }}
@@ -648,7 +659,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: .applab-watch-cache
-          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ needs.build.outputs.resolved_sha }}
+          key: applab-c${{ needs.build.outputs.contract_fingerprint || inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ needs.build.outputs.resolved_sha }}
 
       - name: Upload failed build result
         uses: actions/upload-artifact@v7
