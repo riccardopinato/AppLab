@@ -318,8 +318,7 @@ def main() -> int:
                     "scheduled": scheduled,
                     "previous_verified_sha": previous_verified_sha,
                     "previous_selected_labs": previous_labs or [],
-                    "contract_fingerprint": "per-entry-domain-aware",
-        "full_contract_fingerprint": full_contract_fingerprint,
+                    "contract_fingerprint": contract_fingerprint,
                 }
             )
             if scheduled:
@@ -356,7 +355,8 @@ def main() -> int:
         "schema_version": 1,
         "force": args.force,
         "only_repository": only_repository,
-        "contract_fingerprint": contract_fingerprint,
+        "contract_fingerprint": "per-entry-domain-aware",
+        "full_contract_fingerprint": full_contract_fingerprint,
         "scheduled_count": len(matrix),
         "flutter_scheduled_count": len(flutter_matrix),
         "native_scheduled_count": len(native_matrix),
