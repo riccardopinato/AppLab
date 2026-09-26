@@ -114,20 +114,51 @@ def relaunch(package_id: str) -> str:
     return wait_for_pid(package_id)
 
 
+def parse_validated_internet(connectivity: str) -> tuple[bool, list[str], str]:
+    default_network = ""
+    for pattern in (
+        r"Active default network:\s*(\d+|none|null)",
+        r"\bmDefaultNetwork\s*=\s*(\d+|none|null)",
+    ):
+        match = re.search(pattern, connectivity, flags=re.IGNORECASE)
+        if match:
+            default_network = match.group(1).lower()
+            break
+
+    # Only NetworkAgentInfo describes an instantiated network. NetworkOffer and
+    # historical request/listener lines may retain VALIDATED/INTERNET tokens
+    # even after airplane mode has removed the active default network.
+    active_lines = [
+        line.strip()
+        for line in connectivity.splitlines()
+        if "NetworkAgentInfo" in line
+        and "VALIDATED" in line
+        and "INTERNET" in line
+    ]
+
+    if default_network in {"none", "null"}:
+        return False, active_lines[:20], default_network
+    if default_network:
+        return bool(active_lines), active_lines[:20], default_network
+
+    # Older Android dumps may omit the explicit default-network marker. In that
+    # case fall back only to active NetworkAgentInfo lines, never offers/logs.
+    return bool(active_lines), active_lines[:20], default_network
+
+
 def network_snapshot() -> dict[str, Any]:
     connectivity = adb("shell", "dumpsys", "connectivity", timeout=30).stdout
     airplane = adb(
         "shell", "settings", "get", "global", "airplane_mode_on", timeout=10
     ).stdout.strip()
-    validated_lines = [
-        line.strip()
-        for line in connectivity.splitlines()
-        if "VALIDATED" in line and "INTERNET" in line
-    ]
+    validated, validated_lines, default_network = parse_validated_internet(
+        connectivity
+    )
     return {
         "airplane_mode": airplane == "1",
-        "validated_internet": bool(validated_lines),
-        "validated_lines": validated_lines[:20],
+        "validated_internet": validated,
+        "default_network": default_network or None,
+        "validated_lines": validated_lines,
         "connectivity_excerpt": connectivity[-10000:],
     }
 
@@ -196,18 +227,44 @@ def wait_for_connectivity(
 
 
 def app_crash_state(package_id: str) -> tuple[bool, str]:
-    if not pid_of(package_id):
-        return True, "application process is not running"
-    logcat = adb("logcat", "-b", "all", "-d", "-v", "brief", timeout=30).stdout
-    if f"ANR in {package_id}" in logcat:
-        return True, "ANR detected"
-    fatal = re.search(
-        rf"FATAL EXCEPTION:[\s\S]{{0,2200}}Process:\s*{re.escape(package_id)}\b",
-        logcat,
-    )
-    if fatal:
-        return True, "fatal exception detected"
+    # A fresh Android process can briefly disappear from a single pidof probe
+    # while ActivityManager is completing a cold relaunch. Judge runtime health
+    # from fatal/ANR evidence first, then require the process to remain visible
+    # across a short stabilization window before declaring it healthy.
+    def fatal_or_anr() -> str:
+        logcat = adb(
+            "logcat", "-b", "all", "-d", "-v", "brief", timeout=30
+        ).stdout
+        if f"ANR in {package_id}" in logcat:
+            return "ANR detected"
+        fatal = re.search(
+            rf"FATAL EXCEPTION:[\s\S]{{0,2200}}Process:\s*{re.escape(package_id)}\b",
+            logcat,
+        )
+        return "fatal exception detected" if fatal else ""
+
+    reason = fatal_or_anr()
+    if reason:
+        return True, reason
+
+    pid = wait_for_pid(package_id, timeout=4.0)
+    if not pid:
+        reason = fatal_or_anr()
+        return True, reason or "application process is not running"
+
+    time.sleep(1.0)
+    reason = fatal_or_anr()
+    if reason:
+        return True, reason
+    if not wait_for_pid(package_id, timeout=2.0):
+        return True, "application process did not remain stable after relaunch"
     return False, ""
+
+
+def capture_logcat(path: Path) -> None:
+    result = adb("logcat", "-b", "all", "-d", "-v", "threadtime", timeout=30)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(result.stdout, encoding="utf-8", errors="replace")
 
 
 def capture(path: Path) -> None:
@@ -238,7 +295,7 @@ def evaluate(
     if not config["enabled"]:
         return {
             "schema_version": 1,
-            "network_lab_version": "0.8.0",
+            "network_lab_version": "0.8.2",
             "result": "SKIPPED",
             "package_id": package_id,
             "config": config,
@@ -346,6 +403,7 @@ def evaluate(
                     {"reason": reason},
                 )
             )
+        capture_logcat(report_dir / "network-offline-logcat.txt")
         capture(report_dir / "network-offline.png")
     finally:
         recovery_action = set_airplane_mode(initial["airplane_mode"])
@@ -394,6 +452,7 @@ def evaluate(
                 {"reason": reason},
             )
         )
+    capture_logcat(report_dir / "network-recovered-logcat.txt")
     capture(report_dir / "network-recovered.png")
 
     errors = [item for item in findings if item.severity == "error"]
@@ -402,7 +461,7 @@ def evaluate(
 
     return {
         "schema_version": 1,
-        "network_lab_version": "0.8.0",
+        "network_lab_version": "0.8.2",
         "result": result,
         "package_id": package_id,
         "config": config,
@@ -454,6 +513,32 @@ def self_test() -> None:
     assert defaults["enabled"] is True
     assert defaults["required"] is False
     assert defaults["relaunch_while_offline"] is True
+
+    stale_offers = """
+mDefaultNetwork=null
+NetworkOffer [ Score(IS_VALIDATED) Caps [ Capabilities: INTERNET&VALIDATED ] ]
+NetworkRequest [ Capabilities: INTERNET&VALIDATED ]
+"""
+    online, lines, default_network = parse_validated_internet(stale_offers)
+    assert online is False
+    assert default_network == "null"
+    assert lines == []
+
+    active = """
+mDefaultNetwork=100
+NetworkAgentInfo{network{100} nc{[ Transports: WIFI Capabilities: INTERNET&VALIDATED&TRUSTED ]}}
+"""
+    online, lines, default_network = parse_validated_internet(active)
+    assert online is True
+    assert default_network == "100"
+    assert len(lines) == 1
+
+    legacy = """
+NetworkAgentInfo{network{42} nc{[ Capabilities: INTERNET&VALIDATED ]}}
+"""
+    online, lines, default_network = parse_validated_internet(legacy)
+    assert online is True
+    assert default_network == ""
 
     import tempfile
     with tempfile.TemporaryDirectory() as raw:
