@@ -26,7 +26,7 @@ The execution lanes are explicit: **NO_RUNTIME_CHANGE**, **STATIC_ONLY**, **FAST
 
 Impact analysis validates baseline ancestry, uses name-status/numstat/hunk evidence, recognizes renames/deletions and builds a lightweight Dart/Kotlin/Java reverse-dependency graph. Flutter can target impacted analysis/test paths when confidence is high. Native Android collapses safe test/lint/build work into one Gradle task graph and probes impacted module tasks first, falling back to the original full graph when those tasks are unavailable.
 
-FAST accuracy is measured rather than assumed. A deterministic sample of eligible FAST runs executes a **shadow FULL** verification; divergence and false negatives are stored in history and increase future risk. AppLab also records lane distribution, lab skip ratio, cache-hit ratio, confidence distribution and p50/p95-ready planner/build/emulator/runtime timings.
+FAST accuracy is measured rather than assumed. A deterministic sample of eligible FAST runs executes a **shadow FULL** verification; divergence and false negatives are stored in history and increase future risk. AppLab also records lane distribution, lab skip ratio, cache-hit ratio, confidence distribution, selected-clean shadow evidence and p50/p95-ready planner/build/emulator/runtime timings. A passing FULL lab is never mislabeled as proof of over-selection.
 
 CI runtime is accelerated without weakening isolation: Maestro is cached at its pinned version, Android uses a clean cached AVD snapshot restored with `-no-snapshot-save`, auto-discovery prefers `git ls-files`, and verification cache identity is split by the selected AppLab domains instead of one global fingerprint.
 
