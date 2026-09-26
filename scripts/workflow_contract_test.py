@@ -69,21 +69,27 @@ FORBIDDEN: dict[str, tuple[str, ...]] = {
     ),
 }
 
-def workflow_dispatch_input_count(text: str) -> int:
-    dispatch_marker = "  workflow_dispatch:\n"
-    call_marker = "  workflow_call:\n"
-    if dispatch_marker not in text:
+def workflow_input_count(text: str, trigger: str) -> int:
+    lines = text.splitlines()
+    try:
+        trigger_index = lines.index(f"  {trigger}:")
+    except ValueError:
         return 0
-    dispatch = text.split(dispatch_marker, 1)[1]
-    if call_marker in dispatch:
-        dispatch = dispatch.split(call_marker, 1)[0]
-    return sum(
-        1
-        for line in dispatch.splitlines()
-        if line.startswith("      ")
-        and not line.startswith("        ")
-        and line.rstrip().endswith(":")
+    inputs_index = next(
+        (index for index in range(trigger_index + 1, len(lines)) if lines[index] == "    inputs:"),
+        -1,
     )
+    if inputs_index < 0:
+        return 0
+    count = 0
+    for line in lines[inputs_index + 1:]:
+        if line.startswith("  ") and not line.startswith("    "):
+            break
+        if line.startswith("    ") and not line.startswith("      "):
+            break
+        if line.startswith("      ") and not line.startswith("        ") and line.endswith(":"):
+            count += 1
+    return count
 
 
 def validate() -> None:
@@ -102,8 +108,12 @@ def validate() -> None:
         ".github/workflows/external-native-android-runner.yml",
     ):
         text = (ROOT / relative).read_text(encoding="utf-8")
-        count = workflow_dispatch_input_count(text)
-        assert count <= 25, f"{relative}: workflow_dispatch exposes {count} inputs; GitHub limit is 25"
+        for trigger in ("workflow_dispatch", "workflow_call"):
+            count = workflow_input_count(text, trigger)
+            assert count <= 25, (
+                f"{relative}: {trigger} exposes {count} inputs; AppLab keeps reusable/manual "
+                "workflow contracts within GitHub's 25-input envelope"
+            )
 
 def main() -> int:
     validate()
