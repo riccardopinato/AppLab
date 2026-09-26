@@ -18,6 +18,8 @@ def main() -> int:
     parser.add_argument("--pipeline-status", required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--analysis-mode", choices=("fast", "full", "certification"), default="full")
+    parser.add_argument("--verification-fingerprint", default="")
+    parser.add_argument("--cache-domains", default="core")
     args = parser.parse_args()
 
     report_dir = Path(args.report_dir)
@@ -36,7 +38,7 @@ def main() -> int:
     if not payload:
         payload = {
             "schema_version": 1,
-            "applab_version": "0.8.1",
+            "applab_version": "0.9.0",
             "result": "FAIL",
             "analysis_mode": args.analysis_mode,
             "reason": "Pipeline ended before the Android verifier produced a result.",
@@ -60,6 +62,32 @@ def main() -> int:
             "evidence": {},
         }
 
+    analysis_plan_path = report_dir / "analysis-plan.json"
+    if analysis_plan_path.is_file():
+        try:
+            analysis_plan = json.loads(analysis_plan_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            analysis_plan = {}
+        adaptive = analysis_plan.get("adaptive_impact", {}) if isinstance(analysis_plan, dict) else {}
+        if isinstance(adaptive, dict):
+            payload["verification_lane"] = adaptive.get("lane", payload.get("verification_lane", ""))
+            payload["risk"] = adaptive.get("risk", payload.get("risk", {}))
+            payload["confidence"] = adaptive.get("confidence", payload.get("confidence"))
+            payload["shadow_full"] = bool(adaptive.get("shadow_full", payload.get("shadow_full", False)))
+            payload["cache_domains"] = adaptive.get("cache_domains", payload.get("cache_domains", []))
+            payload["historical_failure_count"] = adaptive.get(
+                "historical_failure_count", payload.get("historical_failure_count", 0)
+            )
+            payload["impacted_modules"] = adaptive.get("impacted_modules", [])
+            payload["targeted"] = adaptive.get("targeted", {})
+
+    calibration_path = report_dir / "shadow-calibration.json"
+    if calibration_path.is_file():
+        try:
+            payload["shadow_calibration"] = json.loads(calibration_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+
     payload.update(
         {
             "repository": args.repository,
@@ -70,6 +98,8 @@ def main() -> int:
             "pipeline_status": args.pipeline_status,
             "workflow_run_id": args.run_id,
             "analysis_mode": payload.get("analysis_mode") or args.analysis_mode,
+            "verification_fingerprint": args.verification_fingerprint or payload.get("verification_fingerprint", ""),
+            "cache_domains": payload.get("cache_domains") or [x for x in args.cache_domains.split("-") if x],
             "observed_at": datetime.now(timezone.utc).isoformat(),
         }
     )
