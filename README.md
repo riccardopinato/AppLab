@@ -1,3 +1,19 @@
+## v0.9.0 — Adaptive Impact Analysis & Incremental Verification Engine
+
+AppLab v0.9 moves verification planning **before** expensive setup, static analysis, tests, APK build and emulator execution. FAST is no longer merely a selective runtime mode: the Adaptive Impact Engine inspects the trusted Git range, change type/churn/content, dependency impact, historical AppLab failures and planner confidence, then chooses the minimum safe lane.
+
+The execution lanes are explicit: **NO_RUNTIME_CHANGE**, **STATIC_ONLY**, **FAST_RUNTIME**, **FULL_RUNTIME** and **CERTIFICATION**. Documentation-only commits can reuse previous trusted runtime evidence without pretending that a new APK was tested; test/static-only changes run static verification without starting Android; ordinary runtime changes receive targeted verification; high-risk, low-confidence, oversized or untrusted diffs automatically escalate to FULL. CERTIFICATION remains a separate complete release gate.
+
+Impact analysis validates baseline ancestry, uses name-status/numstat/hunk evidence, recognizes renames/deletions and builds a lightweight Dart/Kotlin/Java reverse-dependency graph. Flutter can target impacted analysis/test paths when confidence is high. Native Android collapses safe test/lint/build work into one Gradle task graph and probes impacted module tasks first, falling back to the original full graph when those tasks are unavailable.
+
+FAST accuracy is measured rather than assumed. A deterministic sample of eligible FAST runs executes a **shadow FULL** verification; divergence and false negatives are stored in history and increase future risk. AppLab also records lane distribution, lab skip ratio, cache-hit ratio, confidence distribution and p50/p95-ready planner/build/emulator/runtime timings.
+
+CI runtime is accelerated without weakening isolation: Maestro is cached at its pinned version, Android uses a clean cached AVD snapshot restored with `-no-snapshot-save`, auto-discovery prefers `git ls-files`, and verification cache identity is split by the selected AppLab domains instead of one global fingerprint.
+
+The v0.8.1 release-integrity contract remains mandatory: Build → isolated Artifact → Trusted Verify, byte-for-byte APK SHA-256, signer validation, RELEASE-only certification artifacts, compatibility lane, real-device blocking policy, explicit `SKIPPED != PASS`, stale/current certification state, and no release publication from FAST/FULL.
+
+See `integration/performance/ADAPTIVE_IMPACT_ENGINE.md`, `integration/performance/FAST_ANALYSIS_ENGINE.md`, and `integration/certification/PRODUCTION_CERTIFICATION_GATE.md`.
+
 ## v0.8.1 — Certification Integrity & Release Artifact Hardening
 
 AppLab v0.8.1 closes the release-integrity gaps found in the v0.8.0 audit. Production Certification now routes auto-discovered projects through an explicit **RELEASE** build profile, rejects DEBUG artifacts and Android Debug certificates, records the signing-certificate SHA-256, and can enforce an expected production signer from project policy.
