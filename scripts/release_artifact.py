@@ -110,7 +110,7 @@ def commit_summary(repository: str, sha: str) -> str:
     api = os.getenv("GITHUB_API_URL", "https://api.github.com").rstrip("/")
     request = urllib.request.Request(
         f"{api}/repos/{repository}/commits/{sha}",
-        headers={"Accept": "application/vnd.github+json", "User-Agent": "AppLab-v0.8.0"},
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "AppLab-v0.8.1"},
     )
     token = os.getenv("GITHUB_TOKEN", "").strip()
     if token:
