@@ -94,14 +94,21 @@ def resolve_sha(repository: str, ref: str, token: str) -> str:
     return sha.lower()
 
 
-def latest_history_sha(path: str, repository: str) -> str:
+def latest_history_record(
+    path: str,
+    repository: str,
+    ref: str = "",
+    history_key: str = "",
+    engine: str = "",
+    config_fingerprint: str = "",
+) -> dict[str, Any]:
     if not path:
-        return ""
+        return {}
     history = Path(path)
     if not history.is_file():
-        return ""
+        return {}
     latest_at = ""
-    latest_sha = ""
+    latest: dict[str, Any] = {}
     for raw in history.read_text(encoding="utf-8", errors="ignore").splitlines():
         try:
             item = json.loads(raw)
@@ -111,14 +118,46 @@ def latest_history_sha(path: str, repository: str) -> str:
             continue
         if str(item.get("result", "")).strip().upper() != "PASS":
             continue
+        item_ref = str(item.get("requested_ref", item.get("ref", ""))).strip()
+        if ref and item_ref != ref:
+            continue
+        if history_key and str(item.get("history_key", "")).strip() != history_key:
+            continue
+        if engine and str(item.get("engine", "")).strip() != engine:
+            continue
+        if config_fingerprint and str(item.get("config_fingerprint", "")).strip() != config_fingerprint:
+            continue
         sha = str(item.get("resolved_sha", "")).strip().lower()
         if not re.fullmatch(r"[0-9a-f]{40}", sha):
             continue
-        recorded = str(item.get("recorded_at", ""))
+        recorded = str(item.get("recorded_at", item.get("observed_at", "")))
         if recorded >= latest_at:
             latest_at = recorded
-            latest_sha = sha
-    return latest_sha
+            latest = item
+    return latest
+
+def latest_history_sha(
+    path: str,
+    repository: str,
+    ref: str = "",
+    history_key: str = "",
+    engine: str = "",
+    config_fingerprint: str = "",
+) -> str:
+    return str(
+        latest_history_record(
+            path, repository, ref, history_key, engine, config_fingerprint
+        ).get("resolved_sha", "")
+    ).strip().lower()
+
+def selected_history_labs(record: dict[str, Any]) -> list[str] | None:
+    selected = record.get("selected_labs")
+    if not isinstance(selected, dict):
+        return None
+    return sorted(
+        lab for lab, enabled in selected.items()
+        if bool(enabled)
+    )
 
 
 def self_test_history() -> None:
@@ -126,12 +165,15 @@ def self_test_history() -> None:
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "history.jsonl"
         rows = [
-            {"repository": "owner/app", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-02T00:00:00Z", "result": "FAIL", "resolved_sha": "b" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
+            {"repository": "owner/app", "requested_ref": "main", "history_key": "app", "engine": "auto", "config_fingerprint": "cfg", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40, "selected_labs": {"network": True}},
+            {"repository": "owner/app", "requested_ref": "main", "history_key": "app", "engine": "auto", "config_fingerprint": "cfg", "recorded_at": "2026-01-02T00:00:00Z", "result": "FAIL", "resolved_sha": "b" * 40},
+            {"repository": "owner/app", "requested_ref": "beta", "history_key": "app", "engine": "auto", "config_fingerprint": "cfg", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
+            {"repository": "owner/app", "requested_ref": "main", "history_key": "app", "engine": "auto", "config_fingerprint": "cfg", "recorded_at": "2026-01-04T00:00:00Z", "result": "PASS", "resolved_sha": "d" * 40, "selected_labs": {"storage": True}},
         ]
         path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
-        assert latest_history_sha(str(path), "owner/app") == "c" * 40
+        assert latest_history_sha(str(path), "owner/app", "main", "app", "auto", "cfg") == "d" * 40
+        assert latest_history_sha(str(path), "owner/app", "beta", "app", "auto", "cfg") == "c" * 40
+        assert latest_history_sha(str(path), "owner/app", "main", "wrong", "auto", "cfg") == ""
         assert latest_history_sha(str(path), "owner/missing") == ""
 
 
@@ -178,9 +220,8 @@ def main() -> int:
     if data.get("schema_version") != 1:
         raise SystemExit("Unsupported watchlist schema_version")
 
-    contract_fingerprint = compute_contract_fingerprint(
-        Path(__file__).resolve().parent.parent
-    )[:16]
+    contract_root = Path(__file__).resolve().parent.parent
+    full_contract_fingerprint = compute_contract_fingerprint(contract_root)[:16]
 
     entries = data.get("repositories")
     if not isinstance(entries, list):
@@ -247,7 +288,20 @@ def main() -> int:
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
-            previous_verified_sha = latest_history_sha(args.history_file, repository)
+            previous_record = latest_history_record(
+                args.history_file,
+                repository,
+                str(entry["ref"]),
+                str(entry["key"]),
+                engine,
+                config_fingerprint,
+            )
+            previous_verified_sha = str(previous_record.get("resolved_sha", "")).strip().lower()
+            previous_labs = selected_history_labs(previous_record)
+            contract_fingerprint = compute_contract_fingerprint(
+                contract_root,
+                previous_labs,
+            )[:16]
             cache_key = (
                 f"applab-c{contract_fingerprint}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
@@ -263,6 +317,9 @@ def main() -> int:
                     "cached": cached,
                     "scheduled": scheduled,
                     "previous_verified_sha": previous_verified_sha,
+                    "previous_selected_labs": previous_labs or [],
+                    "contract_fingerprint": "per-entry-domain-aware",
+        "full_contract_fingerprint": full_contract_fingerprint,
                 }
             )
             if scheduled:
@@ -271,6 +328,7 @@ def main() -> int:
                     "engine": engine,
                     "resolved_sha": sha,
                     "previous_verified_sha": previous_verified_sha,
+                    "previous_selected_labs": previous_labs or [],
                     "cache_epoch": cache_epoch,
                     "contract_fingerprint": contract_fingerprint,
                     "config_fingerprint": config_fingerprint,
