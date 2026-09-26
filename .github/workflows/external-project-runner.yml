@@ -397,6 +397,8 @@ jobs:
             --baseline-sha "${{ inputs.baseline_sha }}" \
             --history-file "$GITHUB_WORKSPACE/.applab-history/history.jsonl" \
             --repository "${{ inputs.repository }}" \
+            --history-key "${{ inputs.history_key }}" \
+            --source-ref "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}" \
             --output "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
             --github-output "$GITHUB_OUTPUT"
 
@@ -591,6 +593,23 @@ jobs:
           path: applab-report/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Prepare analysis-only verification cache payload
+        if: steps.impact.outputs.run_runtime != 'true' && inputs.cache_verification
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -rf "$GITHUB_WORKSPACE/.applab-watch-cache"
+          mkdir -p "$GITHUB_WORKSPACE/.applab-watch-cache"
+          cp "$GITHUB_WORKSPACE/applab-report/result.json" "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
+          cp "$GITHUB_WORKSPACE/applab-report/summary.md" "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
+
+      - name: Cache analysis-only resolved commit
+        if: steps.impact.outputs.run_runtime != 'true' && inputs.cache_verification
+        uses: actions/cache/save@v6
+        with:
+          path: .applab-watch-cache
+          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
 
       - name: Upload build-phase evidence
         if: always()
