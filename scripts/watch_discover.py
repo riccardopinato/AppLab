@@ -120,7 +120,8 @@ def matching_history(
         if row_key and row_key != history_key:
             continue
         row_ref = str(item.get("requested_ref", "")).strip()
-        if row_ref and row_ref != ref:
+        row_ref_is_sha = bool(re.fullmatch(r"[0-9a-fA-F]{40}", row_ref))
+        if row_ref and not row_ref_is_sha and row_ref != ref:
             continue
         row_engine = str(item.get("engine", "")).strip()
         if row_engine and row_engine != engine and engine != "auto":
