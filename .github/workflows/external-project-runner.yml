@@ -306,6 +306,10 @@ jobs:
       plan_artifact_name: ${{ steps.metadata.outputs.plan_artifact_name }}
 
     steps:
+      - name: Mark preflight start
+        shell: bash
+        run: echo "APPLAB_PREFLIGHT_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Validate target coordinates
         shell: bash
         env:
@@ -390,6 +394,17 @@ jobs:
             --output "$GITHUB_WORKSPACE/applab-preflight/analysis-plan.json" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Record preflight timing
+        shell: bash
+        run: |
+          python - "$GITHUB_WORKSPACE/applab-preflight/analysis-plan.json" "$APPLAB_PREFLIGHT_STARTED_EPOCH" <<'PY'
+          import json,sys,time
+          from pathlib import Path
+          p=Path(sys.argv[1]); data=json.loads(p.read_text())
+          data["preflight_elapsed_seconds"]=max(0, int(time.time())-int(sys.argv[2]))
+          p.write_text(json.dumps(data,indent=2,sort_keys=True)+"\n")
+          PY
+
       - name: Set preflight artifact identity
         id: metadata
         shell: bash
@@ -458,6 +473,13 @@ jobs:
           STATIC_OUTCOME: ${{ steps.static_only.outcome }}
           RUN_TESTS: ${{ inputs.run_flutter_tests }}
         run: |
+          python - "$GITHUB_WORKSPACE/applab-preflight/analysis-plan.json" "$APPLAB_PREFLIGHT_STARTED_EPOCH" <<'PY'
+          import json,sys,time
+          from pathlib import Path
+          p=Path(sys.argv[1]); data=json.loads(p.read_text())
+          data["preflight_total_elapsed_seconds"]=max(0, int(time.time())-int(sys.argv[2]))
+          p.write_text(json.dumps(data,indent=2,sort_keys=True)+"\n")
+          PY
           STATUS="SKIPPED"
           if [[ "$LANE" == "STATIC_ONLY" ]]; then
             if [[ "$RUN_TESTS" == "true" && "$STATIC_OUTCOME" != "success" ]]; then STATUS="FAIL"; else STATUS="PASS"; fi
@@ -497,6 +519,10 @@ jobs:
       artifact_name: ${{ steps.contract.outputs.artifact_name }}
 
     steps:
+      - name: Mark build job start
+        shell: bash
+        run: echo "APPLAB_BUILD_JOB_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Validate target coordinates
         shell: bash
         env:
@@ -749,7 +775,8 @@ PY
             --analyze-status "${{ inputs.run_flutter_tests && 'PASS' || 'NOT_RUN' }}" \
             --lint-status "N/A" \
             --test-status "${{ inputs.run_flutter_tests && 'PASS' || 'NOT_RUN' }}" \
-            --build-status "PASS"
+            --build-status "PASS" \
+            --build-job-elapsed-seconds "$(( $(date +%s) - APPLAB_BUILD_JOB_STARTED_EPOCH ))"
 
       - name: Upload isolated APK contract
         uses: actions/upload-artifact@v7
