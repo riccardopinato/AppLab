@@ -29,7 +29,7 @@ def read_json(path: Path) -> dict[str, Any]:
 def compare(plan: dict[str, Any], fast: dict[str, Any], full: dict[str, Any]) -> dict[str, Any]:
     selected = plan.get("selected_labs", {})
     false_negative_labs: list[str] = []
-    over_selected_labs: list[str] = []
+    selected_clean_labs: list[str] = []
     comparable = 0
 
     for lab, field in LAB_FIELDS.items():
@@ -41,7 +41,7 @@ def compare(plan: dict[str, Any], fast: dict[str, Any], full: dict[str, Any]) ->
         if not fast_selected and full_state in {"FAIL", "ERROR"}:
             false_negative_labs.append(lab)
         if fast_selected and full_state == "PASS":
-            over_selected_labs.append(lab)
+            selected_clean_labs.append(lab)
 
     runtime_divergence = (
         str(fast.get("result", "")).upper() == "PASS"
@@ -54,8 +54,11 @@ def compare(plan: dict[str, Any], fast: dict[str, Any], full: dict[str, Any]) ->
         "false_negatives": len(false_negative_labs) + int(runtime_divergence and not false_negative_labs),
         "false_negative_labs": false_negative_labs,
         "runtime_divergence": runtime_divergence,
-        "over_selection": len(over_selected_labs),
-        "over_selected_labs": over_selected_labs,
+        # A selected lab passing in FULL is not evidence that the selection was unnecessary.
+        # Track it as a clean selected lab; true over-selection is not observable from verdicts alone.
+        "selected_clean": len(selected_clean_labs),
+        "selected_clean_labs": selected_clean_labs,
+        "over_selection_observable": False,
         "fast_result": fast.get("result", "UNKNOWN"),
         "shadow_full_result": full.get("result", "UNKNOWN"),
     }
