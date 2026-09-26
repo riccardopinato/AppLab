@@ -127,6 +127,11 @@ on:
         required: false
         default: ""
         type: string
+      historical_risk_json:
+        description: Compact recent failure history used by the adaptive risk engine
+        required: false
+        default: "{}"
+        type: string
       publish_release_artifact:
         description: Allow CERTIFIED runs to publish the verified APK
         required: false
@@ -268,6 +273,11 @@ on:
         required: false
         default: ""
         type: string
+      historical_risk_json:
+        description: Compact recent failure history used by the adaptive risk engine
+        required: false
+        default: "{}"
+        type: string
       publish_release_artifact:
         description: Allow CERTIFIED runs to publish the verified APK
         required: false
@@ -387,6 +397,8 @@ jobs:
       - name: Adaptive impact preflight
         id: preflight
         shell: bash
+        env:
+          APPLAB_HISTORICAL_RISK_JSON: ${{ inputs.historical_risk_json }}
         run: |
           set -Eeuo pipefail
           python .applab/scripts/verification_telemetry.py mark \
@@ -397,6 +409,7 @@ jobs:
             --mode "${{ inputs.analysis_mode }}" \
             --baseline-sha "${{ inputs.baseline_sha }}" \
             --repository "${{ inputs.repository }}" \
+            --historical-risk-json "$APPLAB_HISTORICAL_RISK_JSON" \
             --output "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
             --github-output "$GITHUB_OUTPUT"
           python .applab/scripts/verification_telemetry.py merge \
