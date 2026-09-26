@@ -4,11 +4,13 @@ import argparse,json
 from pathlib import Path
 LAB_FIELDS={"system":"system_lab","performance":"performance_lab","network":"network_lab","persistence":"persistence_lab","configuration":"configuration_lab","resource_pressure":"resource_pressure_lab","background":"background_lab","storage":"storage_lab","upgrade":"upgrade_lab"}
 def main()->int:
-    ap=argparse.ArgumentParser(); ap.add_argument("--plan",required=True); ap.add_argument("--report-dir",required=True)
-    ap.add_argument("--repository",required=True); ap.add_argument("--ref",required=True); ap.add_argument("--resolved-sha",required=True)
-    ap.add_argument("--history-key",required=True); ap.add_argument("--quality-json",default=""); ap.add_argument("--run-id",default="")
+    ap=argparse.ArgumentParser(); ap.add_argument("--plan"); ap.add_argument("--report-dir")
+    ap.add_argument("--repository"); ap.add_argument("--ref"); ap.add_argument("--resolved-sha")
+    ap.add_argument("--history-key"); ap.add_argument("--quality-json",default=""); ap.add_argument("--run-id",default="")
     ap.add_argument("--self-test",action="store_true"); a=ap.parse_args()
     if a.self_test: print("AppLab incremental result self-test PASS"); return 0
+    if not all((a.plan,a.report_dir,a.repository,a.ref,a.resolved_sha,a.history_key)):
+        raise SystemExit("incremental result arguments are required")
     plan=json.loads(Path(a.plan).read_text(encoding="utf-8")); out=Path(a.report_dir); out.mkdir(parents=True,exist_ok=True)
     quality={}
     if a.quality_json and Path(a.quality_json).is_file(): quality=json.loads(Path(a.quality_json).read_text(encoding="utf-8"))
