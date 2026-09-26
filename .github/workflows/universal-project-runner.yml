@@ -156,6 +156,8 @@ jobs:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
           path: target
+          fetch-depth: 1
+          filter: blob:none
           persist-credentials: false
 
       - name: Detect project engine and build profile
