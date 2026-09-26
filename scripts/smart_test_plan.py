@@ -272,7 +272,8 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
                      {lab: False for lab in LABS}, reasons, 15, 0.95, impacted, False, False, repository)
 
     risk = 20
-    changed_text = "\n".join(classification_paths + list(evidence.get("hunks", [])))
+    changed_hunks = [str(value) for value in evidence.get("hunks", [])]
+    changed_text = "\n".join(classification_paths + changed_hunks)
     for item in evidence.get("files", []):
         path = str(item.get("path", ""))
         prior = str(item.get("previous_path", "")) if item.get("status") == "R" else ""
@@ -291,7 +292,10 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
                 selected["performance"] = True
                 reasons["performance"].append(candidate if candidate == path else f"rename-source:{candidate}")
     for pattern in GLOBAL_RISK_PATTERNS:
-        if re.search(pattern, changed_text, re.I):
+        if (
+            any(re.search(pattern, path, re.I) for path in classification_paths)
+            or any(re.search(pattern, hunk, re.I) for hunk in changed_hunks)
+        ):
             risk += 8
 
     # Content-aware specialist selection: generic filenames must not hide a
@@ -460,6 +464,15 @@ def self_test() -> None:
         "fast", "a"*40,
     )
     assert empty["lane"] == "FULL_RUNTIME" and empty["fallback_full"]
+    gradle_config = classify_evidence(
+        {
+            "trusted": True, "status": "ok",
+            "files": [{"path": "gradle.properties", "status": "M", "additions": 1, "deletions": 0}],
+            "file_count": 1, "too_large": False, "additions": 1, "deletions": 0, "hunks": [],
+        },
+        "fast", "a"*40,
+    )
+    assert gradle_config["risk_score"] >= 28
     semantic = classify_evidence(
         {
             "trusted": True,
