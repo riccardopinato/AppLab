@@ -22,6 +22,19 @@ def read_history(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def percentile(values: list[float], fraction: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    position = (len(ordered) - 1) * fraction
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = position - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
+
+
 def build_snapshot(
     watchlist: dict[str, Any],
     history: list[dict[str, Any]],
@@ -156,6 +169,19 @@ def build_snapshot(
         and item["shadow_calibration"].get("false_negative") is True
     )
 
+    duration_samples: list[float] = []
+    planner_samples: list[float] = []
+    for item in history:
+        telemetry = item.get("telemetry")
+        if not isinstance(telemetry, dict):
+            continue
+        duration = telemetry.get("pipeline_after_plan_ms")
+        planner = telemetry.get("planner_duration_ms")
+        if isinstance(duration, (int, float)) and duration >= 0:
+            duration_samples.append(float(duration))
+        if isinstance(planner, (int, float)) and planner >= 0:
+            planner_samples.append(float(planner))
+
     recent = sorted(
         (
             {
@@ -224,6 +250,11 @@ def build_snapshot(
             "no_runtime": no_runtime_count,
             "shadow_runs": shadow_count,
             "shadow_false_negatives": shadow_false_negative_count,
+            "timing_samples": len(duration_samples),
+            "pipeline_after_plan_p50_ms": percentile(duration_samples, 0.50),
+            "pipeline_after_plan_p95_ms": percentile(duration_samples, 0.95),
+            "planner_p50_ms": percentile(planner_samples, 0.50),
+            "planner_p95_ms": percentile(planner_samples, 0.95),
         },
         "projects": projects,
         "recent": recent,
@@ -314,6 +345,11 @@ def self_test() -> None:
         "no_runtime": 0,
         "shadow_runs": 0,
         "shadow_false_negatives": 0,
+        "timing_samples": 0,
+        "pipeline_after_plan_p50_ms": None,
+        "pipeline_after_plan_p95_ms": None,
+        "planner_p50_ms": None,
+        "planner_p95_ms": None,
     }
     first = next(
         item for item in snapshot["projects"] if item["repository"] == "owner/one"
