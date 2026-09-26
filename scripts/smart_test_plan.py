@@ -381,6 +381,21 @@ def self_test() -> None:
     assert db["selected_labs"]["storage"] and db["selected_labs"]["persistence"]
     static = classify(["test/foo_test.dart"], "fast", "a"*40)
     assert static["lane"] == "STATIC_ONLY"
+    semantic = classify_evidence(
+        {
+            "trusted": True,
+            "status": "ok",
+            "files": [{"path": "lib/core/manager.dart", "status": "M", "additions": 1, "deletions": 0}],
+            "file_count": 1,
+            "too_large": False,
+            "additions": 1,
+            "deletions": 0,
+            "hunks": ["+ final client = http.Client();"],
+        },
+        "fast",
+        "a"*40,
+    )
+    assert semantic["selected_labs"]["network"]
     huge = classify([f"lib/f{i}.dart" for i in range(501)], "fast", "a"*40)
     assert huge["mode"] == "full" and huge["fallback_full"]
     cert = classify(["README.md"], "certification", "a"*40)
