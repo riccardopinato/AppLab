@@ -449,7 +449,6 @@ def self_test() -> None:
                 "requires_real_device": False,
                 "expected_signing_certificate_sha256": "",
                 "max_apk_bytes": MAX_CERTIFIED_APK_BYTES,
-                "max_apk_growth_percent": 35.0,
             },
             "apk": {
                 "sha256": sha256(apk),
