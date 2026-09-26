@@ -657,7 +657,9 @@ jobs:
             --resolved-sha "${{ steps.target.outputs.resolved_sha }}" \
             --history-key "${{ inputs.history_key }}" \
             --engine flutter \
-            --run-id "$GITHUB_RUN_ID"
+            --run-id "$GITHUB_RUN_ID" \
+            --verification-fingerprint "${{ steps.impact.outputs.domain_contract_fingerprint }}" \
+            --cache-domains "${{ steps.impact.outputs.cache_domains }}"
 
       - name: Upload non-runtime verification result
         if: steps.impact.outputs.runtime_required != 'true'
