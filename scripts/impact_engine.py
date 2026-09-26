@@ -27,7 +27,7 @@ DOC_NAMES = {
 TEST_MARKERS = ("/test/", "/tests/", "/androidtest/", "/test_", "_test.", "test/")
 HIGH_RISK_PATTERNS = (
     r"androidmanifest\.xml$", r"migration", r"schema", r"database", r"room", r"dao",
-    r"workmanager", r"foreground.?service", r"alarm", r"notification", r"permission",
+    r"workmanager", r"worker", r"service", r"background", r"foreground.?service", r"alarm", r"notification", r"permission",
     r"build\.gradle", r"settings\.gradle", r"gradle\.properties", r"pubspec\.yaml$",
     r"applicationid", r"minsdk", r"targetsdk", r"sign", r"keystore",
 )
