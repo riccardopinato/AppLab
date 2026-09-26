@@ -49,6 +49,17 @@ visual verification changes globally relevant. Project auto-discovery prefers
 `git ls-files` and falls back to filesystem traversal when Git metadata is not
 available.
 
+Final v0.9 review hardening closes the remaining unsafe shortcuts: rename impact
+uses both source and destination paths; `.md`/`.txt` are treated as documentation
+only in known documentation locations; FAST Flutter changes without a provably
+safe test target fall back to the full unit-test suite; Gradle commands with
+argument-bearing options are never reordered; empty same-SHA diffs caused by
+contract invalidation force FULL; and effective baseline fallbacks are persisted
+in the final plan. Before a runtime contract is packaged, AppLab preserves the
+exact APK bytes, restores/cleans the target checkout to the resolved commit and
+recomputes the adaptive plan with trusted AppLab code. Any divergence from the
+pre-build plan blocks the handoff.
+
 See `integration/performance/ADAPTIVE_IMPACT_ENGINE.md`,
 `integration/performance/FAST_ANALYSIS_ENGINE.md`, and `ROADMAP.md`.
 
