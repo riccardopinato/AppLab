@@ -116,6 +116,18 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
     )
     if str(analysis_plan.get("baseline_sha", "")).strip().lower() != baseline_sha:
         raise ValueError("Analysis plan baseline SHA mismatch")
+    contract_lane = str(payload.get("analysis_lane", analysis_plan.get("lane", "")))
+    if contract_lane != str(analysis_plan.get("lane", "")):
+        raise ValueError("Analysis plan lane mismatch")
+    if str(payload.get("analysis_effective_mode", analysis_plan.get("mode", ""))) != str(analysis_plan.get("mode", "")):
+        raise ValueError("Analysis effective mode mismatch")
+    if bool(payload.get("analysis_shadow_full", False)) != bool(analysis_plan.get("shadow_full", False)):
+        raise ValueError("Analysis shadow sampling mismatch")
+    contract_confidence = float(payload.get("analysis_confidence", analysis_plan.get("confidence", 0)))
+    if abs(contract_confidence - float(analysis_plan.get("confidence", 0))) > 1e-9:
+        raise ValueError("Analysis confidence mismatch")
+    if payload.get("analysis_risk", analysis_plan.get("risk", {})) != analysis_plan.get("risk", {}):
+        raise ValueError("Analysis risk mismatch")
     if package_id and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package_id):
         raise ValueError("Invalid package id in build contract")
 
@@ -232,6 +244,11 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         "working_directory": str(working),
         "evidence_bytes": total,
         "analysis_mode": analysis_mode,
+        "analysis_effective_mode": str(analysis_plan.get("mode", analysis_mode)),
+        "analysis_lane": str(analysis_plan.get("lane", "FULL_RUNTIME")),
+        "analysis_confidence": str(analysis_plan.get("confidence", 0)),
+        "analysis_risk_level": str(analysis_plan.get("risk", {}).get("level", "UNKNOWN")),
+        "analysis_shadow_full": str(bool(analysis_plan.get("shadow_full", False))).lower(),
         "analysis_baseline_sha": baseline_sha,
         "analysis_plan_file": str(analysis_plan_path),
         "quality_evidence_json": json.dumps(quality, separators=(",", ":")),
@@ -286,6 +303,11 @@ def self_test() -> None:
             "engine": "flutter", "working_directory": ".", "package_id": "com.example.app",
             "maestro_flow": ".maestro/smoke.yaml",
             "analysis_mode": "fast",
+            "analysis_effective_mode": "fast",
+            "analysis_lane": "FAST_RUNTIME",
+            "analysis_risk": {"score":10,"level":"LOW","reasons":[]},
+            "analysis_confidence": 0.9,
+            "analysis_shadow_full": False,
             "analysis_baseline_sha": "b" * 40,
             "analysis_plan": "analysis-plan.json",
             "certification_policy": {
