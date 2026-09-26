@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,30 @@ def read_text(path: Path) -> str:
 
 def files_under(root: Path, names: set[str] | None = None) -> list[Path]:
     result: list[Path] = []
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError):
+        completed = None
+
+    if completed is not None and completed.returncode == 0:
+        for raw in completed.stdout.decode("utf-8", errors="ignore").split("\0"):
+            if not raw:
+                continue
+            path = root / raw
+            if any(part in IGNORED_DIRS for part in path.parts):
+                continue
+            if not path.is_file():
+                continue
+            if names is None or path.name in names:
+                result.append(path)
+        return result
+
     for path in root.rglob("*"):
         if any(part in IGNORED_DIRS for part in path.parts):
             continue
@@ -469,7 +494,7 @@ def self_test() -> None:
         assert "assembleRelease" in profile["certification_build_command"]
         assert profile["certification_apk_path"].endswith("app-release.apk")
 
-    print("AppLab universal project auto-discovery self-test PASS")
+    print("AppLab v0.9 universal project auto-discovery self-test PASS")
 
 
 def main() -> int:
