@@ -38,6 +38,8 @@ def summarize(plan:dict,quality:dict|None=None,shadow:dict|None=None,runtime:dic
       "shadow_full":bool(plan.get("shadow_full")),
       "shadow_divergence_count":len(s.get("divergences",[])),
       "shadow_false_negative_count":int(s.get("false_negative_count",0) or 0),
+      "shadow_over_selection_count":int(s.get("over_selection_count",0) or 0),
+      "predicted_selection_ratio":s.get("predicted_selection_ratio"),
       "timings":timings,
       "runtime_seconds":round(runtime_seconds,3),
       "quality_seconds":round(quality_seconds,3),
