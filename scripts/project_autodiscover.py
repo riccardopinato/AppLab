@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -27,7 +28,33 @@ def read_text(path: Path) -> str:
 
 
 def files_under(root: Path, names: set[str] | None = None) -> list[Path]:
-    result: list[Path] = []
+    root = root.resolve()
+    # Git repositories are the normal AppLab input. Asking Git for tracked files
+    # avoids walking build/, node_modules/ and other generated trees entirely.
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        completed = None
+    if completed is not None and completed.returncode == 0 and completed.stdout:
+        result: list[Path] = []
+        for raw in completed.stdout.split(b"\0"):
+            if not raw:
+                continue
+            relative = raw.decode("utf-8", errors="ignore")
+            path = root / relative
+            if not path.is_file():
+                continue
+            if names is None or path.name in names:
+                result.append(path)
+        return result
+
+    result = []
     for path in root.rglob("*"):
         if any(part in IGNORED_DIRS for part in path.parts):
             continue
@@ -119,7 +146,7 @@ def detect_package_id(project: Path) -> str:
         if value:
             return value
 
-    manifests = list(project.rglob("AndroidManifest.xml"))
+    manifests = files_under(project, {"AndroidManifest.xml"})
     for manifest in manifests:
         value = first_regex(read_text(manifest), [r'package=["\']([^"\']+)["\']'])
         if value:
