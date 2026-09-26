@@ -114,7 +114,7 @@ CONTENT_SIGNALS: dict[str, tuple[str, ...]] = {
 }
 
 RISK_PATTERNS: tuple[tuple[int, str, str], ...] = (
-    (45, r"(migration|schema|database|room|drift|sqlite)", "database/schema"),
+    (60, r"(migration|schema|database|room|drift|sqlite)", "database/schema"),
     (40, r"(androidmanifest\.xml|applicationid|minsdk|targetsdk|signing|proguard|r8)", "platform/build identity"),
     (35, r"(workmanager|worker|service|alarm|notification|foreground)", "background/system"),
     (30, r"(network|api|retrofit|dio|ktor|websocket|graphql|sync)", "network/sync"),
@@ -729,6 +729,9 @@ def classify(files: list[str], mode: str, baseline_sha: str = "") -> dict[str, A
     if all(is_doc(p) for p in files):
         selected = {lab: False for lab in LABS}
         lane = "NO_RUNTIME_CHANGE"
+    elif all(is_test(p) or Path(p).name.lower() in STATIC_CONFIG or p.startswith(".github/") for p in files):
+        selected = {lab: False for lab in LABS}
+        lane = "STATIC_ONLY"
     else:
         lane = "FAST_RUNTIME"
     return {
