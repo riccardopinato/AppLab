@@ -1,3 +1,17 @@
+## v0.9.0 — Adaptive Impact Analysis & Incremental Verification
+
+AppLab v0.9 moves the FAST decision to the beginning of the gate. The new Adaptive Impact Engine evaluates the trusted multi-commit diff, change type/churn, source content, import/dependency blast radius and recent watcher failures, then assigns a deterministic **risk score**, **confidence score** and execution lane.
+
+The lanes are `NO_RUNTIME`, `STATIC_ONLY`, `FAST_RUNTIME`, `FULL_RUNTIME` and `CERTIFICATION`. Documentation-only changes can finish without toolchain setup, APK build or emulator; static-only changes run targeted static checks; bounded runtime changes keep core launch/crash/visual/interaction verification plus impact-selected specialist labs. Unsafe baselines, oversized diffs, high risk or low confidence automatically escalate to FULL.
+
+Flutter analysis/tests can be narrowed only at high confidence and otherwise fall back to the complete suite. Native Android can combine compatible Gradle test/lint/build tasks into one graph and scope them to a single affected module when safe. The trusted runtime now reuses a clean pre-install AVD snapshot and a pinned Maestro cache.
+
+Repo Watcher performs deterministic 10% **shadow FULL** sampling, attaches FAST/FULL divergence evidence to history, and publishes adaptive telemetry including lane distribution, risk/confidence and false-negative rate. Contract fingerprints are split into core and specialist domains so irrelevant AppLab lab changes do not invalidate every unchanged project cache.
+
+The v0.8.1 Production Certification guarantees remain unchanged: FAST is never certification, `SKIPPED` is never `PASS`, and only the exact release APK covered by current certification evidence can be published.
+
+See `integration/performance/ADAPTIVE_IMPACT_ENGINE.md` and `ROADMAP.md`.
+
 ## v0.8.1 — Certification Integrity & Release Artifact Hardening
 
 AppLab v0.8.1 closes the release-integrity gaps found in the v0.8.0 audit. Production Certification now routes auto-discovered projects through an explicit **RELEASE** build profile, rejects DEBUG artifacts and Android Debug certificates, records the signing-certificate SHA-256, and can enforce an expected production signer from project policy.
