@@ -44,7 +44,7 @@ def module_tasks(project: Path, commands: list[str], modules: list[str], safe: b
 def main()->int:
     ap=argparse.ArgumentParser()
     ap.add_argument("--plan",required=True); ap.add_argument("--engine",required=True)
-    ap.add_argument("--project-dir",required=True); ap.add_argument("--report-dir",required=True)
+    ap.add_argument("--project-dir",required=True); ap.add_argument("--repo-root",default=""); ap.add_argument("--report-dir",required=True)
     ap.add_argument("--test-command",default=""); ap.add_argument("--lint-command",default="")
     ap.add_argument("--build-command",default=""); ap.add_argument("--github-output",default=""); ap.add_argument("--skip-quality",action="store_true")
     ap.add_argument("--self-test",action="store_true")
@@ -54,6 +54,14 @@ def main()->int:
         print("AppLab adaptive checks self-test PASS"); return 0
     plan=json.loads(Path(args.plan).read_text(encoding="utf-8"))
     project=Path(args.project_dir).resolve(); report=Path(args.report_dir).resolve(); report.mkdir(parents=True,exist_ok=True)
+    repo_root=Path(args.repo_root).resolve() if args.repo_root else project
+    try:
+        prefix=project.relative_to(repo_root).as_posix()
+    except ValueError:
+        prefix="."
+    def local_path(value:str)->str:
+        value=value.replace("\\","/")
+        return value[len(prefix)+1:] if prefix not in {"",".","./"} and value.startswith(prefix+"/") else value
     lane=plan["lane"]; risk=int(plan.get("risk_score",100)); confidence=float(plan.get("confidence",0))
     out: dict[str,Any]={"schema_version":1,"lane":lane,"engine":args.engine,
         "analyze":"NOT_RUN","lint":"NOT_RUN","unit_tests":"NOT_RUN","build":"NOT_RUN","timings":{}}
@@ -61,9 +69,12 @@ def main()->int:
         pass
     elif args.engine=="flutter":
         full=lane in {"FULL_RUNTIME","CERTIFICATION"} or risk>=55 or confidence<0.8
-        analyze_targets=[p for p in plan.get("targets",{}).get("dart_analyze",[]) if (project/p).is_file()]
-        test_targets=[p for p in plan.get("targets",{}).get("dart_tests",[]) if (project/p).is_file()]
-        changed_tests=[p for p in plan.get("changed_files",[]) if p.endswith("_test.dart") and (project/p).is_file()]
+        analyze_targets=[local_path(p) for p in plan.get("targets",{}).get("dart_analyze",[])]
+        analyze_targets=[p for p in analyze_targets if (project/p).is_file()]
+        test_targets=[local_path(p) for p in plan.get("targets",{}).get("dart_tests",[])]
+        test_targets=[p for p in test_targets if (project/p).is_file()]
+        changed_tests=[local_path(p) for p in plan.get("changed_files",[]) if p.endswith("_test.dart")]
+        changed_tests=[p for p in changed_tests if (project/p).is_file()]
         if not args.skip_quality:
             analyze_cmd=["flutter","analyze"] if full or not analyze_targets else ["dart","analyze",*analyze_targets]
             out["analyze"],out["timings"]["analyze_seconds"]=run(analyze_cmd,project,report/"adaptive-analyze.txt")
@@ -87,7 +98,9 @@ def main()->int:
         if args.lint_command: commands.append(args.lint_command)
         if plan.get("run_build") and args.build_command: commands.append(args.build_command)
         safe_target=lane=="FAST_RUNTIME" and risk<45 and confidence>=0.85
-        combined=module_tasks(project,commands,plan.get("targets",{}).get("gradle_modules",[]),safe_target)
+        local_changed=[local_path(p) for p in plan.get("changed_files",[])]
+        modules=sorted({p.split("/",1)[0] for p in local_changed if "/" in p and (project/p.split("/",1)[0]).is_dir()})
+        combined=module_tasks(project,commands,modules, safe_target)
         start=time.perf_counter()
         if combined:
             status,_=run(combined,project,report/"adaptive-gradle.txt")
