@@ -292,6 +292,200 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  preflight:
+    name: Adaptive preflight ${{ inputs.repository }}${{ inputs.ref }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      resolved_sha: ${{ steps.target.outputs.resolved_sha }}
+      lane: ${{ steps.plan.outputs.lane }}
+      effective_mode: ${{ steps.plan.outputs.effective_mode }}
+      run_build: ${{ steps.plan.outputs.run_build }}
+      run_runtime: ${{ steps.plan.outputs.run_runtime }}
+      shadow_full: ${{ steps.plan.outputs.shadow_full }}
+      plan_artifact_name: ${{ steps.metadata.outputs.plan_artifact_name }}
+
+    steps:
+      - name: Validate target coordinates
+        shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+          TARGET_REF: ${{ inputs.ref }}
+          TARGET_WORKDIR: ${{ inputs.working_directory }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import PurePosixPath
+          repo = os.environ["TARGET_REPOSITORY"].strip()
+          ref = os.environ["TARGET_REF"].strip()
+          workdir = os.environ["TARGET_WORKDIR"].strip()
+          if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
+              raise SystemExit(f"Invalid repository: {repo!r}")
+          if not ref or any(ch in ref for ch in "\r\n"):
+              raise SystemExit("Invalid ref")
+          path = PurePosixPath(workdir or ".")
+          if path.is_absolute() or ".." in path.parts:
+              raise SystemExit("Unsafe working_directory")
+          PY
+
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .applab
+          persist-credentials: false
+
+      - name: Checkout target for impact analysis
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          path: target
+          fetch-depth: 64
+          persist-credentials: false
+
+      - name: Extend FAST history window when needed
+        if: inputs.analysis_mode == 'fast' && inputs.baseline_sha != ''
+        shell: bash
+        env:
+          BASELINE_SHA: ${{ inputs.baseline_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$BASELINE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            git -C "$GITHUB_WORKSPACE/target" cat-file -e "$BASELINE_SHA^{commit}" 2>/dev/null || {
+              git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --deepen=256 origin || true
+              git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --depth=1 origin "$BASELINE_SHA" || true
+            }
+          fi
+
+      - name: Restore verification history for risk calibration
+        uses: actions/cache/restore@v6
+        with:
+          path: .applab-history
+          key: applab-watch-history-preflight-${{ github.run_id }}
+          restore-keys: |
+            applab-watch-history-
+
+      - name: Resolve target SHA
+        id: target
+        shell: bash
+        run: |
+          SHA="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
+          echo "resolved_sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Compute adaptive impact plan
+        id: plan
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/applab-preflight"
+          python .applab/scripts/smart_test_plan.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --mode "${{ inputs.analysis_mode }}" \
+            --baseline-sha "${{ inputs.baseline_sha }}" \
+            --engine flutter \
+            --working-directory "${{ inputs.working_directory }}" \
+            --history-file "$GITHUB_WORKSPACE/.applab-history/history.jsonl" \
+            --repository "${{ inputs.repository }}" \
+            --output "$GITHUB_WORKSPACE/applab-preflight/analysis-plan.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Set preflight artifact identity
+        id: metadata
+        shell: bash
+        run: |
+          echo "plan_artifact_name=applab-preflight-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload adaptive analysis plan
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.metadata.outputs.plan_artifact_name }}
+          path: applab-preflight/analysis-plan.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Setup Java for STATIC_ONLY
+        if: steps.plan.outputs.lane == 'STATIC_ONLY' && inputs.run_flutter_tests
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java_version }}
+
+      - name: Setup Flutter channel for STATIC_ONLY
+        if: steps.plan.outputs.lane == 'STATIC_ONLY' && inputs.run_flutter_tests && inputs.flutter_version == ''
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ inputs.flutter_channel }}
+          cache: true
+
+      - name: Setup exact Flutter version for STATIC_ONLY
+        if: steps.plan.outputs.lane == 'STATIC_ONLY' && inputs.run_flutter_tests && inputs.flutter_version != ''
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ inputs.flutter_version }}
+          channel: stable
+          cache: true
+
+      - name: Prepare STATIC_ONLY project
+        if: steps.plan.outputs.lane == 'STATIC_ONLY' && inputs.run_flutter_tests
+        working-directory: target/${{ inputs.working_directory }}
+        shell: bash
+        env:
+          APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}
+          APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -n "$APPLAB_PREPARE_COMMAND" ]]; then bash -Eeuo pipefail -c "$APPLAB_PREPARE_COMMAND"; fi
+          flutter pub get
+          if [[ -n "$APPLAB_POST_PUB_GET_COMMAND" ]]; then bash -Eeuo pipefail -c "$APPLAB_POST_PUB_GET_COMMAND"; fi
+
+      - name: Run STATIC_ONLY checks
+        id: static_only
+        if: steps.plan.outputs.lane == 'STATIC_ONLY' && inputs.run_flutter_tests
+        continue-on-error: true
+        working-directory: target/${{ inputs.working_directory }}
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter analyze 2>&1 | tee "$GITHUB_WORKSPACE/applab-preflight/flutter-analyze.txt"
+          flutter test 2>&1 | tee "$GITHUB_WORKSPACE/applab-preflight/flutter-test.txt"
+
+      - name: Finalize short-circuit verification
+        if: always() && (steps.plan.outputs.lane == 'NO_RUNTIME_CHANGE' || steps.plan.outputs.lane == 'STATIC_ONLY')
+        shell: bash
+        env:
+          LANE: ${{ steps.plan.outputs.lane }}
+          STATIC_OUTCOME: ${{ steps.static_only.outcome }}
+          RUN_TESTS: ${{ inputs.run_flutter_tests }}
+        run: |
+          STATUS="SKIPPED"
+          if [[ "$LANE" == "STATIC_ONLY" ]]; then
+            if [[ "$RUN_TESTS" == "true" && "$STATIC_OUTCOME" != "success" ]]; then STATUS="FAIL"; else STATUS="PASS"; fi
+          fi
+          python .applab/scripts/preflight_result.py \
+            --plan "$GITHUB_WORKSPACE/applab-preflight/analysis-plan.json" \
+            --report-dir "$GITHUB_WORKSPACE/applab-report" \
+            --repository "${{ inputs.repository }}" \
+            --ref "${{ inputs.ref }}" \
+            --resolved-sha "${{ steps.target.outputs.resolved_sha }}" \
+            --history-key "${{ inputs.history_key }}" \
+            --engine flutter \
+            --run-id "$GITHUB_RUN_ID" \
+            --static-status "$STATUS"
+
+      - name: Upload short-circuit result
+        if: always() && (steps.plan.outputs.lane == 'NO_RUNTIME_CHANGE' || steps.plan.outputs.lane == 'STATIC_ONLY')
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-${{ inputs.history_key }}-${{ github.run_id }}
+          path: applab-report/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Fail failed STATIC_ONLY checks
+        if: steps.plan.outputs.lane == 'STATIC_ONLY' && inputs.run_flutter_tests && steps.static_only.outcome != 'success'
+        run: exit 1
+
   build:
     name: Build ${{ inputs.repository }}@${{ inputs.ref }}
     runs-on: ubuntu-latest
@@ -348,16 +542,11 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Fetch FAST baseline commit
-        if: inputs.analysis_mode == 'fast' && inputs.baseline_sha != ''
-        shell: bash
-        env:
-          BASELINE_SHA: ${{ inputs.baseline_sha }}
-        run: |
-          set -Eeuo pipefail
-          if [[ "$BASELINE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --depth=1 origin "$BASELINE_SHA" || true
-          fi
+      - name: Download trusted adaptive preflight plan
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.preflight.outputs.plan_artifact_name }}
+          path: .applab-preflight
 
       - name: Prepare evidence directory
         id: target
@@ -438,7 +627,22 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          flutter analyze 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-analyze.txt"
+          PLAN="$GITHUB_WORKSPACE/.applab-preflight/analysis-plan.json"
+          FULL="$(python -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["run"]["full_static"]).lower())' "$PLAN")"
+          RISK="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["risk"]["level"])' "$PLAN")"
+          CONF="$(python -c 'import json,sys; print(float(json.load(open(sys.argv[1]))["confidence"]))' "$PLAN")"
+          mapfile -t TARGETS < <(python - "$PLAN" <<'PY'
+import json,sys
+for value in json.load(open(sys.argv[1])).get("static_plan",{}).get("flutter_analyze_targets",[]):
+    print(value)
+PY
+          )
+          LOW_CONF="$(python -c "print('yes' if float('$CONF') < 0.90 else 'no')")"
+          if [[ "$FULL" == "true" || "$RISK" != "LOW" || "$LOW_CONF" == "yes" || ${#TARGETS[@]} -eq 0 ]]; then
+            flutter analyze 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-analyze.txt"
+          else
+            dart analyze "${TARGETS[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-analyze.txt"
+          fi
 
       - name: Unit tests
         if: inputs.run_flutter_tests
@@ -446,7 +650,20 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          flutter test 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-test.txt"
+          PLAN="$GITHUB_WORKSPACE/.applab-preflight/analysis-plan.json"
+          FULL="$(python -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["run"]["full_static"]).lower())' "$PLAN")"
+          RISK="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["risk"]["level"])' "$PLAN")"
+          mapfile -t TARGETS < <(python - "$PLAN" <<'PY'
+import json,sys
+for value in json.load(open(sys.argv[1])).get("static_plan",{}).get("flutter_test_targets",[]):
+    print(value)
+PY
+          )
+          if [[ "$FULL" == "true" || "$RISK" != "LOW" || ${#TARGETS[@]} -eq 0 ]]; then
+            flutter test 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-test.txt"
+          else
+            flutter test "${TARGETS[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-test.txt"
+          fi
 
       - name: Tune Gradle memory for hosted build
         working-directory: target/${{ inputs.working_directory }}
@@ -523,8 +740,9 @@ jobs:
             --working-directory "${{ inputs.working_directory }}" \
             --package-id "${{ inputs.package_id }}" \
             --maestro-flow "${{ inputs.maestro_flow }}" \
-            --analysis-mode "${{ inputs.analysis_mode }}" \
+            --analysis-mode "${{ needs.preflight.outputs.effective_mode }}" \
             --baseline-sha "${{ inputs.baseline_sha }}" \
+            --analysis-plan-input "$GITHUB_WORKSPACE/.applab-preflight/analysis-plan.json" \
             --build-command "${{ inputs.build_command }}" \
             --analyze-status "${{ inputs.run_flutter_tests && 'PASS' || 'NOT_RUN' }}" \
             --lint-status "N/A" \
@@ -552,7 +770,7 @@ jobs:
 
   verify:
     name: Trusted verify ${{ inputs.repository }}
-    needs: build
+    needs: [preflight, build]
     if: needs.build.result == 'success'
     uses: ./.github/workflows/trusted-apk-verifier.yml
     with:
@@ -566,7 +784,7 @@ jobs:
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
-      analysis_mode: ${{ inputs.analysis_mode }}
+      analysis_mode: ${{ needs.preflight.outputs.effective_mode }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
       run_maestro: ${{ inputs.run_maestro }}
       android_prepare_command: ${{ inputs.android_prepare_command }}
@@ -577,8 +795,8 @@ jobs:
 
   report_build_failure:
     name: Report build failure
-    needs: build
-    if: always() && needs.build.result != 'success'
+    needs: [preflight, build]
+    if: always() && needs.preflight.outputs.run_build == 'true' && needs.build.result != 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout trusted AppLab
@@ -592,7 +810,7 @@ jobs:
       - name: Finalize failed build result
         shell: bash
         env:
-          RESOLVED_SHA: ${{ needs.build.outputs.resolved_sha }}
+          RESOLVED_SHA: ${{ needs.build.outputs.resolved_sha || needs.preflight.outputs.resolved_sha }}
         run: |
           set -Eeuo pipefail
           mkdir -p "$GITHUB_WORKSPACE/applab-report"
