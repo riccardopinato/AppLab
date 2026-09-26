@@ -207,6 +207,7 @@ jobs:
     with:
       repository: ${{ matrix.repository }}
       ref: ${{ matrix.resolved_sha }}
+      source_ref: ${{ matrix.ref }}
       working_directory: ${{ matrix.working_directory }}
       flutter_channel: ${{ matrix.flutter_channel }}
       flutter_version: ${{ matrix.flutter_version }}
@@ -241,6 +242,7 @@ jobs:
     with:
       repository: ${{ matrix.repository }}
       ref: ${{ matrix.resolved_sha }}
+      source_ref: ${{ matrix.ref }}
       working_directory: ${{ matrix.working_directory }}
       java_version: ${{ matrix.java_version }}
       gradle_version: ${{ matrix.gradle_version }}
@@ -277,6 +279,7 @@ jobs:
     with:
       repository: ${{ matrix.repository }}
       ref: ${{ matrix.resolved_sha }}
+      source_ref: ${{ matrix.ref }}
       run_maestro: true
       history_key: ${{ matrix.key }}
       cache_verification: true
