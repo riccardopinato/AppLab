@@ -123,7 +123,7 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         raise ValueError("Analysis plan risk score does not match build contract")
     if payload.get("analysis_confidence") != analysis_plan.get("confidence"):
         raise ValueError("Analysis plan confidence does not match build contract")
-    if payload.get("analysis_shadow_full") is not bool(analysis_plan.get("shadow_full")):
+    if payload.get("analysis_shadow_full") != bool(analysis_plan.get("shadow_full")):
         raise ValueError("Analysis plan shadow calibration flag does not match build contract")
     if payload.get("analysis_domains") != analysis_plan.get("domains"):
         raise ValueError("Analysis plan domains do not match build contract")
