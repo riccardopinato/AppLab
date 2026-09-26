@@ -114,6 +114,10 @@ jobs:
           cp "$GITHUB_WORKSPACE/.applab-build/analysis-plan.json" \
              "$GITHUB_WORKSPACE/applab-report/analysis-plan.json"
 
+      - name: Mark trusted runtime job start
+        shell: bash
+        run: echo "APPLAB_RUNTIME_JOB_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Restore pinned Maestro cache
         if: inputs.run_maestro
         uses: actions/cache@v6
@@ -374,6 +378,38 @@ PY
             --report-dir "$GITHUB_WORKSPACE/applab-report" \
             --artifact-id "${{ steps.release_upload.outputs.artifact-id }}" \
             --artifact-url "${{ steps.release_upload.outputs.artifact-url }}"
+
+      - name: Finalize phase timing telemetry
+        if: always()
+        shell: bash
+        run: |
+          python - \
+            "$GITHUB_WORKSPACE/applab-report/timings.json" \
+            "$GITHUB_WORKSPACE/applab-report/build-contract.json" \
+            "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
+            "$APPLAB_RUNTIME_JOB_STARTED_EPOCH" <<'PY'
+          import json,sys,time
+          from pathlib import Path
+          out, contract_path, plan_path, started = map(Path, sys.argv[1:3]) if False else (Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4])
+          def load(path):
+              try:
+                  return json.loads(path.read_text(encoding="utf-8"))
+              except Exception:
+                  return {}
+          contract=load(contract_path)
+          plan=load(plan_path)
+          preflight=float(plan.get("preflight_total_elapsed_seconds", plan.get("preflight_elapsed_seconds", 0)) or 0)
+          build=float(contract.get("timings",{}).get("build_job_elapsed_seconds",0) or 0)
+          runtime=max(0, int(time.time())-int(started))
+          payload={
+              "planner_elapsed_ms": float(plan.get("planner_elapsed_ms",0) or 0),
+              "preflight_elapsed_seconds": preflight,
+              "build_job_elapsed_seconds": build,
+              "runtime_job_elapsed_seconds": runtime,
+              "estimated_total_seconds": round(preflight+build+runtime,2),
+          }
+          out.write_text(json.dumps(payload,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+          PY
 
       - name: Finalize trusted result contract
         if: always()
