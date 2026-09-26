@@ -4,7 +4,9 @@ from __future__ import annotations
 import argparse
 import json
 from datetime import datetime, timezone
-from pathlib import Path\n\nfrom contract_fingerprint import compute_selected
+from pathlib import Path
+
+from contract_fingerprint import compute_selected
 
 
 def main() -> int:
@@ -99,7 +101,31 @@ def main() -> int:
         try:
             timings = json.loads(timings_path.read_text(encoding="utf-8"))
             if isinstance(timings, dict):
-                payload["timings"] = timings
+                numeric = {
+                    key: float(value)
+                    for key, value in timings.items()
+                    if isinstance(value, (int, float))
+                }
+                numeric["total_seconds"] = round(
+                    float(numeric.get("planner_seconds", 0))
+                    + float(numeric.get("build_seconds", 0))
+                    + float(numeric.get("verifier_seconds", 0)),
+                    3,
+                )
+                payload["timings"] = numeric
+        except (json.JSONDecodeError, OSError, ValueError):
+            pass
+
+    cache_path = report_dir / "cache.json"
+    if cache_path.is_file():
+        try:
+            cache = json.loads(cache_path.read_text(encoding="utf-8"))
+            if isinstance(cache, dict):
+                payload["cache"] = {
+                    key: bool(value)
+                    for key, value in cache.items()
+                    if isinstance(value, bool)
+                }
         except (json.JSONDecodeError, OSError):
             pass
 
