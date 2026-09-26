@@ -112,7 +112,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.8.1"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.9.0"'; then
               healthy=true
               break
             fi
