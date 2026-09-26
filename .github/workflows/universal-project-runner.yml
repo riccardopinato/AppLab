@@ -42,6 +42,11 @@ on:
         required: false
         default: ""
         type: string
+      history_risk_bias:
+        description: Historical failure risk bias supplied by Repo Watcher
+        required: false
+        default: 0
+        type: number
       force_release_build:
         description: Force the release build profile without changing analysis mode
         required: false
@@ -105,6 +110,10 @@ on:
         required: false
         default: ""
         type: string
+      history_risk_bias:
+        required: false
+        default: 0
+        type: number
       force_release_build:
         required: false
         default: false
@@ -203,6 +212,7 @@ jobs:
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
+      history_risk_bias: ${{ inputs.history_risk_bias }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
 
   verify_native:
@@ -238,4 +248,5 @@ jobs:
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
+      history_risk_bias: ${{ inputs.history_risk_bias }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
