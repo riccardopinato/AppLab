@@ -33,3 +33,8 @@ def test_health() -> None:
     assert "fast-analysis-smart-orchestration" in payload["features"]
     assert "production-certification-gate" in payload["features"]
     assert "certification-integrity-hardening" in payload["features"]
+    assert "adaptive-impact-analysis" in payload["features"]
+    assert "risk-confidence-engine" in payload["features"]
+    assert "incremental-static-analysis" in payload["features"]
+    assert "shadow-full-calibration" in payload["features"]
+    assert "adaptive-analysis-telemetry" in payload["features"]
