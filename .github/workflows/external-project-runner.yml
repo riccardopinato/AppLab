@@ -299,6 +299,9 @@ jobs:
     outputs:
       resolved_sha: ${{ steps.target.outputs.resolved_sha }}
       artifact_name: ${{ steps.contract.outputs.artifact_name }}
+      analysis_lane: ${{ steps.impact.outputs.lane }}
+      run_runtime: ${{ steps.impact.outputs.run_runtime }}
+      run_build: ${{ steps.impact.outputs.run_build }}
 
     steps:
       - name: Validate target coordinates
@@ -359,6 +362,30 @@ jobs:
             git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --depth=1 origin "$BASELINE_SHA" || true
           fi
 
+      - name: Restore central history for adaptive risk
+        if: inputs.analysis_mode == 'fast'
+        uses: actions/cache/restore@v6
+        with:
+          path: .applab-history
+          key: applab-watch-history-fast-${{ github.run_id }}-${{ inputs.history_key }}
+          restore-keys: |
+            applab-watch-history-
+
+      - name: Plan adaptive verification
+        id: impact
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/applab-analysis-plan"
+          python .applab/scripts/smart_test_plan.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --mode "${{ inputs.analysis_mode }}" \
+            --baseline-sha "${{ inputs.baseline_sha }}" \
+            --history-file "$GITHUB_WORKSPACE/.applab-history/history.jsonl" \
+            --repository "${{ inputs.repository }}" \
+            --output "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Prepare evidence directory
         id: target
         shell: bash
@@ -382,20 +409,21 @@ jobs:
           test -f "$PROJECT_DIR/pubspec.yaml"
 
       - name: Setup Java
+        if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: ${{ inputs.java_version }}
 
       - name: Setup Flutter channel
-        if: inputs.flutter_version == ''
+        if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && inputs.flutter_version == ''
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ inputs.flutter_channel }}
           cache: true
 
       - name: Setup exact Flutter version
-        if: inputs.flutter_version != ''
+        if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && inputs.flutter_version != ''
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ inputs.flutter_version }}
@@ -403,7 +431,7 @@ jobs:
           cache: true
 
       - name: Target preparation
-        if: inputs.prepare_command != ''
+        if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && inputs.prepare_command != ''
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
         env:
@@ -411,6 +439,7 @@ jobs:
         run: bash -Eeuo pipefail -c "$APPLAB_PREPARE_COMMAND"
 
       - name: Require Android scaffold
+        if: steps.impact.outputs.run_build == 'true'
         shell: bash
         run: |
           PROJECT_DIR="$GITHUB_WORKSPACE/target/${{ inputs.working_directory }}"
@@ -421,69 +450,39 @@ jobs:
           fi
 
       - name: Resolve dependencies
+        if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
         working-directory: target/${{ inputs.working_directory }}
         run: flutter pub get
 
       - name: Post dependency preparation
-        if: inputs.post_pub_get_command != ''
+        if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && inputs.post_pub_get_command != ''
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
         env:
           APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}
         run: bash -Eeuo pipefail -c "$APPLAB_POST_PUB_GET_COMMAND"
 
-      - name: Analyze
-        if: inputs.run_flutter_tests
-        working-directory: target/${{ inputs.working_directory }}
-        shell: bash
-        run: |
-          set -o pipefail
-          flutter analyze 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-analyze.txt"
-
-      - name: Unit tests
-        if: inputs.run_flutter_tests
-        working-directory: target/${{ inputs.working_directory }}
-        shell: bash
-        run: |
-          set -o pipefail
-          flutter test 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-test.txt"
-
-      - name: Tune Gradle memory for hosted build
-        working-directory: target/${{ inputs.working_directory }}
+      - name: Adaptive Flutter checks and build
+        id: quality
+        if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
-          GRADLE_PROPERTIES="android/gradle.properties"
-          if [[ -f "$GRADLE_PROPERTIES" ]]; then
-            python3 - "$GRADLE_PROPERTIES" <<'PY'
-          from pathlib import Path
-          import sys
-
-          path = Path(sys.argv[1])
-          managed = {
-              "org.gradle.jvmargs": "-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8",
-              "org.gradle.workers.max": "2",
-              "kotlin.compiler.execution.strategy": "in-process",
-          }
-          lines = path.read_text(encoding="utf-8").splitlines()
-          prefixes = tuple(f"{key}=" for key in managed)
-          lines = [line for line in lines if not line.startswith(prefixes)]
-          lines.append("")
-          lines.append("# AppLab hosted-runner memory profile")
-          lines.extend(f"{key}={value}" for key, value in managed.items())
-          path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-          PY
-            cp "$GRADLE_PROPERTIES" "$GITHUB_WORKSPACE/applab-report/gradle-properties-effective.txt"
+          EXTRA=()
+          if [[ "${{ inputs.run_flutter_tests }}" != "true" ]]; then
+            EXTRA+=(--skip-quality)
           fi
-
-      - name: Build APK
-        working-directory: target/${{ inputs.working_directory }}
-        shell: bash
-        run: |
-          set -o pipefail
-          ${{ inputs.build_command }} 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-build.txt"
+          python .applab/scripts/adaptive_checks.py \
+            --plan "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
+            --engine flutter \
+            --project-dir "$GITHUB_WORKSPACE/target/${{ inputs.working_directory }}" \
+            --report-dir "$GITHUB_WORKSPACE/applab-report" \
+            --build-command "${{ inputs.build_command }}" \
+            --github-output "$GITHUB_OUTPUT" \
+            "${EXTRA[@]}"
 
       - name: Resolve APK
+        if: steps.impact.outputs.run_build == 'true'
         id: apk
         shell: bash
         run: |
@@ -497,6 +496,7 @@ jobs:
 
 
       - name: Restore trusted AppLab contract packager
+        if: steps.impact.outputs.run_build == 'true'
         shell: bash
         env:
           APPLAB_TRUSTED_SHA: ${{ job.workflow_sha }}
@@ -507,6 +507,7 @@ jobs:
           test "$(git -C "$GITHUB_WORKSPACE/.applab" rev-parse HEAD)" = "$APPLAB_TRUSTED_SHA"
 
       - name: Package isolated APK contract
+        if: steps.impact.outputs.run_build == 'true'
         id: contract
         shell: bash
         run: |
@@ -525,13 +526,16 @@ jobs:
             --maestro-flow "${{ inputs.maestro_flow }}" \
             --analysis-mode "${{ inputs.analysis_mode }}" \
             --baseline-sha "${{ inputs.baseline_sha }}" \
+            --analysis-plan-input "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
+            --quality-json "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" \
             --build-command "${{ inputs.build_command }}" \
-            --analyze-status "${{ inputs.run_flutter_tests && 'PASS' || 'NOT_RUN' }}" \
+            --analyze-status "${{ steps.quality.outputs.analyze || 'NOT_RUN' }}" \
             --lint-status "N/A" \
-            --test-status "${{ inputs.run_flutter_tests && 'PASS' || 'NOT_RUN' }}" \
-            --build-status "PASS"
+            --test-status "${{ steps.quality.outputs.unit_tests || 'NOT_RUN' }}" \
+            --build-status "${{ steps.quality.outputs.build || 'PASS' }}"
 
       - name: Upload isolated APK contract
+        if: steps.impact.outputs.run_build == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.contract.outputs.artifact_name }}
@@ -540,6 +544,29 @@ jobs:
           retention-days: 2
           compression-level: 0
           include-hidden-files: true
+
+      - name: Finalize analysis-only result
+        if: steps.impact.outputs.run_runtime != 'true'
+        shell: bash
+        run: |
+          python .applab/scripts/incremental_result.py \
+            --plan "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
+            --report-dir "$GITHUB_WORKSPACE/applab-report" \
+            --repository "${{ inputs.repository }}" \
+            --ref "${{ inputs.ref }}" \
+            --resolved-sha "${{ steps.target.outputs.resolved_sha }}" \
+            --history-key "${{ inputs.history_key }}" \
+            --quality-json "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" \
+            --run-id "$GITHUB_RUN_ID"
+
+      - name: Upload analysis-only watcher result
+        if: steps.impact.outputs.run_runtime != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-${{ inputs.history_key }}-${{ github.run_id }}
+          path: applab-report/
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload build-phase evidence
         if: always()
@@ -553,7 +580,7 @@ jobs:
   verify:
     name: Trusted verify ${{ inputs.repository }}
     needs: build
-    if: needs.build.result == 'success'
+    if: needs.build.result == 'success' && needs.build.outputs.run_runtime == 'true'
     uses: ./.github/workflows/trusted-apk-verifier.yml
     with:
       build_artifact_name: ${{ needs.build.outputs.artifact_name }}
