@@ -22,6 +22,8 @@ def finalize(
     history_key: str,
     engine: str,
     run_id: str,
+    verification_fingerprint: str = "",
+    cache_domains: str = "core",
 ) -> dict[str, Any]:
     impact = json.loads(impact_plan.read_text(encoding="utf-8"))
     lane = str(impact.get("lane", ""))
@@ -48,6 +50,12 @@ def finalize(
         "runtime_evidence_reused": True,
         "runtime_evidence_sha": baseline,
         "shadow_full": bool(impact.get("shadow_full", False)),
+        "verification_fingerprint": verification_fingerprint or str(impact.get("domain_contract_fingerprint", "")),
+        "cache_domains": impact.get("cache_domains", [x for x in cache_domains.split("-") if x]),
+        "historical_failure_count": impact.get("historical_failure_count", 0),
+        "impacted_modules": impact.get("impacted_modules", []),
+        "targeted": impact.get("targeted", {}),
+        "telemetry": impact.get("telemetry", {}),
         "certification_status": "NOT_REQUESTED",
         "impact_plan": "impact-plan.json",
     }
@@ -104,6 +112,8 @@ def main() -> int:
     p.add_argument("--history-key", default="")
     p.add_argument("--engine", default="")
     p.add_argument("--run-id", default="")
+    p.add_argument("--verification-fingerprint", default="")
+    p.add_argument("--cache-domains", default="core")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args()
     if args.self_test:
@@ -114,6 +124,7 @@ def main() -> int:
     print(json.dumps(finalize(
         Path(args.report_dir), Path(args.impact_plan), args.repository, args.ref,
         args.resolved_sha, args.history_key, args.engine, args.run_id,
+        args.verification_fingerprint, args.cache_domains,
     ), indent=2, sort_keys=True))
     return 0
 
