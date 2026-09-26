@@ -36,7 +36,7 @@ def main() -> int:
     if not payload:
         payload = {
             "schema_version": 1,
-            "applab_version": "0.8.1",
+            "applab_version": "0.9.0",
             "result": "FAIL",
             "analysis_mode": args.analysis_mode,
             "reason": "Pipeline ended before the Android verifier produced a result.",
@@ -59,6 +59,44 @@ def main() -> int:
             "performance_lab": "SKIPPED",
             "evidence": {},
         }
+
+    plan_path = report_dir / "analysis-plan.json"
+    if plan_path.is_file():
+        try:
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            plan = {}
+        if isinstance(plan, dict):
+            payload.update({
+                "analysis_lane": plan.get("lane"),
+                "risk_score": plan.get("risk_score"),
+                "risk_level": plan.get("risk_level"),
+                "confidence": plan.get("confidence"),
+                "analysis_domains": plan.get("domains", []),
+                "shadow_full": bool(plan.get("shadow_full")),
+                "runtime_changed": bool(plan.get("runtime_changed")),
+                "planner_duration_ms": plan.get("planner_duration_ms"),
+                "changed_file_count": len(plan.get("changed_files", [])) if isinstance(plan.get("changed_files"), list) else None,
+                "churn": plan.get("churn"),
+            })
+
+    shadow_path = report_dir / "shadow-calibration.json"
+    if shadow_path.is_file():
+        try:
+            shadow = json.loads(shadow_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            shadow = {}
+        if isinstance(shadow, dict):
+            payload["shadow_calibration"] = shadow
+
+    telemetry_path = report_dir / "telemetry.json"
+    if telemetry_path.is_file():
+        try:
+            telemetry = json.loads(telemetry_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            telemetry = {}
+        if isinstance(telemetry, dict):
+            payload["telemetry"] = telemetry
 
     payload.update(
         {
