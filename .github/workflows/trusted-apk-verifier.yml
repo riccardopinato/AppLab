@@ -78,13 +78,15 @@ jobs:
     name: Prepare clean Android AVD cache
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      cache_hit: ${{ steps.avd_cache.outputs.cache-hit }}
     steps:
       - name: Restore clean AVD cache
         id: avd_cache
         uses: actions/cache@v5
         with:
           path: ~/.android/avd
-          key: applab-clean-avd-v1-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
+          key: applab-clean-avd-v0.9.0-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
 
       - name: Enable KVM for clean AVD creation
         if: steps.avd_cache.outputs.cache-hit != 'true'
@@ -131,7 +133,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ~/.android/avd
-          key: applab-clean-avd-v1-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
+          key: applab-clean-avd-v0.9.0-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
 
       - name: Download untrusted build contract
         uses: actions/download-artifact@v8
@@ -159,6 +161,7 @@ jobs:
              "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" 2>/dev/null || true
 
       - name: Cache pinned Maestro
+        id: maestro_cache
         if: inputs.run_maestro
         uses: actions/cache@v5
         with:
@@ -230,6 +233,11 @@ jobs:
           echo "effective_mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "lane=$LANE" >> "$GITHUB_OUTPUT"
 
+      - name: Start runtime timing
+        shell: bash
+        run: |
+          date +%s%3N > "$GITHUB_WORKSPACE/applab-report/runtime-start-ms.txt"
+
       - name: Verify APK inside trusted Android runtime
         id: verify
         uses: reactivecircus/android-emulator-runner@v2
@@ -261,6 +269,23 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: bash .applab/scripts/run_external_android_gate.sh
+
+      - name: Finalize runtime timing
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, time
+          from pathlib import Path
+          report=Path("applab-report")
+          start_path=report/"runtime-start-ms.txt"
+          start=int(start_path.read_text().strip()) if start_path.is_file() else int(time.time()*1000)
+          end=int(time.time()*1000)
+          (report/"runtime-timing.json").write_text(
+              json.dumps({"runtime_seconds": round(max(0,end-start)/1000,3)}, indent=2)+"\n",
+              encoding="utf-8",
+          )
+          PY
 
       - name: Evaluate production certification
         id: certification
@@ -398,6 +423,9 @@ jobs:
             --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
             --quality "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" \
             --shadow "$GITHUB_WORKSPACE/applab-report/shadow-calibration.json" \
+            --runtime-timing "$GITHUB_WORKSPACE/applab-report/runtime-timing.json" \
+            --avd-cache-hit "${{ needs.prepare_avd.outputs.cache_hit }}" \
+            --maestro-cache-hit "${{ steps.maestro_cache.outputs.cache-hit }}" \
             --output "$GITHUB_WORKSPACE/applab-report/pipeline-metrics.json"
 
       - name: Finalize trusted result contract
