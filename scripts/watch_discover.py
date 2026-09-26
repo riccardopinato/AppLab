@@ -330,7 +330,10 @@ def main() -> int:
                 try:
                     effective_contract_fingerprint = domain_fingerprint.selected_fingerprint(
                         Path(__file__).resolve().parent.parent,
-                        {"selected_labs": previous_selected},
+                        {
+                            "selected_labs": previous_selected,
+                            "lane": previous_for_sha.get("analysis_lane", ""),
+                        },
                     )
                 except (OSError, ValueError):
                     effective_contract_fingerprint = contract_fingerprint
