@@ -20,6 +20,10 @@ CORE_FILES = (
     "scripts/native_task_graph.py",
     "scripts/shadow_calibration.py",
     "scripts/finalize_incremental_result.py",
+    "scripts/finalize_external_result.py",
+    "scripts/watch_discover.py",
+    "scripts/watch_aggregate.py",
+    "scripts/control_center_snapshot.py",
     "scripts/project_autodiscover.py",
     "scripts/prepare_visual_baseline.py",
     "scripts/visual_qa.py",
@@ -31,6 +35,7 @@ CORE_FILES = (
     ".github/workflows/external-native-android-runner.yml",
     ".github/workflows/universal-project-runner.yml",
     ".github/workflows/trusted-apk-verifier.yml",
+    ".github/workflows/repo-watcher.yml",
 )
 
 DOMAIN_FILES: dict[str, tuple[str, ...]] = {
