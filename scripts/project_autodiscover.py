@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -27,7 +28,33 @@ def read_text(path: Path) -> str:
 
 
 def files_under(root: Path, names: set[str] | None = None) -> list[Path]:
+    root = root.resolve()
     result: list[Path] = []
+    try:
+        top = Path(subprocess.check_output(
+            ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
+            text=True, stderr=subprocess.DEVNULL, timeout=10,
+        ).strip()).resolve()
+        raw = subprocess.check_output(
+            ["git", "-C", str(root), "ls-files", "-z"],
+            text=False, stderr=subprocess.DEVNULL, timeout=20,
+        )
+        for item in raw.decode("utf-8", errors="ignore").split("\0"):
+            if not item:
+                continue
+            path = (top / item).resolve()
+            try:
+                relative = path.relative_to(root)
+            except ValueError:
+                continue
+            if any(part in IGNORED_DIRS for part in relative.parts):
+                continue
+            if path.is_file() and (names is None or path.name in names):
+                result.append(path)
+        return sorted(set(result))
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+
     for path in root.rglob("*"):
         if any(part in IGNORED_DIRS for part in path.parts):
             continue
