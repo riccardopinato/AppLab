@@ -2,264 +2,413 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
+import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
 LABS = (
-    "system",
-    "performance",
-    "network",
-    "persistence",
-    "configuration",
-    "resource_pressure",
-    "background",
-    "storage",
-    "upgrade",
+    "system", "performance", "network", "persistence", "configuration",
+    "resource_pressure", "background", "storage", "upgrade",
 )
-
 SOURCE_SUFFIXES = {".kt", ".java", ".dart", ".xml", ".gradle", ".kts", ".toml", ".json", ".yaml", ".yml"}
-
+DOC_PREFIXES = ("docs/", "readme", "changelog", "license", ".github/issue", ".github/pull")
+STATIC_PREFIXES = ("test/", "tests/", "androidtest/", ".github/", "scripts/")
+GLOBAL_RISK_PATTERNS = (
+    r"pubspec\.ya?ml$", r"gradle\.properties$", r"settings\.gradle", r"build\.gradle",
+    r"libs\.versions\.toml$", r"androidmanifest\.xml$", r"minSdk", r"targetSdk",
+    r"applicationId", r"namespace", r"proguard", r"signing", r"schema", r"migration",
+)
 RULES: dict[str, tuple[str, ...]] = {
-    "system": (
-        r"AndroidManifest\.xml$", r"permissions?", r"notification", r"deeplink", r"intent",
-        r"biometric", r"camera", r"location", r"bluetooth", r"foreground.?service",
-    ),
-    "performance": (
-        r"(^|/)(lib|src|app)/", r"build\.gradle", r"pubspec\.yaml$", r"gradle\.properties$",
-        r"render", r"image", r"list", r"animation",
-    ),
-    "network": (
-        r"network", r"http", r"api", r"retrofit", r"dio", r"ktor", r"websocket", r"sync",
-        r"remote", r"repository", r"connectivity",
-    ),
-    "persistence": (
-        r"database", r"room", r"dao", r"entity", r"migration", r"shared.?pref", r"datastore",
-        r"storage", r"cache", r"sqlite", r"repository", r"model",
-    ),
-    "configuration": (
-        r"activity", r"fragment", r"compose", r"widget", r"screen", r"page", r"view", r"layout",
-        r"theme", r"orientation", r"resource", r"res/", r"lib/.*\.dart$",
-    ),
-    "resource_pressure": (
-        r"service", r"worker", r"background", r"cache", r"image", r"bitmap", r"camera",
-        r"media", r"memory", r"process",
-    ),
-    "background": (
-        r"service", r"worker", r"workmanager", r"background", r"alarm", r"job", r"notification",
-        r"battery", r"doze", r"sync",
-    ),
-    "storage": (
-        r"database", r"room", r"dao", r"entity", r"migration", r"shared.?pref", r"datastore",
-        r"storage", r"file", r"sqlite", r"backup", r"cache",
-    ),
-    "upgrade": (
-        r"database", r"migration", r"schema", r"AndroidManifest\.xml$", r"build\.gradle",
-        r"pubspec\.yaml$", r"version", r"applicationId", r"minSdk", r"targetSdk",
-    ),
+    "system": (r"AndroidManifest\.xml$", r"permissions?", r"notification", r"deeplink", r"intent",
+               r"biometric", r"camera", r"location", r"bluetooth", r"foreground.?service"),
+    "performance": (r"(^|/)(lib|src|app)/", r"build\.gradle", r"pubspec\.yaml$", r"render",
+                    r"image", r"list", r"animation", r"compose", r"widget"),
+    "network": (r"network", r"http", r"api", r"retrofit", r"dio", r"ktor", r"websocket",
+                r"sync", r"remote", r"repository", r"connectivity"),
+    "persistence": (r"database", r"room", r"dao", r"entity", r"migration", r"shared.?pref",
+                    r"datastore", r"storage", r"cache", r"sqlite", r"repository", r"model"),
+    "configuration": (r"activity", r"fragment", r"compose", r"widget", r"screen", r"page",
+                      r"view", r"layout", r"theme", r"orientation", r"resource", r"res/",
+                      r"lib/.*\.dart$"),
+    "resource_pressure": (r"service", r"worker", r"background", r"cache", r"image", r"bitmap",
+                          r"camera", r"media", r"memory", r"process"),
+    "background": (r"service", r"worker", r"workmanager", r"background", r"alarm", r"job",
+                   r"notification", r"battery", r"doze", r"sync"),
+    "storage": (r"database", r"room", r"dao", r"entity", r"migration", r"shared.?pref",
+                r"datastore", r"storage", r"file", r"sqlite", r"backup", r"cache"),
+    "upgrade": (r"database", r"migration", r"schema", r"AndroidManifest\.xml$", r"build\.gradle",
+                r"pubspec\.yaml$", r"version", r"applicationId", r"minSdk", r"targetSdk"),
 }
 
-def git_changed_files(repo_root: Path, baseline_sha: str = "") -> list[str]:
+def _run(repo: Path, *args: str, timeout: int = 30) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", "-C", str(repo), *args], text=True, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, check=False, timeout=timeout)
+
+def baseline_status(repo: Path, baseline_sha: str) -> tuple[bool, str]:
     baseline = baseline_sha.strip().lower()
     if not re.fullmatch(r"[0-9a-f]{40}", baseline):
-        return []
-
-    exists = subprocess.run(
-        ["git", "-C", str(repo_root), "cat-file", "-e", f"{baseline}^{{commit}}"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-        timeout=15,
-    )
+        return False, "missing-or-invalid-baseline"
+    exists = _run(repo, "cat-file", "-e", f"{baseline}^{{commit}}", timeout=15)
     if exists.returncode != 0:
-        return []
+        return False, "baseline-not-present"
+    ancestor = _run(repo, "merge-base", "--is-ancestor", baseline, "HEAD", timeout=15)
+    if ancestor.returncode != 0:
+        return False, "baseline-not-ancestor"
+    return True, "trusted-ancestor"
 
-    result = subprocess.run(
-        ["git", "-C", str(repo_root), "diff", "--name-only", "--find-renames", f"{baseline}..HEAD"],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=False,
-        timeout=30,
-    )
-    if result.returncode != 0:
+def git_diff_evidence(repo: Path, baseline_sha: str, max_files: int = 500) -> dict[str, Any]:
+    ok, status = baseline_status(repo, baseline_sha)
+    if not ok:
+        return {"trusted": False, "status": status, "files": [], "too_large": False,
+                "additions": 0, "deletions": 0, "hunks": []}
+    range_spec = f"{baseline_sha}..HEAD"
+    name_status = _run(repo, "diff", "--name-status", "--find-renames", range_spec)
+    numstat = _run(repo, "diff", "--numstat", "--find-renames", range_spec)
+    patch = _run(repo, "diff", "--unified=0", "--no-color", range_spec, timeout=45)
+    if name_status.returncode or numstat.returncode or patch.returncode:
+        return {"trusted": False, "status": "diff-failed", "files": [], "too_large": False,
+                "additions": 0, "deletions": 0, "hunks": []}
+    files: list[dict[str, Any]] = []
+    for raw in name_status.stdout.splitlines():
+        parts = raw.split("\t")
+        if len(parts) < 2:
+            continue
+        code = parts[0]
+        path = (parts[-1] or "").replace("\\", "/")
+        previous = parts[1].replace("\\", "/") if code.startswith("R") and len(parts) > 2 else ""
+        files.append({"path": path, "status": code[:1], "previous_path": previous})
+    additions = deletions = 0
+    stats: dict[str, tuple[int, int]] = {}
+    for raw in numstat.stdout.splitlines():
+        parts = raw.split("\t")
+        if len(parts) < 3:
+            continue
+        try:
+            a = 0 if parts[0] == "-" else int(parts[0])
+            d = 0 if parts[1] == "-" else int(parts[1])
+        except ValueError:
+            continue
+        path = parts[-1].replace("\\", "/")
+        stats[path] = (a, d)
+        additions += a
+        deletions += d
+    for item in files:
+        a, d = stats.get(item["path"], (0, 0))
+        item["additions"], item["deletions"] = a, d
+    hunks = [line[:500] for line in patch.stdout.splitlines()
+             if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))][:200]
+    too_large = len(files) > max_files or additions + deletions > 20000
+    return {"trusted": True, "status": "ok", "files": files[:max_files],
+            "file_count": len(files), "too_large": too_large,
+            "additions": additions, "deletions": deletions, "hunks": hunks}
+
+def tracked_files(repo: Path) -> list[str]:
+    result = _run(repo, "ls-files", timeout=30)
+    if result.returncode == 0:
+        return [x.strip().replace("\\", "/") for x in result.stdout.splitlines() if x.strip()]
+    return []
+
+def _imports(path: Path) -> list[str]:
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
         return []
-    return sorted({line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()})
+    found: list[str] = []
+    for pattern in (
+        r"(?m)^\s*import\s+['\"]([^'\"]+)['\"]",
+        r"(?m)^\s*import\s+([A-Za-z0-9_.*]+)",
+    ):
+        found.extend(re.findall(pattern, text))
+    return found[:100]
+
+def dependency_impacts(repo: Path, changed: list[str], tracked: list[str]) -> list[str]:
+    changed_set = set(changed)
+    stems = {Path(p).stem.lower() for p in changed if Path(p).suffix.lower() in {".dart", ".kt", ".java"}}
+    if not stems:
+        return []
+    impacted: set[str] = set()
+    candidates = [p for p in tracked if Path(p).suffix.lower() in {".dart", ".kt", ".java"}]
+    # Bounded reverse-import graph: deterministic and conservative.
+    for rel in candidates[:5000]:
+        if rel in changed_set:
+            continue
+        imports = _imports(repo / rel)
+        joined = " ".join(imports).lower()
+        if any(stem and stem in joined for stem in stems):
+            impacted.add(rel)
+            if len(impacted) >= 200:
+                break
+    return sorted(impacted)
+
+def historical_failure_boost(history_file: str, repository: str, selected: dict[str, bool]) -> tuple[int, dict[str, int]]:
+    if not history_file or not Path(history_file).is_file():
+        return 0, {}
+    counts = {lab: 0 for lab in LABS}
+    rows = Path(history_file).read_text(encoding="utf-8", errors="ignore").splitlines()[-200:]
+    for raw in rows:
+        try:
+            item = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if repository and item.get("repository") != repository:
+            continue
+        for lab in LABS:
+            if str(item.get(f"{lab}_lab" if lab not in {"system", "performance"} else
+                            ("system_lab" if lab == "system" else "performance_lab"), "")).upper() in {"FAIL", "ERROR"}:
+                counts[lab] += 1
+    active = {lab: n for lab, n in counts.items() if n and selected.get(lab)}
+    return min(20, sum(min(n, 3) * 2 for n in active.values())), active
+
+def targeted_paths(changed: list[str], impacted: list[str]) -> dict[str, Any]:
+    dart = sorted({p for p in changed + impacted if p.endswith(".dart") and not p.startswith(("test/", "tests/"))})
+    dart_tests: set[str] = set()
+    for p in dart:
+        candidate = "test/" + p[4:] if p.startswith("lib/") else ""
+        if candidate:
+            candidate = re.sub(r"\.dart$", "_test.dart", candidate)
+            dart_tests.add(candidate)
+    gradle_modules: set[str] = set()
+    for p in changed:
+        parts = p.split("/")
+        if len(parts) > 1 and parts[0] not in {"lib", "src", "test", "tests", ".github"}:
+            gradle_modules.add(parts[0])
+        elif p.startswith("app/"):
+            gradle_modules.add("app")
+    return {"dart_analyze": dart[:100], "dart_tests": sorted(dart_tests)[:100],
+            "gradle_modules": sorted(gradle_modules)[:20]}
 
 def classify(files: list[str], mode: str, baseline_sha: str = "") -> dict[str, Any]:
+    # Backward-compatible path-only classifier used by callers/tests.
+    evidence = {"trusted": bool(files), "status": "compat", "files": [{"path": p, "status": "M", "additions": 0, "deletions": 0} for p in files],
+                "file_count": len(files), "too_large": len(files) > 500, "additions": 0, "deletions": 0, "hunks": []}
+    return classify_evidence(evidence, mode, baseline_sha)
+
+def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "",
+                      impacted: list[str] | None = None, history_file: str = "",
+                      repository: str = "", head_sha: str = "", shadow_every: int = 10) -> dict[str, Any]:
     mode = mode.lower().strip()
     if mode not in {"fast", "full", "certification"}:
         raise ValueError("analysis mode must be fast, full or certification")
-
-    selected = {lab: True for lab in LABS}
+    impacted = impacted or []
+    changed = [str(x.get("path", "")) for x in evidence.get("files", []) if x.get("path")]
+    selected = {lab: mode in {"full", "certification"} for lab in LABS}
     reasons: dict[str, list[str]] = {lab: [] for lab in LABS}
-
     if mode in {"full", "certification"}:
-        label = "FULL mode" if mode == "full" else "CERTIFICATION mode"
         for lab in LABS:
-            reasons[lab].append(label)
-        return {
-            "schema_version": 1,
-            "planner_version": "0.8.1",
-            "mode": mode,
-            "baseline_sha": baseline_sha,
-            "changed_files": files,
-            "selected_labs": selected,
-            "reasons": reasons,
-            "fallback_full": False,
-        }
+            reasons[lab].append("FULL mode" if mode == "full" else "CERTIFICATION mode")
+        return _plan(mode, mode, "FULL_RUNTIME" if mode == "full" else "CERTIFICATION",
+                     baseline_sha, evidence, selected, reasons, 100 if mode == "certification" else 80,
+                     1.0, impacted, False, False, repository)
 
-    if not files:
+    if not evidence.get("trusted") or evidence.get("too_large"):
         for lab in LABS:
-            reasons[lab].append("no reliable changed-file set; safe FULL fallback")
-        return {
-            "schema_version": 1,
-            "planner_version": "0.8.1",
-            "mode": "full",
-            "baseline_sha": baseline_sha,
-            "requested_mode": "fast",
-            "changed_files": [],
-            "selected_labs": selected,
-            "reasons": reasons,
-            "fallback_full": True,
-        }
+            reasons[lab].append("untrusted/oversized diff; safe FULL fallback")
+        return _plan("fast", "full", "FULL_RUNTIME", baseline_sha, evidence,
+                     {lab: True for lab in LABS}, reasons, 90, 0.0, impacted, True, False, repository)
 
-    selected = {lab: False for lab in LABS}
-    for path in files:
+    lower_paths = [p.lower() for p in changed]
+    docs_only = bool(changed) and all(p.startswith(DOC_PREFIXES) or Path(p).suffix.lower() in {".md", ".txt"} for p in lower_paths)
+    static_only = bool(changed) and all(
+        p.startswith(STATIC_PREFIXES) or Path(p).suffix.lower() in {".md", ".txt"} for p in lower_paths
+    )
+    if docs_only:
+        return _plan("fast", "fast", "NO_RUNTIME_CHANGE", baseline_sha, evidence,
+                     {lab: False for lab in LABS}, reasons, 0, 0.99, impacted, False, False, repository)
+    if static_only:
+        return _plan("fast", "fast", "STATIC_ONLY", baseline_sha, evidence,
+                     {lab: False for lab in LABS}, reasons, 15, 0.95, impacted, False, False, repository)
+
+    risk = 20
+    changed_text = "\n".join(changed + list(evidence.get("hunks", [])))
+    for item in evidence.get("files", []):
+        path = str(item.get("path", ""))
         lower = path.lower()
         suffix = Path(lower).suffix
+        churn = int(item.get("additions", 0)) + int(item.get("deletions", 0))
+        risk += min(10, churn // 100)
+        if item.get("status") in {"D", "R"}:
+            risk += 5
         for lab, patterns in RULES.items():
-            if any(re.search(pattern, lower, flags=re.IGNORECASE) for pattern in patterns):
+            if any(re.search(pattern, lower, re.I) for pattern in patterns):
                 selected[lab] = True
                 reasons[lab].append(path)
-
         if suffix in SOURCE_SUFFIXES and ("/src/" in f"/{lower}" or lower.startswith(("lib/", "app/"))):
             selected["performance"] = True
-            if path not in reasons["performance"]:
-                reasons["performance"].append(path)
+            reasons["performance"].append(path)
+    for pattern in GLOBAL_RISK_PATTERNS:
+        if re.search(pattern, changed_text, re.I):
+            risk += 8
+    if impacted:
+        risk += min(15, len(impacted) // 5 + 3)
+        for p in impacted[:50]:
+            lower = p.lower()
+            for lab, patterns in RULES.items():
+                if any(re.search(pattern, lower, re.I) for pattern in patterns):
+                    selected[lab] = True
+                    reasons[lab].append(f"dependency:{p}")
+    boost, failures = historical_failure_boost(history_file, repository, selected)
+    risk += boost
+    risk = max(0, min(100, risk))
+    confidence = max(0.35, min(0.99, 0.96 - min(len(changed), 100) * 0.002 - min(len(impacted), 100) * 0.001))
+    if failures:
+        confidence = max(0.35, confidence - 0.05)
 
-    # Core UI/interaction/launch/crash verification is outside this list and always runs.
-    # A code change with no specialist match still gets configuration + performance coverage.
-    code_files = [
-        p for p in files
-        if Path(p.lower()).suffix in SOURCE_SUFFIXES
-        and not p.lower().startswith(("docs/", "readme", ".github/"))
-    ]
-    if code_files and not any(selected.values()):
+    if not any(selected.values()):
         selected["configuration"] = True
         selected["performance"] = True
-        reasons["configuration"].append("generic application-code change")
-        reasons["performance"].append("generic application-code change")
+        reasons["configuration"].append("generic runtime source change")
+        reasons["performance"].append("generic runtime source change")
 
+    lane = "FAST_RUNTIME"
+    fallback = False
+    if risk >= 70 or confidence < 0.60:
+        lane = "FULL_RUNTIME"
+        selected = {lab: True for lab in LABS}
+        fallback = True
+        for lab in LABS:
+            reasons[lab].append("risk/confidence escalation to FULL")
+
+    predicted = dict(selected)
+    shadow = False
+    if lane == "FAST_RUNTIME" and shadow_every > 0 and re.fullmatch(r"[0-9a-f]{40}", head_sha or ""):
+        shadow = int(head_sha[-8:], 16) % shadow_every == 0
+        if shadow:
+            lane = "FULL_RUNTIME"
+            selected = {lab: True for lab in LABS}
+            for lab in LABS:
+                reasons[lab].append("shadow FULL calibration sample")
+
+    plan = _plan("fast", "full" if lane == "FULL_RUNTIME" else "fast", lane, baseline_sha,
+                 evidence, selected, reasons, risk, confidence, impacted, fallback, shadow, repository)
+    plan["predicted_selected_labs"] = predicted
+    plan["historical_failures"] = failures
+    return plan
+
+def _plan(requested: str, effective: str, lane: str, baseline_sha: str, evidence: dict[str, Any],
+          selected: dict[str, bool], reasons: dict[str, list[str]], risk: int, confidence: float,
+          impacted: list[str], fallback: bool, shadow: bool, repository: str) -> dict[str, Any]:
+    changed = [str(x.get("path", "")) for x in evidence.get("files", []) if x.get("path")]
+    targets = targeted_paths(changed, impacted)
     return {
-        "schema_version": 1,
-        "planner_version": "0.8.1",
-        "mode": "fast",
-        "baseline_sha": baseline_sha,
-        "changed_files": files,
-        "selected_labs": selected,
-        "reasons": reasons,
-        "fallback_full": False,
+        "schema_version": 2, "planner_version": "0.9.0", "requested_mode": requested,
+        "mode": effective, "lane": lane, "repository": repository, "baseline_sha": baseline_sha,
+        "diff_status": evidence.get("status", ""), "changed_files": changed,
+        "changes": evidence.get("files", []), "additions": int(evidence.get("additions", 0)),
+        "deletions": int(evidence.get("deletions", 0)), "impacted_files": impacted,
+        "selected_labs": selected, "reasons": reasons, "risk_score": risk,
+        "confidence": round(confidence, 3), "fallback_full": fallback, "shadow_full": shadow,
+        "run_static": lane not in {"NO_RUNTIME_CHANGE"},
+        "run_build": lane not in {"NO_RUNTIME_CHANGE", "STATIC_ONLY"},
+        "run_runtime": lane not in {"NO_RUNTIME_CHANGE", "STATIC_ONLY"},
+        "targets": targets,
     }
 
+def analyze_repository(repo_root: Path, mode: str, baseline_sha: str = "", history_file: str = "",
+                       repository: str = "", shadow_every: int = 10) -> dict[str, Any]:
+    start = time.perf_counter()
+    head = _run(repo_root, "rev-parse", "HEAD", timeout=15)
+    head_sha = head.stdout.strip().lower() if head.returncode == 0 else ""
+    evidence = git_diff_evidence(repo_root, baseline_sha)
+    changed = [str(x.get("path", "")) for x in evidence.get("files", []) if x.get("path")]
+    impacted = dependency_impacts(repo_root, changed, tracked_files(repo_root)) if evidence.get("trusted") else []
+    plan = classify_evidence(evidence, mode, baseline_sha, impacted, history_file, repository, head_sha, shadow_every)
+    plan["head_sha"] = head_sha
+    plan["planner_ms"] = round((time.perf_counter() - start) * 1000, 2)
+    return plan
+
 def validate_plan(payload: dict[str, Any]) -> dict[str, Any]:
-    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+    if not isinstance(payload, dict) or payload.get("schema_version") not in {1, 2}:
         raise ValueError("invalid analysis plan schema")
     mode = str(payload.get("mode", "")).lower()
-    baseline_sha = str(payload.get("baseline_sha", "")).strip().lower()
-    if baseline_sha and not re.fullmatch(r"[0-9a-f]{40}", baseline_sha):
-        raise ValueError("invalid analysis plan baseline SHA")
     if mode not in {"fast", "full", "certification"}:
         raise ValueError("invalid analysis plan mode")
     selected = payload.get("selected_labs")
-    if not isinstance(selected, dict) or set(selected) != set(LABS):
+    if not isinstance(selected, dict) or set(selected) != set(LABS) or not all(isinstance(selected[k], bool) for k in LABS):
         raise ValueError("analysis plan selected_labs mismatch")
-    if not all(isinstance(selected[k], bool) for k in LABS):
-        raise ValueError("analysis plan lab values must be booleans")
     files = payload.get("changed_files", [])
     if not isinstance(files, list) or len(files) > 500:
         raise ValueError("invalid changed_files in analysis plan")
-    for path in files:
-        if not isinstance(path, str) or len(path) > 500 or "\n" in path or "\r" in path:
-            raise ValueError("invalid changed file path")
+    if payload.get("schema_version") == 2:
+        if payload.get("lane") not in {"NO_RUNTIME_CHANGE", "STATIC_ONLY", "FAST_RUNTIME", "FULL_RUNTIME", "CERTIFICATION"}:
+            raise ValueError("invalid adaptive lane")
+        if not 0 <= int(payload.get("risk_score", -1)) <= 100:
+            raise ValueError("invalid risk score")
+        if not 0.0 <= float(payload.get("confidence", -1)) <= 1.0:
+            raise ValueError("invalid confidence")
     return payload
 
 def self_test() -> None:
-    docs = classify(["README.md"], "fast", "a" * 40)
-    assert not any(docs["selected_labs"].values())
-    db = classify(["app/src/main/java/x/AppDatabase.kt"], "fast", "a" * 40)
-    assert db["selected_labs"]["storage"]
-    assert db["selected_labs"]["persistence"]
-    ui = classify(["lib/screens/home_page.dart"], "fast", "a" * 40)
-    assert ui["selected_labs"]["configuration"]
-    assert ui["selected_labs"]["performance"]
-    full = classify([], "fast", "")
-    assert full["mode"] == "full" and full["fallback_full"]
-    cert = classify(["README.md"], "certification", "a" * 40)
-    assert cert["mode"] == "certification"
-    assert all(cert["selected_labs"].values())
-    validate_plan(db)
-    validate_plan(cert)
+    docs = classify(["README.md"], "fast", "a"*40)
+    assert docs["lane"] == "NO_RUNTIME_CHANGE"
+    db = classify(["app/src/main/java/x/AppDatabase.kt"], "fast", "a"*40)
+    assert db["selected_labs"]["storage"] and db["selected_labs"]["persistence"]
+    static = classify(["test/foo_test.dart"], "fast", "a"*40)
+    assert static["lane"] == "STATIC_ONLY"
+    huge = classify([f"lib/f{i}.dart" for i in range(501)], "fast", "a"*40)
+    assert huge["mode"] == "full" and huge["fallback_full"]
+    cert = classify(["README.md"], "certification", "a"*40)
+    assert cert["lane"] == "CERTIFICATION" and all(cert["selected_labs"].values())
 
-    import tempfile
     with tempfile.TemporaryDirectory() as raw:
         root = Path(raw)
         subprocess.run(["git", "init", "-q", str(root)], check=True)
         subprocess.run(["git", "-C", str(root), "config", "user.email", "applab@example.test"], check=True)
         subprocess.run(["git", "-C", str(root), "config", "user.name", "AppLab Self Test"], check=True)
-
-        (root / "README.md").write_text("base\n", encoding="utf-8")
-        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
-        subprocess.run(["git", "-C", str(root), "commit", "-qm", "base"], check=True)
-        baseline = subprocess.check_output(
-            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True
-        ).strip()
-
-        db_file = root / "app" / "src" / "main" / "java" / "x" / "AppDatabase.kt"
-        db_file.parent.mkdir(parents=True)
-        db_file.write_text("class AppDatabase\n", encoding="utf-8")
-        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
-        subprocess.run(["git", "-C", str(root), "commit", "-qm", "database change"], check=True)
-
-        (root / "README.md").write_text("docs-only final commit\n", encoding="utf-8")
-        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
-        subprocess.run(["git", "-C", str(root), "commit", "-qm", "docs change"], check=True)
-
-        changed = git_changed_files(root, baseline)
-        assert "README.md" in changed
-        assert "app/src/main/java/x/AppDatabase.kt" in changed
-        range_plan = classify(changed, "fast", baseline)
-        assert range_plan["selected_labs"]["persistence"]
-        assert range_plan["selected_labs"]["storage"]
-        assert range_plan["selected_labs"]["upgrade"]
-
-        missing = git_changed_files(root, "f" * 40)
-        fallback = classify(missing, "fast", "f" * 40)
-        assert fallback["mode"] == "full" and fallback["fallback_full"]
-
-    print("AppLab Smart Test Planner self-test PASS")
+        (root/"lib").mkdir()
+        (root/"lib"/"api.dart").write_text("class Api {}\n")
+        (root/"lib"/"home.dart").write_text("import 'api.dart';\n")
+        subprocess.run(["git","-C",str(root),"add","."],check=True)
+        subprocess.run(["git","-C",str(root),"commit","-qm","base"],check=True)
+        baseline=_run(root,"rev-parse","HEAD").stdout.strip()
+        (root/"lib"/"api.dart").write_text("class Api { void httpCall() {} }\n")
+        subprocess.run(["git","-C",str(root),"add","."],check=True)
+        subprocess.run(["git","-C",str(root),"commit","-qm","api"],check=True)
+        plan=analyze_repository(root,"fast",baseline,shadow_every=0)
+        assert "lib/home.dart" in plan["impacted_files"]
+        assert plan["run_runtime"]
+        orphan="f"*40
+        fallback=analyze_repository(root,"fast",orphan,shadow_every=0)
+        assert fallback["mode"]=="full" and fallback["fallback_full"]
+        subprocess.run(["git","-C",str(root),"checkout","-qb","other",baseline],check=True)
+        (root/"lib"/"other.dart").write_text("void other(){}\n")
+        subprocess.run(["git","-C",str(root),"add","."],check=True)
+        subprocess.run(["git","-C",str(root),"commit","-qm","other"],check=True)
+        nonancestor=analyze_repository(root,"fast",_run(root,"rev-parse","master").stdout.strip(),shadow_every=0)
+        assert nonancestor["mode"]=="full"
+    print("AppLab Adaptive Impact Planner self-test PASS")
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser=argparse.ArgumentParser()
     parser.add_argument("--repo-root")
-    parser.add_argument("--mode", choices=("fast", "full", "certification"), default="full")
-    parser.add_argument("--baseline-sha", default="")
+    parser.add_argument("--mode",choices=("fast","full","certification"),default="full")
+    parser.add_argument("--baseline-sha",default="")
+    parser.add_argument("--history-file",default="")
+    parser.add_argument("--repository",default="")
+    parser.add_argument("--shadow-every",type=int,default=10)
     parser.add_argument("--output")
-    parser.add_argument("--self-test", action="store_true")
-    args = parser.parse_args()
+    parser.add_argument("--github-output",default="")
+    parser.add_argument("--self-test",action="store_true")
+    args=parser.parse_args()
     if args.self_test:
-        self_test()
-        return 0
+        self_test(); return 0
     if not args.repo_root or not args.output:
         raise SystemExit("--repo-root and --output are required")
-    files = git_changed_files(Path(args.repo_root).resolve(), args.baseline_sha)
-    payload = classify(files, args.mode, args.baseline_sha)
-    validate_plan(payload)
-    Path(args.output).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps(payload, indent=2, sort_keys=True))
+    plan=analyze_repository(Path(args.repo_root).resolve(),args.mode,args.baseline_sha,args.history_file,args.repository,args.shadow_every)
+    validate_plan(plan)
+    Path(args.output).parent.mkdir(parents=True,exist_ok=True)
+    Path(args.output).write_text(json.dumps(plan,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    if args.github_output:
+        with Path(args.github_output).open("a",encoding="utf-8") as h:
+            for key in ("mode","lane","run_static","run_build","run_runtime","shadow_full","risk_score","confidence"):
+                value=plan[key]
+                h.write(f"{key}={str(value).lower() if isinstance(value,bool) else value}\n")
+    print(json.dumps(plan,indent=2,sort_keys=True))
     return 0
 
-if __name__ == "__main__":
+if __name__=="__main__":
     raise SystemExit(main())
