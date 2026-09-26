@@ -16,13 +16,33 @@ def shell(command: str, cwd: Path, log: Path) -> tuple[str,float]:
         p=subprocess.run(["bash","-Eeuo","pipefail","-c",command],cwd=cwd,stdout=out,stderr=subprocess.STDOUT,check=False)
     return ("PASS" if p.returncode==0 else "FAIL", round(time.perf_counter()-start,3))
 
+SAFE_GRADLE_FLAGS = {
+    "--stacktrace", "--full-stacktrace", "--info", "--debug", "--quiet",
+    "--warn", "--no-daemon", "--offline", "--refresh-dependencies",
+    "--scan", "--no-scan", "--continue", "--rerun-tasks", "--parallel",
+    "--no-parallel", "--configure-on-demand", "--no-configure-on-demand",
+}
+
 def gradle_parts(command: str) -> tuple[str,list[str],list[str]]|None:
-    try: parts=shlex.split(command)
-    except ValueError: return None
-    if not parts or Path(parts[0]).name not in {"gradlew","gradle"}: return None
-    exe=parts[0]; tasks=[]; flags=[]
+    try:
+        parts=shlex.split(command)
+    except ValueError:
+        return None
+    if not parts or Path(parts[0]).name not in {"gradlew","gradle"}:
+        return None
+    exe=parts[0]
+    tasks:list[str]=[]
+    flags:list[str]=[]
     for token in parts[1:]:
-        (flags if token.startswith("-") else tasks).append(token)
+        if token.startswith("-"):
+            # Only reorder flags that are known to be standalone. Options such
+            # as "-p android" or "--project-dir android" carry a positional
+            # argument, so combining/reordering them is unsafe.
+            if token not in SAFE_GRADLE_FLAGS:
+                return None
+            flags.append(token)
+        else:
+            tasks.append(token)
     return exe,tasks,flags
 
 def module_tasks(project: Path, commands: list[str], modules: list[str], safe: bool) -> list[str]|None:
@@ -51,6 +71,8 @@ def main()->int:
     args=ap.parse_args()
     if args.self_test:
         assert gradle_parts("./gradlew testDebugUnitTest --stacktrace")
+        assert gradle_parts("./gradlew -p android test") is None
+        assert gradle_parts("./gradlew --project-dir android test") is None
         print("AppLab adaptive checks self-test PASS"); return 0
     if not all((args.plan,args.engine,args.project_dir,args.report_dir)):
         raise SystemExit("--plan, --engine, --project-dir and --report-dir are required")
@@ -86,6 +108,10 @@ def main()->int:
                 test_cmd=["flutter","test"]
             elif tests:
                 test_cmd=["flutter","test",*tests]
+            elif lane == "FAST_RUNTIME":
+                # A runtime change without a provably safe mirrored test target
+                # must retain the previous full-suite safety net.
+                test_cmd=["flutter","test"]
             else:
                 test_cmd=[]
             if test_cmd:
