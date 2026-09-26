@@ -309,7 +309,7 @@ jobs:
           name: ${{ steps.release.outputs.artifact_name }}
           path: applab-release/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
       - name: Bind verified APK download metadata
         if: steps.release.outputs.publish == 'true'
