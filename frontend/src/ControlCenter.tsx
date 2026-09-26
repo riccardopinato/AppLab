@@ -23,6 +23,34 @@ type PerformanceMetrics = {
   apk?: { host_apk_bytes?: number | null };
 };
 
+type AdaptiveRisk = {
+  level?: string;
+  score?: number;
+};
+
+type AdaptiveTimings = {
+  planner_elapsed_ms?: number;
+  preflight_elapsed_seconds?: number;
+  build_job_elapsed_seconds?: number;
+  runtime_job_elapsed_seconds?: number;
+  estimated_total_seconds?: number;
+};
+
+type ShadowCalibration = {
+  status?: string;
+  false_negative_count?: number;
+};
+
+type AdaptiveMetrics = {
+  runs?: number;
+  fast_full_escalations?: number;
+  shadow?: { samples?: number; diverged?: number; false_negatives?: number };
+  timings?: {
+    estimated_total_seconds?: { count?: number; p50?: number | null; p95?: number | null };
+    planner_ms?: { count?: number; p50?: number | null; p95?: number | null };
+  };
+};
+
 type ProjectRow = {
   repository: string;
   key: string;
@@ -48,6 +76,13 @@ type ProjectRow = {
   performance?: PerformanceMetrics;
   applab_version: string;
   analysis_mode?: string;
+  analysis_requested_mode?: string;
+  analysis_lane?: string;
+  analysis_risk?: AdaptiveRisk;
+  analysis_confidence?: number;
+  analysis_shadow_full?: boolean;
+  shadow_calibration?: ShadowCalibration;
+  timings?: AdaptiveTimings;
   certification_status: string;
   certification_display_status?: string;
   certified_sha?: string;
@@ -91,6 +126,13 @@ type RecentRow = {
   watcher_run_url?: string;
   applab_version?: string;
   analysis_mode?: string;
+  analysis_requested_mode?: string;
+  analysis_lane?: string;
+  analysis_risk?: AdaptiveRisk;
+  analysis_confidence?: number;
+  analysis_shadow_full?: boolean;
+  shadow_calibration?: ShadowCalibration;
+  timings?: AdaptiveTimings;
   certification_status?: string;
   certification?: {
     status?: string;
@@ -120,6 +162,7 @@ type Snapshot = {
   };
   projects: ProjectRow[];
   recent: RecentRow[];
+  adaptive_metrics?: AdaptiveMetrics;
 };
 
 function badgeClass(value: string) {
@@ -226,6 +269,18 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <span>Not run</span>
               <strong>{snapshot.summary.not_run}</strong>
             </div>
+            <div>
+              <span>Total p50</span>
+              <strong>
+                {snapshot.adaptive_metrics?.timings?.estimated_total_seconds?.p50 != null
+                  ? `${snapshot.adaptive_metrics.timings.estimated_total_seconds.p50}s`
+                  : "—"}
+              </strong>
+            </div>
+            <div className={(snapshot.adaptive_metrics?.shadow?.false_negatives ?? 0) > 0 ? "bad" : "good"}>
+              <span>FAST false negatives</span>
+              <strong>{snapshot.adaptive_metrics?.shadow?.false_negatives ?? 0}</strong>
+            </div>
           </div>
 
           <div className="cc-table-wrap">
@@ -236,6 +291,10 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>SHA</th>
                   <th>Engine</th>
                   <th>Mode</th>
+                  <th>Lane</th>
+                  <th>Risk</th>
+                  <th>Confidence</th>
+                  <th>Total</th>
                   <th>Certification</th>
                   <th>Verdict</th>
                   <th>Maestro</th>
@@ -268,6 +327,32 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     </td>
                     <td>{project.engine}</td>
                     <td>{project.analysis_mode ?? "full"}</td>
+                    <td>{project.analysis_lane ?? "—"}</td>
+                    <td>
+                      <span className={badgeClass(
+                        project.analysis_risk?.level === "CRITICAL" || project.analysis_risk?.level === "HIGH"
+                          ? "WARN"
+                          : project.analysis_risk?.level === "LOW"
+                            ? "PASS"
+                            : "SKIPPED",
+                      )}>
+                        {project.analysis_risk?.level ?? "—"}
+                        {project.analysis_risk?.score != null ? ` · ${project.analysis_risk.score}` : ""}
+                      </span>
+                    </td>
+                    <td>
+                      {project.analysis_confidence != null
+                        ? `${Math.round(project.analysis_confidence * 100)}%`
+                        : "—"}
+                      {project.analysis_shadow_full
+                        ? ` · shadow ${project.shadow_calibration?.status ?? ""}`
+                        : ""}
+                    </td>
+                    <td>
+                      {project.timings?.estimated_total_seconds != null
+                        ? `${project.timings.estimated_total_seconds}s`
+                        : "—"}
+                    </td>
                     <td>
                       <div className="cc-project">
                         <span className={badgeClass(project.certification_display_status ?? project.certification_status)}>
@@ -358,6 +443,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <small>
                     {shortSha(item.resolved_sha || "")}
                     {item.engine ? ` · ${item.engine}` : ""}
+                    {item.analysis_lane ? ` · ${item.analysis_lane}` : ""}
+                    {item.analysis_risk?.level ? ` · risk ${item.analysis_risk.level}` : ""}
                     {item.certification_status &&
                     item.certification_status !== "NOT_REQUESTED"
                       ? ` · ${item.certification_status}`
