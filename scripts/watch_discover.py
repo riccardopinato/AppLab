@@ -24,7 +24,7 @@ ENGINES = {"auto", "flutter", "native_android"}
 def api_json(url: str, token: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "AppLab-Repo-Watcher/0.8.1",
+        "User-Agent": "AppLab-Repo-Watcher/0.9.0",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     if token:
@@ -94,21 +94,50 @@ def resolve_sha(repository: str, ref: str, token: str) -> str:
     return sha.lower()
 
 
-def latest_history_sha(path: str, repository: str) -> str:
+def _matching_history(
+    path: str,
+    repository: str,
+    ref: str = "",
+    history_key: str = "",
+    engine: str = "",
+) -> list[dict[str, Any]]:
     if not path:
-        return ""
+        return []
     history = Path(path)
     if not history.is_file():
-        return ""
-    latest_at = ""
-    latest_sha = ""
+        return []
+    matches: list[dict[str, Any]] = []
     for raw in history.read_text(encoding="utf-8", errors="ignore").splitlines():
         try:
             item = json.loads(raw)
         except json.JSONDecodeError:
             continue
-        if not isinstance(item, dict) or str(item.get("repository", "")).strip() != repository:
+        if not isinstance(item, dict):
             continue
+        if str(item.get("repository", "")).strip() != repository:
+            continue
+        # v0.9 is deliberately strict. Old history without identity metadata
+        # is not trusted as a FAST baseline; this produces a safe FULL fallback.
+        if ref and str(item.get("ref", "")).strip() != ref:
+            continue
+        if history_key and str(item.get("history_key", "")).strip() != history_key:
+            continue
+        if engine and str(item.get("engine", "")).strip() != engine:
+            continue
+        matches.append(item)
+    return matches
+
+
+def latest_history_sha(
+    path: str,
+    repository: str,
+    ref: str = "",
+    history_key: str = "",
+    engine: str = "",
+) -> str:
+    latest_at = ""
+    latest_sha = ""
+    for item in _matching_history(path, repository, ref, history_key, engine):
         if str(item.get("result", "")).strip().upper() != "PASS":
             continue
         sha = str(item.get("resolved_sha", "")).strip().lower()
@@ -121,19 +150,35 @@ def latest_history_sha(path: str, repository: str) -> str:
     return latest_sha
 
 
+def recent_failure_count(
+    path: str,
+    repository: str,
+    ref: str = "",
+    history_key: str = "",
+    engine: str = "",
+    limit: int = 20,
+) -> int:
+    rows = _matching_history(path, repository, ref, history_key, engine)
+    rows.sort(key=lambda item: str(item.get("recorded_at", "")), reverse=True)
+    recent = rows[: max(1, limit)]
+    return sum(1 for item in recent if str(item.get("result", "")).strip().upper() == "FAIL")
+
+
 def self_test_history() -> None:
     import tempfile
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "history.jsonl"
         rows = [
-            {"repository": "owner/app", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-02T00:00:00Z", "result": "FAIL", "resolved_sha": "b" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
+            {"repository": "owner/app", "ref": "main", "history_key": "app", "engine": "auto", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
+            {"repository": "owner/app", "ref": "main", "history_key": "app", "engine": "auto", "recorded_at": "2026-01-02T00:00:00Z", "result": "FAIL", "resolved_sha": "b" * 40},
+            {"repository": "owner/app", "ref": "beta", "history_key": "app-beta", "engine": "auto", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
+            {"repository": "owner/app", "ref": "main", "history_key": "app", "engine": "auto", "recorded_at": "2026-01-04T00:00:00Z", "result": "PASS", "resolved_sha": "d" * 40},
         ]
         path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
-        assert latest_history_sha(str(path), "owner/app") == "c" * 40
-        assert latest_history_sha(str(path), "owner/missing") == ""
-
+        assert latest_history_sha(str(path), "owner/app", "main", "app", "auto") == "d" * 40
+        assert latest_history_sha(str(path), "owner/app", "beta", "app-beta", "auto") == "c" * 40
+        assert latest_history_sha(str(path), "owner/app", "other", "app", "auto") == ""
+        assert recent_failure_count(str(path), "owner/app", "main", "app", "auto") == 1
 
 def entry_fingerprint(entry: dict[str, Any]) -> str:
     normalized = {
@@ -247,7 +292,20 @@ def main() -> int:
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
-            previous_verified_sha = latest_history_sha(args.history_file, repository)
+            previous_verified_sha = latest_history_sha(
+                args.history_file,
+                repository,
+                str(entry["ref"]),
+                str(entry["key"]),
+                engine,
+            )
+            historical_failure_count = recent_failure_count(
+                args.history_file,
+                repository,
+                str(entry["ref"]),
+                str(entry["key"]),
+                engine,
+            )
             cache_key = (
                 f"applab-c{contract_fingerprint}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
@@ -263,6 +321,7 @@ def main() -> int:
                     "cached": cached,
                     "scheduled": scheduled,
                     "previous_verified_sha": previous_verified_sha,
+                    "historical_failure_count": historical_failure_count,
                 }
             )
             if scheduled:
@@ -271,6 +330,7 @@ def main() -> int:
                     "engine": engine,
                     "resolved_sha": sha,
                     "previous_verified_sha": previous_verified_sha,
+                    "historical_failure_count": historical_failure_count,
                     "cache_epoch": cache_epoch,
                     "contract_fingerprint": contract_fingerprint,
                     "config_fingerprint": config_fingerprint,
