@@ -34,7 +34,8 @@ publish a certified release artifact.
   planner failure.
 - [x] Add deterministic risk score and confidence calculation.
 - [x] Add bounded reverse-import dependency impact analysis for Dart/Kotlin/Java.
-- [x] Add historical specialist-lab failure risk from central watcher history.
+- [x] Add historical specialist-lab failure risk from central watcher history,
+  scoped by repository + history key + source ref.
 - [x] Add targeted Flutter analyze/test execution with conservative fallback.
 - [x] Add native Gradle task consolidation and safe single-module targeting.
 - [x] Preserve core launch/crash/visual/interaction checks for runtime lanes.
@@ -46,6 +47,8 @@ publish a certified release artifact.
 - [x] Add clean AVD cache preparation isolated from target app state.
 - [x] Add pinned Maestro cache.
 - [x] Add per-domain verification fingerprints.
+- [x] Cache successful NO_RUNTIME_CHANGE/STATIC_ONLY resolved SHAs so unchanged
+  analysis-only commits are not rescheduled by the hourly watcher.
 - [x] Add adaptive metrics: planner latency, changed/impacted files, selected
   labs, quality/runtime timings, AVD/Maestro cache hits and shadow divergence.
 - [x] Aggregate p50/p95 planner, quality, runtime and observed pipeline latency
