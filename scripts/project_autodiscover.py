@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -27,7 +28,31 @@ def read_text(path: Path) -> str:
 
 
 def files_under(root: Path, names: set[str] | None = None) -> list[Path]:
+    """Use Git's tracked-file index first; filesystem walking is only a fallback."""
     result: list[Path] = []
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError):
+        completed = None
+
+    if completed is not None and completed.returncode == 0 and completed.stdout:
+        for raw in completed.stdout.split("\0"):
+            if not raw:
+                continue
+            path = root / raw
+            if not path.is_file():
+                continue
+            if names is None or path.name in names:
+                result.append(path)
+        return result
+
     for path in root.rglob("*"):
         if any(part in IGNORED_DIRS for part in path.parts):
             continue
@@ -36,7 +61,6 @@ def files_under(root: Path, names: set[str] | None = None) -> list[Path]:
         if names is None or path.name in names:
             result.append(path)
     return result
-
 
 def workflow_text(root: Path) -> str:
     workflow_dir = root / ".github" / "workflows"
