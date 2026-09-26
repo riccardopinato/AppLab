@@ -237,7 +237,7 @@ PY
           APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
           APPLAB_PERFORMANCE_BASELINE_JSON: ${{ github.workspace }}/.applab-performance-baseline/performance-lab.json
           APPLAB_UPGRADE_BASELINE_APK: ${{ github.workspace }}/.applab-upgrade-baseline/baseline.apk
-          APPLAB_VERSION: "0.8.1"
+          APPLAB_VERSION: "0.9.0"
           APPLAB_ANALYSIS_MODE: ${{ steps.analysis.outputs.effective_mode }}
           APPLAB_ANALYSIS_PLAN_JSON: ${{ steps.contract.outputs.analysis_plan_file }}
           START_TIMEOUT: ${{ inputs.start_timeout }}
@@ -293,7 +293,7 @@ PY
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.8.1" \
+            --version "0.9.0" \
             --github-output "$GITHUB_OUTPUT" \
             "${EXTRA_ARGS[@]}"
 
@@ -315,7 +315,7 @@ PY
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.8.1" \
+            --version "0.9.0" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Save PASS-only performance baseline
@@ -336,7 +336,7 @@ PY
             --baseline-dir "$GITHUB_WORKSPACE/.applab-upgrade-baseline" \
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
-            --version "0.8.1"
+            --version "0.9.0"
 
       - name: Save PASS-only upgrade baseline
         if: steps.verify.outcome == 'success' && (steps.analysis.outputs.effective_mode == 'full' || steps.certification.outputs.status == 'CERTIFIED')
@@ -390,7 +390,10 @@ PY
             "$APPLAB_RUNTIME_JOB_STARTED_EPOCH" <<'PY'
           import json,sys,time
           from pathlib import Path
-          out, contract_path, plan_path, started = map(Path, sys.argv[1:3]) if False else (Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4])
+          out = Path(sys.argv[1])
+          contract_path = Path(sys.argv[2])
+          plan_path = Path(sys.argv[3])
+          started = sys.argv[4]
           def load(path):
               try:
                   return json.loads(path.read_text(encoding="utf-8"))
