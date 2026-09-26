@@ -140,7 +140,10 @@ def self_test() -> None:
         "./gradlew assembleDebug --stacktrace",
     )
     assert ":app:testDebugUnitTest" in native["test"]
-    assert native["batch_safe"] and ":app:assembleDebug" in native["batch"]
+    assert native["batch_safe"]
+    assert ":app:testDebugUnitTest" in native["batch"]
+    assert ":app:lintDebug" in native["batch"]
+    assert "assembleDebug" in native["batch"]
 
     full = dict(plan)
     full["lane"] = "FULL_RUNTIME"
