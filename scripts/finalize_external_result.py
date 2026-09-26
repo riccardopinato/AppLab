@@ -99,6 +99,15 @@ def main() -> int:
                 }
             )
 
+    timing_path = report_dir / "timings.json"
+    if timing_path.is_file():
+        try:
+            timings = json.loads(timing_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            timings = {}
+        if isinstance(timings, dict):
+            payload["timings"] = timings
+
     calibration_path = report_dir / "shadow-calibration.json"
     if calibration_path.is_file():
         try:
