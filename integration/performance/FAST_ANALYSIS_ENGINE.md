@@ -1,47 +1,50 @@
-# AppLab v0.7.10 — Fast Analysis Engine & Smart Test Orchestration
+# AppLab v0.8.1 — Fast Analysis Engine & Smart Test Orchestration
 
-AppLab v0.7.10 adds a safe fast path for continuous project analysis. AppLab v0.8.0 keeps FULL as the complete diagnostic path and adds a distinct CERTIFICATION mode for production release.
+AppLab keeps three explicit verification modes:
 
-## Modes
+- `fast`: continuous analysis with core launch/crash/visual/interaction checks plus only the specialist labs relevant to the changed files;
+- `full`: the complete diagnostic suite and normal baseline-seeding path;
+- `certification`: the production release gate.
 
-- `full`: runs the complete trusted runtime suite and can seed/refresh trusted baselines.
-- `fast`: always keeps launch, crash/ANR detection, Maestro when enabled, Visual Journey and Safe Interaction Crawler, then runs only specialist labs selected by the trusted Smart Test Planner.
-- `certification`: runs every specialist lab and then applies the v0.8.0 Production Certification Gate.
+Repo Watcher defaults to FAST. Manual project verification defaults to FULL.
 
-Manual project runs default to `full`. Repo Watcher runs default to `fast`.
+## Trusted changed-file range
 
-If FAST is requested but AppLab cannot find a previous trusted visual and upgrade baseline, the verifier automatically falls back to FULL. This prevents first-time projects from receiving a reduced test pass.
+v0.8.1 does **not** classify only the last commit. Repo Watcher restores central history and supplies the most recent verified SHA for the target repository. The build runner retrieves that commit when available and the Smart Test Planner calculates:
 
-## Smart Test Planner
+```
+last verified SHA .. current SHA
+```
 
-The build phase records the files changed by the target commit and creates `analysis-plan.json`. The file is packaged inside the isolated build contract and validated by the trusted verifier before use.
+Every changed path across that whole range participates in specialist-lab selection. This prevents an intermediate database/network/background change from being hidden by a later documentation-only commit.
 
-Examples:
+The range is stored in the isolated contract as `analysis_baseline_sha` and in `analysis-plan.json` as `baseline_sha`. The trusted verifier requires both values to agree.
 
-- documentation-only change: specialist labs can all be skipped;
-- UI/Compose/Flutter screen change: Configuration + Performance;
-- networking/API/sync change: Network, Background and Performance as applicable;
-- Room/database/migration change: Persistence, Storage and Upgrade;
-- service/worker/background change: Background + Resource Pressure;
-- manifest/permissions/notification change: System UI and related lifecycle labs.
+If the previous SHA is missing, invalid or cannot be retrieved, changed-file discovery yields no trusted range and FAST safely falls back to FULL.
 
-If the changed-file set cannot be determined reliably, the planner falls back to FULL.
+## Specialist selection
 
-## Release safety
+Core launch, crash/ANR detection, Maestro when enabled, Visual Journey and Safe Interaction Crawler remain outside selective specialist skipping.
 
-FAST results are explicit: skipped labs remain `SKIPPED`; they are never converted to PASS.
+Typical selections include:
 
-FAST runs do not:
+- UI/Compose/Flutter screen change → Configuration + Performance;
+- networking/API/sync → Network and related background/performance coverage;
+- Room/database/migration → Persistence + Storage + Upgrade;
+- service/worker/notification → Background + Resource Pressure/System as matched;
+- manifest/permissions → System UI and Upgrade where applicable.
 
-- promote the Performance baseline;
-- promote the Upgrade baseline;
-- publish the verified release APK.
+Skipped specialist labs remain explicitly `SKIPPED`; they are never converted to PASS.
 
-Performance and Upgrade baseline promotion requires FULL or a successful CERTIFICATION run. Publishing the verified installable APK requires `CERTIFIED`; FULL no longer publishes a production release artifact.
+## Baseline safeguards
+
+FAST still falls back to FULL when trusted visual/upgrade baselines required by the runtime verifier are unavailable. FAST does not promote Performance or Upgrade baselines and cannot publish a production release APK.
 
 ## Evidence
 
-- `contract.json` records the requested analysis mode;
-- `analysis-plan.json` records changed files, selected specialist labs and selection reasons;
-- `result.json` records the effective `analysis_mode`;
-- the Control Center shows FAST/FULL/CERTIFICATION for the latest project result and preserves the most recent production certification separately.
+- `contract.json`: requested mode and last verified SHA;
+- `analysis-plan.json`: complete changed-file range, selected labs and reasons;
+- `result.json`: effective analysis mode;
+- Control Center: latest FAST/FULL/CERTIFICATION result plus separate production-certification state.
+
+The planner self-test creates a real temporary Git repository with multiple commits and verifies that a database change in an intermediate commit is still detected even when the final commit changes only documentation.
