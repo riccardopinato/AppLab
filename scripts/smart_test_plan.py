@@ -191,9 +191,11 @@ def plan_repository(
     baseline_sha: str = "",
     repository: str = "",
     history_file: str = "",
+    historical_risk: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     impact = impact_engine.analyze_repository(
-        repo_root, mode, baseline_sha, repository=repository, history_file=history_file
+        repo_root, mode, baseline_sha, repository=repository, history_file=history_file,
+        historical_risk=historical_risk,
     )
     return plan_from_impact(impact)
 
@@ -299,6 +301,7 @@ def main() -> int:
     parser.add_argument("--baseline-sha", default="")
     parser.add_argument("--repository", default="")
     parser.add_argument("--history-file", default="")
+    parser.add_argument("--historical-risk-json", default="")
     parser.add_argument("--output")
     parser.add_argument("--github-output")
     parser.add_argument("--self-test", action="store_true")
@@ -308,9 +311,18 @@ def main() -> int:
         return 0
     if not args.repo_root or not args.output:
         raise SystemExit("--repo-root and --output are required")
+    historical_risk = {}
+    if args.historical_risk_json:
+        value = json.loads(args.historical_risk_json)
+        if not isinstance(value, dict) or not all(
+            isinstance(k, str) and isinstance(v, int) and v >= 0 for k, v in value.items()
+        ):
+            raise SystemExit("--historical-risk-json must be an object of non-negative integer counts")
+        historical_risk = value
     payload = plan_repository(
         Path(args.repo_root).resolve(), args.mode, args.baseline_sha,
         repository=args.repository, history_file=args.history_file,
+        historical_risk=historical_risk,
     )
     validate_plan(payload)
     Path(args.output).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
