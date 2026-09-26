@@ -280,7 +280,7 @@ def self_test() -> None:
         )
         assert result["certification_status"] == "CERTIFIED"
         assert len(result["certification"]["matrix"]) == 2
-        assert "Compatibility" in (primary / "certification.md").read_text(encoding="utf-8")
+        assert "| compatibility |" in (primary / "certification.md").read_text(encoding="utf-8")
 
     with tempfile.TemporaryDirectory() as raw:
         root = Path(raw)
