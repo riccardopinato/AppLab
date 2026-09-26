@@ -236,7 +236,12 @@ def app_crash_state(package_id: str) -> tuple[bool, str]:
     )
     if fatal:
         return True, "fatal exception detected"
-    if not pid_of(package_id):
+
+    # A single pidof probe is not reliable while a hosted emulator is under
+    # heavy launch/render/network transition load. Require persistent absence
+    # before classifying the app as dead. This remains fail-closed: a process
+    # that genuinely does not recover within the bounded window is an error.
+    if not wait_for_pid(package_id, timeout=8.0):
         return True, "application process is not running"
     return False, ""
 
