@@ -23,12 +23,28 @@ def build(rows: list[dict]) -> dict:
         raw=(r.get("confidence") or r.get("adaptive_plan",{}).get("confidence",{})).get("score")
         try: confidences.append(float(raw))
         except (TypeError,ValueError): pass
+    planner_ms=[]
+    for r in adaptive:
+        raw=(r.get("adaptive_plan") or {}).get("timing",{}).get("planner_ms")
+        try: planner_ms.append(float(raw))
+        except (TypeError,ValueError): pass
+    planner_ms.sort()
+    def percentile(values, p):
+        if not values: return None
+        idx=max(0,min(len(values)-1,round((len(values)-1)*p)))
+        return round(values[idx],2)
     shadows=[r.get("shadow_calibration") for r in adaptive if isinstance(r.get("shadow_calibration"),dict)]
     false_negatives=sum(1 for s in shadows if s.get("false_negative"))
     return {
         "schema_version":1,"applab_version":"0.9.0","samples":len(adaptive),
         "lanes":dict(lanes),"modes":dict(modes),"risk_levels":dict(risks),
         "average_confidence": round(sum(confidences)/len(confidences),3) if confidences else None,
+        "planner_timing_ms": {
+            "samples": len(planner_ms),
+            "average": round(sum(planner_ms)/len(planner_ms),2) if planner_ms else None,
+            "p50": percentile(planner_ms,0.50),
+            "p95": percentile(planner_ms,0.95),
+        },
         "shadow_samples":len(shadows),"shadow_false_negatives":false_negatives,
         "shadow_false_negative_rate": round(false_negatives/len(shadows),4) if shadows else None,
     }
