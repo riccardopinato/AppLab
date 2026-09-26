@@ -18,6 +18,7 @@ import background_lab
 import storage_lab
 import upgrade_lab
 import smart_test_plan
+import domain_fingerprint
 
 ALLOWED_SUFFIXES = {".yaml", ".yml", ".json"}
 MAX_APK_BYTES = 600 * 1024 * 1024
@@ -126,6 +127,11 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         raise ValueError("Analysis plan shadow calibration flag does not match build contract")
     if payload.get("analysis_domains") != analysis_plan.get("domains"):
         raise ValueError("Analysis plan domains do not match build contract")
+    expected_selected_fingerprint = domain_fingerprint.selected_fingerprint(
+        Path(__file__).resolve().parent.parent, analysis_plan
+    )
+    if payload.get("analysis_contract_fingerprint") != expected_selected_fingerprint:
+        raise ValueError("Selected AppLab domain fingerprint does not match trusted verifier")
     if package_id and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package_id):
         raise ValueError("Invalid package id in build contract")
 
@@ -249,6 +255,7 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         "analysis_confidence": analysis_plan["confidence"],
         "analysis_shadow_full": "true" if analysis_plan.get("shadow_full") else "false",
         "analysis_domains_json": json.dumps(analysis_plan.get("domains", []), separators=(",", ":")),
+        "analysis_contract_fingerprint": expected_selected_fingerprint,
         "quality_evidence_json": json.dumps(quality, separators=(",", ":")),
         "certification_policy_json": json.dumps(certification_policy, separators=(",", ":")),
     }
@@ -327,6 +334,9 @@ def self_test() -> None:
             "analysis_confidence": plan["confidence"],
             "analysis_shadow_full": plan["shadow_full"],
             "analysis_domains": plan["domains"],
+            "analysis_contract_fingerprint": domain_fingerprint.selected_fingerprint(
+                Path(__file__).resolve().parent.parent, plan
+            ),
         })
         (root / "analysis-plan.json").write_text(
             json.dumps(plan),
