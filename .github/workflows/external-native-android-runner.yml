@@ -12,11 +12,6 @@ on:
         required: false
         default: main
         type: string
-      source_ref:
-        description: Logical branch/tag ref used for watcher baseline identity
-        required: false
-        default: ""
-        type: string
       working_directory:
         description: Gradle project directory inside the target repository
         required: false
@@ -110,11 +105,6 @@ on:
         required: false
         default: false
         type: boolean
-      cache_epoch:
-        description: Legacy watcher cache epoch (retained for compatibility)
-        required: false
-        default: "1"
-        type: string
       contract_fingerprint:
         description: Automatic AppLab verification contract fingerprint
         required: false
