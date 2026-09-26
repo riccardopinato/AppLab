@@ -30,6 +30,12 @@ CONTRACT_FILES = (
     "scripts/background_lab.py",
     "scripts/storage_lab.py",
     "scripts/smart_test_plan.py",
+    "scripts/impact_engine.py",
+    "scripts/targeted_execution.py",
+    "scripts/domain_fingerprint.py",
+    "scripts/shadow_calibration.py",
+    "scripts/verification_telemetry.py",
+    "scripts/preflight_result.py",
     "scripts/upgrade_lab.py",
     "scripts/prepare_upgrade_baseline.py",
     "scripts/prepare_performance_baseline.py",
@@ -40,7 +46,7 @@ CONTRACT_FILES = (
     ".github/workflows/trusted-apk-verifier.yml",
     ".github/workflows/production-certification.yml",
 )
-CONTRACT_VERSION = "0.8.1"
+CONTRACT_VERSION = "0.9.0"
 
 def compute(root: Path) -> str:
     digest = hashlib.sha256()
