@@ -43,8 +43,8 @@ def module_tasks(project: Path, commands: list[str], modules: list[str], safe: b
 
 def main()->int:
     ap=argparse.ArgumentParser()
-    ap.add_argument("--plan",required=True); ap.add_argument("--engine",required=True)
-    ap.add_argument("--project-dir",required=True); ap.add_argument("--repo-root",default=""); ap.add_argument("--report-dir",required=True)
+    ap.add_argument("--plan"); ap.add_argument("--engine")
+    ap.add_argument("--project-dir"); ap.add_argument("--repo-root",default=""); ap.add_argument("--report-dir")
     ap.add_argument("--test-command",default=""); ap.add_argument("--lint-command",default="")
     ap.add_argument("--build-command",default=""); ap.add_argument("--github-output",default=""); ap.add_argument("--skip-quality",action="store_true")
     ap.add_argument("--self-test",action="store_true")
@@ -52,6 +52,8 @@ def main()->int:
     if args.self_test:
         assert gradle_parts("./gradlew testDebugUnitTest --stacktrace")
         print("AppLab adaptive checks self-test PASS"); return 0
+    if not all((args.plan,args.engine,args.project_dir,args.report_dir)):
+        raise SystemExit("--plan, --engine, --project-dir and --report-dir are required")
     plan=json.loads(Path(args.plan).read_text(encoding="utf-8"))
     project=Path(args.project_dir).resolve(); report=Path(args.report_dir).resolve(); report.mkdir(parents=True,exist_ok=True)
     repo_root=Path(args.repo_root).resolve() if args.repo_root else project
