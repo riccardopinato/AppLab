@@ -1,3 +1,17 @@
+## v0.9.0 — Adaptive Impact Analysis & Incremental Verification
+
+AppLab v0.9 moves FAST intelligence in front of the expensive pipeline. Before Flutter/Gradle setup, APK build or emulator startup, the Adaptive Impact Engine validates the trusted baseline, inspects the complete verified-SHA→current-SHA diff, evaluates content and transitive dependency impact, and assigns a deterministic risk/confidence profile.
+
+The planner routes each change into `NO_RUNTIME_CHANGE`, `STATIC_ONLY`, `FAST_RUNTIME`, `FULL_RUNTIME` or `CERTIFICATION`. Documentation-only changes can finish without a toolchain; static-only changes avoid APK/runtime work; low-risk/high-confidence runtime changes can use targeted Flutter analysis/tests or a module-aware Gradle task graph. Broad, high-risk, low-confidence, oversized, diverged-baseline or otherwise uncertain changes automatically escalate to FULL.
+
+Accuracy is continuously measured through deterministic FAST→FULL shadow samples. AppLab records false negatives/divergence, phase timings, lane distribution and p50/p95 verification metrics in central history and the Control Center. FAST decisions are also bound into the isolated build contract, while `SKIPPED` remains distinct from PASS.
+
+Runtime cost is reduced further with a clean cached AVD snapshot, a pinned Maestro cache and exact source-snapshot reuse between preflight/build jobs. Universal Auto-Discovery reuses the same plan and source snapshot instead of repeating project checkouts. Domain-aware contract fingerprints avoid invalidating unrelated verification caches.
+
+The v0.8.1 release-integrity guarantees remain intact: Build → Artifact → Trusted Verify isolation, SHA-256 artifact binding, release-only certification profiles, signing validation, multi-lane production certification, current/stale certification tracking and real-device BLOCKED semantics. FAST/STATIC/NO_RUNTIME results can never authorize a production release.
+
+See `integration/performance/FAST_ANALYSIS_ENGINE.md`, `integration/certification/PRODUCTION_CERTIFICATION_GATE.md` and `ROADMAP.md`.
+
 ## v0.8.1 — Certification Integrity & Release Artifact Hardening
 
 AppLab v0.8.1 closes the release-integrity gaps found in the v0.8.0 audit. Production Certification now routes auto-discovered projects through an explicit **RELEASE** build profile, rejects DEBUG artifacts and Android Debug certificates, records the signing-certificate SHA-256, and can enforce an expected production signer from project policy.
