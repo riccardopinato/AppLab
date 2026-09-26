@@ -76,19 +76,20 @@ def git_changed_files(repo_root: Path) -> list[str]:
 
 def classify(files: list[str], mode: str) -> dict[str, Any]:
     mode = mode.lower().strip()
-    if mode not in {"fast", "full"}:
-        raise ValueError("analysis mode must be fast or full")
+    if mode not in {"fast", "full", "certification"}:
+        raise ValueError("analysis mode must be fast, full or certification")
 
     selected = {lab: True for lab in LABS}
     reasons: dict[str, list[str]] = {lab: [] for lab in LABS}
 
-    if mode == "full":
+    if mode in {"full", "certification"}:
+        label = "FULL mode" if mode == "full" else "CERTIFICATION mode"
         for lab in LABS:
-            reasons[lab].append("FULL mode")
+            reasons[lab].append(label)
         return {
             "schema_version": 1,
-            "planner_version": "0.7.10",
-            "mode": "full",
+            "planner_version": "0.8.0",
+            "mode": mode,
             "changed_files": files,
             "selected_labs": selected,
             "reasons": reasons,
@@ -100,7 +101,7 @@ def classify(files: list[str], mode: str) -> dict[str, Any]:
             reasons[lab].append("no reliable changed-file set; safe FULL fallback")
         return {
             "schema_version": 1,
-            "planner_version": "0.7.10",
+            "planner_version": "0.8.0",
             "mode": "full",
             "requested_mode": "fast",
             "changed_files": [],
@@ -138,7 +139,7 @@ def classify(files: list[str], mode: str) -> dict[str, Any]:
 
     return {
         "schema_version": 1,
-        "planner_version": "0.7.10",
+        "planner_version": "0.8.0",
         "mode": "fast",
         "changed_files": files,
         "selected_labs": selected,
@@ -150,7 +151,7 @@ def validate_plan(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
         raise ValueError("invalid analysis plan schema")
     mode = str(payload.get("mode", "")).lower()
-    if mode not in {"fast", "full"}:
+    if mode not in {"fast", "full", "certification"}:
         raise ValueError("invalid analysis plan mode")
     selected = payload.get("selected_labs")
     if not isinstance(selected, dict) or set(selected) != set(LABS):
@@ -176,13 +177,17 @@ def self_test() -> None:
     assert ui["selected_labs"]["performance"]
     full = classify([], "fast")
     assert full["mode"] == "full" and full["fallback_full"]
+    cert = classify(["README.md"], "certification")
+    assert cert["mode"] == "certification"
+    assert all(cert["selected_labs"].values())
     validate_plan(db)
+    validate_plan(cert)
     print("AppLab Smart Test Planner self-test PASS")
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root")
-    parser.add_argument("--mode", choices=("fast", "full"), default="full")
+    parser.add_argument("--mode", choices=("fast", "full", "certification"), default="full")
     parser.add_argument("--output")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()

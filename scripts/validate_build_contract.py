@@ -69,13 +69,28 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         raise ValueError("APK size does not match contract")
     if expected_apk.get("sha256") != sha256(apk):
         raise ValueError("APK SHA-256 does not match contract")
+    for field in ("package_id", "version_name", "version_code"):
+        value = expected_apk.get(field, "")
+        if not isinstance(value, str):
+            raise ValueError(f"APK {field} must be a string")
+
+    quality = payload.get("quality_evidence")
+    if not isinstance(quality, dict):
+        raise ValueError("quality_evidence is missing from build contract")
+    expected_quality_keys = {"analyze", "lint", "unit_tests", "build"}
+    if set(quality) != expected_quality_keys:
+        raise ValueError("quality_evidence keys mismatch")
+    valid_quality_states = {"PASS", "FAIL", "NOT_RUN", "N/A"}
+    for key, value in quality.items():
+        if value not in valid_quality_states:
+            raise ValueError(f"Invalid quality evidence state for {key}: {value!r}")
 
     working = safe_relative(str(payload.get("working_directory", ".")))
     flow_raw = str(payload.get("maestro_flow", "")).strip()
     flow = safe_relative(flow_raw) if flow_raw else None
     package_id = str(payload.get("package_id", "")).strip()
     analysis_mode = str(payload.get("analysis_mode", "full")).strip().lower()
-    if analysis_mode not in {"fast", "full"}:
+    if analysis_mode not in {"fast", "full", "certification"}:
         raise ValueError("Invalid analysis mode in build contract")
     if expected_analysis_mode and analysis_mode != expected_analysis_mode:
         raise ValueError("Build contract analysis mode mismatch")
@@ -192,6 +207,7 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         "evidence_bytes": total,
         "analysis_mode": analysis_mode,
         "analysis_plan_file": str(analysis_plan_path),
+        "quality_evidence_json": json.dumps(quality, separators=(",", ":")),
     }
 
 def emit_github_output(path: str, values: dict) -> None:
@@ -243,7 +259,13 @@ def self_test() -> None:
             "maestro_flow": ".maestro/smoke.yaml",
             "analysis_mode": "fast",
             "analysis_plan": "analysis-plan.json",
-            "apk": {"path":"app.apk","size_bytes":3,"sha256":sha256(root/"app.apk")},
+            "apk": {
+                "path":"app.apk","size_bytes":3,"sha256":sha256(root/"app.apk"),
+                "package_id":"com.example.app","version_name":"1.0","version_code":"1"
+            },
+            "quality_evidence": {
+                "analyze":"PASS","lint":"N/A","unit_tests":"PASS","build":"PASS"
+            },
         }
         (root / "analysis-plan.json").write_text(
             json.dumps(smart_test_plan.classify(["lib/home.dart"], "fast")),
@@ -268,7 +290,7 @@ def main() -> int:
     parser.add_argument("--expected-repository", default="")
     parser.add_argument("--expected-sha", default="")
     parser.add_argument("--expected-engine", choices=("flutter","native_android"), default="flutter")
-    parser.add_argument("--expected-analysis-mode", choices=("fast","full"), default="full")
+    parser.add_argument("--expected-analysis-mode", choices=("fast","full","certification"), default="full")
     parser.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT", ""))
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()

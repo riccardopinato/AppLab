@@ -157,7 +157,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           MODE="$REQUESTED_MODE"
-          if [[ "$MODE" != "fast" && "$MODE" != "full" ]]; then
+          if [[ "$MODE" != "fast" && "$MODE" != "full" && "$MODE" != "certification" ]]; then
             echo "Unsupported analysis mode: $MODE" >&2
             exit 2
           fi
@@ -186,7 +186,7 @@ jobs:
           APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
           APPLAB_PERFORMANCE_BASELINE_JSON: ${{ github.workspace }}/.applab-performance-baseline/performance-lab.json
           APPLAB_UPGRADE_BASELINE_APK: ${{ github.workspace }}/.applab-upgrade-baseline/baseline.apk
-          APPLAB_VERSION: "0.7.10"
+          APPLAB_VERSION: "0.8.0"
           APPLAB_ANALYSIS_MODE: ${{ steps.analysis.outputs.effective_mode }}
           APPLAB_ANALYSIS_PLAN_JSON: ${{ steps.contract.outputs.analysis_plan_file }}
           START_TIMEOUT: ${{ inputs.start_timeout }}
@@ -199,9 +199,22 @@ jobs:
           disable-animations: true
           script: bash .applab/scripts/run_external_android_gate.sh
 
+      - name: Evaluate production certification
+        id: certification
+        if: always() && steps.analysis.outputs.effective_mode == 'certification'
+        shell: bash
+        run: |
+          python .applab/scripts/certification_gate.py \
+            --report-dir "$GITHUB_WORKSPACE/applab-report" \
+            --contract-root "$GITHUB_WORKSPACE/.applab-build" \
+            --api-level "${{ inputs.api_level }}" \
+            --emulator-profile "${{ inputs.emulator_profile }}" \
+            --target "google_apis" \
+            --arch "x86_64"
+
       - name: Prepare PASS-only visual baseline
         id: baseline
-        if: steps.verify.outcome == 'success'
+        if: steps.verify.outcome == 'success' && (steps.analysis.outputs.effective_mode == 'full' || steps.certification.outputs.status == 'CERTIFIED')
         shell: bash
         env:
           APPROVE_VISUAL_BASELINE: ${{ inputs.approve_visual_baseline }}
@@ -216,7 +229,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.7.10" \
+            --version "0.8.0" \
             --github-output "$GITHUB_OUTPUT" \
             "${EXTRA_ARGS[@]}"
 
@@ -229,7 +242,7 @@ jobs:
 
       - name: Prepare PASS-only performance baseline
         id: performance_baseline_prepare
-        if: steps.verify.outcome == 'success' && steps.analysis.outputs.effective_mode == 'full'
+        if: steps.verify.outcome == 'success' && (steps.analysis.outputs.effective_mode == 'full' || steps.certification.outputs.status == 'CERTIFIED')
         shell: bash
         run: |
           python .applab/scripts/prepare_performance_baseline.py \
@@ -238,11 +251,11 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.7.10" \
+            --version "0.8.0" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Save PASS-only performance baseline
-        if: steps.performance_baseline_prepare.outputs.promote == 'true' && steps.analysis.outputs.effective_mode == 'full'
+        if: steps.performance_baseline_prepare.outputs.promote == 'true' && (steps.analysis.outputs.effective_mode == 'full' || steps.certification.outputs.status == 'CERTIFIED')
         uses: actions/cache/save@v6
         with:
           path: .applab-performance-baseline
@@ -250,7 +263,7 @@ jobs:
 
       - name: Prepare PASS-only upgrade baseline
         id: upgrade_baseline_prepare
-        if: steps.verify.outcome == 'success' && steps.analysis.outputs.effective_mode == 'full'
+        if: steps.verify.outcome == 'success' && (steps.analysis.outputs.effective_mode == 'full' || steps.certification.outputs.status == 'CERTIFIED')
         shell: bash
         run: |
           rm -rf "$GITHUB_WORKSPACE/.applab-upgrade-baseline"
@@ -259,10 +272,10 @@ jobs:
             --baseline-dir "$GITHUB_WORKSPACE/.applab-upgrade-baseline" \
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
-            --version "0.7.10"
+            --version "0.8.0"
 
       - name: Save PASS-only upgrade baseline
-        if: steps.verify.outcome == 'success' && steps.analysis.outputs.effective_mode == 'full'
+        if: steps.verify.outcome == 'success' && (steps.analysis.outputs.effective_mode == 'full' || steps.certification.outputs.status == 'CERTIFIED')
         uses: actions/cache/save@v6
         with:
           path: .applab-upgrade-baseline
@@ -270,7 +283,7 @@ jobs:
 
       - name: Prepare PASS-only installable release
         id: release
-        if: steps.verify.outcome == 'success' && steps.analysis.outputs.effective_mode == 'full'
+        if: steps.certification.outputs.status == 'CERTIFIED'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -340,7 +353,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v0.7.10 Trusted APK Verification"
+            echo "## AppLab v0.8.0 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"
@@ -349,6 +362,10 @@ jobs:
             echo
             if [[ -f "$GITHUB_WORKSPACE/applab-report/summary.md" ]]; then
               cat "$GITHUB_WORKSPACE/applab-report/summary.md"
+              if [[ -f "$GITHUB_WORKSPACE/applab-report/certification.md" ]]; then
+                echo
+                cat "$GITHUB_WORKSPACE/applab-report/certification.md"
+              fi
             else
               echo "Trusted verification ended before a runtime report was produced."
             fi

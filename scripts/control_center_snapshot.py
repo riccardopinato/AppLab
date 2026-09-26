@@ -34,6 +34,7 @@ def build_snapshot(
 
     latest: dict[str, dict[str, Any]] = {}
     latest_release: dict[str, dict[str, Any]] = {}
+    latest_certification: dict[str, dict[str, Any]] = {}
     for item in history:
         repository = str(item.get("repository", "")).strip()
         if not repository:
@@ -43,6 +44,14 @@ def build_snapshot(
             current.get("recorded_at", "")
         ):
             latest[repository] = item
+        certification_status = str(item.get("certification_status", "")).strip()
+        if certification_status in {"CERTIFIED", "BLOCKED", "NOT_CERTIFIED"}:
+            previous_certification = latest_certification.get(repository)
+            if previous_certification is None or str(item.get("recorded_at", "")) >= str(
+                previous_certification.get("recorded_at", "")
+            ):
+                latest_certification[repository] = item
+
         release = item.get("release")
         if isinstance(release, dict) and release.get("artifact_url"):
             previous_release = latest_release.get(repository)
@@ -56,6 +65,7 @@ def build_snapshot(
     for repository in repositories:
         config = configured.get(repository, {})
         result = latest.get(repository, {})
+        certification_result = latest_certification.get(repository, {})
         projects.append(
             {
                 "repository": repository,
@@ -82,6 +92,11 @@ def build_snapshot(
                 "performance": result.get("performance", {}),
                 "applab_version": result.get("applab_version", ""),
                 "analysis_mode": result.get("analysis_mode", "full"),
+                "certification_status": certification_result.get(
+                    "certification_status", "NOT_REQUESTED"
+                ),
+                "certification": certification_result.get("certification", {}),
+                "certified_sha": certification_result.get("resolved_sha", ""),
                 "recorded_at": result.get("recorded_at", ""),
                 "watcher_run_id": result.get("watcher_run_id", ""),
                 "watcher_run_url": result.get("watcher_run_url", ""),
@@ -92,6 +107,15 @@ def build_snapshot(
     pass_count = sum(1 for item in projects if item["result"] == "PASS")
     fail_count = sum(1 for item in projects if item["result"] == "FAIL")
     not_run_count = len(projects) - pass_count - fail_count
+    certified_count = sum(
+        1 for item in projects if item["certification_status"] == "CERTIFIED"
+    )
+    certification_blocked_count = sum(
+        1 for item in projects if item["certification_status"] == "BLOCKED"
+    )
+    not_certified_count = sum(
+        1 for item in projects if item["certification_status"] == "NOT_CERTIFIED"
+    )
 
     recent = sorted(
         (
@@ -124,6 +148,8 @@ def build_snapshot(
                     "watcher_run_url",
                     "applab_version",
                     "analysis_mode",
+                    "certification_status",
+                    "certification",
                     "release",
                 }
             }
@@ -141,6 +167,9 @@ def build_snapshot(
             "pass": pass_count,
             "fail": fail_count,
             "not_run": not_run_count,
+            "certified": certified_count,
+            "certification_blocked": certification_blocked_count,
+            "not_certified": not_certified_count,
         },
         "projects": projects,
         "recent": recent,
@@ -176,8 +205,14 @@ def self_test() -> None:
             "recorded_at": "2026-01-02T00:00:00Z",
             "result": "PASS",
             "resolved_sha": "full",
-            "applab_version": "0.7.10",
-            "analysis_mode": "full",
+            "applab_version": "0.8.0",
+            "analysis_mode": "certification",
+            "certification_status": "CERTIFIED",
+            "certification": {
+                "status": "CERTIFIED",
+                "certified": True,
+                "matrix": [{"api_level": "35", "emulator_profile": "pixel_7_pro"}],
+            },
             "release": {"artifact_url": "https://example.test/artifact"},
             "network_lab": "PASS",
             "persistence_lab": "PASS",
@@ -197,7 +232,7 @@ def self_test() -> None:
             "recorded_at": "2026-01-03T00:00:00Z",
             "result": "PASS",
             "resolved_sha": "fast",
-            "applab_version": "0.7.10",
+            "applab_version": "0.8.0",
             "analysis_mode": "fast",
             "network_lab": "SKIPPED",
             "persistence_lab": "SKIPPED",
@@ -215,12 +250,17 @@ def self_test() -> None:
         "pass": 1,
         "fail": 0,
         "not_run": 1,
+        "certified": 1,
+        "certification_blocked": 0,
+        "not_certified": 0,
     }
     first = next(
         item for item in snapshot["projects"] if item["repository"] == "owner/one"
     )
     assert first["resolved_sha"] == "fast"
     assert first["analysis_mode"] == "fast"
+    assert first["certification_status"] == "CERTIFIED"
+    assert first["certified_sha"] == "full"
     assert first["release"]["artifact_url"] == "https://example.test/artifact"
     assert first["network_lab"] == "SKIPPED"
     assert first["persistence_lab"] == "SKIPPED"

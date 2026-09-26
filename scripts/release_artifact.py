@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-APPLAB_VERSION = "0.7.7"
+APPLAB_VERSION = "0.8.0"
 MARKER_START = "<!-- applab-release:start -->"
 MARKER_END = "<!-- applab-release:end -->"
 
@@ -110,7 +110,7 @@ def commit_summary(repository: str, sha: str) -> str:
     api = os.getenv("GITHUB_API_URL", "https://api.github.com").rstrip("/")
     request = urllib.request.Request(
         f"{api}/repos/{repository}/commits/{sha}",
-        headers={"Accept": "application/vnd.github+json", "User-Agent": "AppLab-v0.7.7"},
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "AppLab-v0.8.0"},
     )
     token = os.getenv("GITHUB_TOKEN", "").strip()
     if token:
@@ -162,9 +162,16 @@ def prepare(args: argparse.Namespace) -> int:
     source_apk = contract_root / "app.apk"
 
     result = load_json(result_path)
-    if result.get("result") != "PASS":
+    certification = result.get("certification")
+    if (
+        result.get("result") != "PASS"
+        or not isinstance(certification, dict)
+        or certification.get("status") != "CERTIFIED"
+        or certification.get("certified") is not True
+        or result.get("analysis_mode") != "certification"
+    ):
         github_output("publish", "false")
-        print("Release skipped: trusted AppLab verdict is not PASS.")
+        print("Release skipped: production certification is not CERTIFIED.")
         return 0
 
     contract = load_json(contract_path)
@@ -196,7 +203,8 @@ def prepare(args: argparse.Namespace) -> int:
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
         "history_key": args.history_key,
-        "verified_result": "PASS",
+        "verified_result": "CERTIFIED",
+        "certification_status": "CERTIFIED",
         "workflow_run_id": args.run_id,
         "workflow_run_url": args.run_url,
         "artifact_name": artifact_name,
@@ -218,8 +226,8 @@ def prepare(args: argparse.Namespace) -> int:
     }
     write_json(output_dir / "release.json", release)
     (output_dir / "README.md").write_text(
-        "# AppLab Verified APK\n\n"
-        "This APK is byte-for-byte the artifact that passed the trusted AppLab emulator gate.\n\n"
+        "# AppLab Production-Certified APK\n\n"
+        "This APK is byte-for-byte the artifact that passed the AppLab Production Certification Gate.\n\n"
         + release_block(release),
         encoding="utf-8",
     )
@@ -264,7 +272,17 @@ def self_test() -> int:
         apk.write_bytes(b"verified-apk")
         digest = sha256(apk)
         write_json(contract / "contract.json", {"apk": {"sha256": digest}, "package_id": "com.example"})
-        write_json(report / "result.json", {"result": "PASS", "pipeline_status": "success", "package_id": "com.example"})
+        write_json(
+            report / "result.json",
+            {
+                "result": "PASS",
+                "pipeline_status": "success",
+                "package_id": "com.example",
+                "analysis_mode": "certification",
+                "certification_status": "CERTIFIED",
+                "certification": {"status": "CERTIFIED", "certified": True},
+            },
+        )
         (report / "summary.md").write_text("# AppLab report\n", encoding="utf-8")
         prepare(argparse.Namespace(
             report_dir=str(report),

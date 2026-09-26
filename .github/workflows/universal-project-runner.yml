@@ -23,9 +23,19 @@ on:
         default: false
         type: boolean
       analysis_mode:
-        description: AppLab analysis mode (fast or full)
+        description: AppLab analysis mode (fast, full or certification)
         required: false
         default: full
+        type: string
+      api_level_override:
+        description: Optional Android API override for controlled certification/runtime lanes
+        required: false
+        default: ""
+        type: string
+      emulator_profile_override:
+        description: Optional emulator profile override for controlled certification/runtime lanes
+        required: false
+        default: ""
         type: string
   workflow_call:
     inputs:
@@ -67,6 +77,14 @@ on:
       analysis_mode:
         required: false
         default: full
+        type: string
+      api_level_override:
+        required: false
+        default: ""
+        type: string
+      emulator_profile_override:
+        required: false
+        default: ""
         type: string
 
 permissions:
@@ -142,8 +160,8 @@ jobs:
       prepare_command: ${{ fromJSON(needs.discover.outputs.profile).prepare_command }}
       post_pub_get_command: ${{ fromJSON(needs.discover.outputs.profile).post_pub_get_command }}
       android_prepare_command: ${{ fromJSON(needs.discover.outputs.profile).android_prepare_command }}
-      api_level: ${{ fromJSON(needs.discover.outputs.profile).api_level }}
-      emulator_profile: ${{ fromJSON(needs.discover.outputs.profile).emulator_profile }}
+      api_level: ${{ inputs.api_level_override != '' && inputs.api_level_override || fromJSON(needs.discover.outputs.profile).api_level }}
+      emulator_profile: ${{ inputs.emulator_profile_override != '' && inputs.emulator_profile_override || fromJSON(needs.discover.outputs.profile).emulator_profile }}
       apk_path: ${{ fromJSON(needs.discover.outputs.profile).apk_path }}
       package_id: ${{ fromJSON(needs.discover.outputs.profile).package_id }}
       build_command: ${{ fromJSON(needs.discover.outputs.profile).build_command }}
@@ -179,8 +197,8 @@ jobs:
       package_id: ${{ fromJSON(needs.discover.outputs.profile).package_id }}
       verify_signature: ${{ fromJSON(needs.discover.outputs.profile).verify_signature }}
       android_prepare_command: ${{ fromJSON(needs.discover.outputs.profile).android_prepare_command }}
-      api_level: ${{ fromJSON(needs.discover.outputs.profile).api_level }}
-      emulator_profile: ${{ fromJSON(needs.discover.outputs.profile).emulator_profile }}
+      api_level: ${{ inputs.api_level_override != '' && inputs.api_level_override || fromJSON(needs.discover.outputs.profile).api_level }}
+      emulator_profile: ${{ inputs.emulator_profile_override != '' && inputs.emulator_profile_override || fromJSON(needs.discover.outputs.profile).emulator_profile }}
       run_maestro: ${{ inputs.run_maestro }}
       maestro_flow: ${{ fromJSON(needs.discover.outputs.profile).maestro_flow }}
       history_key: ${{ inputs.history_key }}

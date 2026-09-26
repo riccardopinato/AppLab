@@ -1,4 +1,8 @@
-# AppLab
+## v0.8.0 — Production Certification Gate
+
+AppLab now separates FAST/FULL verification from explicit production certification. A build can become `CERTIFIED` only when required build-quality checks, every mandatory runtime lab, APK identity/version/size audit and byte-for-byte SHA-256 integrity are all backed by current-run evidence. Missing or advisory evidence returns `BLOCKED`; hard failures return `NOT_CERTIFIED`.
+
+Each certification emits `certification.json/.md` plus a complete `evidence-bundle.json/.md` containing source commit, build checks, APK metadata, controlled Android lane, AppLab gate verdicts and explicit real-device test status. Only the exact APK bytes from a `CERTIFIED` run can be published as the verified release artifact.
 
 ## v0.7.10 — Fast Analysis Engine & Smart Test Orchestration
 

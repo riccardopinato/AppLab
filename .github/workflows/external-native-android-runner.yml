@@ -126,7 +126,7 @@ on:
         default: "manual"
         type: string
       analysis_mode:
-        description: AppLab analysis mode (fast or full)
+        description: AppLab analysis mode (fast, full or certification)
         required: false
         default: full
         type: string
@@ -453,7 +453,11 @@ jobs:
             --working-directory "${{ inputs.working_directory }}" \
             --package-id "${{ inputs.package_id }}" \
             --maestro-flow "${{ inputs.maestro_flow }}" \
-            --analysis-mode "${{ inputs.analysis_mode }}"
+            --analysis-mode "${{ inputs.analysis_mode }}" \
+            --analyze-status "N/A" \
+            --lint-status "${{ inputs.lint_command != '' && 'PASS' || 'NOT_RUN' }}" \
+            --test-status "${{ inputs.test_command != '' && 'PASS' || 'NOT_RUN' }}" \
+            --build-status "PASS"
 
       - name: Upload isolated APK contract
         uses: actions/upload-artifact@v7

@@ -76,8 +76,8 @@ def main() -> int:
     if current:
         lines.extend(
             [
-                "| Repository | SHA | Result | Maestro | Visual QA | Regression | Journey | Crawler | System | Network | Performance |",
-                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                "| Repository | SHA | Result | Certification | Maestro | Visual QA | Regression | Journey | Crawler | System | Network | Performance |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
             ]
         )
         for item in current:
@@ -85,6 +85,7 @@ def main() -> int:
             sha = str(item.get("resolved_sha", ""))
             short_sha = sha[:8] if sha else "—"
             result = str(item.get("result", "UNKNOWN"))
+            certification = str(item.get("certification_status", "NOT_REQUESTED"))
             maestro = str(item.get("maestro", "—"))
             visual_qa = str(item.get("visual_qa", "—"))
             visual_regression = str(item.get("visual_regression", "—"))
@@ -94,7 +95,7 @@ def main() -> int:
             network_lab = str(item.get("network_lab", "—"))
             performance_lab = str(item.get("performance_lab", "—"))
             lines.append(
-                f"| {repository} | `{short_sha}` | **{result}** | {maestro} | "
+                f"| {repository} | `{short_sha}` | **{result}** | {certification} | {maestro} | "
                 f"{visual_qa} | {visual_regression} | {visual_journey} | "
                 f"{interaction_crawl} | {system_lab} | {network_lab} | {performance_lab} |"
             )

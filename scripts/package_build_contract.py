@@ -4,13 +4,61 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import re
 import shutil
+import subprocess
 import smart_test_plan
 from pathlib import Path, PurePosixPath
 
 ALLOWED_EVIDENCE_SUFFIXES = {".yaml", ".yml", ".json"}
 MAX_FLOW_BYTES = 1_048_576
 MAX_EVIDENCE_BYTES = 10_485_760
+VALID_CHECK_STATES = {"PASS", "FAIL", "NOT_RUN", "N/A"}
+
+def run_text(command: list[str]) -> str:
+    try:
+        completed = subprocess.run(command, check=True, capture_output=True, text=True, timeout=30)
+        return completed.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+def apk_identity(apk: Path) -> dict[str, str]:
+    result = {"package_id": "", "version_name": "", "version_code": ""}
+    aapt = shutil.which("aapt")
+    if not aapt:
+        sdk = os.getenv("ANDROID_HOME") or os.getenv("ANDROID_SDK_ROOT")
+        if sdk:
+            candidates = sorted((Path(sdk) / "build-tools").glob("*/aapt"), reverse=True)
+            if candidates:
+                aapt = str(candidates[0])
+    if aapt:
+        output = run_text([aapt, "dump", "badging", str(apk)])
+        line = next((x for x in output.splitlines() if x.startswith("package:")), "")
+        for key, pattern in {
+            "package_id": r"name='([^']*)'",
+            "version_name": r"versionName='([^']*)'",
+            "version_code": r"versionCode='([^']*)'",
+        }.items():
+            match = re.search(pattern, line)
+            if match:
+                result[key] = match.group(1).strip()
+    apkanalyzer = shutil.which("apkanalyzer")
+    if apkanalyzer:
+        for key, parts in {
+            "package_id": ["manifest", "application-id"],
+            "version_name": ["manifest", "version-name"],
+            "version_code": ["manifest", "version-code"],
+        }.items():
+            if not result[key]:
+                result[key] = run_text([apkanalyzer, *parts, str(apk)]).strip()
+    return result
+
+def normalize_check_state(value: str) -> str:
+    state = value.strip().upper()
+    if state not in VALID_CHECK_STATES:
+        raise ValueError(f"Invalid build check state: {value!r}")
+    return state
 
 def safe_relative(raw: str) -> PurePosixPath:
     path = PurePosixPath(raw or ".")
@@ -89,9 +137,17 @@ def package(args: argparse.Namespace) -> dict:
     if total > MAX_EVIDENCE_BYTES:
         raise ValueError("Journey evidence exceeds contract size limit")
 
+    identity = apk_identity(output / "app.apk")
+    quality_evidence = {
+        "analyze": normalize_check_state(args.analyze_status),
+        "lint": normalize_check_state(args.lint_status),
+        "unit_tests": normalize_check_state(args.test_status),
+        "build": normalize_check_state(args.build_status),
+    }
+
     contract = {
         "schema_version": 1,
-        "applab_version": "0.7.10",
+        "applab_version": "0.8.0",
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
         "engine": args.engine,
@@ -104,7 +160,11 @@ def package(args: argparse.Namespace) -> dict:
             "path": "app.apk",
             "size_bytes": (output / "app.apk").stat().st_size,
             "sha256": sha256(output / "app.apk"),
+            "package_id": identity["package_id"],
+            "version_name": identity["version_name"],
+            "version_code": identity["version_code"],
         },
+        "quality_evidence": quality_evidence,
         "evidence_bytes": total,
     }
     plan = smart_test_plan.classify(
@@ -140,6 +200,8 @@ def self_test() -> None:
             working_directory=".", package_id="com.example.app",
             maestro_flow=".maestro/smoke.yaml",
             analysis_mode="fast",
+            analyze_status="PASS", lint_status="N/A",
+            test_status="PASS", build_status="PASS",
         )
         contract = package(args)
         assert contract["apk"]["sha256"] == sha256(out / "app.apk")
@@ -158,7 +220,11 @@ def main() -> int:
     parser.add_argument("--working-directory", default=".")
     parser.add_argument("--package-id", default="")
     parser.add_argument("--maestro-flow", default="")
-    parser.add_argument("--analysis-mode", choices=("fast", "full"), default="full")
+    parser.add_argument("--analysis-mode", choices=("fast", "full", "certification"), default="full")
+    parser.add_argument("--analyze-status", default="NOT_RUN")
+    parser.add_argument("--lint-status", default="NOT_RUN")
+    parser.add_argument("--test-status", default="NOT_RUN")
+    parser.add_argument("--build-status", default="PASS")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
