@@ -309,7 +309,7 @@ jobs:
             --phase trusted_runtime --event end
 
       - name: Evaluate FAST shadow calibration
-        if: always() && steps.contract.outputs.analysis_shadow_full == 'true' && hashFiles('applab-report/result.json') != ''
+        if: always() && steps.analysis.outputs.effective_mode == 'fast' && steps.contract.outputs.analysis_shadow_full == 'true'
         shell: bash
         run: |
           python .applab/scripts/shadow_calibration.py \
@@ -464,7 +464,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: .applab-watch-cache
-          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
+          key: applab-c${{ steps.contract.outputs.analysis_contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
 
       - name: Publish trusted verification summary
         if: always()
