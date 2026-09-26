@@ -129,8 +129,6 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         raise ValueError("Invalid expected signing certificate digest")
     if int(certification_policy.get("max_apk_bytes", 0) or 0) <= 0:
         raise ValueError("Invalid certification max_apk_bytes")
-    if float(certification_policy.get("max_apk_growth_percent", -1)) < 0:
-        raise ValueError("Invalid certification max_apk_growth_percent")
 
     total = 0
     if evidence.exists():
@@ -294,8 +292,7 @@ def self_test() -> None:
                 "schema_version":1,
                 "requires_real_device":False,
                 "expected_signing_certificate_sha256":"",
-                "max_apk_bytes":629145600,
-                "max_apk_growth_percent":35.0
+                "max_apk_bytes":629145600
             },
             "apk": {
                 "path":"app.apk","size_bytes":3,"sha256":sha256(root/"app.apk"),
