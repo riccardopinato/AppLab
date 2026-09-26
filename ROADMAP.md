@@ -65,4 +65,4 @@ Before merge to `main`:
 
 ## Post-v0.9 evidence-driven work
 
-Future tuning is intentionally based on measured v0.9 telemetry rather than arbitrary reductions in coverage. Candidate work is promoted only after observing p50/p95 duration, FAST/FULL shadow divergence, false-negative rate, over-selection, lane distribution and cache effectiveness.
+Future tuning is intentionally based on measured v0.9 telemetry rather than arbitrary reductions in coverage. Candidate work is promoted only after observing p50/p95 duration, FAST/FULL shadow divergence, false-negative rate, selection efficiency, lane distribution and cache effectiveness.
