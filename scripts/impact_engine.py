@@ -275,7 +275,7 @@ def targeted_scopes(records: list[dict[str, Any]], engine: str) -> dict[str, lis
     return {"analysis_scopes": sorted(scopes), "test_scopes": sorted(tests)}
 
 def shadow_decision(head_sha: str, lane: str, sample_percent: int) -> bool:
-    if lane not in {"FAST_RUNTIME", "STATIC_ONLY"} or sample_percent <= 0:
+    if lane != "FAST_RUNTIME" or sample_percent <= 0:
         return False
     if not valid_sha(head_sha):
         return False
@@ -299,6 +299,17 @@ def make_plan(repo: Path, engine: str, requested_mode: str, baseline_sha: str, h
         lane_reasons = ["diff_too_large"]
 
     specialist = smart_test_plan.classify(paths, effective_mode, baseline_sha)
+    predicted_selected_labs = dict(specialist["selected_labs"])
+    predicted_lab_reasons = {k: list(v) for k, v in specialist["reasons"].items()}
+    shadow = shadow_decision(head, lane, shadow_percent)
+    calibration_from_lane = ""
+    if shadow:
+        calibration_from_lane = lane
+        lane = "FULL_RUNTIME"
+        effective_mode = "full"
+        specialist = smart_test_plan.classify(paths, "full", baseline_sha)
+        lane_reasons.append("shadow_full_calibration")
+
     if lane in {"NO_RUNTIME_CHANGE", "STATIC_ONLY"}:
         specialist["selected_labs"] = {key: False for key in smart_test_plan.LABS}
         for key in specialist["reasons"]:
@@ -309,10 +320,6 @@ def make_plan(repo: Path, engine: str, requested_mode: str, baseline_sha: str, h
     run_build = runtime_required
     run_static = lane != "NO_RUNTIME_CHANGE"
     run_tests = lane != "NO_RUNTIME_CHANGE"
-    shadow = shadow_decision(head, lane, shadow_percent)
-    if shadow:
-        lane_reasons.append("shadow_full_calibration")
-
     return {
         "schema_version": 1,
         "planner_version": "0.9.0",
@@ -331,6 +338,9 @@ def make_plan(repo: Path, engine: str, requested_mode: str, baseline_sha: str, h
         "targeted": scopes,
         "selected_labs": specialist["selected_labs"],
         "lab_reasons": specialist["reasons"],
+        "predicted_selected_labs": predicted_selected_labs,
+        "predicted_lab_reasons": predicted_lab_reasons,
+        "calibration_from_lane": calibration_from_lane,
         "run_static_analysis": run_static,
         "run_tests": run_tests,
         "run_build": run_build,
