@@ -41,7 +41,7 @@ def adaptive_history_metrics(history: list[dict[str, Any]]) -> dict[str, Any]:
     runtime_seconds: list[float] = []
     quality_seconds: list[float] = []
     avd_hits = avd_observed = maestro_hits = maestro_observed = 0
-    shadow_runs = shadow_false_negatives = 0
+    shadow_runs = shadow_false_negatives = shadow_over_selections = 0
     for item in history:
         metrics = item.get("pipeline_metrics")
         if not isinstance(metrics, dict):
@@ -66,6 +66,7 @@ def adaptive_history_metrics(history: list[dict[str, Any]]) -> dict[str, Any]:
         if bool(metrics.get("shadow_full")):
             shadow_runs += 1
         shadow_false_negatives += int(metrics.get("shadow_false_negative_count", 0) or 0)
+        shadow_over_selections += int(metrics.get("shadow_over_selection_count", 0) or 0)
     return {
         "sample_count": len(total_seconds),
         "planner_ms": {"p50": percentile(planner_ms, 0.50), "p95": percentile(planner_ms, 0.95)},
@@ -76,6 +77,7 @@ def adaptive_history_metrics(history: list[dict[str, Any]]) -> dict[str, Any]:
         "maestro_cache_hit_ratio": round(maestro_hits / maestro_observed, 4) if maestro_observed else None,
         "shadow_runs": shadow_runs,
         "shadow_false_negatives": shadow_false_negatives,
+        "shadow_over_selections": shadow_over_selections,
     }
 
 
