@@ -13,6 +13,9 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "incremental_result.py",
         "run_runtime",
         "analysis-plan-input",
+        "--history-key",
+        "--source-ref",
+        "Cache analysis-only resolved commit",
     ),
     ".github/workflows/external-native-android-runner.yml": (
         "source_ref:",
@@ -21,6 +24,9 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "incremental_result.py",
         "run_runtime",
         "analysis-plan-input",
+        "--history-key",
+        "--source-ref",
+        "Cache analysis-only resolved commit",
     ),
     ".github/workflows/universal-project-runner.yml": (
         "source_ref:",
