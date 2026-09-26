@@ -12,7 +12,16 @@ persist_path() {
   fi
 }
 
-if command -v maestro >/dev/null 2>&1; then
+if [[ -x "$MAESTRO_BIN_DIR/maestro" ]]; then
+  CURRENT="$("$MAESTRO_BIN_DIR/maestro" --version 2>/dev/null || true)"
+  if [[ "$CURRENT" == *"$MAESTRO_VERSION"* ]]; then
+    echo "[AppLab] Maestro restored from cache: $CURRENT"
+    persist_path
+    exit 0
+  fi
+  echo "[AppLab] replacing cached Maestro '$CURRENT' with pinned $MAESTRO_VERSION"
+  rm -rf "$HOME/.maestro"
+elif command -v maestro >/dev/null 2>&1; then
   CURRENT="$(maestro --version 2>/dev/null || true)"
   if [[ "$CURRENT" == *"$MAESTRO_VERSION"* ]]; then
     echo "[AppLab] Maestro already pinned: $CURRENT"
