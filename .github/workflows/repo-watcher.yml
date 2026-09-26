@@ -332,7 +332,17 @@ jobs:
             --watchlist watchlist.json \
             --history-file .applab-history/history.jsonl \
             --output .applab-history/control-center.json
+          python scripts/telemetry_summary.py \
+            --history-file .applab-history/history.jsonl \
+            --output .applab-history/telemetry.json
           cat watch-summary.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo
+            echo "## Adaptive verification telemetry"
+            echo '~~~json'
+            cat .applab-history/telemetry.json
+            echo '~~~'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save central history
         if: always()
@@ -350,5 +360,6 @@ jobs:
             watch-summary.md
             .applab-history/history.jsonl
             .applab-history/control-center.json
+            .applab-history/telemetry.json
           if-no-files-found: warn
           retention-days: 90
