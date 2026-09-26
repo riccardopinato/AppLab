@@ -672,6 +672,9 @@ jobs:
             --lint-status "N/A" \
             --test-status "${{ inputs.run_flutter_tests && 'PASS' || 'NOT_RUN' }}" \
             --build-status "PASS"
+          if [[ -s "$GITHUB_WORKSPACE/applab-report/timings.json" ]]; then
+            cp "$GITHUB_WORKSPACE/applab-report/timings.json" "$GITHUB_WORKSPACE/applab-build-contract/build-timings.json"
+          fi
 
       - name: Upload isolated APK contract
         if: steps.plan.outputs.runtime_required == 'true'
