@@ -76,6 +76,16 @@ def git_changed_files(repo_root: Path, baseline_sha: str = "") -> list[str]:
     if exists.returncode != 0:
         return []
 
+    ancestor = subprocess.run(
+        ["git", "-C", str(repo_root), "merge-base", "--is-ancestor", baseline, "HEAD"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+        timeout=15,
+    )
+    if ancestor.returncode != 0:
+        return []
+
     result = subprocess.run(
         ["git", "-C", str(repo_root), "diff", "--name-only", "--find-renames", f"{baseline}..HEAD"],
         text=True,
@@ -102,7 +112,7 @@ def classify(files: list[str], mode: str, baseline_sha: str = "") -> dict[str, A
             reasons[lab].append(label)
         return {
             "schema_version": 1,
-            "planner_version": "0.8.1",
+            "planner_version": "0.9.0",
             "mode": mode,
             "baseline_sha": baseline_sha,
             "changed_files": files,
@@ -111,12 +121,28 @@ def classify(files: list[str], mode: str, baseline_sha: str = "") -> dict[str, A
             "fallback_full": False,
         }
 
+    if len(files) > 500:
+        for lab in LABS:
+            reasons[lab].append("changed-file set exceeds safe FAST limit; FULL fallback")
+        return {
+            "schema_version": 1,
+            "planner_version": "0.9.0",
+            "mode": "full",
+            "baseline_sha": baseline_sha,
+            "requested_mode": "fast",
+            "changed_files": files[:500],
+            "selected_labs": selected,
+            "reasons": reasons,
+            "fallback_full": True,
+            "diff_too_large": True,
+        }
+
     if not files:
         for lab in LABS:
             reasons[lab].append("no reliable changed-file set; safe FULL fallback")
         return {
             "schema_version": 1,
-            "planner_version": "0.8.1",
+            "planner_version": "0.9.0",
             "mode": "full",
             "baseline_sha": baseline_sha,
             "requested_mode": "fast",
@@ -155,7 +181,7 @@ def classify(files: list[str], mode: str, baseline_sha: str = "") -> dict[str, A
 
     return {
         "schema_version": 1,
-        "planner_version": "0.8.1",
+        "planner_version": "0.9.0",
         "mode": "fast",
         "baseline_sha": baseline_sha,
         "changed_files": files,
@@ -238,6 +264,25 @@ def self_test() -> None:
         missing = git_changed_files(root, "f" * 40)
         fallback = classify(missing, "fast", "f" * 40)
         assert fallback["mode"] == "full" and fallback["fallback_full"]
+
+        unrelated = root / "unrelated"
+        unrelated.mkdir()
+        subprocess.run(["git", "init", "-q", str(unrelated)], check=True)
+        subprocess.run(["git", "-C", str(unrelated), "config", "user.email", "applab@example.test"], check=True)
+        subprocess.run(["git", "-C", str(unrelated), "config", "user.name", "AppLab Self Test"], check=True)
+        (unrelated / "x.txt").write_text("x\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(unrelated), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(unrelated), "commit", "-qm", "unrelated"], check=True)
+        unrelated_sha = subprocess.check_output(
+            ["git", "-C", str(unrelated), "rev-parse", "HEAD"], text=True
+        ).strip()
+        assert git_changed_files(root, unrelated_sha) == []
+
+        huge = [f"lib/f{i}.dart" for i in range(501)]
+        huge_plan = classify(huge, "fast", baseline)
+        assert huge_plan["mode"] == "full"
+        assert huge_plan["fallback_full"]
+        assert huge_plan["diff_too_large"]
 
     print("AppLab Smart Test Planner self-test PASS")
 
