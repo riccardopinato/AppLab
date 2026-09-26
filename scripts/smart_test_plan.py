@@ -202,6 +202,43 @@ def self_test() -> None:
     assert all(cert["selected_labs"].values())
     validate_plan(db)
     validate_plan(cert)
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw)
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.email", "applab@example.test"], check=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.name", "AppLab Self Test"], check=True)
+
+        (root / "README.md").write_text("base\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "base"], check=True)
+        baseline = subprocess.check_output(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True
+        ).strip()
+
+        db_file = root / "app" / "src" / "main" / "java" / "x" / "AppDatabase.kt"
+        db_file.parent.mkdir(parents=True)
+        db_file.write_text("class AppDatabase\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "database change"], check=True)
+
+        (root / "README.md").write_text("docs-only final commit\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "docs change"], check=True)
+
+        changed = git_changed_files(root, baseline)
+        assert "README.md" in changed
+        assert "app/src/main/java/x/AppDatabase.kt" in changed
+        range_plan = classify(changed, "fast", baseline)
+        assert range_plan["selected_labs"]["persistence"]
+        assert range_plan["selected_labs"]["storage"]
+        assert range_plan["selected_labs"]["upgrade"]
+
+        missing = git_changed_files(root, "f" * 40)
+        fallback = classify(missing, "fast", "f" * 40)
+        assert fallback["mode"] == "full" and fallback["fallback_full"]
+
     print("AppLab Smart Test Planner self-test PASS")
 
 def main() -> int:
