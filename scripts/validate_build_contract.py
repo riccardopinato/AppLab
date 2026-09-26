@@ -116,6 +116,16 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
     )
     if str(analysis_plan.get("baseline_sha", "")).strip().lower() != baseline_sha:
         raise ValueError("Analysis plan baseline SHA mismatch")
+    if payload.get("analysis_lane") != analysis_plan.get("lane"):
+        raise ValueError("Analysis plan lane does not match build contract")
+    if payload.get("analysis_risk_score") != analysis_plan.get("risk_score"):
+        raise ValueError("Analysis plan risk score does not match build contract")
+    if payload.get("analysis_confidence") != analysis_plan.get("confidence"):
+        raise ValueError("Analysis plan confidence does not match build contract")
+    if payload.get("analysis_shadow_full") is not bool(analysis_plan.get("shadow_full")):
+        raise ValueError("Analysis plan shadow calibration flag does not match build contract")
+    if payload.get("analysis_domains") != analysis_plan.get("domains"):
+        raise ValueError("Analysis plan domains do not match build contract")
     if package_id and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package_id):
         raise ValueError("Invalid package id in build contract")
 
@@ -234,6 +244,11 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         "analysis_mode": analysis_mode,
         "analysis_baseline_sha": baseline_sha,
         "analysis_plan_file": str(analysis_plan_path),
+        "analysis_lane": analysis_plan["lane"],
+        "analysis_risk_score": analysis_plan["risk_score"],
+        "analysis_confidence": analysis_plan["confidence"],
+        "analysis_shadow_full": "true" if analysis_plan.get("shadow_full") else "false",
+        "analysis_domains_json": json.dumps(analysis_plan.get("domains", []), separators=(",", ":")),
         "quality_evidence_json": json.dumps(quality, separators=(",", ":")),
         "certification_policy_json": json.dumps(certification_policy, separators=(",", ":")),
     }
@@ -303,8 +318,18 @@ def self_test() -> None:
                 "analyze":"PASS","lint":"N/A","unit_tests":"PASS","build":"PASS"
             },
         }
+        plan = smart_test_plan.classify(
+            ["lib/home.dart"], "fast", "b" * 40, assume_trusted_baseline=True
+        )
+        payload.update({
+            "analysis_lane": plan["lane"],
+            "analysis_risk_score": plan["risk_score"],
+            "analysis_confidence": plan["confidence"],
+            "analysis_shadow_full": plan["shadow_full"],
+            "analysis_domains": plan["domains"],
+        })
         (root / "analysis-plan.json").write_text(
-            json.dumps(smart_test_plan.classify(["lib/home.dart"], "fast", "b" * 40)),
+            json.dumps(plan),
             encoding="utf-8",
         )
         (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
