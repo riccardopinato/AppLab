@@ -239,7 +239,5 @@ jobs:
       cache_verification: ${{ inputs.cache_verification }}
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
-      approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
-      publish_release_artifact: ${{ inputs.publish_release_artifact }}
