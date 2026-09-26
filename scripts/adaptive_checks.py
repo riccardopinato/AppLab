@@ -46,7 +46,7 @@ def main()->int:
     ap.add_argument("--plan",required=True); ap.add_argument("--engine",required=True)
     ap.add_argument("--project-dir",required=True); ap.add_argument("--report-dir",required=True)
     ap.add_argument("--test-command",default=""); ap.add_argument("--lint-command",default="")
-    ap.add_argument("--build-command",default=""); ap.add_argument("--github-output",default="")
+    ap.add_argument("--build-command",default=""); ap.add_argument("--github-output",default=""); ap.add_argument("--skip-quality",action="store_true")
     ap.add_argument("--self-test",action="store_true")
     args=ap.parse_args()
     if args.self_test:
@@ -64,19 +64,20 @@ def main()->int:
         analyze_targets=[p for p in plan.get("targets",{}).get("dart_analyze",[]) if (project/p).is_file()]
         test_targets=[p for p in plan.get("targets",{}).get("dart_tests",[]) if (project/p).is_file()]
         changed_tests=[p for p in plan.get("changed_files",[]) if p.endswith("_test.dart") and (project/p).is_file()]
-        analyze_cmd=["flutter","analyze"] if full or not analyze_targets else ["dart","analyze",*analyze_targets]
-        out["analyze"],out["timings"]["analyze_seconds"]=run(analyze_cmd,project,report/"adaptive-analyze.txt")
-        if out["analyze"]=="FAIL": raise SystemExit(1)
-        tests=list(dict.fromkeys(changed_tests+test_targets))
-        if full:
-            test_cmd=["flutter","test"]
-        elif tests:
-            test_cmd=["flutter","test",*tests]
-        else:
-            test_cmd=[]
-        if test_cmd:
-            out["unit_tests"],out["timings"]["test_seconds"]=run(test_cmd,project,report/"adaptive-test.txt")
-            if out["unit_tests"]=="FAIL": raise SystemExit(1)
+        if not args.skip_quality:
+            analyze_cmd=["flutter","analyze"] if full or not analyze_targets else ["dart","analyze",*analyze_targets]
+            out["analyze"],out["timings"]["analyze_seconds"]=run(analyze_cmd,project,report/"adaptive-analyze.txt")
+            if out["analyze"]=="FAIL": raise SystemExit(1)
+            tests=list(dict.fromkeys(changed_tests+test_targets))
+            if full:
+                test_cmd=["flutter","test"]
+            elif tests:
+                test_cmd=["flutter","test",*tests]
+            else:
+                test_cmd=[]
+            if test_cmd:
+                out["unit_tests"],out["timings"]["test_seconds"]=run(test_cmd,project,report/"adaptive-test.txt")
+                if out["unit_tests"]=="FAIL": raise SystemExit(1)
         if plan.get("run_build") and args.build_command:
             out["build"],out["timings"]["build_seconds"]=shell(args.build_command,project,report/"adaptive-build.txt")
             if out["build"]=="FAIL": raise SystemExit(1)
