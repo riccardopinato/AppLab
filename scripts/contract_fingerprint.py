@@ -4,8 +4,23 @@ from __future__ import annotations
 import argparse
 import hashlib
 from pathlib import Path
+from typing import Iterable
 
-CONTRACT_FILES = (
+CONTRACT_VERSION = "0.9.0"
+
+DOMAIN_FILES: dict[str, tuple[str, ...]] = {
+    "system": ("scripts/system_lab.py",),
+    "performance": ("scripts/performance_lab.py", "scripts/prepare_performance_baseline.py"),
+    "network": ("scripts/network_lab.py",),
+    "persistence": ("scripts/persistence_lab.py",),
+    "configuration": ("scripts/configuration_lab.py",),
+    "resource_pressure": ("scripts/resource_pressure_lab.py",),
+    "background": ("scripts/background_lab.py",),
+    "storage": ("scripts/storage_lab.py",),
+    "upgrade": ("scripts/upgrade_lab.py", "scripts/prepare_upgrade_baseline.py"),
+}
+
+CORE_FILES = (
     "scripts/verify_apk.sh",
     "scripts/certification_gate.py",
     "scripts/finalize_certification_matrix.py",
@@ -19,20 +34,12 @@ CONTRACT_FILES = (
     "scripts/prepare_visual_baseline.py",
     "scripts/validate_build_contract.py",
     "scripts/package_build_contract.py",
+    "scripts/preflight_result.py",
+    "scripts/shadow_calibration.py",
+    "scripts/gradle_execution_plan.py",
     "scripts/install_maestro.sh",
     "scripts/interaction_crawler.py",
-    "scripts/system_lab.py",
-    "scripts/performance_lab.py",
-    "scripts/network_lab.py",
-    "scripts/persistence_lab.py",
-    "scripts/configuration_lab.py",
-    "scripts/resource_pressure_lab.py",
-    "scripts/background_lab.py",
-    "scripts/storage_lab.py",
     "scripts/smart_test_plan.py",
-    "scripts/upgrade_lab.py",
-    "scripts/prepare_upgrade_baseline.py",
-    "scripts/prepare_performance_baseline.py",
     "scripts/project_autodiscover.py",
     ".github/workflows/external-project-runner.yml",
     ".github/workflows/external-native-android-runner.yml",
@@ -40,12 +47,29 @@ CONTRACT_FILES = (
     ".github/workflows/trusted-apk-verifier.yml",
     ".github/workflows/production-certification.yml",
 )
-CONTRACT_VERSION = "0.8.1"
 
-def compute(root: Path) -> str:
+def normalize_labs(labs: Iterable[str] | None) -> tuple[str, ...]:
+    if labs is None:
+        return tuple(sorted(DOMAIN_FILES))
+    clean = tuple(sorted({str(x).strip() for x in labs if str(x).strip()}))
+    unknown = set(clean) - set(DOMAIN_FILES)
+    if unknown:
+        raise ValueError(f"Unknown AppLab contract domains: {sorted(unknown)}")
+    return clean
+
+def files_for(labs: Iterable[str] | None = None) -> tuple[str, ...]:
+    selected = normalize_labs(labs)
+    files = list(CORE_FILES)
+    for lab in selected:
+        files.extend(DOMAIN_FILES[lab])
+    return tuple(dict.fromkeys(files))
+
+def compute(root: Path, labs: Iterable[str] | None = None) -> str:
     digest = hashlib.sha256()
+    selected = normalize_labs(labs)
     digest.update(f"AppLab contract {CONTRACT_VERSION}\0".encode())
-    files = list(CONTRACT_FILES)
+    digest.update(("domains=" + ",".join(selected) + "\0").encode())
+    files = list(files_for(selected))
     profiles = root / "watch-profiles"
     if profiles.is_dir():
         files.extend(
@@ -65,8 +89,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=".")
     parser.add_argument("--short", action="store_true")
+    parser.add_argument(
+        "--labs",
+        default="*",
+        help="Comma-separated selected specialist labs, or * for all.",
+    )
     args = parser.parse_args()
-    value = compute(Path(args.root))
+    labs = None if args.labs.strip() == "*" else [x for x in args.labs.split(",") if x.strip()]
+    value = compute(Path(args.root), labs)
     print(value[:16] if args.short else value)
     return 0
 
