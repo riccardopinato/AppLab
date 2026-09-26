@@ -65,11 +65,6 @@ on:
         required: false
         default: ""
         type: string
-      verify_signature:
-        description: Verify the produced APK with apksigner
-        required: false
-        default: true
-        type: boolean
       android_prepare_command:
         description: Optional command run with ADB available before AppLab verification
         required: false
@@ -191,10 +186,6 @@ on:
         required: false
         default: ""
         type: string
-      verify_signature:
-        required: false
-        default: true
-        type: boolean
       android_prepare_command:
         required: false
         default: ""
@@ -223,10 +214,6 @@ on:
         required: false
         default: false
         type: boolean
-      cache_epoch:
-        required: false
-        default: "1"
-        type: string
       contract_fingerprint:
         required: false
         default: "manual"
@@ -473,7 +460,7 @@ jobs:
           } | tee "$GITHUB_WORKSPACE/applab-report/apk.txt"
 
       - name: Verify APK signature
-        if: steps.impact.outputs.run_build == 'true' && inputs.verify_signature
+        if: steps.impact.outputs.run_build == 'true'
         shell: bash
         run: |
           "$ANDROID_HOME/build-tools/${{ inputs.build_tools }}/apksigner" \
