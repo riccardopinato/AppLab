@@ -53,7 +53,10 @@ def compute(root: Path) -> dict[str, str]:
 def selected_fingerprint(root: Path, plan: dict) -> str:
     fingerprints = compute(root)
     selected = plan.get("selected_labs", {}) if isinstance(plan.get("selected_labs"), dict) else {}
-    keys = ["core", "visual"]
+    lane = str(plan.get("lane", ""))
+    keys = ["core"]
+    if lane not in {"NO_RUNTIME_CHANGE", "STATIC_ONLY"}:
+        keys.append("visual")
     keys.extend(sorted(k for k, enabled in selected.items() if enabled and k in fingerprints))
     digest = hashlib.sha256()
     for key in sorted(set(keys)):
