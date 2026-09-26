@@ -617,9 +617,23 @@ jobs:
         if: steps.plan.outputs.runtime_required == 'true'
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
+        env:
+          APPLAB_BUILD_COMMAND: ${{ inputs.build_command }}
         run: |
+          set -Eeuo pipefail
           set -o pipefail
-          ${{ inputs.build_command }} 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/flutter-build.txt"
+          START="$(date +%s)"
+          bash -Eeuo pipefail -c "$APPLAB_BUILD_COMMAND" 2>&1 |
+            tee "$GITHUB_WORKSPACE/applab-report/flutter-build.txt"
+          END="$(date +%s)"
+          python - "$GITHUB_WORKSPACE/applab-report/timings.json" "$START" "$END" <<'PY'
+          import json,sys
+          path,start,end=sys.argv[1],int(sys.argv[2]),int(sys.argv[3])
+          try: data=json.load(open(path))
+          except Exception: data={}
+          data["build_seconds"]=max(0,end-start)
+          json.dump(data,open(path,"w"),indent=2,sort_keys=True)
+          PY
 
       - name: Resolve APK
         if: steps.plan.outputs.runtime_required == 'true'
