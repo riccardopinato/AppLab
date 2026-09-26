@@ -560,6 +560,15 @@ jobs:
           compression-level: 0
           include-hidden-files: true
 
+      - name: Record analysis-only pipeline metrics
+        if: steps.impact.outputs.run_runtime != 'true'
+        shell: bash
+        run: |
+          python .applab/scripts/pipeline_metrics.py \
+            --plan "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
+            --quality "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" \
+            --output "$GITHUB_WORKSPACE/applab-report/pipeline-metrics.json"
+
       - name: Finalize analysis-only result
         if: steps.impact.outputs.run_runtime != 'true'
         shell: bash
