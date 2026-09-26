@@ -233,6 +233,9 @@ def main() -> int:
     parser.add_argument("--flutter-matrix-output")
     parser.add_argument("--native-matrix-output")
     parser.add_argument("--auto-matrix-output")
+    parser.add_argument("--shadow-flutter-matrix-output")
+    parser.add_argument("--shadow-native-matrix-output")
+    parser.add_argument("--shadow-auto-matrix-output")
     parser.add_argument("--status-output")
     parser.add_argument("--history-file", default="")
     parser.add_argument("--only-repository", default="")
@@ -290,6 +293,9 @@ def main() -> int:
     flutter_matrix: list[dict[str, Any]] = []
     native_matrix: list[dict[str, Any]] = []
     auto_matrix: list[dict[str, Any]] = []
+    shadow_flutter_matrix: list[dict[str, Any]] = []
+    shadow_native_matrix: list[dict[str, Any]] = []
+    shadow_auto_matrix: list[dict[str, Any]] = []
     status: list[dict[str, Any]] = []
 
     for entry in entries:
@@ -321,6 +327,7 @@ def main() -> int:
             history_risk_bias = recent_failure_bias(
                 args.history_file, repository, history_key, ref, engine
             )
+            shadow_full_sample = int(hashlib.sha256(sha.encode()).hexdigest()[:8], 16) % 10 == 0
             cache_key = (
                 f"applab-c{contract_fingerprint}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
@@ -337,6 +344,7 @@ def main() -> int:
                     "scheduled": scheduled,
                     "previous_verified_sha": previous_verified_sha,
                     "history_risk_bias": history_risk_bias,
+                    "shadow_full_sample": shadow_full_sample,
                 }
             )
             if scheduled:
@@ -346,6 +354,7 @@ def main() -> int:
                     "resolved_sha": sha,
                     "previous_verified_sha": previous_verified_sha,
                     "history_risk_bias": history_risk_bias,
+                    "shadow_full_sample": shadow_full_sample,
                     "cache_epoch": cache_epoch,
                     "contract_fingerprint": contract_fingerprint,
                     "config_fingerprint": config_fingerprint,
@@ -357,6 +366,13 @@ def main() -> int:
                     native_matrix.append(resolved)
                 elif engine == "auto":
                     auto_matrix.append(resolved)
+                if shadow_full_sample:
+                    if engine == "flutter":
+                        shadow_flutter_matrix.append(resolved)
+                    elif engine == "native_android":
+                        shadow_native_matrix.append(resolved)
+                    elif engine == "auto":
+                        shadow_auto_matrix.append(resolved)
         except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
             item_status.update({"scheduled": False, "error": str(exc)})
         status.append(item_status)
@@ -365,6 +381,9 @@ def main() -> int:
     write_matrix(args.flutter_matrix_output, flutter_matrix)
     write_matrix(args.native_matrix_output, native_matrix)
     write_matrix(args.auto_matrix_output, auto_matrix)
+    write_matrix(args.shadow_flutter_matrix_output, shadow_flutter_matrix)
+    write_matrix(args.shadow_native_matrix_output, shadow_native_matrix)
+    write_matrix(args.shadow_auto_matrix_output, shadow_auto_matrix)
 
     if not args.matrix_output:
         print(json.dumps({"include": matrix}, separators=(",", ":")))
@@ -378,6 +397,7 @@ def main() -> int:
         "flutter_scheduled_count": len(flutter_matrix),
         "native_scheduled_count": len(native_matrix),
         "auto_scheduled_count": len(auto_matrix),
+        "shadow_scheduled_count": len(shadow_flutter_matrix) + len(shadow_native_matrix) + len(shadow_auto_matrix),
         "repositories": status,
     }
 
