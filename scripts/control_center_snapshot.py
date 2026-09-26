@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from analysis_metrics import build_metrics
+
 
 def read_history(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
@@ -106,6 +108,14 @@ def build_snapshot(
                 "performance": result.get("performance", {}),
                 "applab_version": result.get("applab_version", ""),
                 "analysis_mode": result.get("analysis_mode", "full"),
+                "analysis_requested_mode": result.get("analysis_requested_mode", result.get("analysis_mode", "full")),
+                "analysis_lane": result.get("analysis_lane", "—"),
+                "analysis_risk": result.get("analysis_risk", {}),
+                "analysis_confidence": result.get("analysis_confidence", 0),
+                "analysis_shadow_full": bool(result.get("analysis_shadow_full", False)),
+                "shadow_calibration": result.get("shadow_calibration", {}),
+                "selected_labs": result.get("selected_labs", {}),
+                "timings": result.get("timings", {}),
                 "certification_status": raw_certification_status,
                 "certification_display_status": certification_display_status,
                 "certification": certification_result.get("certification", {}),
@@ -167,6 +177,14 @@ def build_snapshot(
                     "watcher_run_url",
                     "applab_version",
                     "analysis_mode",
+                    "analysis_requested_mode",
+                    "analysis_lane",
+                    "analysis_risk",
+                    "analysis_confidence",
+                    "analysis_shadow_full",
+                    "shadow_calibration",
+                    "selected_labs",
+                    "timings",
                     "certification_status",
                     "certification",
                     "release",
@@ -194,6 +212,7 @@ def build_snapshot(
         },
         "projects": projects,
         "recent": recent,
+        "adaptive_metrics": build_metrics(history),
     }
 
 
