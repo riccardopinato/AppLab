@@ -1,4 +1,6 @@
-# AppLab v0.8.1 — Production Certification Gate
+# AppLab v0.9.0 — Production Certification Gate
+
+v0.9 keeps the v0.8.1 certification-integrity contract intact: adaptive FAST decisions never weaken or substitute production certification.
 
 AppLab separates continuous verification from production certification. FAST and FULL are quality-verification modes; only an explicit CERTIFICATION run can authorize the AppLab verified release artifact.
 
