@@ -293,7 +293,7 @@ def main() -> int:
                 repository,
                 str(entry["ref"]),
                 str(entry["key"]),
-                engine,
+                "" if engine == "auto" else engine,
                 config_fingerprint,
             )
             previous_verified_sha = str(previous_record.get("resolved_sha", "")).strip().lower()
