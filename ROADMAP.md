@@ -24,7 +24,7 @@ Current version: **v0.9.0**
 - [x] Cache already-verified non-runtime commits.
 - [x] Git tracked-file auto-discovery fast path.
 - [x] Planner regression corpus.
-- [x] Planner telemetry.
+- [x] Planner + post-planning pipeline latency telemetry with Control Center p50/p95.
 - [x] Control Center lane/risk/confidence visibility.
 - [x] README / roadmap / technical documentation updated.
 
