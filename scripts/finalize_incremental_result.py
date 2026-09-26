@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,11 @@ def finalize(
     if lane not in {"NO_RUNTIME_CHANGE", "STATIC_ONLY"}:
         raise ValueError(f"incremental result cannot finalize runtime lane {lane!r}")
     baseline = str(impact.get("baseline_sha", ""))
+    telemetry = dict(impact.get("telemetry", {})) if isinstance(impact.get("telemetry"), dict) else {}
+    generated_ms = telemetry.get("plan_generated_unix_ms")
+    if isinstance(generated_ms, (int, float)) and generated_ms > 0:
+        telemetry["pipeline_after_plan_ms"] = max(0, int(time.time() * 1000 - generated_ms))
+
     result: dict[str, Any] = {
         "schema_version": 1,
         "applab_version": "0.9.0",
@@ -55,7 +61,7 @@ def finalize(
         "historical_failure_count": impact.get("historical_failure_count", 0),
         "impacted_modules": impact.get("impacted_modules", []),
         "targeted": impact.get("targeted", {}),
-        "telemetry": impact.get("telemetry", {}),
+        "telemetry": telemetry,
         "certification_status": "NOT_REQUESTED",
         "impact_plan": "impact-plan.json",
     }
