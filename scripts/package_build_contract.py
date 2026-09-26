@@ -264,6 +264,9 @@ def package(args: argparse.Namespace) -> dict:
             "signing_subject": signing["subject"],
         },
         "quality_evidence": quality_evidence,
+        "timings": {
+            "build_job_elapsed_seconds": max(0.0, float(args.build_job_elapsed_seconds or 0)),
+        },
         "evidence_bytes": total,
     }
     (output / "analysis-plan.json").write_text(
@@ -296,7 +299,7 @@ def self_test() -> None:
             analysis_mode="fast", baseline_sha="", history_file="", analysis_plan_input="",
             build_command="flutter build apk --debug",
             analyze_status="PASS", lint_status="N/A",
-            test_status="PASS", build_status="PASS",
+            test_status="PASS", build_status="PASS", build_job_elapsed_seconds="1.25",
         )
         contract = package(args)
         assert contract["apk"]["sha256"] == sha256(out / "app.apk")
@@ -324,6 +327,7 @@ def main() -> int:
     parser.add_argument("--lint-status", default="NOT_RUN")
     parser.add_argument("--test-status", default="NOT_RUN")
     parser.add_argument("--build-status", default="PASS")
+    parser.add_argument("--build-job-elapsed-seconds", default="0")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
