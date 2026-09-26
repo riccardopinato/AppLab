@@ -15,16 +15,27 @@ from typing import Any
 
 from contract_fingerprint import compute as compute_contract_fingerprint
 
-
+APPLAB_VERSION = "0.9.0"
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 KEY_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 ENGINES = {"auto", "flutter", "native_android"}
+LAB_FIELDS = (
+    "system_lab",
+    "network_lab",
+    "persistence_lab",
+    "configuration_lab",
+    "resource_pressure_lab",
+    "background_lab",
+    "storage_lab",
+    "upgrade_lab",
+    "performance_lab",
+)
 
 
 def api_json(url: str, token: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "AppLab-Repo-Watcher/0.8.1",
+        "User-Agent": f"AppLab-Repo-Watcher/{APPLAB_VERSION}",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     if token:
@@ -40,8 +51,7 @@ def validate_relative_path(value: object, field: str, repository: str) -> None:
         return
     if raw.startswith("/") or "\n" in raw or "\r" in raw:
         raise ValueError(f"Invalid {field} for {repository}: {raw!r}")
-    parts = raw.replace("\\", "/").split("/")
-    if ".." in parts:
+    if ".." in raw.replace("\\", "/").split("/"):
         raise ValueError(f"{field} must stay inside repository: {raw!r}")
 
 
@@ -66,7 +76,6 @@ def validate_entry(entry: dict[str, Any]) -> None:
     validate_relative_path(entry.get("working_directory", "."), "working_directory", repository)
     validate_relative_path(entry.get("apk_path", ""), "apk_path", repository)
     validate_relative_path(entry.get("maestro_flow", ""), "maestro_flow", repository)
-
     if engine != "auto":
         if not str(entry.get("build_command", "")).strip():
             raise ValueError(f"build_command is required for {repository}")
@@ -94,45 +103,161 @@ def resolve_sha(repository: str, ref: str, token: str) -> str:
     return sha.lower()
 
 
-def latest_history_sha(path: str, repository: str) -> str:
+def read_history(path: str) -> list[dict[str, Any]]:
     if not path:
-        return ""
+        return []
     history = Path(path)
     if not history.is_file():
-        return ""
-    latest_at = ""
-    latest_sha = ""
+        return []
+    rows: list[dict[str, Any]] = []
     for raw in history.read_text(encoding="utf-8", errors="ignore").splitlines():
         try:
             item = json.loads(raw)
         except json.JSONDecodeError:
             continue
-        if not isinstance(item, dict) or str(item.get("repository", "")).strip() != repository:
-            continue
-        if str(item.get("result", "")).strip().upper() != "PASS":
-            continue
-        sha = str(item.get("resolved_sha", "")).strip().lower()
-        if not re.fullmatch(r"[0-9a-f]{40}", sha):
-            continue
-        recorded = str(item.get("recorded_at", ""))
-        if recorded >= latest_at:
-            latest_at = recorded
-            latest_sha = sha
-    return latest_sha
+        if isinstance(item, dict):
+            rows.append(item)
+    return rows
+
+
+def _identity_matches(
+    item: dict[str, Any],
+    entry: dict[str, Any],
+    config_fingerprint: str,
+    *,
+    require_config: bool,
+) -> bool:
+    repository = str(entry["repository"])
+    if str(item.get("repository", "")).strip() != repository:
+        return False
+    requested_ref = str(item.get("requested_ref", item.get("ref", ""))).strip()
+    if requested_ref != str(entry.get("ref", "")).strip():
+        return False
+    history_key = str(item.get("history_key", "")).strip()
+    if history_key and history_key != str(entry.get("key", "")).strip():
+        return False
+
+    expected_engine = str(entry.get("engine", "flutter")).strip()
+    observed_engine = str(item.get("engine", "")).strip()
+    if expected_engine != "auto" and observed_engine and observed_engine != expected_engine:
+        return False
+
+    observed_config = str(item.get("config_fingerprint", "")).strip()
+    if require_config:
+        return bool(observed_config) and observed_config == config_fingerprint
+    if observed_config and observed_config != config_fingerprint:
+        return False
+    return True
+
+
+def latest_verified_record(
+    rows: list[dict[str, Any]],
+    entry: dict[str, Any],
+    config_fingerprint: str,
+) -> dict[str, Any] | None:
+    candidates = [
+        item for item in rows
+        if str(item.get("result", "")).upper() == "PASS"
+        and _identity_matches(item, entry, config_fingerprint, require_config=True)
+        and re.fullmatch(r"[0-9a-f]{40}", str(item.get("resolved_sha", "")).lower())
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: str(item.get("recorded_at", "")))
+
+
+def history_risk(
+    rows: list[dict[str, Any]],
+    entry: dict[str, Any],
+    config_fingerprint: str,
+) -> dict[str, Any]:
+    matching = [
+        item for item in rows
+        if _identity_matches(item, entry, config_fingerprint, require_config=False)
+    ]
+    matching = sorted(
+        matching,
+        key=lambda item: str(item.get("recorded_at", "")),
+        reverse=True,
+    )[:20]
+
+    lab_failure_counts: dict[str, int] = {}
+    lab_warning_counts: dict[str, int] = {}
+    for field in LAB_FIELDS:
+        key = field.removesuffix("_lab") if field.endswith("_lab") else field
+        if field == "resource_pressure_lab":
+            key = "resource_pressure"
+        hard = sum(
+            1 for item in matching
+            if str(item.get(field, "")).upper() in {"FAIL", "ERROR"}
+        )
+        warns = sum(
+            1 for item in matching
+            if str(item.get(field, "")).upper() in {"WARN", "NO_BASELINE"}
+        )
+        if hard:
+            lab_failure_counts[key] = hard
+        if warns:
+            lab_warning_counts[key] = warns
+
+    shadow_false_negatives = 0
+    shadow_over_selection = 0
+    for item in matching:
+        shadow = item.get("shadow_calibration")
+        if isinstance(shadow, dict):
+            shadow_false_negatives += int(shadow.get("false_negatives", 0) or 0)
+            shadow_over_selection += int(shadow.get("over_selection", 0) or 0)
+
+    return {
+        "sample_size": len(matching),
+        "recent_pipeline_failures": sum(
+            1 for item in matching if str(item.get("result", "")).upper() == "FAIL"
+        ),
+        "lab_failure_counts": lab_failure_counts,
+        "lab_warning_counts": lab_warning_counts,
+        "shadow_false_negatives": shadow_false_negatives,
+        "shadow_over_selection": shadow_over_selection,
+    }
 
 
 def self_test_history() -> None:
-    import tempfile
-    with tempfile.TemporaryDirectory() as raw:
-        path = Path(raw) / "history.jsonl"
-        rows = [
-            {"repository": "owner/app", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-02T00:00:00Z", "result": "FAIL", "resolved_sha": "b" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
-        ]
-        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
-        assert latest_history_sha(str(path), "owner/app") == "c" * 40
-        assert latest_history_sha(str(path), "owner/missing") == ""
+    entry = {
+        "key": "watch-one",
+        "repository": "owner/app",
+        "ref": "main",
+        "engine": "flutter",
+    }
+    rows = [
+        {
+            "repository": "owner/app", "requested_ref": "main",
+            "history_key": "watch-one", "engine": "flutter",
+            "config_fingerprint": "cfg", "recorded_at": "2026-01-01T00:00:00Z",
+            "result": "PASS", "resolved_sha": "a" * 40,
+        },
+        {
+            "repository": "owner/app", "requested_ref": "beta",
+            "history_key": "watch-one", "engine": "flutter",
+            "config_fingerprint": "cfg", "recorded_at": "2026-01-02T00:00:00Z",
+            "result": "PASS", "resolved_sha": "b" * 40,
+        },
+        {
+            "repository": "owner/app", "requested_ref": "main",
+            "history_key": "watch-one", "engine": "flutter",
+            "config_fingerprint": "other", "recorded_at": "2026-01-03T00:00:00Z",
+            "result": "PASS", "resolved_sha": "c" * 40,
+        },
+        {
+            "repository": "owner/app", "requested_ref": "main",
+            "history_key": "watch-one", "engine": "flutter",
+            "config_fingerprint": "cfg", "recorded_at": "2026-01-04T00:00:00Z",
+            "result": "FAIL", "resolved_sha": "d" * 40, "network_lab": "FAIL",
+        },
+    ]
+    record = latest_verified_record(rows, entry, "cfg")
+    assert record and record["resolved_sha"] == "a" * 40
+    risk = history_risk(rows, entry, "cfg")
+    assert risk["recent_pipeline_failures"] == 1
+    assert risk["lab_failure_counts"]["network"] == 1
 
 
 def entry_fingerprint(entry: dict[str, Any]) -> str:
@@ -152,9 +277,8 @@ def entry_fingerprint(entry: dict[str, Any]) -> str:
 def write_matrix(path: str | None, items: list[dict[str, Any]]) -> None:
     if not path:
         return
-    payload = {"include": items}
     Path(path).write_text(
-        json.dumps(payload, separators=(",", ":")) + "\n",
+        json.dumps({"include": items}, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
 
@@ -200,16 +324,14 @@ def main() -> int:
         self_test_history()
         counts = {
             engine: sum(
-                1
-                for entry in entries
+                1 for entry in entries
                 if str(entry.get("engine", "flutter")) == engine
             )
             for engine in sorted(ENGINES)
         }
         print(
             f"Validated {len(entries)} AppLab watcher entries: "
-            f"{counts['auto']} auto, "
-            f"{counts['flutter']} flutter, "
+            f"{counts['auto']} auto, {counts['flutter']} flutter, "
             f"{counts['native_android']} native_android."
         )
         return 0
@@ -219,6 +341,7 @@ def main() -> int:
         raise SystemExit("--applab-repository must be owner/name")
 
     token = os.environ.get("GITHUB_TOKEN", "")
+    history_rows = read_history(args.history_file)
     only_repository = args.only_repository.strip()
     matrix: list[dict[str, Any]] = []
     flutter_matrix: list[dict[str, Any]] = []
@@ -247,7 +370,13 @@ def main() -> int:
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
-            previous_verified_sha = latest_history_sha(args.history_file, repository)
+            verified = latest_verified_record(history_rows, entry, config_fingerprint)
+            previous_verified_sha = (
+                str(verified.get("resolved_sha", "")).lower() if verified else ""
+            )
+            baseline_trusted = bool(previous_verified_sha)
+            risk = history_risk(history_rows, entry, config_fingerprint)
+
             cache_key = (
                 f"applab-c{contract_fingerprint}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
@@ -256,21 +385,23 @@ def main() -> int:
                 applab_repository, cache_key, token
             )
             scheduled = args.force or not cached
-            item_status.update(
-                {
-                    "resolved_sha": sha,
-                    "cache_key": cache_key,
-                    "cached": cached,
-                    "scheduled": scheduled,
-                    "previous_verified_sha": previous_verified_sha,
-                }
-            )
+            item_status.update({
+                "resolved_sha": sha,
+                "cache_key": cache_key,
+                "cached": cached,
+                "scheduled": scheduled,
+                "previous_verified_sha": previous_verified_sha,
+                "baseline_trusted": baseline_trusted,
+                "history_risk": risk,
+            })
             if scheduled:
                 resolved = {
                     **entry,
                     "engine": engine,
                     "resolved_sha": sha,
                     "previous_verified_sha": previous_verified_sha,
+                    "baseline_trusted": baseline_trusted,
+                    "history_risk": risk,
                     "cache_epoch": cache_epoch,
                     "contract_fingerprint": contract_fingerprint,
                     "config_fingerprint": config_fingerprint,
@@ -280,7 +411,7 @@ def main() -> int:
                     flutter_matrix.append(resolved)
                 elif engine == "native_android":
                     native_matrix.append(resolved)
-                elif engine == "auto":
+                else:
                     auto_matrix.append(resolved)
         except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
             item_status.update({"scheduled": False, "error": str(exc)})
@@ -295,7 +426,8 @@ def main() -> int:
         print(json.dumps({"include": matrix}, separators=(",", ":")))
 
     status_payload = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "applab_version": APPLAB_VERSION,
         "force": args.force,
         "only_repository": only_repository,
         "contract_fingerprint": contract_fingerprint,
@@ -305,13 +437,11 @@ def main() -> int:
         "auto_scheduled_count": len(auto_matrix),
         "repositories": status,
     }
-
     if args.status_output:
         Path(args.status_output).write_text(
             json.dumps(status_payload, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
-
     return 0
 
 
