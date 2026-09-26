@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-APPLAB_VERSION = "0.8.0"
+APPLAB_VERSION = "0.8.1"
 MAX_CERTIFIED_APK_BYTES = 600 * 1024 * 1024
 
 STRICT_GATES: tuple[tuple[str, str], ...] = (
@@ -165,21 +165,52 @@ def evaluate(
     apk_contract = contract.get("apk")
     if not isinstance(apk_contract, dict):
         apk_contract = {}
+    policy = contract.get("certification_policy")
+    if not isinstance(policy, dict):
+        policy = {}
+        blockers.append({"gate": "certification_policy", "label": "Certification policy", "observed": "MISSING"})
+
     expected_hash = str(apk_contract.get("sha256", "")).strip().lower()
     apk_size = int(apk_contract.get("size_bytes", 0) or 0)
     package_id = str(apk_contract.get("package_id", "") or contract.get("package_id", "")).strip()
     version_name = str(apk_contract.get("version_name", "")).strip()
     version_code = str(apk_contract.get("version_code", "")).strip()
+    build_variant = str(apk_contract.get("build_variant", "")).strip().lower()
+    signing_cert = str(apk_contract.get("signing_cert_sha256", "")).strip().lower()
+    signing_subject = str(apk_contract.get("signing_subject", "")).strip()
+    expected_signer = str(policy.get("expected_signing_certificate_sha256", "")).strip().lower()
+    requires_real_device = bool(policy.get("requires_real_device", False))
+    max_apk_bytes = int(policy.get("max_apk_bytes", MAX_CERTIFIED_APK_BYTES) or MAX_CERTIFIED_APK_BYTES)
     if not package_id:
         blockers.append({"gate": "apk_package", "label": "APK package id", "observed": "MISSING"})
     if not version_name:
         blockers.append({"gate": "apk_version_name", "label": "APK version name", "observed": "MISSING"})
     if not version_code:
         blockers.append({"gate": "apk_version_code", "label": "APK version code", "observed": "MISSING"})
+
+    if build_variant == "debug":
+        failures.append({"gate": "release_variant", "label": "Production build variant", "observed": "DEBUG"})
+    elif build_variant != "release":
+        blockers.append({"gate": "release_variant", "label": "Production build variant", "observed": build_variant.upper() or "MISSING"})
+
+    if not signing_cert:
+        blockers.append({"gate": "apk_signing", "label": "APK signing certificate", "observed": "MISSING"})
+    if "android debug" in signing_subject.lower():
+        failures.append({"gate": "apk_signing", "label": "APK signing certificate", "observed": "ANDROID_DEBUG_CERTIFICATE"})
+    if expected_signer and signing_cert and signing_cert != expected_signer:
+        failures.append({"gate": "apk_signing_identity", "label": "Expected release signing certificate", "observed": "CERTIFICATE_MISMATCH"})
+
     if apk_size <= 0:
         blockers.append({"gate": "apk_size", "label": "APK size audit", "observed": "MISSING"})
-    elif apk_size > MAX_CERTIFIED_APK_BYTES:
-        failures.append({"gate": "apk_size", "label": "APK size audit", "observed": f"{apk_size}_BYTES_EXCEEDS_LIMIT"})
+    elif apk_size > max_apk_bytes:
+        failures.append({"gate": "apk_size", "label": "APK size audit", "observed": f"{apk_size}_BYTES_EXCEEDS_{max_apk_bytes}"})
+
+    if requires_real_device:
+        blockers.append({
+            "gate": "real_device",
+            "label": "Required physical-device evidence",
+            "observed": "NOT_TESTED",
+        })
 
     actual_hash = ""
     if not source_apk.is_file():
@@ -244,16 +275,24 @@ def evaluate(
             "version_name": version_name,
             "version_code": version_code,
             "size_bytes": apk_size,
-            "max_certified_size_bytes": MAX_CERTIFIED_APK_BYTES,
-            "size_audit": "PASS" if 0 < apk_size <= MAX_CERTIFIED_APK_BYTES else "FAIL",
+            "max_certified_size_bytes": max_apk_bytes,
+            "size_audit": "PASS" if 0 < apk_size <= max_apk_bytes else "FAIL",
+            "build_variant": build_variant or "unknown",
+            "signing_cert_sha256": signing_cert,
+            "signing_subject": signing_subject,
+            "expected_signing_cert_sha256": expected_signer,
             "sha256": actual_hash,
             "expected_sha256": expected_hash,
         },
         "applab_controls": controls,
         "real_device": {
             "status": "NOT_TESTED",
-            "required": False,
-            "reason": "Hosted CI certification uses the controlled Android emulator lane; physical-device evidence must be attached separately when a project requires it.",
+            "required": requires_real_device,
+            "reason": (
+                "Physical-device evidence is required by project certification policy."
+                if requires_real_device
+                else "Hosted CI certification uses the controlled Android emulator lane; physical-device evidence is recorded separately when required."
+            ),
         },
         "apk_sha256": actual_hash,
         "expected_apk_sha256": expected_hash,
@@ -298,6 +337,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"({report.get('apk', {}).get('version_code') or '?'})",
         f"- APK size: {report.get('apk', {}).get('size_bytes') or 0} bytes "
         f"[{report.get('apk', {}).get('size_audit') or 'UNKNOWN'}]",
+        f"- Build variant: {report.get('apk', {}).get('build_variant') or 'unknown'}",
+        f"- Signing certificate: {report.get('apk', {}).get('signing_cert_sha256') or 'unavailable'}",
         f"- APK SHA-256: {report.get('apk_sha256') or 'unavailable'}",
         f"- Real device: {report.get('real_device', {}).get('status', 'UNKNOWN')}",
         "",
@@ -403,12 +444,22 @@ def self_test() -> None:
                 "unit_tests": "PASS",
                 "build": "PASS",
             },
+            "certification_policy": {
+                "schema_version": 1,
+                "requires_real_device": False,
+                "expected_signing_certificate_sha256": "",
+                "max_apk_bytes": MAX_CERTIFIED_APK_BYTES,
+                "max_apk_growth_percent": 35.0,
+            },
             "apk": {
                 "sha256": sha256(apk),
                 "size_bytes": apk.stat().st_size,
                 "package_id": "com.example.app",
                 "version_name": "1.0.0",
                 "version_code": "1",
+                "build_variant": "release",
+                "signing_cert_sha256": "1" * 64,
+                "signing_subject": "CN=Production,O=Example",
             },
         }
 
@@ -462,6 +513,39 @@ def self_test() -> None:
             arch="x86_64",
         )
         assert blocked_mode["status"] == "BLOCKED"
+
+        debug_contract = {
+            **contract,
+            "apk": {**contract["apk"], "build_variant": "debug"},
+        }
+        debug_rejected = evaluate(
+            pass_result, debug_contract, apk,
+            api_level="35", emulator_profile="pixel_7_pro",
+            target="google_apis", arch="x86_64",
+        )
+        assert debug_rejected["status"] == "NOT_CERTIFIED"
+
+        debug_signer_contract = {
+            **contract,
+            "apk": {**contract["apk"], "signing_subject": "CN=Android Debug,O=Android,C=US"},
+        }
+        signer_rejected = evaluate(
+            pass_result, debug_signer_contract, apk,
+            api_level="35", emulator_profile="pixel_7_pro",
+            target="google_apis", arch="x86_64",
+        )
+        assert signer_rejected["status"] == "NOT_CERTIFIED"
+
+        hardware_contract = {
+            **contract,
+            "certification_policy": {**contract["certification_policy"], "requires_real_device": True},
+        }
+        hardware_blocked = evaluate(
+            pass_result, hardware_contract, apk,
+            api_level="35", emulator_profile="pixel_7_pro",
+            target="google_apis", arch="x86_64",
+        )
+        assert hardware_blocked["status"] == "BLOCKED"
 
         bad_contract = {
             **contract,
