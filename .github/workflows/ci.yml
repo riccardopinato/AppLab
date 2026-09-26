@@ -48,6 +48,7 @@ jobs:
             scripts/shadow_calibration.py \
             scripts/domain_fingerprint.py \
             scripts/pipeline_metrics.py \
+            scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
             scripts/prepare_performance_baseline.py \
@@ -80,6 +81,7 @@ jobs:
           python scripts/shadow_calibration.py --self-test
           python scripts/domain_fingerprint.py --self-test
           python scripts/pipeline_metrics.py --self-test
+          python scripts/workflow_contract_test.py
           python scripts/upgrade_lab.py --self-test
           python scripts/prepare_upgrade_baseline.py --self-test
           python scripts/prepare_performance_baseline.py --self-test
