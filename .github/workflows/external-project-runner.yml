@@ -492,7 +492,11 @@ jobs:
             --working-directory "${{ inputs.working_directory }}" \
             --package-id "${{ inputs.package_id }}" \
             --maestro-flow "${{ inputs.maestro_flow }}" \
-            --analysis-mode "${{ inputs.analysis_mode }}"
+            --analysis-mode "${{ inputs.analysis_mode }}" \
+            --analyze-status "${{ inputs.run_flutter_tests && 'PASS' || 'NOT_RUN' }}" \
+            --lint-status "N/A" \
+            --test-status "${{ inputs.run_flutter_tests && 'PASS' || 'NOT_RUN' }}" \
+            --build-status "PASS"
 
       - name: Upload isolated APK contract
         uses: actions/upload-artifact@v7
