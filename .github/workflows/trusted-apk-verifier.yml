@@ -65,6 +65,14 @@ on:
         required: false
         default: full
         type: string
+      verification_fingerprint:
+        required: false
+        default: ""
+        type: string
+      cache_domains:
+        required: false
+        default: "core"
+        type: string
       publish_release_artifact:
         required: false
         default: true
@@ -393,7 +401,9 @@ jobs:
             --engine "${{ inputs.engine }}" \
             --pipeline-status "$APPLAB_PIPELINE_STATUS" \
             --run-id "$GITHUB_RUN_ID" \
-            --analysis-mode "${{ steps.analysis.outputs.effective_mode }}"
+            --analysis-mode "${{ steps.analysis.outputs.effective_mode }}" \
+            --verification-fingerprint "${{ inputs.verification_fingerprint }}" \
+            --cache-domains "${{ inputs.cache_domains }}"
 
       - name: Prepare verification cache payload
         if: always() && inputs.cache_verification
@@ -410,7 +420,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: .applab-watch-cache
-          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
+          key: applab-c${{ inputs.verification_fingerprint != '' && inputs.verification_fingerprint || inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
 
       - name: Publish trusted verification summary
         if: always()
