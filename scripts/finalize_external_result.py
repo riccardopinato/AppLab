@@ -77,7 +77,10 @@ def main() -> int:
                 "shadow_full": bool(plan.get("shadow_full")),
                 "runtime_changed": bool(plan.get("runtime_changed")),
                 "planner_duration_ms": plan.get("planner_duration_ms"),
-                "changed_file_count": len(plan.get("changed_files", [])) if isinstance(plan.get("changed_files"), list) else None,
+                "changed_file_count": plan.get(
+                    "changed_file_count",
+                    len(plan.get("changed_files", [])) if isinstance(plan.get("changed_files"), list) else None,
+                ),
                 "churn": plan.get("churn"),
             })
 
