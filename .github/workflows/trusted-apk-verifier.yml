@@ -74,7 +74,45 @@ permissions:
   contents: read
 
 jobs:
+  prepare_avd:
+    name: Prepare clean Android AVD cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      cache_hit: ${{ steps.avd_cache.outputs.cache-hit }}
+    steps:
+      - name: Restore clean AVD cache
+        id: avd_cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.android/avd
+          key: applab-clean-avd-v0.9.0-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
+
+      - name: Enable KVM for clean AVD creation
+        if: steps.avd_cache.outputs.cache-hit != 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Create pristine AVD snapshot
+        if: steps.avd_cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ inputs.api_level }}
+          target: google_apis
+          arch: x86_64
+          profile: ${{ inputs.emulator_profile }}
+          force-avd-creation: false
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb shell pm list packages >/dev/null
+            adb logcat -c
+            echo "Pristine AppLab AVD cache prepared."
+
   verify:
+    needs: prepare_avd
     name: Trusted verify ${{ inputs.repository }}@${{ inputs.resolved_sha }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -90,6 +128,12 @@ jobs:
 
       - name: Prepare trusted report directory
         run: mkdir -p "$GITHUB_WORKSPACE/applab-report"
+
+      - name: Restore clean AVD snapshot
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.android/avd
+          key: applab-clean-avd-v0.9.0-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
 
       - name: Download untrusted build contract
         uses: actions/download-artifact@v8
@@ -113,6 +157,16 @@ jobs:
              "$GITHUB_WORKSPACE/applab-report/build-contract.json"
           cp "$GITHUB_WORKSPACE/.applab-build/analysis-plan.json" \
              "$GITHUB_WORKSPACE/applab-report/analysis-plan.json"
+          cp "$GITHUB_WORKSPACE/.applab-build/adaptive-quality.json" \
+             "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" 2>/dev/null || true
+
+      - name: Cache pinned Maestro
+        id: maestro_cache
+        if: inputs.run_maestro
+        uses: actions/cache@v5
+        with:
+          path: ~/.maestro
+          key: applab-maestro-${{ runner.os }}-2.10.0
 
       - name: Install Maestro
         if: inputs.run_maestro
@@ -160,18 +214,29 @@ jobs:
           REQUESTED_MODE: ${{ inputs.analysis_mode }}
         run: |
           set -Eeuo pipefail
-          MODE="$REQUESTED_MODE"
+          MODE="$(python -c 'import json; print(json.load(open("applab-report/analysis-plan.json")).get("mode","full"))')"
+          LANE="$(python -c 'import json; print(json.load(open("applab-report/analysis-plan.json")).get("lane","FULL_RUNTIME"))')"
+          if [[ "$REQUESTED_MODE" == "certification" ]]; then
+            MODE="certification"
+          fi
           if [[ "$MODE" != "fast" && "$MODE" != "full" && "$MODE" != "certification" ]]; then
-            echo "Unsupported analysis mode: $MODE" >&2
+            echo "Unsupported effective analysis mode: $MODE" >&2
             exit 2
           fi
           if [[ "$MODE" == "fast" ]]; then
             if [[ ! -s "$GITHUB_WORKSPACE/.applab-upgrade-baseline/baseline.apk" || -z "$(find "$GITHUB_WORKSPACE/.applab-visual-baseline" -type f -print -quit 2>/dev/null)" ]]; then
               MODE="full"
+              LANE="FULL_RUNTIME"
               echo "FAST requested but no previous full baseline is available; falling back to FULL."
             fi
           fi
           echo "effective_mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "lane=$LANE" >> "$GITHUB_OUTPUT"
+
+      - name: Start runtime timing
+        shell: bash
+        run: |
+          date +%s%3N > "$GITHUB_WORKSPACE/applab-report/runtime-start-ms.txt"
 
       - name: Verify APK inside trusted Android runtime
         id: verify
@@ -190,7 +255,7 @@ jobs:
           APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
           APPLAB_PERFORMANCE_BASELINE_JSON: ${{ github.workspace }}/.applab-performance-baseline/performance-lab.json
           APPLAB_UPGRADE_BASELINE_APK: ${{ github.workspace }}/.applab-upgrade-baseline/baseline.apk
-          APPLAB_VERSION: "0.8.1"
+          APPLAB_VERSION: "0.9.0"
           APPLAB_ANALYSIS_MODE: ${{ steps.analysis.outputs.effective_mode }}
           APPLAB_ANALYSIS_PLAN_JSON: ${{ steps.contract.outputs.analysis_plan_file }}
           START_TIMEOUT: ${{ inputs.start_timeout }}
@@ -200,8 +265,27 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: ${{ inputs.emulator_profile }}
+          force-avd-creation: false
           disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: bash .applab/scripts/run_external_android_gate.sh
+
+      - name: Finalize runtime timing
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, time
+          from pathlib import Path
+          report=Path("applab-report")
+          start_path=report/"runtime-start-ms.txt"
+          start=int(start_path.read_text().strip()) if start_path.is_file() else int(time.time()*1000)
+          end=int(time.time()*1000)
+          (report/"runtime-timing.json").write_text(
+              json.dumps({"runtime_seconds": round(max(0,end-start)/1000,3)}, indent=2)+"\n",
+              encoding="utf-8",
+          )
+          PY
 
       - name: Evaluate production certification
         id: certification
@@ -233,7 +317,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.8.1" \
+            --version "0.9.0" \
             --github-output "$GITHUB_OUTPUT" \
             "${EXTRA_ARGS[@]}"
 
@@ -255,7 +339,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.8.1" \
+            --version "0.9.0" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Save PASS-only performance baseline
@@ -276,7 +360,7 @@ jobs:
             --baseline-dir "$GITHUB_WORKSPACE/.applab-upgrade-baseline" \
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
-            --version "0.8.1"
+            --version "0.9.0"
 
       - name: Save PASS-only upgrade baseline
         if: steps.verify.outcome == 'success' && (steps.analysis.outputs.effective_mode == 'full' || steps.certification.outputs.status == 'CERTIFIED')
@@ -319,6 +403,31 @@ jobs:
             --artifact-id "${{ steps.release_upload.outputs.artifact-id }}" \
             --artifact-url "${{ steps.release_upload.outputs.artifact-url }}"
 
+      - name: Calibrate shadow FULL decision
+        if: always() && steps.verify.outcome != 'skipped'
+        shell: bash
+        run: |
+          if [[ -f "$GITHUB_WORKSPACE/applab-report/result.json" ]] && \
+             [[ "$(python -c 'import json; print(str(json.load(open("applab-report/analysis-plan.json")).get("shadow_full",False)).lower())')" == "true" ]]; then
+            python .applab/scripts/shadow_calibration.py \
+              --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
+              --result "$GITHUB_WORKSPACE/applab-report/result.json" \
+              --output "$GITHUB_WORKSPACE/applab-report/shadow-calibration.json"
+          fi
+
+      - name: Record adaptive pipeline metrics
+        if: always()
+        shell: bash
+        run: |
+          python .applab/scripts/pipeline_metrics.py \
+            --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
+            --quality "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" \
+            --shadow "$GITHUB_WORKSPACE/applab-report/shadow-calibration.json" \
+            --runtime-timing "$GITHUB_WORKSPACE/applab-report/runtime-timing.json" \
+            --avd-cache-hit "${{ needs.prepare_avd.outputs.cache_hit }}" \
+            --maestro-cache-hit "${{ steps.maestro_cache.outputs.cache-hit }}" \
+            --output "$GITHUB_WORKSPACE/applab-report/pipeline-metrics.json"
+
       - name: Finalize trusted result contract
         if: always()
         env:
@@ -357,7 +466,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v0.8.0 Trusted APK Verification"
+            echo "## AppLab v0.9.0 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"
