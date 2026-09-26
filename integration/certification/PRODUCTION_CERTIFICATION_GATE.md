@@ -22,6 +22,26 @@ AppLab never converts WARN, SKIPPED or NO_BASELINE into a production PASS.
 
 ## Mandatory gates
 
+Production certification requires two evidence layers.
+
+### Build evidence
+
+For Flutter targets:
+
+- static analysis PASS;
+- unit tests PASS;
+- APK build PASS.
+
+For native Android targets:
+
+- Android lint PASS;
+- unit tests PASS;
+- APK build PASS.
+
+A required build check reported as `NOT_RUN` blocks certification.
+
+### Runtime evidence
+
 Production certification requires PASS for:
 
 - Maestro acceptance;
@@ -75,11 +95,15 @@ Certification does not weaken itself to create a missing baseline: missing produ
 A certification run adds:
 
 - `certification.json` — machine-readable verdict, failures, blockers, runtime lane and APK digest;
+- `evidence-bundle.json` — complete machine-readable evidence bundle with repository, resolved commit, engine, build-quality checks, APK identity/version/size/hash, AppLab control verdicts, runtime matrix and real-device status;
+- `evidence-bundle.md` — readable form of the same evidence bundle;
 - `certification.md` — readable production decision;
 - `certification_status` and `certification` in `result.json`;
 - production certification state in Repo Watcher history and Control Center.
 
 The Control Center preserves the last production certification even if newer FAST checks run afterward.
+
+Physical-device execution is not silently implied by hosted CI. v0.8.0 records `real_device.status=NOT_TESTED` unless separate real-device evidence is attached by the project. This keeps certification evidence honest while allowing projects with hardware-dependent features to impose a stricter release policy.
 
 ## Manual workflow
 
