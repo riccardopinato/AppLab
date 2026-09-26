@@ -113,7 +113,15 @@ def latest_history_entry(path: str, repository: str, history_key: str = "", ref:
         if history_key and str(item.get("history_key", "")).strip() not in {"", history_key}:
             continue
         item_ref = str(item.get("requested_ref", item.get("ref", ""))).strip()
-        if ref and item_ref and item_ref != ref:
+        if (
+            ref
+            and item_ref
+            and item_ref != ref
+            and not re.fullmatch(r"[0-9a-fA-F]{40}", item_ref)
+        ):
+            # v0.8.x watcher records may have stored the pinned SHA as requested_ref.
+            # When history_key matches, accept that legacy identity once so v0.9 can
+            # migrate without discarding an otherwise trusted baseline.
             continue
         if str(item.get("result", "")).strip().upper() != "PASS":
             continue
@@ -332,6 +340,16 @@ def main() -> int:
         "flutter_scheduled_count": len(flutter_matrix),
         "native_scheduled_count": len(native_matrix),
         "auto_scheduled_count": len(auto_matrix),
+        "cache_hit_count": sum(1 for item in status if item.get("cached")),
+        "cache_miss_count": sum(
+            1 for item in status
+            if item.get("resolved_sha") and not item.get("cached") and not item.get("error")
+        ),
+        "cache_hit_ratio": round(
+            sum(1 for item in status if item.get("cached"))
+            / max(1, sum(1 for item in status if item.get("resolved_sha") and not item.get("error"))),
+            4,
+        ),
         "repositories": status,
     }
 
