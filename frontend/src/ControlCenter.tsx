@@ -48,6 +48,11 @@ type ProjectRow = {
   performance?: PerformanceMetrics;
   applab_version: string;
   analysis_mode?: string;
+  analysis_lane?: string;
+  risk?: { score?: number; level?: string };
+  confidence?: { score?: number };
+  runtime_required?: boolean;
+  shadow_calibration?: { false_negative?: boolean; critical_divergence?: boolean };
   certification_status: string;
   certification_display_status?: string;
   certified_sha?: string;
@@ -91,6 +96,11 @@ type RecentRow = {
   watcher_run_url?: string;
   applab_version?: string;
   analysis_mode?: string;
+  analysis_lane?: string;
+  risk?: { score?: number; level?: string };
+  confidence?: { score?: number };
+  runtime_required?: boolean;
+  shadow_calibration?: { false_negative?: boolean; critical_divergence?: boolean };
   certification_status?: string;
   certification?: {
     status?: string;
@@ -236,6 +246,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>SHA</th>
                   <th>Engine</th>
                   <th>Mode</th>
+                  <th>Lane</th>
+                  <th>Risk / Confidence</th>
                   <th>Certification</th>
                   <th>Verdict</th>
                   <th>Maestro</th>
@@ -268,6 +280,21 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     </td>
                     <td>{project.engine}</td>
                     <td>{project.analysis_mode ?? "full"}</td>
+                    <td>{project.analysis_lane || "full_runtime"}</td>
+                    <td>
+                      <div className="cc-project">
+                        <strong>
+                          {project.risk?.level ?? "—"}
+                          {project.risk?.score != null ? ` · ${project.risk.score}/100` : ""}
+                        </strong>
+                        <small>
+                          confidence {project.confidence?.score != null
+                            ? Math.round(project.confidence.score * 100) + "%"
+                            : "—"}
+                          {project.shadow_calibration?.false_negative ? " · SHADOW MISMATCH" : ""}
+                        </small>
+                      </div>
+                    </td>
                     <td>
                       <div className="cc-project">
                         <span className={badgeClass(project.certification_display_status ?? project.certification_status)}>
@@ -358,6 +385,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <small>
                     {shortSha(item.resolved_sha || "")}
                     {item.engine ? ` · ${item.engine}` : ""}
+                    {item.analysis_lane ? ` · ${item.analysis_lane}` : ""}
+                    {item.risk?.level ? ` · risk ${item.risk.level}` : ""}
                     {item.certification_status &&
                     item.certification_status !== "NOT_REQUESTED"
                       ? ` · ${item.certification_status}`
