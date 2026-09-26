@@ -179,10 +179,10 @@ def risk_score(records: list[dict[str, Any]], imports: list[str], historical_fai
         if isinstance(item.get("deletions"), int):
             total_churn += int(item["deletions"])
         if any(re.search(p, path, re.I) for p in CRITICAL_PATTERNS):
-            score += 20
+            score += 60
             reasons.append(f"critical:{item['path']}")
         elif any(re.search(p, path, re.I) for p in HIGH_RISK_PATTERNS):
-            score += 10
+            score += 35
             reasons.append(f"high:{item['path']}")
     if runtime_files >= 12:
         score += 15
