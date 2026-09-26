@@ -272,6 +272,7 @@ jobs:
       run_runtime: ${{ steps.plan.outputs.run_runtime }}
       shadow_full: ${{ steps.plan.outputs.shadow_full }}
       plan_artifact_name: ${{ steps.metadata.outputs.plan_artifact_name }}
+      source_artifact_name: ${{ steps.metadata.outputs.source_artifact_name }}
 
     steps:
       - name: Mark preflight start
@@ -356,6 +357,7 @@ jobs:
         shell: bash
         run: |
           echo "plan_artifact_name=applab-preflight-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+          echo "source_artifact_name=applab-source-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
 
       - name: Upload adaptive analysis plan
         uses: actions/upload-artifact@v7
@@ -364,6 +366,25 @@ jobs:
           path: applab-preflight/analysis-plan.json
           if-no-files-found: error
           retention-days: 7
+
+      - name: Package exact preflight source snapshot
+        if: steps.plan.outputs.run_build == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/applab-source"
+          git -C "$GITHUB_WORKSPACE/target" archive             --format=tar             --output="$GITHUB_WORKSPACE/applab-source/target.tar"             "${{ steps.target.outputs.resolved_sha }}"
+          sha256sum "$GITHUB_WORKSPACE/applab-source/target.tar" > "$GITHUB_WORKSPACE/applab-source/target.tar.sha256"
+
+      - name: Upload exact preflight source snapshot
+        if: steps.plan.outputs.run_build == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.metadata.outputs.source_artifact_name }}
+          path: applab-source/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 0
 
       - name: Setup Java for STATIC_ONLY
         if: steps.plan.outputs.lane == 'STATIC_ONLY'
@@ -514,14 +535,20 @@ jobs:
           path: .applab
           persist-credentials: false
 
-      - name: Checkout target project
-        uses: actions/checkout@v7
+      - name: Download exact preflight source snapshot
+        uses: actions/download-artifact@v8
         with:
-          repository: ${{ inputs.repository }}
-          ref: ${{ needs.preflight.outputs.resolved_sha }}
-          path: target
-          fetch-depth: 2
-          persist-credentials: false
+          name: ${{ needs.preflight.outputs.source_artifact_name }}
+          path: applab-source
+
+      - name: Verify and extract exact source snapshot
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd "$GITHUB_WORKSPACE/applab-source"
+          sha256sum --check target.tar.sha256
+          mkdir -p "$GITHUB_WORKSPACE/target"
+          tar -xf target.tar -C "$GITHUB_WORKSPACE/target"
 
       - name: Download trusted adaptive preflight plan
         uses: actions/download-artifact@v8
@@ -534,7 +561,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$GITHUB_WORKSPACE/applab-report"
-          RESOLVED_SHA="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
+          RESOLVED_SHA="${{ needs.preflight.outputs.resolved_sha }}"
+          test -n "$RESOLVED_SHA"
           echo "resolved_sha=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
           {
             echo "engine=native_android"
