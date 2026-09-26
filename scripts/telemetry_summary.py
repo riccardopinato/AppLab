@@ -40,7 +40,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         ]
 
     selected = skipped = 0
-    false_negatives = over_selection = shadow_runs = 0
+    false_negatives = selected_clean = shadow_runs = 0
     cache_hits = cache_total = 0
     for row in rows:
         labs = row.get("selected_labs")
@@ -51,7 +51,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if isinstance(shadow, dict) and shadow.get("performed"):
             shadow_runs += 1
             false_negatives += int(shadow.get("false_negatives", 0) or 0)
-            over_selection += int(shadow.get("over_selection", 0) or 0)
+            selected_clean += int(shadow.get("selected_clean", 0) or 0)
         cache = row.get("cache")
         if isinstance(cache, dict):
             for value in cache.values():
@@ -82,7 +82,8 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "shadow": {
             "runs": shadow_runs,
             "false_negatives": false_negatives,
-            "over_selection": over_selection,
+            "selected_clean": selected_clean,
+            "over_selection_observable": False,
             "false_negative_rate": round(false_negatives / max(1, shadow_runs), 4),
         },
         "timings": timing_summary,
