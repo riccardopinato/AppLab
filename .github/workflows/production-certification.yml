@@ -13,9 +13,14 @@ on:
         default: main
         type: string
       api_level:
-        description: Controlled Android API certification lane
+        description: Primary controlled Android API certification lane
         required: false
         default: "35"
+        type: string
+      compatibility_api_level:
+        description: Compatibility lane API level, or auto from minSdk
+        required: false
+        default: auto
         type: string
       emulator_profile:
         description: Controlled emulator profile certification lane
@@ -37,14 +42,32 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       history_key: ${{ steps.profile.outputs.history_key }}
+      compatibility_api: ${{ steps.profile.outputs.compatibility_api }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout AppLab
+        uses: actions/checkout@v7
 
-      - name: Resolve stable history key
+      - name: Checkout target project
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          path: target
+          persist-credentials: false
+
+      - name: Auto-discover target profile
+        run: |
+          python scripts/project_autodiscover.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --output "$RUNNER_TEMP/certification-profile.json"
+
+      - name: Resolve stable history key and compatibility lane
         id: profile
         shell: bash
         env:
           TARGET_REPOSITORY: ${{ inputs.repository }}
+          PRIMARY_API: ${{ inputs.api_level }}
+          COMPATIBILITY_API: ${{ inputs.compatibility_api_level }}
         run: |
           set -Eeuo pipefail
           python - <<'PY'
@@ -57,6 +80,22 @@ jobs:
           if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
               raise SystemExit(f"Invalid repository: {repository!r}")
 
+          primary_api = int(os.environ["PRIMARY_API"])
+          requested_compat = os.environ["COMPATIBILITY_API"].strip().lower()
+          profile = json.loads(Path(os.environ["RUNNER_TEMP"]).joinpath("certification-profile.json").read_text())
+          min_sdk = int(str(profile.get("min_sdk") or "23"))
+
+          if requested_compat == "auto":
+              compatibility_api = max(29, min_sdk)
+              if compatibility_api >= primary_api and primary_api > min_sdk:
+                  compatibility_api = max(min_sdk, primary_api - 1)
+          else:
+              compatibility_api = int(requested_compat)
+              if compatibility_api < min_sdk:
+                  raise SystemExit(
+                      f"Compatibility API {compatibility_api} is below target minSdk {min_sdk}"
+                  )
+
           watchlist = json.loads(Path("watchlist.json").read_text(encoding="utf-8"))
           key = ""
           for item in watchlist.get("repositories", []):
@@ -68,11 +107,15 @@ jobs:
 
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
               handle.write(f"history_key={key}\n")
-          print(f"Certification history key: {key}")
+              handle.write(f"compatibility_api={compatibility_api}\n")
+          print(
+              f"Certification history key: {key}; "
+              f"primary API {primary_api}; compatibility API {compatibility_api}; minSdk {min_sdk}"
+          )
           PY
 
-  certify:
-    name: Certify ${{ inputs.repository }}
+  certify_primary:
+    name: Primary certification · API ${{ inputs.api_level }}
     needs: resolve
     uses: ./.github/workflows/universal-project-runner.yml
     with:
@@ -81,17 +124,147 @@ jobs:
       run_maestro: true
       history_key: ${{ needs.resolve.outputs.history_key }}
       cache_verification: false
-      contract_fingerprint: production-certification-v0.8.0
-      config_fingerprint: production-certification-v0.8.0
+      contract_fingerprint: production-certification-v0.8.1
+      config_fingerprint: production-certification-v0.8.1
       approve_visual_baseline: false
       analysis_mode: certification
       api_level_override: ${{ inputs.api_level }}
       emulator_profile_override: ${{ inputs.emulator_profile }}
+      publish_release_artifact: false
+
+  compatibility:
+    name: Compatibility release smoke · API ${{ needs.resolve.outputs.compatibility_api }}
+    needs: resolve
+    uses: ./.github/workflows/universal-project-runner.yml
+    with:
+      repository: ${{ inputs.repository }}
+      ref: ${{ inputs.ref }}
+      run_maestro: true
+      history_key: ${{ needs.resolve.outputs.history_key }}-compat
+      cache_verification: false
+      contract_fingerprint: production-compatibility-v0.8.1
+      config_fingerprint: production-compatibility-v0.8.1
+      approve_visual_baseline: false
+      analysis_mode: full
+      force_release_build: true
+      api_level_override: ${{ needs.resolve.outputs.compatibility_api }}
+      emulator_profile_override: ${{ inputs.emulator_profile }}
+      publish_release_artifact: false
+
+  finalize:
+    name: Finalize certification matrix and release
+    if: always() && needs.resolve.result == 'success'
+    needs: [resolve, certify_primary, compatibility]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout AppLab
+        uses: actions/checkout@v7
+
+      - name: Download primary build contract
+        uses: actions/download-artifact@v8
+        with:
+          name: applab-build-${{ needs.resolve.outputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: primary-contract
+        continue-on-error: true
+
+      - name: Download primary certification evidence
+        uses: actions/download-artifact@v8
+        with:
+          name: applab-${{ needs.resolve.outputs.history_key }}-${{ github.run_id }}
+          path: primary-report
+        continue-on-error: true
+
+      - name: Download compatibility evidence
+        uses: actions/download-artifact@v8
+        with:
+          name: applab-${{ needs.resolve.outputs.history_key }}-compat-${{ github.run_id }}
+          path: compatibility-report
+        continue-on-error: true
+
+      - name: Finalize certification matrix
+        id: matrix
+        continue-on-error: true
+        run: |
+          mkdir -p primary-report compatibility-report
+          python scripts/finalize_certification_matrix.py \
+            --primary-dir primary-report \
+            --compatibility-dir compatibility-report \
+            --repository "${{ inputs.repository }}" \
+            --ref "${{ inputs.ref }}" \
+            --primary-api "${{ inputs.api_level }}" \
+            --compatibility-api "${{ needs.resolve.outputs.compatibility_api }}" \
+            --emulator-profile "${{ inputs.emulator_profile }}"
+          cp compatibility-report/result.json primary-report/compatibility-result.json 2>/dev/null || true
+
+      - name: Read final certification status
+        id: status
+        shell: bash
+        run: |
+          STATUS="$(python -c 'import json; print(json.load(open("primary-report/result.json")).get("certification_status","BLOCKED"))')"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "Final certification status: $STATUS"
+
+      - name: Prepare exact certified release bytes
+        id: release
+        if: steps.status.outputs.status == 'CERTIFIED'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/release_artifact.py prepare \
+            --report-dir "$GITHUB_WORKSPACE/primary-report" \
+            --contract-root "$GITHUB_WORKSPACE/primary-contract" \
+            --output-dir "$GITHUB_WORKSPACE/applab-release" \
+            --repository "${{ inputs.repository }}" \
+            --resolved-sha "$(python -c 'import json; print(json.load(open("primary-report/result.json")).get("resolved_sha",""))')" \
+            --history-key "${{ needs.resolve.outputs.history_key }}" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+      - name: Upload certified release bundle
+        id: release_upload
+        if: steps.release.outputs.publish == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.release.outputs.artifact_name }}
+          path: applab-release/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Bind certified release metadata
+        if: steps.release.outputs.publish == 'true'
+        run: |
+          python scripts/release_artifact.py bind \
+            --report-dir "$GITHUB_WORKSPACE/primary-report" \
+            --artifact-id "${{ steps.release_upload.outputs.artifact-id }}" \
+            --artifact-url "${{ steps.release_upload.outputs.artifact-url }}"
+
+      - name: Upload final certification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-certification-final-${{ github.run_id }}
+          path: primary-report/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Certification matrix summary
+        if: always()
+        run: |
+          {
+            echo "## AppLab v0.8.1 Production Certification"
+            echo
+            echo "- Target: `${{ inputs.repository }}@${{ inputs.ref }}`"
+            echo "- Primary: API `${{ inputs.api_level }}` / `${{ inputs.emulator_profile }}`"
+            echo "- Compatibility: API `${{ needs.resolve.outputs.compatibility_api }}`"
+            echo "- Final: **${{ steps.status.outputs.status }}**"
+            echo
+            cat primary-report/certification-matrix.md 2>/dev/null || true
+          } >> "$GITHUB_STEP_SUMMARY"
 
   aggregate:
     name: Record certification in Control Center
-    if: always()
-    needs: [resolve, certify]
+    if: always() && needs.resolve.result == 'success'
+    needs: [resolve, finalize]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -104,12 +277,11 @@ jobs:
           restore-keys: |
             applab-watch-history-
 
-      - name: Download certification evidence
+      - name: Download final certification evidence
         uses: actions/download-artifact@v8
         with:
-          pattern: applab-*
-          path: certification-results
-          merge-multiple: false
+          name: applab-certification-final-${{ github.run_id }}
+          path: certification-results/final
         continue-on-error: true
 
       - name: Aggregate certification result
@@ -127,14 +299,7 @@ jobs:
             --watchlist watchlist.json \
             --history-file .applab-history/history.jsonl \
             --output .applab-history/control-center.json
-          {
-            echo "## AppLab v0.8.0 Production Certification"
-            echo
-            echo "- Target: `${{ inputs.repository }}@${{ inputs.ref }}`"
-            echo "- Runtime: API `${{ inputs.api_level }}` / `${{ inputs.emulator_profile }}`"
-            echo
-            cat certification-summary.md
-          } >> "$GITHUB_STEP_SUMMARY"
+          cat certification-summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save central history
         if: always()
