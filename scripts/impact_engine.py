@@ -27,7 +27,7 @@ DOC_NAMES = {
 TEST_MARKERS = ("/test/", "/tests/", "/androidtest/", "/test_", "_test.", "test/")
 HIGH_RISK_PATTERNS = (
     r"androidmanifest\.xml$", r"migration", r"schema", r"database", r"room", r"dao",
-    r"workmanager", r"worker", r"service", r"background", r"foreground.?service", r"alarm", r"notification", r"permission",
+    r"workmanager", r"worker", r"background", r"foreground.?service", r"background.?service", r"alarm", r"notification", r"permission",
     r"build\.gradle", r"settings\.gradle", r"gradle\.properties", r"pubspec\.yaml$",
     r"applicationid", r"minsdk", r"targetsdk", r"sign", r"keystore",
 )
@@ -200,7 +200,10 @@ def risk_score(records: list[dict[str, Any]], imports: list[str], historical_fai
         score += min(12, deleted * 3)
         reasons.append("file_deletion")
     import_text = " ".join(imports).lower()
-    if any(x in import_text for x in ("http", "dio", "retrofit", "room", "sqlite", "workmanager", "firebase")):
+    if any(x in import_text for x in ("android.app.service", "androidx.work", "workmanager")):
+        score += 35
+        reasons.append("high_runtime_dependency_import")
+    elif any(x in import_text for x in ("http", "dio", "retrofit", "room", "sqlite", "firebase")):
         score += 5
         reasons.append("sensitive_dependency_import")
     if historical_failures > 0:
