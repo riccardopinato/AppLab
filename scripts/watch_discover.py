@@ -109,6 +109,8 @@ def latest_history_sha(path: str, repository: str) -> str:
             continue
         if not isinstance(item, dict) or str(item.get("repository", "")).strip() != repository:
             continue
+        if str(item.get("result", "")).strip().upper() != "PASS":
+            continue
         sha = str(item.get("resolved_sha", "")).strip().lower()
         if not re.fullmatch(r"[0-9a-f]{40}", sha):
             continue
@@ -117,6 +119,20 @@ def latest_history_sha(path: str, repository: str) -> str:
             latest_at = recorded
             latest_sha = sha
     return latest_sha
+
+
+def self_test_history() -> None:
+    import tempfile
+    with tempfile.TemporaryDirectory() as raw:
+        path = Path(raw) / "history.jsonl"
+        rows = [
+            {"repository": "owner/app", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
+            {"repository": "owner/app", "recorded_at": "2026-01-02T00:00:00Z", "result": "FAIL", "resolved_sha": "b" * 40},
+            {"repository": "owner/app", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
+        ]
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+        assert latest_history_sha(str(path), "owner/app") == "c" * 40
+        assert latest_history_sha(str(path), "owner/missing") == ""
 
 
 def entry_fingerprint(entry: dict[str, Any]) -> str:
@@ -181,6 +197,7 @@ def main() -> int:
         seen_keys.add(key)
 
     if args.validate_only:
+        self_test_history()
         counts = {
             engine: sum(
                 1
