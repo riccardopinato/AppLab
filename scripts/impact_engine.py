@@ -296,11 +296,15 @@ def targeted_scopes(files: list[str], changed_paths: set[str], impacted: list[st
         elif path.startswith("lib/"):
             analyze_targets.add(path)
     tracked_tests = [p for p in files if is_test_path(p)]
+    directly_changed_tests = {p for p in changed_paths if is_test_path(p)}
     stems = {Path(p).stem.replace("_test", "").lower() for p in dart}
-    test_targets = sorted({
-        p for p in tracked_tests
-        if any(stem and stem in Path(p).stem.lower() for stem in stems)
-    })
+    test_targets = sorted(
+        directly_changed_tests
+        | {
+            p for p in tracked_tests
+            if any(stem and stem in Path(p).stem.lower() for stem in stems)
+        }
+    )
     modules = sorted({module_for(p) for p in changed_paths | set(impacted) if module_for(p)})
     return {
         "flutter_analyze_targets": sorted(analyze_targets)[:50],
