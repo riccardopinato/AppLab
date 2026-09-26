@@ -6,6 +6,8 @@ FAST now uses change status/churn, module/import context and recent failures for
 
 A deterministic FAST sample runs as shadow FULL. AppLab preserves the original FAST prediction and compares skipped predictions with actual FULL outcomes; a false-negative is recorded as a critical calibration failure. Trusted runtime also reuses a pinned Maestro cache and a clean pre-app AVD snapshot.
 
+Planner and post-planning pipeline latency are recorded, and the Control Center aggregates p50/p95 once timing samples exist.
+
 Verification cache invalidation is domain-scoped: results record `core + selected labs` and their contract fingerprint, so unrelated lab implementation changes no longer invalidate an already verified SHA. Control Center exposes lane, risk, confidence and shadow state.
 
 See `integration/performance/ADAPTIVE_IMPACT_ENGINE.md` and `ROADMAP.md`.
