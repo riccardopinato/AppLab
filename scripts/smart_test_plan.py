@@ -127,30 +127,49 @@ def tracked_files(repo: Path) -> list[str]:
         return [x.strip().replace("\\", "/") for x in result.stdout.splitlines() if x.strip()]
     return []
 
-def _imports_from_head(repo: Path, relative: str) -> list[str]:
-    blob = _run(repo, "show", f"HEAD:{relative}", timeout=15)
-    if blob.returncode != 0:
+def _imports_from_checkout(repo: Path, relative: str) -> list[str]:
+    # The planner already runs against the checked-out target HEAD. Reading the
+    # bounded working-tree file avoids spawning one `git show` process per
+    # source file while preserving the same deterministic import evidence.
+    path = repo / relative
+    try:
+        resolved = path.resolve(strict=True)
+        resolved.relative_to(repo.resolve())
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 256 * 1024:
+            return []
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except (OSError, ValueError):
         return []
+
     found: list[str] = []
     for pattern in (
         r"(?m)^\s*import\s+['\"]([^'\"]+)['\"]",
         r"(?m)^\s*import\s+([A-Za-z0-9_.*]+)",
     ):
-        found.extend(re.findall(pattern, blob.stdout))
+        found.extend(re.findall(pattern, text))
     return found[:100]
 
 def dependency_impacts(repo: Path, changed: list[str], tracked: list[str]) -> list[str]:
     changed_set = set(changed)
-    stems = {Path(p).stem.lower() for p in changed if Path(p).suffix.lower() in {".dart", ".kt", ".java"}}
+    stems = {
+        Path(p).stem.lower()
+        for p in changed
+        if Path(p).suffix.lower() in {".dart", ".kt", ".java"}
+    }
     if not stems:
         return []
+
     impacted: set[str] = set()
-    candidates = [p for p in tracked if Path(p).suffix.lower() in {".dart", ".kt", ".java"}]
-    # Bounded reverse-import graph: deterministic and conservative.
+    candidates = [
+        p for p in tracked
+        if Path(p).suffix.lower() in {".dart", ".kt", ".java"}
+    ]
+    # Bounded reverse-import scan: deterministic, conservative and process-free.
+    # At most 5,000 tracked source files are read, each capped at 256 KiB.
     for rel in candidates[:5000]:
         if rel in changed_set:
             continue
-        imports = _imports_from_head(repo, rel)
+        imports = _imports_from_checkout(repo, rel)
         joined = " ".join(imports).lower()
         if any(stem and stem in joined for stem in stems):
             impacted.add(rel)
