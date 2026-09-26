@@ -10,6 +10,7 @@ import smart_test_plan
 
 CASES = [
     {"name":"docs-only","files":["README.md"],"lane":"NO_RUNTIME_CHANGE","labs":[]},
+    {"name":"nested-docs","files":["product/docs/architecture.md"],"lane":"NO_RUNTIME_CHANGE","labs":[]},
     {"name":"tests-only","files":["test/home_test.dart"],"lane":"STATIC_ONLY","labs":[]},
     {"name":"flutter-ui","files":["lib/features/home/home_page.dart"],"lane":"FAST_RUNTIME","labs":["configuration","performance"]},
     {"name":"network-client","files":["lib/data/api_client.dart"],"lane":"FAST_RUNTIME","labs":["network","performance"]},
@@ -22,6 +23,7 @@ CASES = [
     {"name":"notification","files":["app/src/main/java/x/NotificationService.kt"],"lane":"FAST_RUNTIME","labs":["system","background","resource_pressure","performance"]},
     {"name":"gradle","files":["app/build.gradle.kts"],"lane":"FAST_RUNTIME","labs":["performance","upgrade"]},
     {"name":"pubspec","files":["pubspec.yaml"],"lane":"FAST_RUNTIME","labs":["performance","upgrade"]},
+    {"name":"image-asset","files":["assets/images/hero.webp"],"lane":"FAST_RUNTIME","labs":["performance","resource_pressure"]},
     {"name":"github-only","files":[".github/workflows/ci.yml"],"lane":"STATIC_ONLY","labs":[]},
 ]
 
