@@ -272,6 +272,8 @@ def package(args: argparse.Namespace) -> dict:
                 "predicted_selected_labs": impact.get("predicted_selected_labs", {}),
                 "predicted_lab_reasons": impact.get("predicted_lab_reasons", {}),
                 "cache_domains": impact.get("cache_domains", []),
+                "domain_contract_fingerprint": impact.get("domain_contract_fingerprint", ""),
+                "telemetry": impact.get("telemetry", {}),
                 "historical_failure_count": impact.get("historical_failure_count", 0),
                 "diff_state": impact.get("diff_state", ""),
             },
