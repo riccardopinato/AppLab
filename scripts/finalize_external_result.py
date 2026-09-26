@@ -25,6 +25,16 @@ def main() -> int:
     result_path = report_dir / "result.json"
     summary_path = report_dir / "summary.md"
 
+    plan_path = report_dir / "analysis-plan.json"
+    plan = {}
+    if plan_path.is_file():
+        try:
+            raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            if isinstance(raw_plan, dict):
+                plan = raw_plan
+        except (json.JSONDecodeError, OSError):
+            plan = {}
+
     if result_path.exists():
         try:
             payload = json.loads(result_path.read_text(encoding="utf-8"))
@@ -36,7 +46,7 @@ def main() -> int:
     if not payload:
         payload = {
             "schema_version": 1,
-            "applab_version": "0.8.1",
+            "applab_version": "0.9.0",
             "result": "FAIL",
             "analysis_mode": args.analysis_mode,
             "reason": "Pipeline ended before the Android verifier produced a result.",
@@ -71,6 +81,11 @@ def main() -> int:
             "workflow_run_id": args.run_id,
             "analysis_mode": payload.get("analysis_mode") or args.analysis_mode,
             "observed_at": datetime.now(timezone.utc).isoformat(),
+            "analysis_lane": plan.get("lane", payload.get("analysis_lane", "")),
+            "risk": plan.get("risk", payload.get("risk", {})),
+            "confidence": plan.get("confidence", payload.get("confidence", {})),
+            "runtime_required": plan.get("runtime_required", payload.get("runtime_required", True)),
+            "adaptive_plan": plan or payload.get("adaptive_plan", {}),
         }
     )
 
