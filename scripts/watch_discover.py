@@ -95,7 +95,7 @@ def resolve_sha(repository: str, ref: str, token: str) -> str:
     return sha.lower()
 
 
-def latest_history_sha(path: str, repository: str) -> str:
+def latest_history_sha(path: str, repository: str, history_key: str = "") -> str:
     if not path:
         return ""
     history = Path(path)
@@ -110,6 +110,8 @@ def latest_history_sha(path: str, repository: str) -> str:
             continue
         if not isinstance(item, dict) or str(item.get("repository", "")).strip() != repository:
             continue
+        if history_key and str(item.get("history_key", "")).strip() != history_key:
+            continue
         if str(item.get("result", "")).strip().upper() != "PASS":
             continue
         sha = str(item.get("resolved_sha", "")).strip().lower()
@@ -122,7 +124,9 @@ def latest_history_sha(path: str, repository: str) -> str:
     return latest_sha
 
 
-def latest_history_record(path: str, repository: str, resolved_sha: str = "") -> dict[str, Any]:
+def latest_history_record(
+    path: str, repository: str, resolved_sha: str = "", history_key: str = ""
+) -> dict[str, Any]:
     if not path:
         return {}
     history = Path(path)
@@ -137,6 +141,8 @@ def latest_history_record(path: str, repository: str, resolved_sha: str = "") ->
             continue
         if not isinstance(item, dict) or str(item.get("repository", "")).strip() != repository:
             continue
+        if history_key and str(item.get("history_key", "")).strip() != history_key:
+            continue
         if resolved_sha and str(item.get("resolved_sha", "")).strip().lower() != resolved_sha.lower():
             continue
         recorded = str(item.get("recorded_at", ""))
@@ -146,7 +152,7 @@ def latest_history_record(path: str, repository: str, resolved_sha: str = "") ->
     return best
 
 
-def historical_risk_counts(path: str, repository: str) -> dict[str, int]:
+def historical_risk_counts(path: str, repository: str, history_key: str = "") -> dict[str, int]:
     if not path:
         return {}
     history = Path(path)
@@ -158,7 +164,11 @@ def historical_risk_counts(path: str, repository: str) -> dict[str, int]:
             item = json.loads(raw)
         except json.JSONDecodeError:
             continue
-        if isinstance(item, dict) and str(item.get("repository", "")).strip() == repository:
+        if (
+            isinstance(item, dict)
+            and str(item.get("repository", "")).strip() == repository
+            and (not history_key or str(item.get("history_key", "")).strip() == history_key)
+        ):
             rows.append(item)
     domains = (
         "system", "performance", "network", "persistence", "configuration",
@@ -185,13 +195,14 @@ def self_test_history() -> None:
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "history.jsonl"
         rows = [
-            {"repository": "owner/app", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-02T00:00:00Z", "result": "FAIL", "resolved_sha": "b" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
+            {"repository": "owner/app", "history_key": "main", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
+            {"repository": "owner/app", "history_key": "main", "recorded_at": "2026-01-02T00:00:00Z", "result": "FAIL", "resolved_sha": "b" * 40},
+            {"repository": "owner/app", "history_key": "main", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
         ]
         path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
-        assert latest_history_sha(str(path), "owner/app") == "c" * 40
-        assert latest_history_sha(str(path), "owner/missing") == ""
+        assert latest_history_sha(str(path), "owner/app", "main") == "c" * 40
+        assert latest_history_sha(str(path), "owner/app", "beta") == ""
+        assert latest_history_sha(str(path), "owner/missing", "main") == ""
 
 
 def entry_fingerprint(entry: dict[str, Any]) -> str:
@@ -306,10 +317,13 @@ def main() -> int:
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
-            previous_verified_sha = latest_history_sha(args.history_file, repository)
-            historical_risk = historical_risk_counts(args.history_file, repository)
+            stable_key = str(entry["key"])
+            previous_verified_sha = latest_history_sha(args.history_file, repository, stable_key)
+            historical_risk = historical_risk_counts(args.history_file, repository, stable_key)
             historical_risk_json = json.dumps(historical_risk, sort_keys=True, separators=(",", ":"))
-            previous_for_sha = latest_history_record(args.history_file, repository, sha)
+            previous_for_sha = latest_history_record(
+                args.history_file, repository, sha, stable_key
+            )
             previous_selected = previous_for_sha.get("selected_labs") if isinstance(previous_for_sha, dict) else None
             effective_contract_fingerprint = contract_fingerprint
             if isinstance(previous_selected, dict) and previous_selected:
