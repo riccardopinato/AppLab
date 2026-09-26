@@ -15,7 +15,7 @@ MAX_CHANGED_FILES = 500
 MAX_GRAPH_FILES = 7000
 MAX_DIFF_BYTES = 300_000
 
-DOC_PREFIXES = ("docs/", ".github/", ".vscode/", ".idea/")
+DOC_PREFIXES = ("docs/", ".vscode/", ".idea/")
 DOC_NAMES = {"readme.md", "license", "license.md", "changelog.md", "contributing.md", "code_of_conduct.md"}
 STATIC_CONFIG_NAMES = {"analysis_options.yaml", "lint.xml", "detekt.yml", "detekt.yaml"}
 BUILD_FILES = {
@@ -168,6 +168,8 @@ def is_docs_only(path: str) -> bool:
     name = Path(lower).name
     return (
         lower.startswith(DOC_PREFIXES)
+        or lower.startswith(".github/issue_template/")
+        or lower == ".github/pull_request_template.md"
         or name in DOC_NAMES
         or lower.endswith((".md", ".rst", ".adoc"))
     )
@@ -185,7 +187,11 @@ def is_static_config(path: str) -> bool:
 def is_build_file(path: str) -> bool:
     lower = path.lower()
     name = Path(lower).name
-    return name in BUILD_FILES or lower.endswith((".gradle", ".gradle.kts"))
+    return (
+        name in BUILD_FILES
+        or lower.endswith((".gradle", ".gradle.kts"))
+        or lower.startswith(".github/workflows/")
+    )
 
 def module_for(path: str) -> str:
     normalized = path.replace("\\", "/")
@@ -390,6 +396,39 @@ def analyze_repository(
             "fallback_full": True,
             "reasons": [str(exc), "diff failure; fail-safe FULL escalation"],
         })
+        payload["planner_duration_ms"] = int((time.perf_counter() - started) * 1000)
+        return payload
+
+    if not records:
+        payload = {
+            "schema_version": 2,
+            "engine_version": VERSION,
+            "requested_mode": "fast",
+            "effective_mode": "fast",
+            "lane": "NO_RUNTIME_CHANGE",
+            "baseline_sha": baseline_sha.strip().lower(),
+            "baseline_state": state,
+            "head_sha": head,
+            "fallback_full": False,
+            "changed_files": [],
+            "changed_file_count": 0,
+            "churn": 0,
+            "domains": [],
+            "dependency_impacted_files": [],
+            "dependency_graph_truncated": False,
+            "risk_score": 0,
+            "risk_level": "LOW",
+            "confidence": 1.0,
+            "reasons": ["trusted baseline equals current source state; no changed files"],
+            "historical_risk": historical_risk or historical_domain_risk(history_file, repository),
+            "shadow_full": False,
+            "runtime_changed": False,
+            "static_targets": {
+                "flutter_analyze_targets": [],
+                "flutter_test_targets": [],
+                "android_modules": [],
+            },
+        }
         payload["planner_duration_ms"] = int((time.perf_counter() - started) * 1000)
         return payload
 
