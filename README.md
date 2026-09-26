@@ -60,6 +60,8 @@ exact APK bytes, restores/cleans the target checkout to the resolved commit and
 recomputes the adaptive plan with trusted AppLab code. Any divergence from the
 pre-build plan blocks the handoff.
 
+GitHub Actions orchestration is hardened as well: the Flutter and native reusable/manual runners now stay within a bounded 25-input contract, eliminating the historical startup-failure caused by oversized dispatch/reuse interfaces. Low-value legacy toggles were removed from those boundaries; Flutter quality checks remain mandatory and adaptive only in scope, native APK signature verification is mandatory, and certified release publication remains centralized in the production certification flow.
+
 See `integration/performance/ADAPTIVE_IMPACT_ENGINE.md`,
 `integration/performance/FAST_ANALYSIS_ENGINE.md`, and `ROADMAP.md`.
 
