@@ -17,7 +17,7 @@ LABS = (
 )
 SOURCE_SUFFIXES = {".kt", ".java", ".dart", ".xml", ".gradle", ".kts", ".toml", ".json", ".yaml", ".yml"}
 DOC_PREFIXES = ("docs/", "readme", "changelog", "license", ".github/issue", ".github/pull")
-STATIC_PREFIXES = ("test/", "tests/", "androidtest/", ".github/", "scripts/")
+STATIC_PREFIXES = ("test/", "tests/", "androidtest/", ".github/")
 GLOBAL_RISK_PATTERNS = (
     r"pubspec\.ya?ml$", r"gradle\.properties$", r"settings\.gradle", r"build\.gradle",
     r"libs\.versions\.toml$", r"androidmanifest\.xml$", r"minSdk", r"targetSdk",
@@ -168,7 +168,12 @@ def targeted_paths(changed: list[str], impacted: list[str]) -> dict[str, Any]:
     dart = sorted({p for p in changed + impacted if p.endswith(".dart") and not p.startswith(("test/", "tests/"))})
     dart_tests: set[str] = set()
     for p in dart:
-        candidate = "test/" + p[4:] if p.startswith("lib/") else ""
+        candidate = ""
+        if p.startswith("lib/"):
+            candidate = "test/" + p[4:]
+        elif "/lib/" in p:
+            prefix, suffix = p.split("/lib/", 1)
+            candidate = f"{prefix}/test/{suffix}"
         if candidate:
             candidate = re.sub(r"\.dart$", "_test.dart", candidate)
             dart_tests.add(candidate)
@@ -243,6 +248,20 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
     for pattern in GLOBAL_RISK_PATTERNS:
         if re.search(pattern, changed_text, re.I):
             risk += 8
+
+    # Content-aware specialist selection: generic filenames must not hide a
+    # runtime capability introduced inside the changed hunks.
+    semantic_text = "\n".join(str(x) for x in evidence.get("hunks", []))
+    for lab, patterns in RULES.items():
+        semantic_patterns = [
+            pattern for pattern in patterns
+            if not pattern.startswith("(^|/)") and not pattern.endswith("\\$")
+        ]
+        if semantic_text and any(re.search(pattern, semantic_text, re.I) for pattern in semantic_patterns):
+            selected[lab] = True
+            reasons[lab].append("changed-hunk semantic match")
+            risk += 4
+
     if impacted:
         risk += min(15, len(impacted) // 5 + 3)
         for p in impacted[:50]:
