@@ -73,12 +73,22 @@ def main() -> int:
                 "risk_level": plan.get("risk_level"),
                 "confidence": plan.get("confidence"),
                 "analysis_domains": plan.get("domains", []),
+                "selected_labs": plan.get("selected_labs", {}),
                 "shadow_full": bool(plan.get("shadow_full")),
                 "runtime_changed": bool(plan.get("runtime_changed")),
                 "planner_duration_ms": plan.get("planner_duration_ms"),
                 "changed_file_count": len(plan.get("changed_files", [])) if isinstance(plan.get("changed_files"), list) else None,
                 "churn": plan.get("churn"),
             })
+
+    contract_copy = report_dir / "build-contract.json"
+    if contract_copy.is_file():
+        try:
+            build_contract = json.loads(contract_copy.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            build_contract = {}
+        if isinstance(build_contract, dict):
+            payload["analysis_contract_fingerprint"] = build_contract.get("analysis_contract_fingerprint")
 
     shadow_path = report_dir / "shadow-calibration.json"
     if shadow_path.is_file():
