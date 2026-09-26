@@ -24,7 +24,7 @@ ENGINES = {"auto", "flutter", "native_android"}
 def api_json(url: str, token: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "AppLab-Repo-Watcher/0.8.1",
+        "User-Agent": "AppLab-Repo-Watcher/0.9.0",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     if token:
@@ -94,31 +94,79 @@ def resolve_sha(repository: str, ref: str, token: str) -> str:
     return sha.lower()
 
 
-def latest_history_sha(path: str, repository: str) -> str:
+def matching_history(
+    path: str,
+    repository: str,
+    history_key: str,
+    ref: str,
+    engine: str,
+) -> list[dict[str, Any]]:
     if not path:
-        return ""
+        return []
     history = Path(path)
     if not history.is_file():
-        return ""
-    latest_at = ""
-    latest_sha = ""
+        return []
+    rows: list[dict[str, Any]] = []
     for raw in history.read_text(encoding="utf-8", errors="ignore").splitlines():
         try:
             item = json.loads(raw)
         except json.JSONDecodeError:
             continue
-        if not isinstance(item, dict) or str(item.get("repository", "")).strip() != repository:
+        if not isinstance(item, dict):
             continue
+        if str(item.get("repository", "")).strip() != repository:
+            continue
+        row_key = str(item.get("history_key", "")).strip()
+        if row_key and row_key != history_key:
+            continue
+        row_ref = str(item.get("requested_ref", "")).strip()
+        if row_ref and row_ref != ref:
+            continue
+        row_engine = str(item.get("engine", "")).strip()
+        if row_engine and row_engine != engine and engine != "auto":
+            continue
+        rows.append(item)
+    rows.sort(key=lambda item: str(item.get("recorded_at", "")))
+    return rows
+
+
+def latest_history_sha(
+    path: str,
+    repository: str,
+    history_key: str,
+    ref: str,
+    engine: str,
+) -> str:
+    latest_sha = ""
+    for item in matching_history(path, repository, history_key, ref, engine):
         if str(item.get("result", "")).strip().upper() != "PASS":
             continue
         sha = str(item.get("resolved_sha", "")).strip().lower()
-        if not re.fullmatch(r"[0-9a-f]{40}", sha):
-            continue
-        recorded = str(item.get("recorded_at", ""))
-        if recorded >= latest_at:
-            latest_at = recorded
+        if re.fullmatch(r"[0-9a-f]{40}", sha):
             latest_sha = sha
     return latest_sha
+
+
+def recent_failure_bias(
+    path: str,
+    repository: str,
+    history_key: str,
+    ref: str,
+    engine: str,
+) -> int:
+    rows = matching_history(path, repository, history_key, ref, engine)[-20:]
+    bias = 0
+    consecutive_failures = 0
+    for item in rows:
+        result = str(item.get("result", "")).strip().upper()
+        if result == "FAIL":
+            bias += 3
+            consecutive_failures += 1
+        elif result == "PASS":
+            consecutive_failures = 0
+    if consecutive_failures:
+        bias += min(8, consecutive_failures * 2)
+    return min(25, bias)
 
 
 def self_test_history() -> None:
@@ -126,14 +174,32 @@ def self_test_history() -> None:
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "history.jsonl"
         rows = [
-            {"repository": "owner/app", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-02T00:00:00Z", "result": "FAIL", "resolved_sha": "b" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
+            {
+                "repository": "owner/app", "history_key": "main", "requested_ref": "main",
+                "engine": "flutter", "recorded_at": "2026-01-01T00:00:00Z",
+                "result": "PASS", "resolved_sha": "a" * 40,
+            },
+            {
+                "repository": "owner/app", "history_key": "beta", "requested_ref": "beta",
+                "engine": "flutter", "recorded_at": "2026-01-02T00:00:00Z",
+                "result": "PASS", "resolved_sha": "b" * 40,
+            },
+            {
+                "repository": "owner/app", "history_key": "main", "requested_ref": "main",
+                "engine": "flutter", "recorded_at": "2026-01-03T00:00:00Z",
+                "result": "FAIL", "resolved_sha": "c" * 40,
+            },
+            {
+                "repository": "owner/app", "history_key": "main", "requested_ref": "main",
+                "engine": "flutter", "recorded_at": "2026-01-04T00:00:00Z",
+                "result": "PASS", "resolved_sha": "d" * 40,
+            },
         ]
         path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
-        assert latest_history_sha(str(path), "owner/app") == "c" * 40
-        assert latest_history_sha(str(path), "owner/missing") == ""
-
+        assert latest_history_sha(str(path), "owner/app", "main", "main", "flutter") == "d" * 40
+        assert latest_history_sha(str(path), "owner/app", "beta", "beta", "flutter") == "b" * 40
+        assert latest_history_sha(str(path), "owner/app", "missing", "main", "flutter") == ""
+        assert recent_failure_bias(str(path), "owner/app", "main", "main", "flutter") >= 3
 
 def entry_fingerprint(entry: dict[str, Any]) -> str:
     normalized = {
@@ -247,7 +313,14 @@ def main() -> int:
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
-            previous_verified_sha = latest_history_sha(args.history_file, repository)
+            history_key = str(entry["key"])
+            ref = str(entry["ref"])
+            previous_verified_sha = latest_history_sha(
+                args.history_file, repository, history_key, ref, engine
+            )
+            history_risk_bias = recent_failure_bias(
+                args.history_file, repository, history_key, ref, engine
+            )
             cache_key = (
                 f"applab-c{contract_fingerprint}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
@@ -263,6 +336,7 @@ def main() -> int:
                     "cached": cached,
                     "scheduled": scheduled,
                     "previous_verified_sha": previous_verified_sha,
+                    "history_risk_bias": history_risk_bias,
                 }
             )
             if scheduled:
@@ -271,6 +345,7 @@ def main() -> int:
                     "engine": engine,
                     "resolved_sha": sha,
                     "previous_verified_sha": previous_verified_sha,
+                    "history_risk_bias": history_risk_bias,
                     "cache_epoch": cache_epoch,
                     "contract_fingerprint": contract_fingerprint,
                     "config_fingerprint": config_fingerprint,
