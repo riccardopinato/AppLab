@@ -231,7 +231,7 @@ def git_changed_files(repo_root: Path, baseline_sha: str = "") -> list[str]:
 def is_doc(path: str) -> bool:
     p = Path(path.lower())
     stem = p.stem
-    return p.parts[:1] == ("docs",) or stem in DOC_NAMES or p.name in {"code_of_conduct.md", "security.md"} or (len(p.parts) == 1 and p.suffix in {".md", ".rst"})
+    return "docs" in p.parts or stem in DOC_NAMES or p.name in {"code_of_conduct.md", "security.md"} or (len(p.parts) == 1 and p.suffix in {".md", ".rst"})
 
 def is_test(path: str) -> bool:
     lower = f"/{path.lower()}/"
@@ -376,6 +376,11 @@ def selected_labs_for(paths: list[str], content_signals: dict[str, list[str]]) -
     for path in paths:
         lower = path.lower()
         suffix = Path(lower).suffix
+        if suffix in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".mp4", ".webm"}:
+            selected["performance"] = True
+            selected["resource_pressure"] = True
+            reasons["performance"].append(path)
+            reasons["resource_pressure"].append(path)
         for lab, patterns in RULES.items():
             if any(re.search(pattern, lower, flags=re.IGNORECASE) for pattern in patterns):
                 selected[lab] = True
