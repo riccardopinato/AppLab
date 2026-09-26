@@ -175,6 +175,16 @@ def package(args: argparse.Namespace) -> dict:
     working = safe_relative(args.working_directory)
     flow = safe_relative(args.maestro_flow) if args.maestro_flow else None
 
+    expected_sha = args.resolved_sha.strip().lower()
+    if expected_sha:
+        if not re.fullmatch(r"[0-9a-f]{40}", expected_sha):
+            raise ValueError("resolved_sha must be a 40-character Git SHA")
+        current_head = run_text(["git", "-C", str(repo_root), "rev-parse", "HEAD"]).lower()
+        if current_head != expected_sha:
+            raise ValueError(
+                f"Target HEAD changed during untrusted build: expected {expected_sha}, got {current_head or 'unknown'}"
+            )
+
     if not apk.is_file() or apk.stat().st_size <= 0:
         raise ValueError(f"APK missing or empty: {apk}")
     try:
@@ -241,19 +251,40 @@ def package(args: argparse.Namespace) -> dict:
         "quality_evidence": quality_evidence,
         "evidence_bytes": total,
     }
+    # Recompute the plan after untrusted project commands have completed.
+    # The planner reads committed Git evidence (including imports from HEAD),
+    # so build code cannot weaken runtime coverage by rewriting the preflight
+    # JSON or tracked source files in the worktree.
+    plan = smart_test_plan.analyze_repository(
+        repo_root,
+        args.analysis_mode,
+        args.baseline_sha,
+        history_file=args.history_file,
+        repository=args.repository,
+        history_key=args.history_key,
+        source_ref=args.source_ref,
+    )
+    smart_test_plan.validate_plan(plan)
+
     if args.analysis_plan_input and Path(args.analysis_plan_input).is_file():
-        plan = smart_test_plan.validate_plan(
+        preflight = smart_test_plan.validate_plan(
             json.loads(Path(args.analysis_plan_input).read_text(encoding="utf-8"))
         )
-    else:
-        plan = smart_test_plan.analyze_repository(
-            repo_root,
-            args.analysis_mode,
-            args.baseline_sha,
-            history_file=args.history_file,
-            repository=args.repository,
+        immutable_keys = (
+            "mode", "lane", "baseline_sha", "changed_files", "changes",
+            "impacted_files", "selected_labs", "predicted_selected_labs",
+            "risk_score", "confidence", "fallback_full", "shadow_full",
+            "run_static", "run_build", "run_runtime", "targets",
         )
-        smart_test_plan.validate_plan(plan)
+        mismatches = [
+            key for key in immutable_keys
+            if preflight.get(key) != plan.get(key)
+        ]
+        if mismatches:
+            raise ValueError(
+                "Adaptive preflight plan changed after untrusted build execution: "
+                + ", ".join(mismatches)
+            )
     contract["analysis_lane"] = plan.get("lane", "FULL_RUNTIME")
     contract["analysis_risk_score"] = plan.get("risk_score", 100)
     contract["analysis_confidence"] = plan.get("confidence", 0.0)
@@ -293,7 +324,8 @@ def self_test() -> None:
             repository="owner/repo", resolved_sha="a"*40, engine="flutter",
             working_directory=".", package_id="com.example.app",
             maestro_flow=".maestro/smoke.yaml",
-            analysis_mode="fast", baseline_sha="", analysis_plan_input="", history_file="", quality_json="",
+            analysis_mode="fast", baseline_sha="", analysis_plan_input="", history_file="",
+            history_key="", source_ref="", quality_json="",
             build_command="flutter build apk --debug",
             analyze_status="PASS", lint_status="N/A",
             test_status="PASS", build_status="PASS",
@@ -319,6 +351,8 @@ def main() -> int:
     parser.add_argument("--baseline-sha", default="")
     parser.add_argument("--analysis-plan-input", default="")
     parser.add_argument("--history-file", default="")
+    parser.add_argument("--history-key", default="")
+    parser.add_argument("--source-ref", default="")
     parser.add_argument("--quality-json", default="")
     parser.add_argument("--build-command", default="")
     parser.add_argument("--analyze-status", default="NOT_RUN")
