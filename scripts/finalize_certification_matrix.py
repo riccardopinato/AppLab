@@ -21,6 +21,71 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def render_certification_markdown(certification: dict[str, Any]) -> str:
+    lines = [
+        "# AppLab Production Certification",
+        "",
+        f"- Status: **{certification.get('status', 'BLOCKED')}**",
+        f"- AppLab: {certification.get('applab_version', APPLAB_VERSION)}",
+        "",
+        "## Runtime matrix",
+        "",
+        "| Lane | API | Profile | Target | Arch | Status |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for lane in certification.get("matrix", []):
+        if not isinstance(lane, dict):
+            continue
+        lines.append(
+            f"| {lane.get('lane', 'unknown')} | {lane.get('api_level', '—')} | "
+            f"{lane.get('emulator_profile', '—')} | {lane.get('target', '—')} | "
+            f"{lane.get('arch', '—')} | **{lane.get('status', 'UNKNOWN')}** |"
+        )
+
+    source = certification.get("source", {})
+    apk = certification.get("apk", {})
+    real_device = certification.get("real_device", {})
+    lines.extend(
+        [
+            "",
+            "## Artifact identity",
+            "",
+            f"- Repository: {source.get('repository', 'unknown') if isinstance(source, dict) else 'unknown'}",
+            f"- Commit: {source.get('resolved_sha', 'unknown') if isinstance(source, dict) else 'unknown'}",
+            f"- Package: {apk.get('package_id', 'unknown') if isinstance(apk, dict) else 'unknown'}",
+            f"- Version: {apk.get('version_name', '?') if isinstance(apk, dict) else '?'} "
+            f"({apk.get('version_code', '?') if isinstance(apk, dict) else '?'})",
+            f"- Build variant: {apk.get('build_variant', 'unknown') if isinstance(apk, dict) else 'unknown'}",
+            f"- APK SHA-256: {apk.get('sha256', 'unavailable') if isinstance(apk, dict) else 'unavailable'}",
+            f"- Signing certificate SHA-256: {apk.get('signing_cert_sha256', 'unavailable') if isinstance(apk, dict) else 'unavailable'}",
+            f"- Real device: {real_device.get('status', 'UNKNOWN') if isinstance(real_device, dict) else 'UNKNOWN'}",
+            "",
+        ]
+    )
+
+    failures = certification.get("failures", [])
+    blockers = certification.get("blockers", [])
+    if failures:
+        lines.extend(["## Failures", ""])
+        for item in failures:
+            if isinstance(item, dict):
+                lines.append(
+                    f"- **{item.get('label', item.get('gate', 'failure'))}**: "
+                    f"{item.get('observed', 'UNKNOWN')}"
+                )
+        lines.append("")
+    if blockers:
+        lines.extend(["## Blockers", ""])
+        for item in blockers:
+            if isinstance(item, dict):
+                lines.append(
+                    f"- **{item.get('label', item.get('gate', 'blocker'))}**: "
+                    f"{item.get('observed', 'UNKNOWN')}"
+                )
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def missing_primary(repository: str, ref: str) -> dict[str, Any]:
     certification = {
         "schema_version": 1,
@@ -163,6 +228,9 @@ def finalize(
     write_json(primary_result_path, primary)
     write_json(primary_dir / "certification.json", certification)
     write_json(primary_dir / "evidence-bundle.json", certification)
+    final_markdown = render_certification_markdown(certification)
+    (primary_dir / "certification.md").write_text(final_markdown, encoding="utf-8")
+    (primary_dir / "evidence-bundle.md").write_text(final_markdown, encoding="utf-8")
 
     summary = primary_dir / "certification-matrix.md"
     summary.write_text(
@@ -212,6 +280,7 @@ def self_test() -> None:
         )
         assert result["certification_status"] == "CERTIFIED"
         assert len(result["certification"]["matrix"]) == 2
+        assert "Compatibility" in (primary / "certification.md").read_text(encoding="utf-8")
 
     with tempfile.TemporaryDirectory() as raw:
         root = Path(raw)
