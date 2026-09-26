@@ -43,7 +43,8 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
     contract_path = root / "contract.json"
     apk = root / "app.apk"
     evidence = root / "target-evidence"
-    analysis_plan_path = root / "analysis-plan.json"\n    shadow_plan_path = root / "shadow-full-plan.json"
+    analysis_plan_path = root / "analysis-plan.json"
+    shadow_plan_path = root / "shadow-full-plan.json"
     if not contract_path.is_file() or contract_path.is_symlink():
         raise ValueError("contract.json is missing or invalid")
     if not apk.is_file() or apk.is_symlink():
