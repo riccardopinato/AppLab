@@ -330,6 +330,10 @@ jobs:
           set -Eeuo pipefail
           if [[ "$BASELINE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
             git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --depth=1 origin "$BASELINE_SHA" || true
+            for DEEPEN in 32 128 512; do
+              git -C "$GITHUB_WORKSPACE/target" merge-base --is-ancestor "$BASELINE_SHA" HEAD 2>/dev/null && break
+              git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --deepen="$DEEPEN" origin || true
+            done
           fi
 
       - name: Restore central history for adaptive risk
@@ -393,7 +397,7 @@ jobs:
           java-version: ${{ inputs.java_version }}
 
       - name: Install Android SDK components
-        if: steps.impact.outputs.run_build == 'true'
+        if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -439,6 +443,7 @@ jobs:
             --plan "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
             --engine native_android \
             --project-dir "$GITHUB_WORKSPACE/target/${{ inputs.working_directory }}" \
+            --repo-root "$GITHUB_WORKSPACE/target" \
             --report-dir "$GITHUB_WORKSPACE/applab-report" \
             --test-command "${{ inputs.test_command }}" \
             --lint-command "${{ inputs.lint_command }}" \
