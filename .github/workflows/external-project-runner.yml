@@ -322,6 +322,8 @@ jobs:
       runtime_required: ${{ steps.impact.outputs.runtime_required }}
       effective_mode: ${{ steps.impact.outputs.effective_mode }}
       verification_lane: ${{ steps.impact.outputs.lane }}
+      verification_fingerprint: ${{ steps.impact.outputs.domain_contract_fingerprint }}
+      cache_domains: ${{ steps.impact.outputs.cache_domains }}
 
     steps:
       - name: Validate target coordinates
@@ -395,6 +397,7 @@ jobs:
             --baseline-sha "${{ inputs.baseline_sha }}" \
             --historical-failures "${{ inputs.historical_failure_count }}" \
             --shadow-percent "${{ inputs.shadow_full_percent }}" \
+            --contract-root "$GITHUB_WORKSPACE/.applab" \
             --output "$GITHUB_WORKSPACE/applab-report/impact-plan.json" \
             --github-output "$GITHUB_OUTPUT"
           {
@@ -680,7 +683,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: .applab-watch-cache
-          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
+          key: applab-c${{ steps.impact.outputs.domain_contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
 
       - name: Upload build-phase evidence
         if: always()
@@ -708,6 +711,8 @@ jobs:
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ needs.build.outputs.effective_mode }}
+      verification_fingerprint: ${{ needs.build.outputs.verification_fingerprint }}
+      cache_domains: ${{ needs.build.outputs.cache_domains }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
       run_maestro: ${{ inputs.run_maestro }}
       android_prepare_command: ${{ inputs.android_prepare_command }}
