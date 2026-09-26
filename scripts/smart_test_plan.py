@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import subprocess
+import time
 from collections import defaultdict, deque
 from pathlib import Path
 from typing import Any
@@ -1018,6 +1019,7 @@ def main() -> int:
         raise SystemExit("--repo-root and --output are required")
     if not (0 <= args.shadow_rate <= 100):
         raise SystemExit("--shadow-rate must be between 0 and 100")
+    started = time.perf_counter()
     payload = plan_repository(
         Path(args.repo_root).resolve(),
         args.mode,
@@ -1028,6 +1030,9 @@ def main() -> int:
         shadow_rate=args.shadow_rate,
         history_risk_bias=args.history_risk_bias,
     )
+    payload["timing"] = {
+        "planner_ms": round((time.perf_counter() - started) * 1000, 2)
+    }
     validate_plan(payload)
     Path(args.output).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     emit_github_output(args.github_output, payload)
