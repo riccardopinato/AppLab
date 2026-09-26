@@ -22,6 +22,65 @@ def read_history(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def percentile(values: list[float], percent: float) -> float | None:
+    clean = sorted(float(v) for v in values if isinstance(v, (int, float)) and v >= 0)
+    if not clean:
+        return None
+    if len(clean) == 1:
+        return round(clean[0], 3)
+    position = (len(clean) - 1) * percent
+    lower = int(position)
+    upper = min(len(clean) - 1, lower + 1)
+    weight = position - lower
+    return round(clean[lower] * (1 - weight) + clean[upper] * weight, 3)
+
+
+def adaptive_history_metrics(history: list[dict[str, Any]]) -> dict[str, Any]:
+    planner_ms: list[float] = []
+    total_seconds: list[float] = []
+    runtime_seconds: list[float] = []
+    quality_seconds: list[float] = []
+    avd_hits = avd_observed = maestro_hits = maestro_observed = 0
+    shadow_runs = shadow_false_negatives = shadow_over_selections = 0
+    for item in history:
+        metrics = item.get("pipeline_metrics")
+        if not isinstance(metrics, dict):
+            continue
+        for key, target in (
+            ("planner_ms", planner_ms),
+            ("total_observed_seconds", total_seconds),
+            ("runtime_seconds", runtime_seconds),
+            ("quality_seconds", quality_seconds),
+        ):
+            value = metrics.get(key)
+            if isinstance(value, (int, float)):
+                target.append(float(value))
+        avd = metrics.get("avd_cache_hit")
+        if isinstance(avd, bool):
+            avd_observed += 1
+            avd_hits += int(avd)
+        maestro = metrics.get("maestro_cache_hit")
+        if isinstance(maestro, bool):
+            maestro_observed += 1
+            maestro_hits += int(maestro)
+        if bool(metrics.get("shadow_full")):
+            shadow_runs += 1
+        shadow_false_negatives += int(metrics.get("shadow_false_negative_count", 0) or 0)
+        shadow_over_selections += int(metrics.get("shadow_over_selection_count", 0) or 0)
+    return {
+        "sample_count": len(total_seconds),
+        "planner_ms": {"p50": percentile(planner_ms, 0.50), "p95": percentile(planner_ms, 0.95)},
+        "total_seconds": {"p50": percentile(total_seconds, 0.50), "p95": percentile(total_seconds, 0.95)},
+        "runtime_seconds": {"p50": percentile(runtime_seconds, 0.50), "p95": percentile(runtime_seconds, 0.95)},
+        "quality_seconds": {"p50": percentile(quality_seconds, 0.50), "p95": percentile(quality_seconds, 0.95)},
+        "avd_cache_hit_ratio": round(avd_hits / avd_observed, 4) if avd_observed else None,
+        "maestro_cache_hit_ratio": round(maestro_hits / maestro_observed, 4) if maestro_observed else None,
+        "shadow_runs": shadow_runs,
+        "shadow_false_negatives": shadow_false_negatives,
+        "shadow_over_selections": shadow_over_selections,
+    }
+
+
 def build_snapshot(
     watchlist: dict[str, Any],
     history: list[dict[str, Any]],
@@ -106,6 +165,12 @@ def build_snapshot(
                 "performance": result.get("performance", {}),
                 "applab_version": result.get("applab_version", ""),
                 "analysis_mode": result.get("analysis_mode", "full"),
+                "analysis_lane": result.get("analysis_lane", "FULL_RUNTIME"),
+                "risk_score": result.get("risk_score"),
+                "confidence": result.get("confidence"),
+                "shadow_full": bool(result.get("shadow_full", False)),
+                "pipeline_metrics": result.get("pipeline_metrics", {}),
+                "shadow_calibration": result.get("shadow_calibration", {}),
                 "certification_status": raw_certification_status,
                 "certification_display_status": certification_display_status,
                 "certification": certification_result.get("certification", {}),
@@ -134,6 +199,15 @@ def build_snapshot(
     )
     not_certified_count = sum(
         1 for item in projects if item["certification_status"] == "NOT_CERTIFIED"
+    )
+    lane_counts = {
+        lane: sum(1 for item in projects if item.get("analysis_lane") == lane)
+        for lane in ("NO_RUNTIME_CHANGE", "STATIC_ONLY", "FAST_RUNTIME", "FULL_RUNTIME", "CERTIFICATION")
+    }
+    shadow_runs = sum(1 for item in projects if item.get("shadow_full"))
+    shadow_false_negatives = sum(
+        int((item.get("shadow_calibration") or {}).get("false_negative_count", 0) or 0)
+        for item in projects
     )
 
     recent = sorted(
@@ -167,6 +241,12 @@ def build_snapshot(
                     "watcher_run_url",
                     "applab_version",
                     "analysis_mode",
+                    "analysis_lane",
+                    "risk_score",
+                    "confidence",
+                    "shadow_full",
+                    "pipeline_metrics",
+                    "shadow_calibration",
                     "certification_status",
                     "certification",
                     "release",
@@ -191,6 +271,10 @@ def build_snapshot(
             "certified_stale": certified_stale_count,
             "certification_blocked": certification_blocked_count,
             "not_certified": not_certified_count,
+            "lanes": lane_counts,
+            "shadow_runs": shadow_runs,
+            "shadow_false_negatives": shadow_false_negatives,
+            "adaptive_metrics": adaptive_history_metrics(history),
         },
         "projects": projects,
         "recent": recent,
@@ -266,17 +350,19 @@ def self_test() -> None:
         },
     ]
     snapshot = build_snapshot(watchlist, history)
-    assert snapshot["summary"] == {
-        "projects": 2,
-        "pass": 1,
-        "fail": 0,
-        "not_run": 1,
-        "certified": 1,
-        "certified_current": 0,
-        "certified_stale": 1,
-        "certification_blocked": 0,
-        "not_certified": 0,
-    }
+    assert snapshot["summary"]["projects"] == 2
+    assert snapshot["summary"]["pass"] == 1
+    assert snapshot["summary"]["fail"] == 0
+    assert snapshot["summary"]["not_run"] == 1
+    assert snapshot["summary"]["certified"] == 1
+    assert snapshot["summary"]["certified_current"] == 0
+    assert snapshot["summary"]["certified_stale"] == 1
+    assert snapshot["summary"]["certification_blocked"] == 0
+    assert snapshot["summary"]["not_certified"] == 0
+    assert "lanes" in snapshot["summary"]
+    assert "shadow_false_negatives" in snapshot["summary"]
+    assert "adaptive_metrics" in snapshot["summary"]
+    assert snapshot["summary"]["adaptive_metrics"]["sample_count"] == 0
     first = next(
         item for item in snapshot["projects"] if item["repository"] == "owner/one"
     )

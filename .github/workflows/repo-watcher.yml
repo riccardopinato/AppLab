@@ -22,6 +22,11 @@ on:
       - "scripts/background_lab.py"
       - "scripts/storage_lab.py"
       - "scripts/smart_test_plan.py"
+      - "scripts/adaptive_checks.py"
+      - "scripts/incremental_result.py"
+      - "scripts/shadow_calibration.py"
+      - "scripts/domain_fingerprint.py"
+      - "scripts/pipeline_metrics.py"
       - "scripts/upgrade_lab.py"
       - "scripts/prepare_upgrade_baseline.py"
       - "scripts/prepare_performance_baseline.py"
@@ -168,6 +173,9 @@ jobs:
           print(f"- Native Android: {data.get('native_scheduled_count', 0)}")
           print(f"- Auto: {data.get('auto_scheduled_count', 0)}")
           print(f"- Contract: `{data.get('contract_fingerprint', 'unknown')}`")
+          print(f"- Cache hits: {data.get('cache_hit_count', 0)}")
+          print(f"- Cache misses: {data.get('cache_miss_count', 0)}")
+          print(f"- Cache hit ratio: {data.get('cache_hit_ratio', 0):.1%}")
           print()
           print("| Engine | Repository | SHA | State |")
           print("| --- | --- | --- | --- |")
@@ -207,6 +215,7 @@ jobs:
     with:
       repository: ${{ matrix.repository }}
       ref: ${{ matrix.resolved_sha }}
+      source_ref: ${{ matrix.ref }}
       working_directory: ${{ matrix.working_directory }}
       flutter_channel: ${{ matrix.flutter_channel }}
       flutter_version: ${{ matrix.flutter_version }}
@@ -219,12 +228,10 @@ jobs:
       apk_path: ${{ matrix.apk_path }}
       package_id: ${{ matrix.package_id }}
       build_command: ${{ matrix.build_command }}
-      run_flutter_tests: ${{ matrix.run_flutter_tests }}
       run_maestro: ${{ matrix.run_maestro }}
       maestro_flow: ${{ matrix.maestro_flow }}
       history_key: ${{ matrix.key }}
       cache_verification: true
-      cache_epoch: ${{ matrix.cache_epoch }}
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
@@ -241,6 +248,7 @@ jobs:
     with:
       repository: ${{ matrix.repository }}
       ref: ${{ matrix.resolved_sha }}
+      source_ref: ${{ matrix.ref }}
       working_directory: ${{ matrix.working_directory }}
       java_version: ${{ matrix.java_version }}
       gradle_version: ${{ matrix.gradle_version }}
@@ -252,7 +260,6 @@ jobs:
       build_command: ${{ matrix.build_command }}
       apk_path: ${{ matrix.apk_path }}
       package_id: ${{ matrix.package_id }}
-      verify_signature: ${{ matrix.verify_signature }}
       android_prepare_command: ${{ matrix.android_prepare_command }}
       api_level: ${{ matrix.api_level }}
       emulator_profile: ${{ matrix.emulator_profile }}
@@ -260,7 +267,6 @@ jobs:
       maestro_flow: ${{ matrix.maestro_flow }}
       history_key: ${{ matrix.key }}
       cache_verification: true
-      cache_epoch: ${{ matrix.cache_epoch }}
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
@@ -277,10 +283,10 @@ jobs:
     with:
       repository: ${{ matrix.repository }}
       ref: ${{ matrix.resolved_sha }}
+      source_ref: ${{ matrix.ref }}
       run_maestro: true
       history_key: ${{ matrix.key }}
       cache_verification: true
-      cache_epoch: ${{ matrix.cache_epoch }}
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast

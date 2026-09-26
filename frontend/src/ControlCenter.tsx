@@ -48,6 +48,10 @@ type ProjectRow = {
   performance?: PerformanceMetrics;
   applab_version: string;
   analysis_mode?: string;
+  analysis_lane?: string;
+  risk_score?: number | null;
+  confidence?: number | null;
+  shadow_full?: boolean;
   certification_status: string;
   certification_display_status?: string;
   certified_sha?: string;
@@ -91,6 +95,10 @@ type RecentRow = {
   watcher_run_url?: string;
   applab_version?: string;
   analysis_mode?: string;
+  analysis_lane?: string;
+  risk_score?: number | null;
+  confidence?: number | null;
+  shadow_full?: boolean;
   certification_status?: string;
   certification?: {
     status?: string;
@@ -117,6 +125,21 @@ type Snapshot = {
     certified_stale?: number;
     certification_blocked: number;
     not_certified: number;
+    lanes?: Record<string, number>;
+    shadow_runs?: number;
+    shadow_false_negatives?: number;
+    adaptive_metrics?: {
+      sample_count?: number;
+      planner_ms?: { p50?: number | null; p95?: number | null };
+      total_seconds?: { p50?: number | null; p95?: number | null };
+      runtime_seconds?: { p50?: number | null; p95?: number | null };
+      quality_seconds?: { p50?: number | null; p95?: number | null };
+      avd_cache_hit_ratio?: number | null;
+      maestro_cache_hit_ratio?: number | null;
+      shadow_runs?: number;
+      shadow_false_negatives?: number;
+      shadow_over_selections?: number;
+    };
   };
   projects: ProjectRow[];
   recent: RecentRow[];
@@ -228,6 +251,45 @@ export default function ControlCenter({ backend }: { backend: string }) {
             </div>
           </div>
 
+          {snapshot.summary.adaptive_metrics ? (
+            <div className="cc-summary">
+              <div>
+                <span>Adaptive samples</span>
+                <strong>{snapshot.summary.adaptive_metrics.sample_count ?? 0}</strong>
+              </div>
+              <div>
+                <span>Total p50 / p95</span>
+                <strong>
+                  {snapshot.summary.adaptive_metrics.total_seconds?.p50 ?? "—"}s /{" "}
+                  {snapshot.summary.adaptive_metrics.total_seconds?.p95 ?? "—"}s
+                </strong>
+              </div>
+              <div>
+                <span>Runtime p50 / p95</span>
+                <strong>
+                  {snapshot.summary.adaptive_metrics.runtime_seconds?.p50 ?? "—"}s /{" "}
+                  {snapshot.summary.adaptive_metrics.runtime_seconds?.p95 ?? "—"}s
+                </strong>
+              </div>
+              <div>
+                <span>AVD cache</span>
+                <strong>
+                  {snapshot.summary.adaptive_metrics.avd_cache_hit_ratio != null
+                    ? `${Math.round(snapshot.summary.adaptive_metrics.avd_cache_hit_ratio * 100)}%`
+                    : "—"}
+                </strong>
+              </div>
+              <div>
+                <span>Shadow false negatives</span>
+                <strong>{snapshot.summary.adaptive_metrics.shadow_false_negatives ?? 0}</strong>
+              </div>
+              <div>
+                <span>Shadow over-selection</span>
+                <strong>{snapshot.summary.adaptive_metrics.shadow_over_selections ?? 0}</strong>
+              </div>
+            </div>
+          ) : null}
+
           <div className="cc-table-wrap">
             <table className="cc-table">
               <thead>
@@ -236,6 +298,9 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>SHA</th>
                   <th>Engine</th>
                   <th>Mode</th>
+                  <th>Lane</th>
+                  <th>Risk</th>
+                  <th>Confidence</th>
                   <th>Certification</th>
                   <th>Verdict</th>
                   <th>Maestro</th>
@@ -268,6 +333,9 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     </td>
                     <td>{project.engine}</td>
                     <td>{project.analysis_mode ?? "full"}</td>
+                    <td>{project.analysis_lane ?? "FULL_RUNTIME"}{project.shadow_full ? " · shadow" : ""}</td>
+                    <td>{project.risk_score ?? "—"}</td>
+                    <td>{project.confidence != null ? `${Math.round(project.confidence * 100)}%` : "—"}</td>
                     <td>
                       <div className="cc-project">
                         <span className={badgeClass(project.certification_display_status ?? project.certification_status)}>
@@ -358,6 +426,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <small>
                     {shortSha(item.resolved_sha || "")}
                     {item.engine ? ` · ${item.engine}` : ""}
+                    {item.analysis_lane ? ` · ${item.analysis_lane}` : ""}
+                    {item.risk_score != null ? ` · risk ${item.risk_score}` : ""}
                     {item.certification_status &&
                     item.certification_status !== "NOT_REQUESTED"
                       ? ` · ${item.certification_status}`

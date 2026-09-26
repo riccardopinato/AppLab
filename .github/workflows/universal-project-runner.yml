@@ -12,6 +12,11 @@ on:
         required: false
         default: main
         type: string
+      source_ref:
+        description: Logical branch/tag ref used for watcher baseline identity
+        required: false
+        default: ""
+        type: string
       run_maestro:
         description: Run Maestro after app launch
         required: false
@@ -61,6 +66,11 @@ on:
         required: false
         default: main
         type: string
+      source_ref:
+        description: Logical branch/tag ref used for watcher baseline identity
+        required: false
+        default: ""
+        type: string
       run_maestro:
         required: false
         default: true
@@ -73,10 +83,6 @@ on:
         required: false
         default: false
         type: boolean
-      cache_epoch:
-        required: false
-        default: "1"
-        type: string
       contract_fingerprint:
         required: false
         default: "manual"
@@ -180,6 +186,7 @@ jobs:
     with:
       repository: ${{ inputs.repository }}
       ref: ${{ inputs.ref }}
+      source_ref: ${{ inputs.source_ref }}
       working_directory: ${{ fromJSON(needs.discover.outputs.profile).working_directory }}
       flutter_channel: ${{ fromJSON(needs.discover.outputs.profile).flutter_channel }}
       flutter_version: ${{ fromJSON(needs.discover.outputs.profile).flutter_version }}
@@ -192,12 +199,10 @@ jobs:
       apk_path: ${{ (inputs.analysis_mode == 'certification' || inputs.force_release_build) && fromJSON(needs.discover.outputs.profile).certification_apk_path || fromJSON(needs.discover.outputs.profile).apk_path }}
       package_id: ${{ fromJSON(needs.discover.outputs.profile).package_id }}
       build_command: ${{ (inputs.analysis_mode == 'certification' || inputs.force_release_build) && fromJSON(needs.discover.outputs.profile).certification_build_command || fromJSON(needs.discover.outputs.profile).build_command }}
-      run_flutter_tests: ${{ fromJSON(needs.discover.outputs.profile).run_flutter_tests }}
       run_maestro: ${{ inputs.run_maestro }}
       maestro_flow: ${{ fromJSON(needs.discover.outputs.profile).maestro_flow }}
       history_key: ${{ inputs.history_key }}
       cache_verification: ${{ inputs.cache_verification }}
-      cache_epoch: ${{ inputs.cache_epoch }}
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
@@ -213,6 +218,7 @@ jobs:
     with:
       repository: ${{ inputs.repository }}
       ref: ${{ inputs.ref }}
+      source_ref: ${{ inputs.source_ref }}
       working_directory: ${{ fromJSON(needs.discover.outputs.profile).working_directory }}
       java_version: ${{ fromJSON(needs.discover.outputs.profile).java_version }}
       gradle_version: ${{ fromJSON(needs.discover.outputs.profile).gradle_version }}
@@ -224,7 +230,6 @@ jobs:
       build_command: ${{ (inputs.analysis_mode == 'certification' || inputs.force_release_build) && fromJSON(needs.discover.outputs.profile).certification_build_command || fromJSON(needs.discover.outputs.profile).build_command }}
       apk_path: ${{ (inputs.analysis_mode == 'certification' || inputs.force_release_build) && fromJSON(needs.discover.outputs.profile).certification_apk_path || fromJSON(needs.discover.outputs.profile).apk_path }}
       package_id: ${{ fromJSON(needs.discover.outputs.profile).package_id }}
-      verify_signature: ${{ fromJSON(needs.discover.outputs.profile).verify_signature }}
       android_prepare_command: ${{ fromJSON(needs.discover.outputs.profile).android_prepare_command }}
       api_level: ${{ inputs.api_level_override != '' && inputs.api_level_override || fromJSON(needs.discover.outputs.profile).api_level }}
       emulator_profile: ${{ inputs.emulator_profile_override != '' && inputs.emulator_profile_override || fromJSON(needs.discover.outputs.profile).emulator_profile }}
@@ -232,10 +237,7 @@ jobs:
       maestro_flow: ${{ fromJSON(needs.discover.outputs.profile).maestro_flow }}
       history_key: ${{ inputs.history_key }}
       cache_verification: ${{ inputs.cache_verification }}
-      cache_epoch: ${{ inputs.cache_epoch }}
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
-      approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
-      publish_release_artifact: ${{ inputs.publish_release_artifact }}
