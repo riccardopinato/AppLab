@@ -23,6 +23,28 @@ type PerformanceMetrics = {
   apk?: { host_apk_bytes?: number | null };
 };
 
+type AdaptiveRisk = {
+  level?: string;
+  score?: number;
+  confidence?: number;
+};
+
+type AdaptiveTimings = {
+  planner_seconds?: number;
+  build_seconds?: number;
+  emulator_seconds?: number;
+  runtime_seconds?: number;
+  verifier_seconds?: number;
+  total_seconds?: number;
+};
+
+type ShadowCalibration = {
+  performed?: boolean;
+  false_negatives?: number;
+  over_selection?: number;
+  runtime_divergence?: boolean;
+};
+
 type ProjectRow = {
   repository: string;
   key: string;
@@ -48,6 +70,12 @@ type ProjectRow = {
   performance?: PerformanceMetrics;
   applab_version: string;
   analysis_mode?: string;
+  analysis_lane?: string;
+  verification_scope?: string;
+  risk?: AdaptiveRisk;
+  timings?: AdaptiveTimings;
+  shadow_calibration?: ShadowCalibration;
+  verification_contract_fingerprint?: string;
   certification_status: string;
   certification_display_status?: string;
   certified_sha?: string;
@@ -91,6 +119,11 @@ type RecentRow = {
   watcher_run_url?: string;
   applab_version?: string;
   analysis_mode?: string;
+  analysis_lane?: string;
+  verification_scope?: string;
+  risk?: AdaptiveRisk;
+  timings?: AdaptiveTimings;
+  shadow_calibration?: ShadowCalibration;
   certification_status?: string;
   certification?: {
     status?: string;
@@ -117,6 +150,7 @@ type Snapshot = {
     certified_stale?: number;
     certification_blocked: number;
     not_certified: number;
+    analysis_lanes?: Record<string, number>;
   };
   projects: ProjectRow[];
   recent: RecentRow[];
@@ -236,6 +270,10 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>SHA</th>
                   <th>Engine</th>
                   <th>Mode</th>
+                  <th>Lane</th>
+                  <th>Risk</th>
+                  <th>Time</th>
+                  <th>Shadow</th>
                   <th>Certification</th>
                   <th>Verdict</th>
                   <th>Maestro</th>
@@ -268,6 +306,65 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     </td>
                     <td>{project.engine}</td>
                     <td>{project.analysis_mode ?? "full"}</td>
+                    <td>
+                      <div className="cc-project">
+                        <strong>{project.analysis_lane || "—"}</strong>
+                        <small>{project.verification_scope || "RUNTIME"}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cc-project">
+                        <span className={
+                          project.risk?.level === "HIGH" || project.risk?.level === "CRITICAL"
+                            ? "cc-badge warn"
+                            : "cc-badge neutral"
+                        }>
+                          {project.risk?.level || "—"}
+                        </span>
+                        <small>
+                          {project.risk?.score != null ? `${project.risk.score}/100` : "—"}
+                          {project.risk?.confidence != null
+                            ? ` · ${Math.round(project.risk.confidence * 100)}% confidence`
+                            : ""}
+                        </small>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cc-project">
+                        <strong>
+                          {project.timings?.total_seconds != null
+                            ? `${project.timings.total_seconds.toFixed(1)} s`
+                            : "—"}
+                        </strong>
+                        <small>
+                          {project.timings?.planner_seconds != null
+                            ? `plan ${project.timings.planner_seconds.toFixed(1)} s`
+                            : "no timing"}
+                        </small>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cc-project">
+                        <span className={badgeClass(
+                          (project.shadow_calibration?.false_negatives ?? 0) > 0
+                            ? "FAIL"
+                            : project.shadow_calibration?.performed
+                              ? "PASS"
+                              : "SKIPPED",
+                        )}>
+                          {project.shadow_calibration?.performed
+                            ? (project.shadow_calibration.false_negatives ?? 0) > 0
+                              ? "DIVERGED"
+                              : "MATCH"
+                            : "SKIPPED"}
+                        </span>
+                        <small>
+                          {project.shadow_calibration?.performed
+                            ? `${project.shadow_calibration.over_selection ?? 0} over-selected`
+                            : "sampled automatically"}
+                        </small>
+                      </div>
+                    </td>
                     <td>
                       <div className="cc-project">
                         <span className={badgeClass(project.certification_display_status ?? project.certification_status)}>
@@ -358,6 +455,9 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <small>
                     {shortSha(item.resolved_sha || "")}
                     {item.engine ? ` · ${item.engine}` : ""}
+                    {item.analysis_lane ? ` · ${item.analysis_lane}` : ""}
+                    {item.risk?.level ? ` · risk ${item.risk.level}` : ""}
+                    {item.timings?.total_seconds != null ? ` · ${item.timings.total_seconds.toFixed(1)}s` : ""}
                     {item.certification_status &&
                     item.certification_status !== "NOT_REQUESTED"
                       ? ` · ${item.certification_status}`
