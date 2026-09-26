@@ -338,7 +338,7 @@ def evaluate(
 
     payload: dict[str, Any] = {
         "schema_version": 1,
-        "performance_lab_version": "0.8.1",
+        "performance_lab_version": "0.9.0",
         "result": "PASS",
         "package_id": package_id,
         "baseline": "AVAILABLE" if baseline_path and baseline_path.is_file() else "NO_BASELINE",
