@@ -48,6 +48,13 @@ type ProjectRow = {
   performance?: PerformanceMetrics;
   applab_version: string;
   analysis_mode?: string;
+  verification_lane?: string;
+  risk?: { label?: string; score?: number };
+  confidence?: number | null;
+  shadow_full?: boolean;
+  verification_fingerprint?: string;
+  cache_domains?: string[];
+  telemetry?: { planner_duration_ms?: number };
   certification_status: string;
   certification_display_status?: string;
   certified_sha?: string;
@@ -91,6 +98,13 @@ type RecentRow = {
   watcher_run_url?: string;
   applab_version?: string;
   analysis_mode?: string;
+  verification_lane?: string;
+  risk?: { label?: string; score?: number };
+  confidence?: number | null;
+  shadow_full?: boolean;
+  verification_fingerprint?: string;
+  cache_domains?: string[];
+  telemetry?: { planner_duration_ms?: number };
   certification_status?: string;
   certification?: {
     status?: string;
@@ -117,6 +131,11 @@ type Snapshot = {
     certified_stale?: number;
     certification_blocked: number;
     not_certified: number;
+    fast_runtime?: number;
+    full_runtime?: number;
+    no_runtime?: number;
+    shadow_runs?: number;
+    shadow_false_negatives?: number;
   };
   projects: ProjectRow[];
   recent: RecentRow[];
@@ -236,6 +255,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>SHA</th>
                   <th>Engine</th>
                   <th>Mode</th>
+                  <th>Lane</th>
+                  <th>Risk</th>
                   <th>Certification</th>
                   <th>Verdict</th>
                   <th>Maestro</th>
@@ -268,6 +289,24 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     </td>
                     <td>{project.engine}</td>
                     <td>{project.analysis_mode ?? "full"}</td>
+                    <td>
+                      <div className="cc-project">
+                        <strong>{project.verification_lane || "—"}</strong>
+                        <small>{project.shadow_full ? "shadow FULL" : project.verification_fingerprint || "—"}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cc-project">
+                        <span className={badgeClass(project.risk?.label === "CRITICAL" ? "FAIL" : project.risk?.label === "HIGH" ? "WARN" : "PASS")}>
+                          {project.risk?.label || "—"}
+                        </span>
+                        <small>
+                          {project.confidence != null
+                            ? `${Math.round(project.confidence * 100)}% confidence`
+                            : "—"}
+                        </small>
+                      </div>
+                    </td>
                     <td>
                       <div className="cc-project">
                         <span className={badgeClass(project.certification_display_status ?? project.certification_status)}>
@@ -358,6 +397,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <small>
                     {shortSha(item.resolved_sha || "")}
                     {item.engine ? ` · ${item.engine}` : ""}
+                    {item.verification_lane ? ` · ${item.verification_lane}` : ""}
+                    {item.risk?.label ? ` · ${item.risk.label}` : ""}
                     {item.certification_status &&
                     item.certification_status !== "NOT_REQUESTED"
                       ? ` · ${item.certification_status}`
