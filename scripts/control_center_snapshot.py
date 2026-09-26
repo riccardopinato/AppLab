@@ -106,6 +106,14 @@ def build_snapshot(
                 "performance": result.get("performance", {}),
                 "applab_version": result.get("applab_version", ""),
                 "analysis_mode": result.get("analysis_mode", "full"),
+                "verification_lane": result.get("verification_lane", ""),
+                "risk": result.get("risk", {}),
+                "confidence": result.get("confidence"),
+                "shadow_full": bool(result.get("shadow_full", False)),
+                "shadow_calibration": result.get("shadow_calibration", {}),
+                "verification_fingerprint": result.get("verification_fingerprint", ""),
+                "cache_domains": result.get("cache_domains", []),
+                "telemetry": result.get("telemetry", {}),
                 "certification_status": raw_certification_status,
                 "certification_display_status": certification_display_status,
                 "certification": certification_result.get("certification", {}),
@@ -134,6 +142,18 @@ def build_snapshot(
     )
     not_certified_count = sum(
         1 for item in projects if item["certification_status"] == "NOT_CERTIFIED"
+    )
+    fast_runtime_count = sum(1 for item in projects if item.get("verification_lane") == "FAST_RUNTIME")
+    full_runtime_count = sum(1 for item in projects if item.get("verification_lane") == "FULL_RUNTIME")
+    no_runtime_count = sum(
+        1 for item in projects
+        if item.get("verification_lane") in {"NO_RUNTIME_CHANGE", "STATIC_ONLY"}
+    )
+    shadow_count = sum(1 for item in projects if item.get("shadow_full"))
+    shadow_false_negative_count = sum(
+        1 for item in projects
+        if isinstance(item.get("shadow_calibration"), dict)
+        and item["shadow_calibration"].get("false_negative") is True
     )
 
     recent = sorted(
@@ -167,6 +187,14 @@ def build_snapshot(
                     "watcher_run_url",
                     "applab_version",
                     "analysis_mode",
+                    "verification_lane",
+                    "risk",
+                    "confidence",
+                    "shadow_full",
+                    "shadow_calibration",
+                    "verification_fingerprint",
+                    "cache_domains",
+                    "telemetry",
                     "certification_status",
                     "certification",
                     "release",
@@ -191,6 +219,11 @@ def build_snapshot(
             "certified_stale": certified_stale_count,
             "certification_blocked": certification_blocked_count,
             "not_certified": not_certified_count,
+            "fast_runtime": fast_runtime_count,
+            "full_runtime": full_runtime_count,
+            "no_runtime": no_runtime_count,
+            "shadow_runs": shadow_count,
+            "shadow_false_negatives": shadow_false_negative_count,
         },
         "projects": projects,
         "recent": recent,
@@ -276,6 +309,11 @@ def self_test() -> None:
         "certified_stale": 1,
         "certification_blocked": 0,
         "not_certified": 0,
+        "fast_runtime": 0,
+        "full_runtime": 0,
+        "no_runtime": 0,
+        "shadow_runs": 0,
+        "shadow_false_negatives": 0,
     }
     first = next(
         item for item in snapshot["projects"] if item["repository"] == "owner/one"
