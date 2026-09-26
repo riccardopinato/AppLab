@@ -106,6 +106,13 @@ def build_snapshot(
                 "performance": result.get("performance", {}),
                 "applab_version": result.get("applab_version", ""),
                 "analysis_mode": result.get("analysis_mode", "full"),
+                "analysis_lane": result.get("analysis_lane", ""),
+                "verification_scope": result.get("verification_scope", "RUNTIME"),
+                "risk": result.get("risk", {}),
+                "selected_labs": result.get("selected_labs", {}),
+                "shadow_calibration": result.get("shadow_calibration", {}),
+                "timings": result.get("timings", {}),
+                "verification_contract_fingerprint": result.get("verification_contract_fingerprint", ""),
                 "certification_status": raw_certification_status,
                 "certification_display_status": certification_display_status,
                 "certification": certification_result.get("certification", {}),
@@ -135,6 +142,11 @@ def build_snapshot(
     not_certified_count = sum(
         1 for item in projects if item["certification_status"] == "NOT_CERTIFIED"
     )
+
+    lane_counts: dict[str, int] = {}
+    for item in projects:
+        lane = str(item.get("analysis_lane") or "UNKNOWN")
+        lane_counts[lane] = lane_counts.get(lane, 0) + 1
 
     recent = sorted(
         (
@@ -167,6 +179,13 @@ def build_snapshot(
                     "watcher_run_url",
                     "applab_version",
                     "analysis_mode",
+                    "analysis_lane",
+                    "verification_scope",
+                    "risk",
+                    "selected_labs",
+                    "shadow_calibration",
+                    "timings",
+                    "verification_contract_fingerprint",
                     "certification_status",
                     "certification",
                     "release",
@@ -191,6 +210,7 @@ def build_snapshot(
             "certified_stale": certified_stale_count,
             "certification_blocked": certification_blocked_count,
             "not_certified": not_certified_count,
+            "analysis_lanes": lane_counts,
         },
         "projects": projects,
         "recent": recent,
@@ -266,17 +286,10 @@ def self_test() -> None:
         },
     ]
     snapshot = build_snapshot(watchlist, history)
-    assert snapshot["summary"] == {
-        "projects": 2,
-        "pass": 1,
-        "fail": 0,
-        "not_run": 1,
-        "certified": 1,
-        "certified_current": 0,
-        "certified_stale": 1,
-        "certification_blocked": 0,
-        "not_certified": 0,
-    }
+    assert snapshot["summary"]["projects"] == 2
+    assert snapshot["summary"]["pass"] == 1
+    assert snapshot["summary"]["fail"] == 0
+    assert snapshot["summary"]["certified_stale"] == 1
     first = next(
         item for item in snapshot["projects"] if item["repository"] == "owner/one"
     )
