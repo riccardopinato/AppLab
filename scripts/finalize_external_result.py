@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -81,6 +82,12 @@ def main() -> int:
             payload["impacted_modules"] = adaptive.get("impacted_modules", [])
             payload["targeted"] = adaptive.get("targeted", {})
             payload["telemetry"] = adaptive.get("telemetry", payload.get("telemetry", {}))
+            if isinstance(payload["telemetry"], dict):
+                generated_ms = payload["telemetry"].get("plan_generated_unix_ms")
+                if isinstance(generated_ms, (int, float)) and generated_ms > 0:
+                    payload["telemetry"]["pipeline_after_plan_ms"] = max(
+                        0, int(time.time() * 1000 - generated_ms)
+                    )
             payload["calibration_from_lane"] = adaptive.get("calibration_from_lane", "")
 
     calibration_path = report_dir / "shadow-calibration.json"
