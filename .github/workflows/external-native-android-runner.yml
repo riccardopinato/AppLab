@@ -478,11 +478,32 @@ jobs:
         shell: bash
         env:
           COMBINED_GRADLE_COMMAND: ${{ steps.gradle_plan.outputs.combined_command }}
+          TARGETED_GRADLE_COMMAND: ${{ steps.gradle_plan.outputs.targeted_command }}
         run: |
           set -Eeuo pipefail
           set -o pipefail
-          bash -Eeuo pipefail -c "$COMBINED_GRADLE_COMMAND" 2>&1 |
+          START="$(date +%s)"
+          CHOSEN="$COMBINED_GRADLE_COMMAND"
+          if [[ -n "$TARGETED_GRADLE_COMMAND" ]]; then
+            if bash -Eeuo pipefail -c "$TARGETED_GRADLE_COMMAND --dry-run" >"$RUNNER_TEMP/applab-gradle-targeted-dry-run.txt" 2>&1; then
+              CHOSEN="$TARGETED_GRADLE_COMMAND"
+              echo "AppLab selected impacted-module Gradle tasks: $CHOSEN"
+            else
+              echo "Impacted-module tasks unavailable; falling back to the original safe task graph."
+              cat "$RUNNER_TEMP/applab-gradle-targeted-dry-run.txt" || true
+            fi
+          fi
+          bash -Eeuo pipefail -c "$CHOSEN" 2>&1 |
             tee "$GITHUB_WORKSPACE/applab-report/android-gradle-combined.txt"
+          END="$(date +%s)"
+          python - "$GITHUB_WORKSPACE/applab-report/timings.json" "$START" "$END" <<'PY'
+          import json,os,sys
+          path,start,end=sys.argv[1],int(sys.argv[2]),int(sys.argv[3])
+          try: data=json.load(open(path))
+          except Exception: data={}
+          data["build_seconds"]=max(0,end-start)
+          json.dump(data,open(path,"w"),indent=2,sort_keys=True)
+          PY
 
       - name: Unit tests
         if: steps.plan.outputs.static_required == 'true' && inputs.test_command != '' && !(steps.plan.outputs.combine_gradle_tasks == 'true' && steps.gradle_plan.outputs.safe == 'true')
@@ -542,9 +563,20 @@ jobs:
         env:
           APPLAB_BUILD_COMMAND: ${{ inputs.build_command }}
         run: |
+          set -Eeuo pipefail
           set -o pipefail
+          START="$(date +%s)"
           bash -Eeuo pipefail -c "$APPLAB_BUILD_COMMAND" 2>&1 |
             tee "$GITHUB_WORKSPACE/applab-report/android-build.txt"
+          END="$(date +%s)"
+          python - "$GITHUB_WORKSPACE/applab-report/timings.json" "$START" "$END" <<'PY'
+          import json,sys
+          path,start,end=sys.argv[1],int(sys.argv[2]),int(sys.argv[3])
+          try: data=json.load(open(path))
+          except Exception: data={}
+          data["build_seconds"]=max(0,end-start)
+          json.dump(data,open(path,"w"),indent=2,sort_keys=True)
+          PY
 
       - name: Resolve APK
         if: steps.plan.outputs.runtime_required == 'true'
