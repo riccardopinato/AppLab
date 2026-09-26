@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from contract_fingerprint import compute as compute_contract_fingerprint
+from contract_fingerprint import compute as compute_contract_fingerprint, compute_selected
 
 APPLAB_VERSION = "0.9.0"
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -148,6 +148,20 @@ def _identity_matches(
     if observed_config and observed_config != config_fingerprint:
         return False
     return True
+
+
+def latest_identity_record(
+    rows: list[dict[str, Any]],
+    entry: dict[str, Any],
+    config_fingerprint: str,
+) -> dict[str, Any] | None:
+    candidates = [
+        item for item in rows
+        if _identity_matches(item, entry, config_fingerprint, require_config=True)
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: str(item.get("recorded_at", "")))
 
 
 def latest_verified_record(
@@ -302,9 +316,8 @@ def main() -> int:
     if data.get("schema_version") != 1:
         raise SystemExit("Unsupported watchlist schema_version")
 
-    contract_fingerprint = compute_contract_fingerprint(
-        Path(__file__).resolve().parent.parent
-    )[:16]
+    applab_root = Path(__file__).resolve().parent.parent
+    contract_fingerprint = compute_contract_fingerprint(applab_root)[:16]
 
     entries = data.get("repositories")
     if not isinstance(entries, list):
@@ -377,13 +390,40 @@ def main() -> int:
             baseline_trusted = bool(previous_verified_sha)
             risk = history_risk(history_rows, entry, config_fingerprint)
 
+            latest_identity = latest_identity_record(
+                history_rows, entry, config_fingerprint
+            )
+            selected_for_previous = (
+                latest_identity.get("selected_labs", {})
+                if isinstance(latest_identity, dict)
+                else {}
+            )
+            selected_contract = compute_selected(
+                applab_root,
+                selected_for_previous if isinstance(selected_for_previous, dict) else {},
+                certification=bool(
+                    isinstance(latest_identity, dict)
+                    and str(latest_identity.get("analysis_mode", "")) == "certification"
+                ),
+            )[:16]
+            history_cached = bool(
+                latest_identity
+                and str(latest_identity.get("resolved_sha", "")).lower() == sha
+                and str(latest_identity.get("verification_contract_fingerprint", ""))
+                    == selected_contract
+            )
             cache_key = (
-                f"applab-c{contract_fingerprint}-"
+                f"applab-c{selected_contract}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
             )
-            cached = False if args.force else cache_exists(
-                applab_repository, cache_key, token
-            )
+            legacy_cached = False
+            if not history_cached and not args.force:
+                legacy_key = (
+                    f"applab-c{contract_fingerprint}-"
+                    f"p{config_fingerprint}-{entry['key']}-{sha}"
+                )
+                legacy_cached = cache_exists(applab_repository, legacy_key, token)
+            cached = False if args.force else (history_cached or legacy_cached)
             scheduled = args.force or not cached
             item_status.update({
                 "resolved_sha": sha,
@@ -393,6 +433,8 @@ def main() -> int:
                 "previous_verified_sha": previous_verified_sha,
                 "baseline_trusted": baseline_trusted,
                 "history_risk": risk,
+                "selected_contract_fingerprint": selected_contract,
+                "history_cached": history_cached,
             })
             if scheduled:
                 resolved = {
