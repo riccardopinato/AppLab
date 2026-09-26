@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, json, os, shlex, subprocess, time
+import argparse, json, os, shlex, subprocess, tempfile, time
 from pathlib import Path
 from typing import Any
 
@@ -45,21 +45,42 @@ def gradle_parts(command: str) -> tuple[str,list[str],list[str]]|None:
             tasks.append(token)
     return exe,tasks,flags
 
-def module_tasks(project: Path, commands: list[str], modules: list[str], safe: bool) -> list[str]|None:
-    parsed=[gradle_parts(c) for c in commands if c.strip()]
-    if not parsed or any(x is None for x in parsed): return None
-    executables={x[0] for x in parsed if x}
-    if len(executables)!=1: return None
-    tasks=[]; flags=[]
-    for item in parsed:
-        assert item
-        tasks.extend(item[1]); flags.extend(item[2])
-    tasks=list(dict.fromkeys(tasks)); flags=list(dict.fromkeys(flags))
+def module_tasks(
+    project: Path,
+    commands: list[str],
+    modules: list[str],
+    safe: bool,
+    build_command: str = "",
+) -> list[str]|None:
+    raw_commands=[command for command in commands if command.strip()]
+    parsed=[gradle_parts(command) for command in raw_commands]
+    if not parsed or any(item is None for item in parsed):
+        return None
+    executables={item[0] for item in parsed if item}
+    if len(executables)!=1:
+        return None
+
+    scoped_module = ""
     if safe and len(modules)==1:
-        module=modules[0]
-        if (project/module/"build.gradle").is_file() or (project/module/"build.gradle.kts").is_file():
-            tasks=[t if ":" in t else f":{module}:{t}" for t in tasks]
-    return [next(iter(executables)),*tasks,*flags]
+        candidate=modules[0]
+        if (project/candidate/"build.gradle").is_file() or (project/candidate/"build.gradle.kts").is_file():
+            scoped_module=candidate
+
+    tasks:list[str]=[]
+    flags:list[str]=[]
+    normalized_build=build_command.strip()
+    for command,item in zip(raw_commands,parsed):
+        assert item
+        is_application_build=bool(normalized_build) and command.strip()==normalized_build
+        for task in item[1]:
+            if scoped_module and not is_application_build and ":" not in task:
+                tasks.append(f":{scoped_module}:{task}")
+            else:
+                # The configured APK-producing task stays at its original scope.
+                # Prefixing it with a changed library module could skip :app.
+                tasks.append(task)
+        flags.extend(item[2])
+    return [next(iter(executables)),*dict.fromkeys(tasks),*dict.fromkeys(flags)]
 
 def main()->int:
     ap=argparse.ArgumentParser()
@@ -73,6 +94,22 @@ def main()->int:
         assert gradle_parts("./gradlew testDebugUnitTest --stacktrace")
         assert gradle_parts("./gradlew -p android test") is None
         assert gradle_parts("./gradlew --project-dir android test") is None
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw)
+            (root/"feature").mkdir()
+            (root/"feature"/"build.gradle.kts").write_text("plugins {}\n", encoding="utf-8")
+            combined=module_tasks(
+                root,
+                ["./gradlew testDebugUnitTest", "./gradlew lintDebug", "./gradlew assembleDebug"],
+                ["feature"],
+                True,
+                "./gradlew assembleDebug",
+            )
+            assert combined is not None
+            assert ":feature:testDebugUnitTest" in combined
+            assert ":feature:lintDebug" in combined
+            assert "assembleDebug" in combined
+            assert ":feature:assembleDebug" not in combined
         print("AppLab adaptive checks self-test PASS"); return 0
     if not all((args.plan,args.engine,args.project_dir,args.report_dir)):
         raise SystemExit("--plan, --engine, --project-dir and --report-dir are required")
@@ -128,7 +165,13 @@ def main()->int:
         safe_target=lane=="FAST_RUNTIME" and risk<45 and confidence>=0.85
         local_changed=[local_path(p) for p in plan.get("changed_files",[])]
         modules=sorted({p.split("/",1)[0] for p in local_changed if "/" in p and (project/p.split("/",1)[0]).is_dir()})
-        combined=module_tasks(project,commands,modules, safe_target)
+        combined=module_tasks(
+            project,
+            commands,
+            modules,
+            safe_target,
+            args.build_command if plan.get("run_build") else "",
+        )
         start=time.perf_counter()
         if combined:
             status,_=run(combined,project,report/"adaptive-gradle.txt")
