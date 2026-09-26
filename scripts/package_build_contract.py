@@ -219,6 +219,8 @@ def package(args: argparse.Namespace) -> dict:
         )
         if str(plan.get("baseline_sha", "")).strip().lower() != args.baseline_sha.strip().lower():
             raise ValueError("Preflight analysis baseline does not match build contract input")
+        if str(plan.get("mode", "")).strip().lower() != args.analysis_mode.strip().lower():
+            raise ValueError("Preflight effective analysis mode does not match build contract input")
         head_sha = str(plan.get("head_sha", "")).strip().lower()
         if head_sha and head_sha != args.resolved_sha.strip().lower():
             raise ValueError("Preflight analysis head SHA does not match resolved build SHA")
