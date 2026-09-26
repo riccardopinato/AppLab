@@ -28,6 +28,8 @@ def main() -> int:
     parser.add_argument("--history-key", required=True)
     parser.add_argument("--engine", required=True)
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--config-fingerprint", default="")
+    parser.add_argument("--contract-fingerprint", default="")
     parser.add_argument("--static-status", choices=("PASS", "FAIL", "SKIPPED"), default="SKIPPED")
     parser.add_argument("--reason", default="")
     args = parser.parse_args()
@@ -60,12 +62,17 @@ def main() -> int:
         "resolved_sha": args.resolved_sha,
         "history_key": args.history_key,
         "engine": args.engine,
+        "config_fingerprint": args.config_fingerprint,
+        "contract_fingerprint": args.contract_fingerprint,
         "workflow_run_id": args.run_id,
         "analysis_mode": str(plan.get("mode", "fast")),
         "analysis_lane": lane,
         "risk": plan.get("risk", {}),
         "confidence": plan.get("confidence", 0),
         "shadow_full": bool(plan.get("shadow_full", False)),
+        "selected_labs": plan.get("selected_labs", {}),
+        "analysis_diff": plan.get("diff", {}),
+        "impacted_modules": plan.get("impacted_modules", []),
         "planner_elapsed_ms": plan.get("planner_elapsed_ms"),
         "runtime_evidence_inherited_from": str(plan.get("baseline_sha", "")) if lane == "NO_RUNTIME_CHANGE" else "",
         "static_analysis": static_status,
