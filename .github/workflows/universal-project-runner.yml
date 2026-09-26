@@ -42,6 +42,16 @@ on:
         required: false
         default: ""
         type: string
+      historical_failure_count:
+        description: Recent AppLab failures used as a deterministic risk signal
+        required: false
+        default: "0"
+        type: string
+      shadow_full_percent:
+        description: Deterministic percentage of FAST runs selected for FULL calibration
+        required: false
+        default: "10"
+        type: string
       force_release_build:
         description: Force the release build profile without changing analysis mode
         required: false
@@ -104,6 +114,14 @@ on:
       baseline_sha:
         required: false
         default: ""
+        type: string
+      historical_failure_count:
+        required: false
+        default: "0"
+        type: string
+      shadow_full_percent:
+        required: false
+        default: "10"
         type: string
       force_release_build:
         required: false
@@ -203,6 +221,8 @@ jobs:
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
+      historical_failure_count: ${{ inputs.historical_failure_count }}
+      shadow_full_percent: ${{ inputs.shadow_full_percent }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
 
   verify_native:
@@ -238,4 +258,6 @@ jobs:
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
+      historical_failure_count: ${{ inputs.historical_failure_count }}
+      shadow_full_percent: ${{ inputs.shadow_full_percent }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
