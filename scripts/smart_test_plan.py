@@ -282,6 +282,94 @@ def inspect_content(repo_root: Path, changes: list[dict[str, Any]], patch: str) 
                 signals[lab].append(token)
     return dict(signals), sorted(set(imports))[:200], MAX_INSPECT_BYTES - budget
 
+def tracked_source_files(repo_root: Path) -> list[str]:
+    code, raw = run_git(repo_root, ["ls-files", "-z", "*.dart", "*.kt", "*.java"], timeout=30)
+    if code != 0:
+        return []
+    return [item.replace("\\", "/") for item in raw.split("\0") if item][:5000]
+
+def dependency_impact(repo_root: Path, changed_paths: list[str]) -> dict[str, Any]:
+    sources = tracked_source_files(repo_root)
+    changed = {p for p in changed_paths if Path(p).suffix.lower() in CODE_SUFFIXES}
+    if not changed or not sources:
+        return {"dependents": [], "edges": [], "scanned_files": len(sources), "truncated": False}
+
+    identifiers: dict[str, set[str]] = {}
+    total_bytes = 0
+    max_bytes = 8_000_000
+    truncated = False
+
+    def file_ids(path: str, text: str) -> set[str]:
+        ids = {Path(path).stem.lower()}
+        normalized = path.replace("\\", "/")
+        if "/lib/" in "/" + normalized:
+            rel = normalized.split("/lib/", 1)[-1]
+            ids.add(rel.lower())
+            ids.add(rel.removesuffix(".dart").lower())
+        elif normalized.startswith("lib/"):
+            rel = normalized[4:]
+            ids.add(rel.lower())
+            ids.add(rel.removesuffix(".dart").lower())
+        package = re.search(r"(?m)^\s*package\s+([A-Za-z0-9_.]+)", text)
+        if package:
+            ids.add((package.group(1) + "." + Path(path).stem).lower())
+        return {x for x in ids if len(x) >= 3}
+
+    texts: dict[str, str] = {}
+    for path in sources:
+        source = repo_root / path
+        try:
+            size = source.stat().st_size
+        except OSError:
+            continue
+        if size > 300_000 or total_bytes + size > max_bytes:
+            truncated = True
+            continue
+        try:
+            text = source.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        total_bytes += size
+        texts[path] = text
+        identifiers[path] = file_ids(path, text)
+
+    frontier = set(changed)
+    dependents: set[str] = set()
+    edges: list[dict[str, str]] = []
+    for _ in range(2):
+        tokens = set()
+        for path in frontier:
+            tokens.update(identifiers.get(path, {Path(path).stem.lower()}))
+        if not tokens:
+            break
+        next_frontier: set[str] = set()
+        for path, text in texts.items():
+            if path in changed or path in dependents:
+                continue
+            import_lines = "\n".join(
+                line.strip().lower()
+                for line in text.splitlines()
+                if line.strip().startswith(("import ", "export ", "part "))
+            )
+            if not import_lines:
+                continue
+            matched = next((token for token in tokens if token in import_lines), "")
+            if matched:
+                dependents.add(path)
+                next_frontier.add(path)
+                edges.append({"from": path, "to_token": matched})
+        frontier = next_frontier
+        if not frontier:
+            break
+
+    return {
+        "dependents": sorted(dependents)[:500],
+        "edges": edges[:1000],
+        "scanned_files": len(texts),
+        "truncated": truncated,
+        "scanned_bytes": total_bytes,
+    }
+
 def selected_labs_for(paths: list[str], content_signals: dict[str, list[str]]) -> tuple[dict[str, bool], dict[str, list[str]]]:
     selected = {lab: False for lab in LABS}
     reasons: dict[str, list[str]] = {lab: [] for lab in LABS}
@@ -509,9 +597,27 @@ def build_plan(
         }
 
     content_signals, imports, inspected = inspect_content(repo_root, changes, evidence["patch"])
-    selected, reasons = selected_labs_for(paths, content_signals)
+    dependency = dependency_impact(repo_root, paths)
+    impact_paths = sorted(set(paths) | set(dependency.get("dependents", [])))
+    selected, reasons = selected_labs_for(impact_paths, content_signals)
+    for lab in LABS:
+        transitive = [p for p in dependency.get("dependents", []) if p in reasons[lab]]
+        if transitive:
+            reasons[lab].append("transitive-dependency-impact")
     history = load_history_risk(history_file, repository, selected)
     risk_score, risk_level, confidence, risk_reasons = risk_and_confidence(evidence, selected, history)
+    if dependency.get("truncated"):
+        confidence = max(0.0, round(confidence - 0.10, 2))
+        risk_reasons.append("dependency graph scan truncated")
+    if len(dependency.get("dependents", [])) >= 20:
+        risk_score = min(100, risk_score + 10)
+        if risk_score >= 75:
+            risk_level = "CRITICAL"
+        elif risk_score >= 50:
+            risk_level = "HIGH"
+        elif risk_score >= 25:
+            risk_level = "MEDIUM"
+        risk_reasons.append("broad transitive dependency impact")
 
     non_docs = [p for p in paths if not is_doc(p)]
     only_docs = not non_docs
@@ -574,12 +680,13 @@ def build_plan(
         "changes": changes[:MAX_CHANGED_FILES],
         "selected_labs": selected,
         "reasons": reasons,
-        "impacted_modules": sorted({module_for(p) for p in paths}),
+        "impacted_modules": sorted({module_for(p) for p in impact_paths}),
         "dependency_signals": content_signals,
+        "dependency_graph": dependency,
         "imports": imports,
         "risk": {"score": risk_score, "level": risk_level, "reasons": risk_reasons},
         "confidence": confidence,
-        "static_plan": static_plan(repo_root, paths, engine, working_directory),
+        "static_plan": static_plan(repo_root, impact_paths, engine, working_directory),
         "run": run,
         "fallback_full": fallback,
         "fallback_reason": fallback_reason,
