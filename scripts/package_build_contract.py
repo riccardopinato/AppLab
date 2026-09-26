@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import smart_test_plan
+import impact_engine
 from pathlib import Path, PurePosixPath
 
 ALLOWED_EVIDENCE_SUFFIXES = {".yaml", ".yml", ".json"}
@@ -215,7 +216,7 @@ def package(args: argparse.Namespace) -> dict:
 
     contract = {
         "schema_version": 1,
-        "applab_version": "0.8.1",
+        "applab_version": "0.9.0",
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
         "engine": args.engine,
@@ -240,11 +241,44 @@ def package(args: argparse.Namespace) -> dict:
         "quality_evidence": quality_evidence,
         "evidence_bytes": total,
     }
-    plan = smart_test_plan.classify(
-        smart_test_plan.git_changed_files(repo_root, args.baseline_sha),
-        args.analysis_mode,
-        args.baseline_sha,
-    )
+    if args.impact_plan:
+        impact_path = Path(args.impact_plan).resolve()
+        if not impact_path.is_file():
+            raise ValueError(f"Impact plan missing: {impact_path}")
+        impact = impact_engine.validate(json.loads(impact_path.read_text(encoding="utf-8")))
+        if str(impact.get("baseline_sha", "")).strip().lower() != args.baseline_sha.strip().lower():
+            raise ValueError("Impact plan baseline SHA mismatch")
+        expected_head = str(impact.get("head_sha", "")).strip().lower()
+        if expected_head and expected_head != args.resolved_sha.strip().lower():
+            raise ValueError("Impact plan HEAD SHA mismatch")
+        plan = {
+            "schema_version": 1,
+            "planner_version": "0.9.0",
+            "mode": str(impact.get("effective_mode", args.analysis_mode)),
+            "requested_mode": args.analysis_mode,
+            "baseline_sha": args.baseline_sha.strip().lower(),
+            "changed_files": [str(x.get("path", "")) for x in impact.get("changes", []) if x.get("path")],
+            "selected_labs": dict(impact.get("selected_labs", {})),
+            "reasons": dict(impact.get("lab_reasons", {})),
+            "fallback_full": str(impact.get("effective_mode", "")) == "full" and args.analysis_mode == "fast",
+            "adaptive_impact": {
+                "lane": impact.get("lane"),
+                "risk": impact.get("risk"),
+                "confidence": impact.get("confidence"),
+                "impacted_modules": impact.get("impacted_modules", []),
+                "targeted": impact.get("targeted", {}),
+                "shadow_full": impact.get("shadow_full", False),
+                "cache_domains": impact.get("cache_domains", []),
+                "historical_failure_count": impact.get("historical_failure_count", 0),
+                "diff_state": impact.get("diff_state", ""),
+            },
+        }
+    else:
+        plan = smart_test_plan.classify(
+            smart_test_plan.git_changed_files(repo_root, args.baseline_sha),
+            args.analysis_mode,
+            args.baseline_sha,
+        )
     smart_test_plan.validate_plan(plan)
     (output / "analysis-plan.json").write_text(
         json.dumps(plan, indent=2, sort_keys=True) + "\n",
@@ -273,7 +307,7 @@ def self_test() -> None:
             repository="owner/repo", resolved_sha="a"*40, engine="flutter",
             working_directory=".", package_id="com.example.app",
             maestro_flow=".maestro/smoke.yaml",
-            analysis_mode="fast", baseline_sha="",
+            analysis_mode="fast", baseline_sha="", impact_plan="",
             build_command="flutter build apk --debug",
             analyze_status="PASS", lint_status="N/A",
             test_status="PASS", build_status="PASS",
@@ -297,6 +331,7 @@ def main() -> int:
     parser.add_argument("--maestro-flow", default="")
     parser.add_argument("--analysis-mode", choices=("fast", "full", "certification"), default="full")
     parser.add_argument("--baseline-sha", default="")
+    parser.add_argument("--impact-plan", default="")
     parser.add_argument("--build-command", default="")
     parser.add_argument("--analyze-status", default="NOT_RUN")
     parser.add_argument("--lint-status", default="NOT_RUN")
