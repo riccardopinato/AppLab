@@ -72,6 +72,10 @@ publish a certified release artifact.
 - [x] Make domain fingerprints cover every contract-affecting input by default.
 - [x] Preserve exact APK bytes, restore/clean target source, and recompute/compare
   the adaptive plan after untrusted build execution before trusted packaging.
+- [x] Bound Flutter/native `workflow_dispatch` and `workflow_call` contracts to
+  25 inputs, eliminating historical GitHub Actions startup-failures.
+- [x] Make Flutter quality checks and native APK signature verification mandatory
+  while keeping adaptive scope selection and centralized certification publication.
 
 ### v0.8.1 — Certification Integrity & Release Artifact Hardening
 
