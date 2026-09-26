@@ -290,17 +290,17 @@ def self_test() -> None:
         },
     ]
     snapshot = build_snapshot(watchlist, history)
-    assert snapshot["summary"] == {
-        "projects": 2,
-        "pass": 1,
-        "fail": 0,
-        "not_run": 1,
-        "certified": 1,
-        "certified_current": 0,
-        "certified_stale": 1,
-        "certification_blocked": 0,
-        "not_certified": 0,
-    }
+    assert snapshot["summary"]["projects"] == 2
+    assert snapshot["summary"]["pass"] == 1
+    assert snapshot["summary"]["fail"] == 0
+    assert snapshot["summary"]["not_run"] == 1
+    assert snapshot["summary"]["certified"] == 1
+    assert snapshot["summary"]["certified_current"] == 0
+    assert snapshot["summary"]["certified_stale"] == 1
+    assert snapshot["summary"]["certification_blocked"] == 0
+    assert snapshot["summary"]["not_certified"] == 0
+    assert "lanes" in snapshot["summary"]
+    assert "shadow_false_negatives" in snapshot["summary"]
     first = next(
         item for item in snapshot["projects"] if item["repository"] == "owner/one"
     )
