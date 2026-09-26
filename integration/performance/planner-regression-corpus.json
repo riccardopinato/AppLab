@@ -18,6 +18,17 @@
       "labs": []
     },
     {
+      "name": "shipped-text-asset",
+      "files": [
+        "assets/content.md"
+      ],
+      "lane": "FAST_RUNTIME",
+      "labs": [
+        "configuration",
+        "performance"
+      ]
+    },
+    {
       "name": "manifest-permission",
       "files": [
         "app/src/main/AndroidManifest.xml"
