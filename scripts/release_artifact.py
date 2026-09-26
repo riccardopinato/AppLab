@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-APPLAB_VERSION = "0.8.1"
+APPLAB_VERSION = "0.9.0"
 MARKER_START = "<!-- applab-release:start -->"
 MARKER_END = "<!-- applab-release:end -->"
 
@@ -110,7 +110,7 @@ def commit_summary(repository: str, sha: str) -> str:
     api = os.getenv("GITHUB_API_URL", "https://api.github.com").rstrip("/")
     request = urllib.request.Request(
         f"{api}/repos/{repository}/commits/{sha}",
-        headers={"Accept": "application/vnd.github+json", "User-Agent": "AppLab-v0.8.1"},
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "AppLab-v0.9.0"},
     )
     token = os.getenv("GITHUB_TOKEN", "").strip()
     if token:
