@@ -74,8 +74,58 @@ permissions:
   contents: read
 
 jobs:
+  prepare_avd:
+    name: Prepare clean AVD snapshot · API ${{ inputs.api_level }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Restore clean AVD snapshot cache
+        id: avd_seed_cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: applab-clean-avd-v1-api${{ inputs.api_level }}-${{ inputs.emulator_profile }}-google_apis-x86_64
+
+      - name: Enable KVM for AVD seed
+        if: steps.avd_seed_cache.outputs.cache-hit != 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Generate pristine AVD snapshot
+        if: steps.avd_seed_cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ inputs.api_level }}
+          target: google_apis
+          arch: x86_64
+          profile: ${{ inputs.emulator_profile }}
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb wait-for-device
+            adb shell pm list packages >/dev/null
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+
+      - name: Save pristine AVD snapshot
+        if: steps.avd_seed_cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: applab-clean-avd-v1-api${{ inputs.api_level }}-${{ inputs.emulator_profile }}-google_apis-x86_64
+
   verify:
     name: Trusted verify ${{ inputs.repository }}@${{ inputs.resolved_sha }}
+    needs: prepare_avd
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -114,11 +164,36 @@ jobs:
           cp "$GITHUB_WORKSPACE/.applab-build/analysis-plan.json" \
              "$GITHUB_WORKSPACE/applab-report/analysis-plan.json"
 
+      - name: Restore pinned Maestro cache
+        id: maestro_cache
+        if: inputs.run_maestro
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.maestro
+          key: applab-maestro-linux-2.10.0
+
       - name: Install Maestro
         if: inputs.run_maestro
         run: |
           chmod +x .applab/scripts/install_maestro.sh
           .applab/scripts/install_maestro.sh
+
+      - name: Save pinned Maestro cache
+        if: inputs.run_maestro && steps.maestro_cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.maestro
+          key: applab-maestro-linux-2.10.0
+
+      - name: Restore pristine AVD snapshot
+        id: avd_cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: applab-clean-avd-v1-api${{ inputs.api_level }}-${{ inputs.emulator_profile }}-google_apis-x86_64
 
       - name: Enable KVM
         run: |
@@ -158,6 +233,7 @@ jobs:
         shell: bash
         env:
           REQUESTED_MODE: ${{ inputs.analysis_mode }}
+          TRUSTED_LANE: ${{ steps.contract.outputs.analysis_lane }}
         run: |
           set -Eeuo pipefail
           MODE="$REQUESTED_MODE"
@@ -166,12 +242,31 @@ jobs:
             exit 2
           fi
           if [[ "$MODE" == "fast" ]]; then
-            if [[ ! -s "$GITHUB_WORKSPACE/.applab-upgrade-baseline/baseline.apk" || -z "$(find "$GITHUB_WORKSPACE/.applab-visual-baseline" -type f -print -quit 2>/dev/null)" ]]; then
+            case "$TRUSTED_LANE" in
+              FULL_RUNTIME)
+                MODE="full"
+                echo "Adaptive planner escalated FAST to FULL because risk/confidence crossed the safety threshold."
+                ;;
+              FAST_RUNTIME)
+                MODE="fast"
+                ;;
+              *)
+                echo "Trusted runtime verifier received non-runtime lane: $TRUSTED_LANE" >&2
+                exit 2
+                ;;
+            esac
+            if [[ "$MODE" == "fast" ]] && { [[ ! -s "$GITHUB_WORKSPACE/.applab-upgrade-baseline/baseline.apk" ]] || [[ -z "$(find "$GITHUB_WORKSPACE/.applab-visual-baseline" -type f -print -quit 2>/dev/null)" ]]; }; then
               MODE="full"
-              echo "FAST requested but no previous full baseline is available; falling back to FULL."
+              echo "FAST requested but required trusted baselines are unavailable; falling back to FULL."
             fi
           fi
           echo "effective_mode=$MODE" >> "$GITHUB_OUTPUT"
+
+      - name: Start runtime telemetry
+        run: |
+          python .applab/scripts/verification_telemetry.py mark \
+            --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" \
+            --phase trusted_runtime --event start
 
       - name: Verify APK inside trusted Android runtime
         id: verify
@@ -190,9 +285,10 @@ jobs:
           APPLAB_VISUAL_BASELINE_DIR: ${{ github.workspace }}/.applab-visual-baseline
           APPLAB_PERFORMANCE_BASELINE_JSON: ${{ github.workspace }}/.applab-performance-baseline/performance-lab.json
           APPLAB_UPGRADE_BASELINE_APK: ${{ github.workspace }}/.applab-upgrade-baseline/baseline.apk
-          APPLAB_VERSION: "0.8.1"
+          APPLAB_VERSION: "0.9.0"
           APPLAB_ANALYSIS_MODE: ${{ steps.analysis.outputs.effective_mode }}
           APPLAB_ANALYSIS_PLAN_JSON: ${{ steps.contract.outputs.analysis_plan_file }}
+          APPLAB_SHADOW_FULL: ${{ steps.contract.outputs.analysis_shadow_full }}
           START_TIMEOUT: ${{ inputs.start_timeout }}
           SETTLE_SECONDS: ${{ inputs.settle_seconds }}
         with:
@@ -200,8 +296,26 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: ${{ inputs.emulator_profile }}
+          force-avd-creation: ${{ steps.avd_cache.outputs.cache-hit != 'true' }}
           disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: bash .applab/scripts/run_external_android_gate.sh
+
+      - name: Finish runtime telemetry
+        if: always()
+        run: |
+          python .applab/scripts/verification_telemetry.py mark \
+            --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" \
+            --phase trusted_runtime --event end
+
+      - name: Evaluate FAST shadow calibration
+        if: always() && steps.contract.outputs.analysis_shadow_full == 'true' && hashFiles('applab-report/result.json') != ''
+        shell: bash
+        run: |
+          python .applab/scripts/shadow_calibration.py \
+            --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
+            --result "$GITHUB_WORKSPACE/applab-report/result.json" \
+            --output "$GITHUB_WORKSPACE/applab-report/shadow-calibration.json"
 
       - name: Evaluate production certification
         id: certification
@@ -233,7 +347,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.8.1" \
+            --version "0.9.0" \
             --github-output "$GITHUB_OUTPUT" \
             "${EXTRA_ARGS[@]}"
 
@@ -255,7 +369,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
-            --version "0.8.1" \
+            --version "0.9.0" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Save PASS-only performance baseline
@@ -276,7 +390,7 @@ jobs:
             --baseline-dir "$GITHUB_WORKSPACE/.applab-upgrade-baseline" \
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ inputs.resolved_sha }}" \
-            --version "0.8.1"
+            --version "0.9.0"
 
       - name: Save PASS-only upgrade baseline
         if: steps.verify.outcome == 'success' && (steps.analysis.outputs.effective_mode == 'full' || steps.certification.outputs.status == 'CERTIFIED')
@@ -357,7 +471,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v0.8.0 Trusted APK Verification"
+            echo "## AppLab v0.9.0 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"
