@@ -69,6 +69,23 @@ FORBIDDEN: dict[str, tuple[str, ...]] = {
     ),
 }
 
+def workflow_dispatch_input_count(text: str) -> int:
+    dispatch_marker = "  workflow_dispatch:\n"
+    call_marker = "  workflow_call:\n"
+    if dispatch_marker not in text:
+        return 0
+    dispatch = text.split(dispatch_marker, 1)[1]
+    if call_marker in dispatch:
+        dispatch = dispatch.split(call_marker, 1)[0]
+    return sum(
+        1
+        for line in dispatch.splitlines()
+        if line.startswith("      ")
+        and not line.startswith("        ")
+        and line.rstrip().endswith(":")
+    )
+
+
 def validate() -> None:
     for relative, needles in REQUIRED.items():
         path = ROOT / relative
@@ -79,6 +96,14 @@ def validate() -> None:
         text = (ROOT / relative).read_text(encoding="utf-8")
         for needle in needles:
             assert needle not in text, f"{relative}: forbidden stale contract {needle!r}"
+
+    for relative in (
+        ".github/workflows/external-project-runner.yml",
+        ".github/workflows/external-native-android-runner.yml",
+    ):
+        text = (ROOT / relative).read_text(encoding="utf-8")
+        count = workflow_dispatch_input_count(text)
+        assert count <= 25, f"{relative}: workflow_dispatch exposes {count} inputs; GitHub limit is 25"
 
 def main() -> int:
     validate()
