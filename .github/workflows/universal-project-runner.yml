@@ -124,13 +124,18 @@ jobs:
     outputs:
       engine: ${{ steps.detect.outputs.engine }}
       profile: ${{ steps.detect.outputs.profile }}
+      resolved_sha: ${{ steps.target.outputs.resolved_sha }}
+      plan_artifact_name: ${{ steps.metadata.outputs.plan_artifact_name }}
+      source_artifact_name: ${{ steps.snapshot.outputs.source_artifact_name }}
 
     steps:
-      - name: Checkout AppLab
+      - name: Checkout trusted AppLab
         uses: actions/checkout@v7
         with:
-          repository: riccardopinato/AppLab
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           path: .applab
+          persist-credentials: false
 
       - name: Checkout target project
         uses: actions/checkout@v7
@@ -138,7 +143,39 @@ jobs:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
           path: target
+          fetch-depth: 64
           persist-credentials: false
+
+      - name: Extend FAST history window when needed
+        if: inputs.analysis_mode == 'fast' && inputs.baseline_sha != ''
+        shell: bash
+        env:
+          BASELINE_SHA: ${{ inputs.baseline_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$BASELINE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            git -C "$GITHUB_WORKSPACE/target" cat-file -e "$BASELINE_SHA^{commit}" 2>/dev/null || {
+              git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --deepen=256 origin || true
+              git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --depth=1 origin "$BASELINE_SHA" || true
+            }
+          fi
+
+      - name: Restore verification history for adaptive risk
+        uses: actions/cache/restore@v6
+        with:
+          path: .applab-history
+          key: applab-watch-history-universal-${{ github.run_id }}
+          restore-keys: |
+            applab-watch-history-
+
+      - name: Resolve exact target SHA
+        id: target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          SHA="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
+          echo "resolved_sha=$SHA" >> "$GITHUB_OUTPUT"
 
       - name: Detect project engine and build profile
         id: detect
@@ -151,6 +188,67 @@ jobs:
             --output "$GITHUB_WORKSPACE/applab-autodiscovery/profile.json" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Compute reusable adaptive impact plan
+        id: plan
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/applab-universal-plan"
+          ENGINE="${{ steps.detect.outputs.engine }}"
+          WORKDIR="$(python -c 'import json; print(json.load(open("applab-autodiscovery/profile.json"))["working_directory"])')"
+          python .applab/scripts/smart_test_plan.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --mode "${{ inputs.analysis_mode }}" \
+            --baseline-sha "${{ inputs.baseline_sha }}" \
+            --engine "$ENGINE" \
+            --working-directory "$WORKDIR" \
+            --history-file "$GITHUB_WORKSPACE/.applab-history/history.jsonl" \
+            --repository "${{ inputs.repository }}" \
+            --output "$GITHUB_WORKSPACE/applab-universal-plan/analysis-plan.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Set reusable plan identity
+        id: metadata
+        shell: bash
+        run: |
+          echo "plan_artifact_name=applab-universal-plan-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload reusable adaptive plan
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.metadata.outputs.plan_artifact_name }}
+          path: applab-universal-plan/analysis-plan.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Package reusable exact source snapshot
+        id: snapshot
+        if: steps.plan.outputs.lane != 'NO_RUNTIME_CHANGE'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          NAME="applab-universal-source-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}"
+          echo "source_artifact_name=$NAME" >> "$GITHUB_OUTPUT"
+          mkdir -p "$GITHUB_WORKSPACE/applab-universal-source"
+          git -C "$GITHUB_WORKSPACE/target" archive \
+            --format=tar \
+            --output="$GITHUB_WORKSPACE/applab-universal-source/target.tar" \
+            "${{ steps.target.outputs.resolved_sha }}"
+          (
+            cd "$GITHUB_WORKSPACE/applab-universal-source"
+            sha256sum target.tar > target.tar.sha256
+          )
+
+      - name: Upload reusable exact source snapshot
+        if: steps.plan.outputs.lane != 'NO_RUNTIME_CHANGE'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.snapshot.outputs.source_artifact_name }}
+          path: applab-universal-source/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 0
+
       - name: Publish discovery summary
         shell: bash
         run: |
@@ -160,6 +258,9 @@ jobs:
             echo "Repository: ${{ inputs.repository }}"
             echo "Ref: ${{ inputs.ref }}"
             echo "Detected engine: ${{ steps.detect.outputs.engine }}"
+            echo "Resolved SHA: ${{ steps.target.outputs.resolved_sha }}"
+            echo "Adaptive lane: ${{ steps.plan.outputs.lane }}"
+            echo "Effective mode: ${{ steps.plan.outputs.effective_mode }}"
             echo
             cat "$GITHUB_WORKSPACE/applab-autodiscovery/profile.json"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -203,6 +304,9 @@ jobs:
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
+      precomputed_plan_artifact_name: ${{ needs.discover.outputs.plan_artifact_name }}
+      source_artifact_name: ${{ needs.discover.outputs.source_artifact_name }}
+      source_resolved_sha: ${{ needs.discover.outputs.resolved_sha }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
 
   verify_native:
@@ -238,4 +342,7 @@ jobs:
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
+      precomputed_plan_artifact_name: ${{ needs.discover.outputs.plan_artifact_name }}
+      source_artifact_name: ${{ needs.discover.outputs.source_artifact_name }}
+      source_resolved_sha: ${{ needs.discover.outputs.resolved_sha }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
