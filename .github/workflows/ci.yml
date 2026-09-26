@@ -43,6 +43,10 @@ jobs:
             scripts/background_lab.py \
             scripts/storage_lab.py \
             scripts/smart_test_plan.py \
+            scripts/planner_regression_corpus.py \
+            scripts/preflight_result.py \
+            scripts/shadow_calibration.py \
+            scripts/gradle_execution_plan.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
             scripts/prepare_performance_baseline.py \
@@ -70,6 +74,9 @@ jobs:
           python scripts/background_lab.py --self-test
           python scripts/storage_lab.py --self-test
           python scripts/smart_test_plan.py --self-test
+          PYTHONPATH=scripts python scripts/planner_regression_corpus.py
+          python scripts/shadow_calibration.py --self-test --plan /dev/null --result /dev/null --output /dev/null
+          python scripts/gradle_execution_plan.py --self-test
           python scripts/upgrade_lab.py --self-test
           python scripts/prepare_upgrade_baseline.py --self-test
           python scripts/prepare_performance_baseline.py --self-test
