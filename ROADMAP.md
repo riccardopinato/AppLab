@@ -34,6 +34,8 @@ publish a certified release artifact.
   planner failure.
 - [x] Add deterministic risk score and confidence calculation.
 - [x] Add bounded reverse-import dependency impact analysis for Dart/Kotlin/Java.
+- [x] Make dependency blast-radius discovery a process-free bounded checkout scan
+  instead of spawning one `git show` process per tracked source file.
 - [x] Add historical specialist-lab failure risk from central watcher history,
   scoped by repository + history key + source ref.
 - [x] Add targeted Flutter analyze/test execution with conservative fallback.
