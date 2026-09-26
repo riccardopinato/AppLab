@@ -130,6 +130,16 @@ on:
         required: false
         default: full
         type: string
+      baseline_sha:
+        description: Last verified SHA used for FAST changed-file planning
+        required: false
+        default: ""
+        type: string
+      publish_release_artifact:
+        description: Allow CERTIFIED runs to publish the verified APK
+        required: false
+        default: true
+        type: boolean
   workflow_call:
     inputs:
       repository:
@@ -233,6 +243,14 @@ on:
         required: false
         default: full
         type: string
+      baseline_sha:
+        required: false
+        default: ""
+        type: string
+      publish_release_artifact:
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -299,6 +317,17 @@ jobs:
           path: target
           fetch-depth: 2
           persist-credentials: false
+
+      - name: Fetch FAST baseline commit
+        if: inputs.analysis_mode == 'fast' && inputs.baseline_sha != ''
+        shell: bash
+        env:
+          BASELINE_SHA: ${{ inputs.baseline_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$BASELINE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --depth=1 origin "$BASELINE_SHA" || true
+          fi
 
       - name: Prepare evidence directory
         id: target
@@ -454,6 +483,8 @@ jobs:
             --package-id "${{ inputs.package_id }}" \
             --maestro-flow "${{ inputs.maestro_flow }}" \
             --analysis-mode "${{ inputs.analysis_mode }}" \
+            --baseline-sha "${{ inputs.baseline_sha }}" \
+            --build-command "${{ inputs.build_command }}" \
             --analyze-status "N/A" \
             --lint-status "${{ inputs.lint_command != '' && 'PASS' || 'NOT_RUN' }}" \
             --test-status "${{ inputs.test_command != '' && 'PASS' || 'NOT_RUN' }}" \
@@ -495,6 +526,7 @@ jobs:
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
+      publish_release_artifact: ${{ inputs.publish_release_artifact }}
       run_maestro: ${{ inputs.run_maestro }}
       android_prepare_command: ${{ inputs.android_prepare_command }}
       api_level: ${{ inputs.api_level }}
