@@ -48,6 +48,10 @@ type ProjectRow = {
   performance?: PerformanceMetrics;
   applab_version: string;
   analysis_mode?: string;
+  analysis_lane?: string;
+  risk_score?: number | null;
+  confidence?: number | null;
+  shadow_full?: boolean;
   certification_status: string;
   certification_display_status?: string;
   certified_sha?: string;
@@ -91,6 +95,10 @@ type RecentRow = {
   watcher_run_url?: string;
   applab_version?: string;
   analysis_mode?: string;
+  analysis_lane?: string;
+  risk_score?: number | null;
+  confidence?: number | null;
+  shadow_full?: boolean;
   certification_status?: string;
   certification?: {
     status?: string;
@@ -117,6 +125,9 @@ type Snapshot = {
     certified_stale?: number;
     certification_blocked: number;
     not_certified: number;
+    lanes?: Record<string, number>;
+    shadow_runs?: number;
+    shadow_false_negatives?: number;
   };
   projects: ProjectRow[];
   recent: RecentRow[];
@@ -236,6 +247,9 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>SHA</th>
                   <th>Engine</th>
                   <th>Mode</th>
+                  <th>Lane</th>
+                  <th>Risk</th>
+                  <th>Confidence</th>
                   <th>Certification</th>
                   <th>Verdict</th>
                   <th>Maestro</th>
@@ -268,6 +282,9 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     </td>
                     <td>{project.engine}</td>
                     <td>{project.analysis_mode ?? "full"}</td>
+                    <td>{project.analysis_lane ?? "FULL_RUNTIME"}{project.shadow_full ? " · shadow" : ""}</td>
+                    <td>{project.risk_score ?? "—"}</td>
+                    <td>{project.confidence != null ? `${Math.round(project.confidence * 100)}%` : "—"}</td>
                     <td>
                       <div className="cc-project">
                         <span className={badgeClass(project.certification_display_status ?? project.certification_status)}>
@@ -358,6 +375,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <small>
                     {shortSha(item.resolved_sha || "")}
                     {item.engine ? ` · ${item.engine}` : ""}
+                    {item.analysis_lane ? ` · ${item.analysis_lane}` : ""}
+                    {item.risk_score != null ? ` · risk ${item.risk_score}` : ""}
                     {item.certification_status &&
                     item.certification_status !== "NOT_REQUESTED"
                       ? ` · ${item.certification_status}`
