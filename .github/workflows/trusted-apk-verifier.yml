@@ -455,6 +455,34 @@ jobs:
             --artifact-id "${{ steps.release_upload.outputs.artifact-id }}" \
             --artifact-url "${{ steps.release_upload.outputs.artifact-url }}"
 
+      - name: Record cache telemetry
+        if: always()
+        shell: bash
+        env:
+          MAESTRO_CACHE_HIT: ${{ steps.maestro_cache.outputs.cache-hit }}
+          AVD_CACHE_HIT: ${{ steps.avd_cache.outputs.cache-hit }}
+          VISUAL_CACHE_HIT: ${{ steps.visual_baseline.outputs.cache-hit }}
+          PERFORMANCE_CACHE_HIT: ${{ steps.performance_baseline.outputs.cache-hit }}
+          UPGRADE_CACHE_HIT: ${{ steps.upgrade_baseline.outputs.cache-hit }}
+        run: |
+          python - "$GITHUB_WORKSPACE/applab-report/cache.json" <<'PY'
+          import json,os,sys
+          def flag(name):
+              return os.environ.get(name, "").strip().lower() == "true"
+          json.dump(
+              {
+                  "maestro": flag("MAESTRO_CACHE_HIT"),
+                  "avd": flag("AVD_CACHE_HIT"),
+                  "visual_baseline": flag("VISUAL_CACHE_HIT"),
+                  "performance_baseline": flag("PERFORMANCE_CACHE_HIT"),
+                  "upgrade_baseline": flag("UPGRADE_CACHE_HIT"),
+              },
+              open(sys.argv[1], "w"),
+              indent=2,
+              sort_keys=True,
+          )
+          PY
+
       - name: Finalize trusted result contract
         if: always()
         env:
