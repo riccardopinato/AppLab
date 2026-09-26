@@ -229,6 +229,8 @@ jobs:
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
+      historical_failure_count: ${{ matrix.historical_failure_count }}
+      shadow_full_percent: "10"
 
   verify_native:
     name: Native Android ${{ matrix.repository }}
@@ -265,6 +267,8 @@ jobs:
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
+      historical_failure_count: ${{ matrix.historical_failure_count }}
+      shadow_full_percent: "10"
 
   verify_auto:
     name: Auto ${{ matrix.repository }}
@@ -285,6 +289,8 @@ jobs:
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
+      historical_failure_count: ${{ matrix.historical_failure_count }}
+      shadow_full_percent: "10"
 
   aggregate:
     name: Update central watcher history
