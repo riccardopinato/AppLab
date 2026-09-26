@@ -1,3 +1,7 @@
+## Network Lab cold-relaunch stabilization
+
+The Network & Offline Lab now treats a single transient `pidof` miss during a cold offline relaunch as insufficient evidence of an app failure. It still fails closed on target ANR/fatal exceptions and now requires the relaunched process to survive a short stabilization window before runtime health is marked PASS. Dedicated stage Logcat remains part of the evidence.
+
 ## Network Lab active-connectivity hardening
 
 The Network & Offline Lab now derives validated Internet only from active `NetworkAgentInfo` state and the current default network. Stale `NetworkOffer`, request and listener records no longer count as active connectivity after airplane mode is enabled. The lab also stores dedicated offline/recovery Logcat evidence and distinguishes a real target ANR/fatal exception from a process that is simply absent.

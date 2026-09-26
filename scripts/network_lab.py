@@ -227,17 +227,37 @@ def wait_for_connectivity(
 
 
 def app_crash_state(package_id: str) -> tuple[bool, str]:
-    logcat = adb("logcat", "-b", "all", "-d", "-v", "brief", timeout=30).stdout
-    if f"ANR in {package_id}" in logcat:
-        return True, "ANR detected"
-    fatal = re.search(
-        rf"FATAL EXCEPTION:[\s\S]{{0,2200}}Process:\s*{re.escape(package_id)}\b",
-        logcat,
-    )
-    if fatal:
-        return True, "fatal exception detected"
-    if not pid_of(package_id):
-        return True, "application process is not running"
+    # A fresh Android process can briefly disappear from a single pidof probe
+    # while ActivityManager is completing a cold relaunch. Judge runtime health
+    # from fatal/ANR evidence first, then require the process to remain visible
+    # across a short stabilization window before declaring it healthy.
+    def fatal_or_anr() -> str:
+        logcat = adb(
+            "logcat", "-b", "all", "-d", "-v", "brief", timeout=30
+        ).stdout
+        if f"ANR in {package_id}" in logcat:
+            return "ANR detected"
+        fatal = re.search(
+            rf"FATAL EXCEPTION:[\s\S]{{0,2200}}Process:\s*{re.escape(package_id)}\b",
+            logcat,
+        )
+        return "fatal exception detected" if fatal else ""
+
+    reason = fatal_or_anr()
+    if reason:
+        return True, reason
+
+    pid = wait_for_pid(package_id, timeout=4.0)
+    if not pid:
+        reason = fatal_or_anr()
+        return True, reason or "application process is not running"
+
+    time.sleep(1.0)
+    reason = fatal_or_anr()
+    if reason:
+        return True, reason
+    if not wait_for_pid(package_id, timeout=2.0):
+        return True, "application process did not remain stable after relaunch"
     return False, ""
 
 
@@ -275,7 +295,7 @@ def evaluate(
     if not config["enabled"]:
         return {
             "schema_version": 1,
-            "network_lab_version": "0.8.1",
+            "network_lab_version": "0.8.2",
             "result": "SKIPPED",
             "package_id": package_id,
             "config": config,
@@ -441,7 +461,7 @@ def evaluate(
 
     return {
         "schema_version": 1,
-        "network_lab_version": "0.8.1",
+        "network_lab_version": "0.8.2",
         "result": result,
         "package_id": package_id,
         "config": config,
