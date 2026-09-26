@@ -321,7 +321,7 @@ def self_test() -> None:
         out = Path(raw) / "out"
         args = argparse.Namespace(
             repo_root=str(root), apk=str(apk), output=str(out),
-            repository="owner/repo", resolved_sha="a"*40, engine="flutter",
+            repository="owner/repo", resolved_sha="", engine="flutter",
             working_directory=".", package_id="com.example.app",
             maestro_flow=".maestro/smoke.yaml",
             analysis_mode="fast", baseline_sha="", analysis_plan_input="", history_file="",
