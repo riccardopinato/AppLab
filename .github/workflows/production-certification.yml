@@ -135,8 +135,8 @@ jobs:
       run_maestro: true
       history_key: ${{ needs.resolve.outputs.history_key }}
       cache_verification: false
-      contract_fingerprint: production-certification-v0.8.1
-      config_fingerprint: production-certification-v0.8.1
+      contract_fingerprint: production-certification-v0.9.0
+      config_fingerprint: production-certification-v0.9.0
       approve_visual_baseline: false
       analysis_mode: certification
       api_level_override: ${{ inputs.api_level }}
@@ -153,8 +153,8 @@ jobs:
       run_maestro: true
       history_key: ${{ needs.resolve.outputs.history_key }}-compat
       cache_verification: false
-      contract_fingerprint: production-compatibility-v0.8.1
-      config_fingerprint: production-compatibility-v0.8.1
+      contract_fingerprint: production-compatibility-v0.9.0
+      config_fingerprint: production-compatibility-v0.9.0
       approve_visual_baseline: false
       analysis_mode: full
       force_release_build: true
@@ -262,7 +262,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## AppLab v0.8.1 Production Certification"
+            echo "## AppLab v0.9.0 Production Certification"
             echo
             echo "- Target: `${{ inputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo "- Primary: API `${{ inputs.api_level }}` / `${{ inputs.emulator_profile }}`"
