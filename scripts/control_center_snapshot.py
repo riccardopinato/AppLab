@@ -66,6 +66,20 @@ def build_snapshot(
         config = configured.get(repository, {})
         result = latest.get(repository, {})
         certification_result = latest_certification.get(repository, {})
+        raw_certification_status = certification_result.get(
+            "certification_status", "NOT_REQUESTED"
+        )
+        certified_sha = str(certification_result.get("resolved_sha", ""))
+        latest_sha = str(result.get("resolved_sha", ""))
+        if raw_certification_status == "CERTIFIED":
+            certification_display_status = (
+                "CERTIFIED_CURRENT"
+                if certified_sha and latest_sha and certified_sha == latest_sha
+                else "CERTIFIED_STALE"
+            )
+        else:
+            certification_display_status = raw_certification_status
+
         projects.append(
             {
                 "repository": repository,
@@ -92,11 +106,10 @@ def build_snapshot(
                 "performance": result.get("performance", {}),
                 "applab_version": result.get("applab_version", ""),
                 "analysis_mode": result.get("analysis_mode", "full"),
-                "certification_status": certification_result.get(
-                    "certification_status", "NOT_REQUESTED"
-                ),
+                "certification_status": raw_certification_status,
+                "certification_display_status": certification_display_status,
                 "certification": certification_result.get("certification", {}),
-                "certified_sha": certification_result.get("resolved_sha", ""),
+                "certified_sha": certified_sha,
                 "recorded_at": result.get("recorded_at", ""),
                 "watcher_run_id": result.get("watcher_run_id", ""),
                 "watcher_run_url": result.get("watcher_run_url", ""),
@@ -109,6 +122,12 @@ def build_snapshot(
     not_run_count = len(projects) - pass_count - fail_count
     certified_count = sum(
         1 for item in projects if item["certification_status"] == "CERTIFIED"
+    )
+    certified_current_count = sum(
+        1 for item in projects if item["certification_display_status"] == "CERTIFIED_CURRENT"
+    )
+    certified_stale_count = sum(
+        1 for item in projects if item["certification_display_status"] == "CERTIFIED_STALE"
     )
     certification_blocked_count = sum(
         1 for item in projects if item["certification_status"] == "BLOCKED"
@@ -168,6 +187,8 @@ def build_snapshot(
             "fail": fail_count,
             "not_run": not_run_count,
             "certified": certified_count,
+            "certified_current": certified_current_count,
+            "certified_stale": certified_stale_count,
             "certification_blocked": certification_blocked_count,
             "not_certified": not_certified_count,
         },
@@ -251,6 +272,8 @@ def self_test() -> None:
         "fail": 0,
         "not_run": 1,
         "certified": 1,
+        "certified_current": 0,
+        "certified_stale": 1,
         "certification_blocked": 0,
         "not_certified": 0,
     }
@@ -260,6 +283,7 @@ def self_test() -> None:
     assert first["resolved_sha"] == "fast"
     assert first["analysis_mode"] == "fast"
     assert first["certification_status"] == "CERTIFIED"
+    assert first["certification_display_status"] == "CERTIFIED_STALE"
     assert first["certified_sha"] == "full"
     assert first["release"]["artifact_url"] == "https://example.test/artifact"
     assert first["network_lab"] == "SKIPPED"
