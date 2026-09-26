@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-APPLAB_VERSION = "0.8.0"
+APPLAB_VERSION = "0.8.1"
 MARKER_START = "<!-- applab-release:start -->"
 MARKER_END = "<!-- applab-release:end -->"
 
@@ -190,6 +190,24 @@ def prepare(args: argparse.Namespace) -> int:
     release_apk = output_dir / apk_name
     shutil.copy2(source_apk, release_apk)
 
+    evidence_dir = output_dir / "evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    copied_evidence: list[str] = []
+    for name in (
+        "certification.json",
+        "certification.md",
+        "evidence-bundle.json",
+        "evidence-bundle.md",
+        "certification-matrix.md",
+        "compatibility-result.json",
+        "build-contract.json",
+        "analysis-plan.json",
+    ):
+        source = report_dir / name
+        if source.is_file() and not source.is_symlink():
+            shutil.copy2(source, evidence_dir / name)
+            copied_evidence.append(f"evidence/{name}")
+
     identity = apk_identity(release_apk)
     package_id = (
         identity["package_id"]
@@ -214,6 +232,7 @@ def prepare(args: argparse.Namespace) -> int:
             args.changelog_summary.strip()
             or commit_summary(args.repository, args.resolved_sha)
         ),
+        "evidence_files": copied_evidence,
         "apk": {
             "filename": apk_name,
             "package_id": package_id,
@@ -227,7 +246,8 @@ def prepare(args: argparse.Namespace) -> int:
     write_json(output_dir / "release.json", release)
     (output_dir / "README.md").write_text(
         "# AppLab Production-Certified APK\n\n"
-        "This APK is byte-for-byte the artifact that passed the AppLab Production Certification Gate.\n\n"
+        "This APK is byte-for-byte the artifact that passed the AppLab Production Certification Gate.\n"
+        "The evidence/ directory contains the retained certification bundle for these bytes.\n\n"
         + release_block(release),
         encoding="utf-8",
     )
