@@ -229,6 +229,8 @@ jobs:
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
+      baseline_trusted: ${{ matrix.baseline_trusted }}
+      history_risk_json: ${{ toJSON(matrix.history_risk) }}
 
   verify_native:
     name: Native Android ${{ matrix.repository }}
@@ -265,6 +267,8 @@ jobs:
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
+      baseline_trusted: ${{ matrix.baseline_trusted }}
+      history_risk_json: ${{ toJSON(matrix.history_risk) }}
 
   verify_auto:
     name: Auto ${{ matrix.repository }}
@@ -285,6 +289,8 @@ jobs:
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
+      baseline_trusted: ${{ matrix.baseline_trusted }}
+      history_risk_json: ${{ toJSON(matrix.history_risk) }}
 
   aggregate:
     name: Update central watcher history
