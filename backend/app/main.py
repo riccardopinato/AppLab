@@ -18,7 +18,7 @@ from .maestro import MaestroError, MaestroRunner
 from .runtime import LiveRuntimeError, LiveRuntimeManager
 
 
-APP_VERSION = "0.8.1"
+APP_VERSION = "0.9.0"
 MAX_APK_BYTES = int(os.getenv("APPLAB_MAX_APK_BYTES", str(512 * 1024 * 1024)))
 CORS_ORIGINS = [
     item.strip()
@@ -133,6 +133,13 @@ def health() -> dict:
             "background-doze-recovery-lab",
             "storage-data-integrity-lab",
             "fast-analysis-smart-orchestration",
+            "adaptive-impact-analysis",
+            "risk-confidence-engine",
+            "dependency-impact-graph",
+            "source-only-verification",
+            "shadow-full-calibration",
+            "adaptive-telemetry",
+            "domain-aware-cache",
             "production-certification-gate",
             "certification-integrity-hardening",
         ],
