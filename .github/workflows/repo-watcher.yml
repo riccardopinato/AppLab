@@ -326,7 +326,13 @@ jobs:
             --watchlist watchlist.json \
             --history-file .applab-history/history.jsonl \
             --output .applab-history/control-center.json
+          python scripts/analysis_metrics.py \
+            --history-file .applab-history/history.jsonl \
+            --output-json .applab-history/analysis-metrics.json \
+            --output-md .applab-history/analysis-metrics.md
           cat watch-summary.md >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          cat .applab-history/analysis-metrics.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save central history
         if: always()
@@ -344,5 +350,7 @@ jobs:
             watch-summary.md
             .applab-history/history.jsonl
             .applab-history/control-center.json
+            .applab-history/analysis-metrics.json
+            .applab-history/analysis-metrics.md
           if-no-files-found: warn
           retention-days: 90
