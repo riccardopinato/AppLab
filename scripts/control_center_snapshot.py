@@ -106,6 +106,12 @@ def build_snapshot(
                 "performance": result.get("performance", {}),
                 "applab_version": result.get("applab_version", ""),
                 "analysis_mode": result.get("analysis_mode", "full"),
+                "analysis_lane": result.get("analysis_lane", "FULL_RUNTIME"),
+                "risk_score": result.get("risk_score"),
+                "confidence": result.get("confidence"),
+                "shadow_full": bool(result.get("shadow_full", False)),
+                "pipeline_metrics": result.get("pipeline_metrics", {}),
+                "shadow_calibration": result.get("shadow_calibration", {}),
                 "certification_status": raw_certification_status,
                 "certification_display_status": certification_display_status,
                 "certification": certification_result.get("certification", {}),
@@ -134,6 +140,15 @@ def build_snapshot(
     )
     not_certified_count = sum(
         1 for item in projects if item["certification_status"] == "NOT_CERTIFIED"
+    )
+    lane_counts = {
+        lane: sum(1 for item in projects if item.get("analysis_lane") == lane)
+        for lane in ("NO_RUNTIME_CHANGE", "STATIC_ONLY", "FAST_RUNTIME", "FULL_RUNTIME", "CERTIFICATION")
+    }
+    shadow_runs = sum(1 for item in projects if item.get("shadow_full"))
+    shadow_false_negatives = sum(
+        int((item.get("shadow_calibration") or {}).get("false_negative_count", 0) or 0)
+        for item in projects
     )
 
     recent = sorted(
@@ -167,6 +182,12 @@ def build_snapshot(
                     "watcher_run_url",
                     "applab_version",
                     "analysis_mode",
+                    "analysis_lane",
+                    "risk_score",
+                    "confidence",
+                    "shadow_full",
+                    "pipeline_metrics",
+                    "shadow_calibration",
                     "certification_status",
                     "certification",
                     "release",
@@ -191,6 +212,9 @@ def build_snapshot(
             "certified_stale": certified_stale_count,
             "certification_blocked": certification_blocked_count,
             "not_certified": not_certified_count,
+            "lanes": lane_counts,
+            "shadow_runs": shadow_runs,
+            "shadow_false_negatives": shadow_false_negatives,
         },
         "projects": projects,
         "recent": recent,
