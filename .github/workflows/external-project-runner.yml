@@ -12,11 +12,6 @@ on:
         required: false
         default: main
         type: string
-      source_ref:
-        description: Logical branch/tag ref used for watcher baseline identity
-        required: false
-        default: ""
-        type: string
       working_directory:
         description: Flutter project directory inside the target repository
         required: false
@@ -102,11 +97,6 @@ on:
         required: false
         default: false
         type: boolean
-      cache_epoch:
-        description: Legacy watcher cache epoch (retained for compatibility)
-        required: false
-        default: "1"
-        type: string
       contract_fingerprint:
         description: Automatic AppLab verification contract fingerprint
         required: false
@@ -137,16 +127,6 @@ on:
         required: false
         default: true
         type: boolean
-      start_timeout:
-        description: Seconds allowed for the app process to start
-        required: false
-        default: "30"
-        type: string
-      settle_seconds:
-        description: Seconds to let the app settle before visual verification
-        required: false
-        default: "5"
-        type: string
   workflow_call:
     inputs:
       repository:
@@ -667,8 +647,8 @@ jobs:
       android_prepare_command: ${{ inputs.android_prepare_command }}
       api_level: ${{ inputs.api_level }}
       emulator_profile: ${{ inputs.emulator_profile }}
-      start_timeout: ${{ inputs.start_timeout }}
-      settle_seconds: ${{ inputs.settle_seconds }}
+      start_timeout: ${{ inputs.start_timeout != '' && inputs.start_timeout || '30' }}
+      settle_seconds: ${{ inputs.settle_seconds != '' && inputs.settle_seconds || '5' }}
 
   report_build_failure:
     name: Report build failure
