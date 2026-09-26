@@ -113,31 +113,7 @@ jobs:
             cp -R "$GITHUB_WORKSPACE/applab-report" "$GITHUB_WORKSPACE/applab-report-certification"
             mkdir -p "$GITHUB_WORKSPACE/certification-contract"
             cp "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk" "$GITHUB_WORKSPACE/certification-contract/app.apk"
-            python - <<'PY'
-            import hashlib
-            import json
-            from pathlib import Path
-
-            report_path = Path("applab-report-certification/result.json")
-            report = json.loads(report_path.read_text(encoding="utf-8"))
-            report["analysis_mode"] = "certification"
-            report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-            apk = Path("certification-contract/app.apk")
-            digest = hashlib.sha256(apk.read_bytes()).hexdigest()
-            Path("certification-contract/contract.json").write_text(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "analysis_mode": "certification",
-                        "apk": {"sha256": digest},
-                    },
-                    indent=2,
-                    sort_keys=True,
-                ) + "\n",
-                encoding="utf-8",
-            )
-            PY
+            python -c 'import hashlib,json,pathlib; rp=pathlib.Path("applab-report-certification/result.json"); r=json.loads(rp.read_text(encoding="utf-8")); r["analysis_mode"]="certification"; rp.write_text(json.dumps(r,indent=2,sort_keys=True)+"\\n",encoding="utf-8"); apk=pathlib.Path("certification-contract/app.apk"); digest=hashlib.sha256(apk.read_bytes()).hexdigest(); pathlib.Path("certification-contract/contract.json").write_text(json.dumps({"schema_version":1,"analysis_mode":"certification","apk":{"sha256":digest}},indent=2,sort_keys=True)+"\\n",encoding="utf-8")'
             set +e
             python scripts/certification_gate.py --report-dir "$GITHUB_WORKSPACE/applab-report-certification" --contract-root "$GITHUB_WORKSPACE/certification-contract" --api-level "35" --emulator-profile "pixel_7_pro"
             CERT_STATUS=$?
