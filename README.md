@@ -1,3 +1,24 @@
+## v0.9.0 — Adaptive Impact Analysis & Incremental Verification
+
+AppLab v0.9 moves intelligence to the **start** of the verification pipeline. FAST no longer means “run the expensive build/static pipeline and skip a few emulator labs later”: the Adaptive Impact Engine first validates the last trusted baseline, analyzes the complete Git range, measures change type/churn, inspects changed hunks, maps runtime domains and lightweight source dependencies, incorporates recent failure history, then calculates **risk + confidence** before deciding how much work is justified.
+
+Every FAST request is routed into one of four explicit lanes:
+
+- `NO_RUNTIME_CHANGE` — documentation/metadata-only changes; no toolchain, APK or emulator is started and runtime evidence is explicitly inherited from the last trusted baseline;
+- `STATIC_ONLY` — tests/static-analysis configuration only; targeted static/test verification runs without pretending an APK runtime was re-tested;
+- `FAST_RUNTIME` — build + always-on launch/crash/visual/interaction verification plus only impact-selected specialist labs;
+- `FULL_RUNTIME` — automatic fail-safe escalation for high-risk, low-confidence, large, baseline-invalid or otherwise unsafe changes.
+
+`CERTIFICATION` remains a separate production-release lane and never inherits FAST shortcuts.
+
+v0.9 adds targeted Flutter/Dart analysis and tests, module-aware Android test/lint planning, safe Gradle task batching, ancestor-safe baseline validation, >500-file fail-safe escalation, deterministic 10% FAST→FULL shadow calibration, historical-failure risk, domain-scoped verification fingerprints, verification telemetry, `git ls-files` discovery, pinned Maestro cache and a pristine reusable AVD snapshot that is created before any target app is installed.
+
+The Trusted Verifier binds the **exact preflight plan** into the isolated build contract and recomputes its selected-domain fingerprint from trusted AppLab code. `SKIPPED` is never converted to PASS, non-runtime PASS results explicitly say that runtime was not rerun, and FAST still cannot publish a production release artifact.
+
+The Control Center now surfaces lane, risk, confidence and shadow-FULL status. CI includes a planner regression corpus covering non-ancestor baselines, large diffs, dependency impact, historical-risk escalation, test-only changes, renames/deletions and the original domain-selection cases.
+
+See `integration/performance/FAST_ANALYSIS_ENGINE.md` and `integration/certification/PRODUCTION_CERTIFICATION_GATE.md`.
+
 ## v0.8.1 — Certification Integrity & Release Artifact Hardening
 
 AppLab v0.8.1 closes the release-integrity gaps found in the v0.8.0 audit. Production Certification now routes auto-discovered projects through an explicit **RELEASE** build profile, rejects DEBUG artifacts and Android Debug certificates, records the signing-certificate SHA-256, and can enforce an expected production signer from project policy.
