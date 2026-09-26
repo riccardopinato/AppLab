@@ -558,6 +558,7 @@ def classify(
     history_reasons: list[str] | None = None,
     resolved_sha: str = "",
     shadow_rate: int = 10,
+    history_risk_bias: int = 0,
 ) -> dict[str, Any]:
     mode = mode.lower().strip()
     if mode not in {"fast", "full", "certification"}:
@@ -791,6 +792,9 @@ def plan_repository(
         "transitive_impacted_count": 0,
     }
     history_score, history_reasons = historical_risk(history_file, repository, files)
+    if history_risk_bias:
+        history_score += max(0, min(25, int(history_risk_bias)))
+        history_reasons.append(f"watcher historical risk bias +{max(0, min(25, int(history_risk_bias)))}")
     return classify(
         files,
         mode,
@@ -965,6 +969,7 @@ def main() -> int:
     parser.add_argument("--resolved-sha", default="")
     parser.add_argument("--history-file", default="")
     parser.add_argument("--shadow-rate", type=int, default=10)
+    parser.add_argument("--history-risk-bias", type=int, default=0)
     parser.add_argument("--output")
     parser.add_argument("--github-output", default="")
     parser.add_argument("--self-test", action="store_true")
@@ -984,6 +989,7 @@ def main() -> int:
         repository=args.repository,
         resolved_sha=args.resolved_sha,
         shadow_rate=args.shadow_rate,
+        history_risk_bias=args.history_risk_bias,
     )
     validate_plan(payload)
     Path(args.output).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
