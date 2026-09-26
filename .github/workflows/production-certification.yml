@@ -43,6 +43,7 @@ jobs:
     outputs:
       history_key: ${{ steps.profile.outputs.history_key }}
       compatibility_api: ${{ steps.profile.outputs.compatibility_api }}
+      resolved_sha: ${{ steps.target.outputs.resolved_sha }}
     steps:
       - name: Checkout AppLab
         uses: actions/checkout@v7
@@ -54,6 +55,16 @@ jobs:
           ref: ${{ inputs.ref }}
           path: target
           persist-credentials: false
+
+      - name: Pin target commit
+        id: target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          RESOLVED_SHA="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
+          test -n "$RESOLVED_SHA"
+          echo "resolved_sha=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
+          echo "Pinned certification SHA: $RESOLVED_SHA"
 
       - name: Auto-discover target profile
         run: |
@@ -120,7 +131,7 @@ jobs:
     uses: ./.github/workflows/universal-project-runner.yml
     with:
       repository: ${{ inputs.repository }}
-      ref: ${{ inputs.ref }}
+      ref: ${{ needs.resolve.outputs.resolved_sha }}
       run_maestro: true
       history_key: ${{ needs.resolve.outputs.history_key }}
       cache_verification: false
@@ -138,7 +149,7 @@ jobs:
     uses: ./.github/workflows/universal-project-runner.yml
     with:
       repository: ${{ inputs.repository }}
-      ref: ${{ inputs.ref }}
+      ref: ${{ needs.resolve.outputs.resolved_sha }}
       run_maestro: true
       history_key: ${{ needs.resolve.outputs.history_key }}-compat
       cache_verification: false
@@ -253,7 +264,7 @@ jobs:
           {
             echo "## AppLab v0.8.1 Production Certification"
             echo
-            echo "- Target: `${{ inputs.repository }}@${{ inputs.ref }}`"
+            echo "- Target: `${{ inputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo "- Primary: API `${{ inputs.api_level }}` / `${{ inputs.emulator_profile }}`"
             echo "- Compatibility: API `${{ needs.resolve.outputs.compatibility_api }}`"
             echo "- Final: **${{ steps.status.outputs.status }}**"
