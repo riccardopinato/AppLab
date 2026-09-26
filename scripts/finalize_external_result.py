@@ -36,7 +36,7 @@ def main() -> int:
     if not payload:
         payload = {
             "schema_version": 1,
-            "applab_version": "0.8.1",
+            "applab_version": "0.9.0",
             "result": "FAIL",
             "analysis_mode": args.analysis_mode,
             "reason": "Pipeline ended before the Android verifier produced a result.",
@@ -60,6 +60,32 @@ def main() -> int:
             "evidence": {},
         }
 
+    plan = {}
+    metrics = {}
+    shadow = {}
+    build_contract = {}
+    for name, target in (
+        ("analysis-plan.json", "plan"),
+        ("pipeline-metrics.json", "metrics"),
+        ("shadow-calibration.json", "shadow"),
+        ("build-contract.json", "build_contract"),
+    ):
+        path = report_dir / name
+        if not path.is_file():
+            continue
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            value = {}
+        if target == "plan":
+            plan = value
+        elif target == "metrics":
+            metrics = value
+        elif target == "shadow":
+            shadow = value
+        else:
+            build_contract = value
+
     payload.update(
         {
             "repository": args.repository,
@@ -70,6 +96,15 @@ def main() -> int:
             "pipeline_status": args.pipeline_status,
             "workflow_run_id": args.run_id,
             "analysis_mode": payload.get("analysis_mode") or args.analysis_mode,
+            "analysis_lane": plan.get("lane", payload.get("analysis_lane", "FULL_RUNTIME")),
+            "risk_score": plan.get("risk_score", payload.get("risk_score")),
+            "confidence": plan.get("confidence", payload.get("confidence")),
+            "selected_labs": plan.get("selected_labs", payload.get("selected_labs", {})),
+            "predicted_selected_labs": plan.get("predicted_selected_labs", payload.get("predicted_selected_labs", {})),
+            "shadow_full": bool(plan.get("shadow_full", payload.get("shadow_full", False))),
+            "pipeline_metrics": metrics or payload.get("pipeline_metrics", {}),
+            "shadow_calibration": shadow or payload.get("shadow_calibration", {}),
+            "domain_fingerprints": build_contract.get("domain_fingerprints", payload.get("domain_fingerprints", {})),
             "observed_at": datetime.now(timezone.utc).isoformat(),
         }
     )
