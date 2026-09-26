@@ -114,12 +114,7 @@ jobs:
             mkdir -p "$GITHUB_WORKSPACE/certification-contract"
             cp "$GITHUB_WORKSPACE/selftest/app/build/outputs/apk/debug/app-debug.apk" "$GITHUB_WORKSPACE/certification-contract/app.apk"
             python -c 'import hashlib,json,pathlib; rp=pathlib.Path("applab-report-certification/result.json"); r=json.loads(rp.read_text(encoding="utf-8")); r["analysis_mode"]="certification"; rp.write_text(json.dumps(r,indent=2,sort_keys=True)+"\\n",encoding="utf-8"); apk=pathlib.Path("certification-contract/app.apk"); digest=hashlib.sha256(apk.read_bytes()).hexdigest(); pathlib.Path("certification-contract/contract.json").write_text(json.dumps({"schema_version":1,"analysis_mode":"certification","apk":{"sha256":digest}},indent=2,sort_keys=True)+"\\n",encoding="utf-8")'
-            set +e
-            python scripts/certification_gate.py --report-dir "$GITHUB_WORKSPACE/applab-report-certification" --contract-root "$GITHUB_WORKSPACE/certification-contract" --api-level "35" --emulator-profile "pixel_7_pro"
-            CERT_STATUS=$?
-            set -e
-            python -c 'import json,pathlib; c=json.loads(pathlib.Path("applab-report-certification/certification.json").read_text()); assert c["status"] in {"CERTIFIED","BLOCKED"}, c; assert c["status"] != "NOT_CERTIFIED", c'
-            CERT_STATUS="$CERT_STATUS" python -c 'import json,os,pathlib,sys; c=json.loads(pathlib.Path("applab-report-certification/certification.json").read_text()); status=int(os.environ["CERT_STATUS"]); sys.exit(0 if (c["status"] == "CERTIFIED" and status == 0) or (c["status"] == "BLOCKED" and status != 0) else 1)'
+            python -c 'import json,pathlib,subprocess,sys; p=subprocess.run([sys.executable,"scripts/certification_gate.py","--report-dir","applab-report-certification","--contract-root","certification-contract","--api-level","35","--emulator-profile","pixel_7_pro"],check=False); c=json.loads(pathlib.Path("applab-report-certification/certification.json").read_text()); assert c["status"] in {"CERTIFIED","BLOCKED"}, c; assert c["status"] != "NOT_CERTIFIED", c; assert (c["status"]=="CERTIFIED" and p.returncode==0) or (c["status"]=="BLOCKED" and p.returncode!=0), (c,p.returncode)'
 
       - name: Publish runtime evidence
         if: always()
