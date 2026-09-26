@@ -422,6 +422,8 @@ jobs:
             --history-key "${{ inputs.history_key }}" \
             --engine native_android \
             --run-id "$GITHUB_RUN_ID" \
+            --config-fingerprint "${{ inputs.config_fingerprint }}" \
+            --contract-fingerprint "${{ inputs.contract_fingerprint }}" \
             --static-status "$STATUS"
 
       - name: Upload short-circuit result
@@ -753,7 +755,9 @@ jobs:
             --engine "native_android" \
             --pipeline-status failure \
             --run-id "$GITHUB_RUN_ID" \
-            --analysis-mode "${{ inputs.analysis_mode }}"
+            --analysis-mode "${{ needs.preflight.outputs.effective_mode }}" \
+            --config-fingerprint "${{ inputs.config_fingerprint }}" \
+            --contract-fingerprint "${{ inputs.contract_fingerprint }}"
 
       - name: Prepare failed verification cache payload
         if: inputs.cache_verification && needs.build.outputs.resolved_sha != ''
