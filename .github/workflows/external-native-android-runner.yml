@@ -135,6 +135,21 @@ on:
         required: false
         default: ""
         type: string
+      precomputed_plan_artifact_name:
+        description: Optional adaptive plan artifact already produced by the Universal Runner
+        required: false
+        default: ""
+        type: string
+      source_artifact_name:
+        description: Optional exact source snapshot artifact already produced by the Universal Runner
+        required: false
+        default: ""
+        type: string
+      source_resolved_sha:
+        description: Resolved SHA bound to the optional source snapshot
+        required: false
+        default: ""
+        type: string
       publish_release_artifact:
         description: Allow CERTIFIED runs to publish the verified APK
         required: false
@@ -247,6 +262,21 @@ on:
         required: false
         default: ""
         type: string
+      precomputed_plan_artifact_name:
+        description: Optional adaptive plan artifact already produced by the Universal Runner
+        required: false
+        default: ""
+        type: string
+      source_artifact_name:
+        description: Optional exact source snapshot artifact already produced by the Universal Runner
+        required: false
+        default: ""
+        type: string
+      source_resolved_sha:
+        description: Resolved SHA bound to the optional source snapshot
+        required: false
+        default: ""
+        type: string
       publish_release_artifact:
         required: false
         default: true
@@ -279,6 +309,25 @@ jobs:
         shell: bash
         run: echo "APPLAB_PREFLIGHT_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
 
+      - name: Validate reusable preflight inputs
+        shell: bash
+        env:
+          PLAN_ARTIFACT: ${{ inputs.precomputed_plan_artifact_name }}
+          SOURCE_ARTIFACT: ${{ inputs.source_artifact_name }}
+          SOURCE_SHA: ${{ inputs.source_resolved_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -n "$SOURCE_ARTIFACT" || -n "$PLAN_ARTIFACT" || -n "$SOURCE_SHA" ]]; then
+            [[ -n "$PLAN_ARTIFACT" && -n "$SOURCE_SHA" ]] || {
+              echo "Reusable preflight requires plan artifact + resolved SHA." >&2
+              exit 2
+            }
+            [[ "$SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] || {
+              echo "Reusable source SHA is invalid." >&2
+              exit 2
+            }
+          fi
+
       - name: Checkout trusted AppLab
         uses: actions/checkout@v7
         with:
@@ -288,6 +337,7 @@ jobs:
           persist-credentials: false
 
       - name: Checkout target for impact analysis
+        if: inputs.precomputed_plan_artifact_name == ''
         uses: actions/checkout@v7
         with:
           repository: ${{ inputs.repository }}
@@ -296,8 +346,25 @@ jobs:
           fetch-depth: 64
           persist-credentials: false
 
+      - name: Download reusable source snapshot
+        if: inputs.source_artifact_name != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.source_artifact_name }}
+          path: universal-source
+
+      - name: Verify and extract reusable source snapshot
+        if: inputs.source_artifact_name != ''
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd "$GITHUB_WORKSPACE/universal-source"
+          sha256sum --check target.tar.sha256
+          mkdir -p "$GITHUB_WORKSPACE/target"
+          tar -xf target.tar -C "$GITHUB_WORKSPACE/target"
+
       - name: Extend FAST history window when needed
-        if: inputs.analysis_mode == 'fast' && inputs.baseline_sha != ''
+        if: inputs.precomputed_plan_artifact_name == '' && inputs.analysis_mode == 'fast' && inputs.baseline_sha != ''
         shell: bash
         env:
           BASELINE_SHA: ${{ inputs.baseline_sha }}
@@ -311,6 +378,7 @@ jobs:
           fi
 
       - name: Restore verification history for risk calibration
+        if: inputs.precomputed_plan_artifact_name == ''
         uses: actions/cache/restore@v6
         with:
           path: .applab-history
@@ -321,12 +389,20 @@ jobs:
       - name: Resolve target SHA
         id: target
         shell: bash
+        env:
+          REUSABLE_SHA: ${{ inputs.source_resolved_sha }}
         run: |
-          SHA="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
+          set -Eeuo pipefail
+          if [[ -n "$REUSABLE_SHA" ]]; then
+            SHA="${REUSABLE_SHA,,}"
+          else
+            SHA="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
+          fi
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid resolved SHA" >&2; exit 2; }
           echo "resolved_sha=$SHA" >> "$GITHUB_OUTPUT"
 
       - name: Compute adaptive impact plan
-        id: plan
+        if: inputs.precomputed_plan_artifact_name == ''
         shell: bash
         run: |
           mkdir -p "$GITHUB_WORKSPACE/applab-preflight"
@@ -340,6 +416,47 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --output "$GITHUB_WORKSPACE/applab-preflight/analysis-plan.json" \
             --github-output "$GITHUB_OUTPUT"
+
+      - name: Download reusable adaptive plan
+        if: inputs.precomputed_plan_artifact_name != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.precomputed_plan_artifact_name }}
+          path: applab-preflight
+
+      - name: Publish adaptive plan outputs
+        id: plan
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          PLAN="$GITHUB_WORKSPACE/applab-preflight/analysis-plan.json"
+          test -s "$PLAN"
+          python - "$PLAN" "$GITHUB_OUTPUT" "${{ steps.target.outputs.resolved_sha }}" <<'PY'
+          import json,sys
+          from pathlib import Path
+          plan=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          expected=sys.argv[3].lower()
+          head=str(plan.get("head_sha","")).lower()
+          if head and head != expected:
+              raise SystemExit(f"Adaptive plan SHA mismatch: {head} != {expected}")
+          run=plan.get("run",{})
+          rows={
+              "lane":plan.get("lane","FULL_RUNTIME"),
+              "effective_mode":plan.get("mode","full"),
+              "risk_level":plan.get("risk",{}).get("level","UNKNOWN"),
+              "risk_score":plan.get("risk",{}).get("score",0),
+              "confidence":plan.get("confidence",0),
+              "run_static":str(bool(run.get("static",True))).lower(),
+              "run_build":str(bool(run.get("build",True))).lower(),
+              "run_runtime":str(bool(run.get("runtime",True))).lower(),
+              "full_static":str(bool(run.get("full_static",True))).lower(),
+              "shadow_full":str(bool(plan.get("shadow_full",False))).lower(),
+              "fallback_full":str(bool(plan.get("fallback_full",False))).lower(),
+          }
+          with Path(sys.argv[2]).open("a",encoding="utf-8") as out:
+              for key,value in rows.items():
+                  out.write(f"{key}={value}\n")
+          PY
 
       - name: Record preflight timing
         shell: bash
@@ -355,11 +472,25 @@ jobs:
       - name: Set preflight artifact identity
         id: metadata
         shell: bash
+        env:
+          REUSABLE_PLAN: ${{ inputs.precomputed_plan_artifact_name }}
+          REUSABLE_SOURCE: ${{ inputs.source_artifact_name }}
         run: |
-          echo "plan_artifact_name=applab-preflight-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
-          echo "source_artifact_name=applab-source-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+          if [[ -n "$REUSABLE_PLAN" ]]; then
+            PLAN_NAME="$REUSABLE_PLAN"
+          else
+            PLAN_NAME="applab-preflight-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}"
+          fi
+          if [[ -n "$REUSABLE_SOURCE" ]]; then
+            SOURCE_NAME="$REUSABLE_SOURCE"
+          else
+            SOURCE_NAME="applab-source-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}"
+          fi
+          echo "plan_artifact_name=$PLAN_NAME" >> "$GITHUB_OUTPUT"
+          echo "source_artifact_name=$SOURCE_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload adaptive analysis plan
+        if: inputs.precomputed_plan_artifact_name == ''
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.metadata.outputs.plan_artifact_name }}
@@ -368,7 +499,7 @@ jobs:
           retention-days: 7
 
       - name: Package exact preflight source snapshot
-        if: steps.plan.outputs.run_build == 'true'
+        if: steps.plan.outputs.run_build == 'true' && inputs.source_artifact_name == ''
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -380,7 +511,7 @@ jobs:
           )
 
       - name: Upload exact preflight source snapshot
-        if: steps.plan.outputs.run_build == 'true'
+        if: steps.plan.outputs.run_build == 'true' && inputs.source_artifact_name == ''
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.metadata.outputs.source_artifact_name }}
