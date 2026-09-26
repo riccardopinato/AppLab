@@ -1,4 +1,17 @@
-# AppLab v0.8.1 — Fast Analysis Engine & Smart Test Orchestration
+# AppLab v0.9.0 — FAST Analysis Compatibility Contract
+
+> v0.9 supersedes the v0.8.1 path-only Smart Test Planner with the Adaptive Impact Engine. The historical details below remain valid for compatibility, but current lane/risk/confidence semantics are defined in `ADAPTIVE_IMPACT_ENGINE.md`.
+
+Current FAST invariants:
+- trusted range is still last matching verified SHA → current SHA;
+- the baseline must now also be an ancestor of HEAD;
+- FAST can terminate as NO_RUNTIME or STATIC_ONLY before APK/emulator work;
+- runtime FAST keeps core launch/crash/visual/interaction checks and selects specialist labs using path, content, dependency blast radius, risk and history;
+- unsafe/oversized/low-confidence/high-risk changes escalate to FULL;
+- deterministic shadow FULL sampling measures false negatives;
+- FAST cannot publish a production-certified APK and SKIPPED is never PASS.
+
+## Historical v0.8.1 design
 
 AppLab keeps three explicit verification modes:
 
