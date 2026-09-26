@@ -145,7 +145,13 @@ def dependency_impacts(repo: Path, changed: list[str], tracked: list[str]) -> li
                 break
     return sorted(impacted)
 
-def historical_failure_boost(history_file: str, repository: str, selected: dict[str, bool]) -> tuple[int, dict[str, int]]:
+def historical_failure_boost(
+    history_file: str,
+    repository: str,
+    selected: dict[str, bool],
+    history_key: str = "",
+    source_ref: str = "",
+) -> tuple[int, dict[str, int]]:
     if not history_file or not Path(history_file).is_file():
         return 0, {}
     counts = {lab: 0 for lab in LABS}
@@ -156,6 +162,16 @@ def historical_failure_boost(history_file: str, repository: str, selected: dict[
         except json.JSONDecodeError:
             continue
         if repository and item.get("repository") != repository:
+            continue
+        if history_key and str(item.get("history_key", "")).strip() not in {"", history_key}:
+            continue
+        item_ref = str(item.get("requested_ref", item.get("ref", ""))).strip()
+        if (
+            source_ref
+            and item_ref
+            and item_ref != source_ref
+            and not re.fullmatch(r"[0-9a-fA-F]{40}", item_ref)
+        ):
             continue
         for lab in LABS:
             if str(item.get(f"{lab}_lab" if lab not in {"system", "performance"} else
@@ -195,7 +211,8 @@ def classify(files: list[str], mode: str, baseline_sha: str = "") -> dict[str, A
 
 def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "",
                       impacted: list[str] | None = None, history_file: str = "",
-                      repository: str = "", head_sha: str = "", shadow_every: int = 10) -> dict[str, Any]:
+                      repository: str = "", head_sha: str = "", shadow_every: int = 10,
+                      history_key: str = "", source_ref: str = "") -> dict[str, Any]:
     mode = mode.lower().strip()
     if mode not in {"fast", "full", "certification"}:
         raise ValueError("analysis mode must be fast, full or certification")
@@ -270,7 +287,9 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
                 if any(re.search(pattern, lower, re.I) for pattern in patterns):
                     selected[lab] = True
                     reasons[lab].append(f"dependency:{p}")
-    boost, failures = historical_failure_boost(history_file, repository, selected)
+    boost, failures = historical_failure_boost(
+        history_file, repository, selected, history_key, source_ref
+    )
     risk += boost
     risk = max(0, min(100, risk))
     confidence = max(0.35, min(0.99, 0.96 - min(len(changed), 100) * 0.002 - min(len(impacted), 100) * 0.001))
@@ -328,15 +347,29 @@ def _plan(requested: str, effective: str, lane: str, baseline_sha: str, evidence
     }
 
 def analyze_repository(repo_root: Path, mode: str, baseline_sha: str = "", history_file: str = "",
-                       repository: str = "", shadow_every: int = 10) -> dict[str, Any]:
+                       repository: str = "", shadow_every: int = 10,
+                       history_key: str = "", source_ref: str = "") -> dict[str, Any]:
     start = time.perf_counter()
     head = _run(repo_root, "rev-parse", "HEAD", timeout=15)
     head_sha = head.stdout.strip().lower() if head.returncode == 0 else ""
     evidence = git_diff_evidence(repo_root, baseline_sha)
     changed = [str(x.get("path", "")) for x in evidence.get("files", []) if x.get("path")]
     impacted = dependency_impacts(repo_root, changed, tracked_files(repo_root)) if evidence.get("trusted") else []
-    plan = classify_evidence(evidence, mode, baseline_sha, impacted, history_file, repository, head_sha, shadow_every)
+    plan = classify_evidence(
+        evidence,
+        mode,
+        baseline_sha,
+        impacted,
+        history_file,
+        repository,
+        head_sha,
+        shadow_every,
+        history_key,
+        source_ref,
+    )
     plan["head_sha"] = head_sha
+    plan["history_key"] = history_key
+    plan["source_ref"] = source_ref
     plan["planner_ms"] = round((time.perf_counter() - start) * 1000, 2)
     return plan
 
@@ -401,6 +434,35 @@ def self_test() -> None:
     cert = classify(["README.md"], "certification", "a"*40)
     assert cert["lane"] == "CERTIFICATION" and all(cert["selected_labs"].values())
 
+    with tempfile.TemporaryDirectory() as raw_history:
+        history = Path(raw_history) / "history.jsonl"
+        history.write_text(
+            "\n".join(
+                json.dumps(row)
+                for row in (
+                    {
+                        "repository": "owner/app",
+                        "history_key": "main",
+                        "requested_ref": "main",
+                        "network_lab": "FAIL",
+                    },
+                    {
+                        "repository": "owner/app",
+                        "history_key": "beta",
+                        "requested_ref": "beta",
+                        "network_lab": "FAIL",
+                    },
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        selected = {lab: lab == "network" for lab in LABS}
+        boost, failures = historical_failure_boost(
+            str(history), "owner/app", selected, "main", "main"
+        )
+        assert boost == 2 and failures == {"network": 1}
+
     with tempfile.TemporaryDirectory() as raw:
         root = Path(raw)
         subprocess.run(["git", "init", "-q", str(root)], check=True)
@@ -437,6 +499,8 @@ def main() -> int:
     parser.add_argument("--baseline-sha",default="")
     parser.add_argument("--history-file",default="")
     parser.add_argument("--repository",default="")
+    parser.add_argument("--history-key",default="")
+    parser.add_argument("--source-ref",default="")
     parser.add_argument("--shadow-every",type=int,default=10)
     parser.add_argument("--output")
     parser.add_argument("--github-output",default="")
@@ -446,7 +510,16 @@ def main() -> int:
         self_test(); return 0
     if not args.repo_root or not args.output:
         raise SystemExit("--repo-root and --output are required")
-    plan=analyze_repository(Path(args.repo_root).resolve(),args.mode,args.baseline_sha,args.history_file,args.repository,args.shadow_every)
+    plan=analyze_repository(
+        Path(args.repo_root).resolve(),
+        args.mode,
+        args.baseline_sha,
+        args.history_file,
+        args.repository,
+        args.shadow_every,
+        args.history_key,
+        args.source_ref,
+    )
     validate_plan(plan)
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(json.dumps(plan,indent=2,sort_keys=True)+"\n",encoding="utf-8")
