@@ -9,11 +9,19 @@ from pathlib import Path
 VERSION = "0.9.0"
 CORE = (
     "scripts/verify_apk.sh",
+    "scripts/run_external_android_gate.sh",
     "scripts/impact_engine.py",
     "scripts/smart_test_plan.py",
     "scripts/targeted_execution.py",
+    "scripts/domain_fingerprint.py",
+    "scripts/preflight_result.py",
+    "scripts/project_autodiscover.py",
     "scripts/validate_build_contract.py",
     "scripts/package_build_contract.py",
+    "scripts/install_maestro.sh",
+    ".github/workflows/external-project-runner.yml",
+    ".github/workflows/external-native-android-runner.yml",
+    ".github/workflows/universal-project-runner.yml",
     ".github/workflows/trusted-apk-verifier.yml",
 )
 DOMAINS = {
