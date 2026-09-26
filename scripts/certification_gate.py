@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-APPLAB_VERSION = "0.8.1"
+APPLAB_VERSION = "0.9.0"
 MAX_CERTIFIED_APK_BYTES = 600 * 1024 * 1024
 
 STRICT_GATES: tuple[tuple[str, str], ...] = (
