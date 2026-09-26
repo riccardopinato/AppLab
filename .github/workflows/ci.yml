@@ -43,6 +43,11 @@ jobs:
             scripts/background_lab.py \
             scripts/storage_lab.py \
             scripts/smart_test_plan.py \
+            scripts/impact_engine.py \
+            scripts/impact_regression.py \
+            scripts/native_task_graph.py \
+            scripts/shadow_calibration.py \
+            scripts/finalize_incremental_result.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
             scripts/prepare_performance_baseline.py \
@@ -70,6 +75,12 @@ jobs:
           python scripts/background_lab.py --self-test
           python scripts/storage_lab.py --self-test
           python scripts/smart_test_plan.py --self-test
+          python scripts/impact_engine.py --self-test
+          python scripts/impact_regression.py
+          python scripts/native_task_graph.py --self-test
+          python scripts/shadow_calibration.py --self-test
+          python scripts/finalize_incremental_result.py --self-test
+          python scripts/contract_fingerprint.py --self-test
           python scripts/upgrade_lab.py --self-test
           python scripts/prepare_upgrade_baseline.py --self-test
           python scripts/prepare_performance_baseline.py --self-test
@@ -103,7 +114,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.8.1"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.9.0"'; then
               healthy=true
               break
             fi
