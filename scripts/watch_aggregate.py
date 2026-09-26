@@ -76,8 +76,8 @@ def main() -> int:
     if current:
         lines.extend(
             [
-                "| Repository | SHA | Result | Certification | Maestro | Visual QA | Regression | Journey | Crawler | System | Network | Performance |",
-                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                "| Repository | SHA | Result | Lane | Risk | Time | Shadow | Certification | Maestro | Visual QA | Regression | Journey | Crawler | System | Network | Performance |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
             ]
         )
         for item in current:
@@ -85,6 +85,17 @@ def main() -> int:
             sha = str(item.get("resolved_sha", ""))
             short_sha = sha[:8] if sha else "—"
             result = str(item.get("result", "UNKNOWN"))
+            lane = str(item.get("analysis_lane", "—"))
+            risk = item.get("risk") if isinstance(item.get("risk"), dict) else {}
+            risk_label = str(risk.get("level", "—"))
+            timings = item.get("timings") if isinstance(item.get("timings"), dict) else {}
+            total_seconds = timings.get("total_seconds")
+            time_label = f"{float(total_seconds):.1f}s" if isinstance(total_seconds, (int, float)) else "—"
+            shadow = item.get("shadow_calibration") if isinstance(item.get("shadow_calibration"), dict) else {}
+            if shadow.get("performed"):
+                shadow_label = "DIVERGED" if int(shadow.get("false_negatives", 0) or 0) else "MATCH"
+            else:
+                shadow_label = "SKIPPED"
             certification = str(item.get("certification_status", "NOT_REQUESTED"))
             maestro = str(item.get("maestro", "—"))
             visual_qa = str(item.get("visual_qa", "—"))
@@ -95,7 +106,8 @@ def main() -> int:
             network_lab = str(item.get("network_lab", "—"))
             performance_lab = str(item.get("performance_lab", "—"))
             lines.append(
-                f"| {repository} | `{short_sha}` | **{result}** | {certification} | {maestro} | "
+                f"| {repository} | `{short_sha}` | **{result}** | {lane} | {risk_label} | "
+                f"{time_label} | {shadow_label} | {certification} | {maestro} | "
                 f"{visual_qa} | {visual_regression} | {visual_journey} | "
                 f"{interaction_crawl} | {system_lab} | {network_lab} | {performance_lab} |"
             )
