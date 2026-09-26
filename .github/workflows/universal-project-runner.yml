@@ -204,8 +204,6 @@ jobs:
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
-      baseline_sha: ${{ inputs.baseline_sha }}
-      publish_release_artifact: ${{ inputs.publish_release_artifact }}
 
   verify_native:
     name: Auto native Android verification
@@ -239,3 +237,5 @@ jobs:
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
+      baseline_sha: ${{ inputs.baseline_sha }}
+      publish_release_artifact: ${{ inputs.publish_release_artifact }}
