@@ -267,6 +267,10 @@ jobs:
     outputs:
       resolved_sha: ${{ steps.target.outputs.resolved_sha }}
       artifact_name: ${{ steps.contract.outputs.artifact_name }}
+      lane: ${{ steps.preflight.outputs.lane }}
+      effective_mode: ${{ steps.preflight.outputs.effective_mode }}
+      runtime_changed: ${{ steps.preflight.outputs.runtime_changed }}
+      shadow_full: ${{ steps.preflight.outputs.shadow_full }}
 
     steps:
       - name: Validate target coordinates
@@ -326,7 +330,13 @@ jobs:
         run: |
           set -Eeuo pipefail
           if [[ "$BASELINE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --depth=1 origin "$BASELINE_SHA" || true
+            git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --deepen=100 origin || true
+            git -C "$GITHUB_WORKSPACE/target" fetch --no-tags origin "$BASELINE_SHA" || true
+            if ! git -C "$GITHUB_WORKSPACE/target" merge-base --is-ancestor "$BASELINE_SHA" HEAD 2>/dev/null; then
+              if [[ -f "$GITHUB_WORKSPACE/target/.git/shallow" ]]; then
+                git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --unshallow origin || true
+              fi
+            fi
           fi
 
       - name: Prepare evidence directory
@@ -345,7 +355,58 @@ jobs:
             echo "apk_path=${{ inputs.apk_path }}"
           } | tee "$GITHUB_WORKSPACE/applab-report/project.txt"
 
+      - name: Adaptive impact preflight
+        id: preflight
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/verification_telemetry.py mark \
+            --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" \
+            --phase preflight --event start
+          python .applab/scripts/smart_test_plan.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --mode "${{ inputs.analysis_mode }}" \
+            --baseline-sha "${{ inputs.baseline_sha }}" \
+            --repository "${{ inputs.repository }}" \
+            --output "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
+            --github-output "$GITHUB_OUTPUT"
+          python .applab/scripts/verification_telemetry.py merge \
+            --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" \
+            --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json"
+          python .applab/scripts/verification_telemetry.py mark \
+            --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" \
+            --phase preflight --event end
+
+      - name: Build targeted Gradle execution plan
+        id: execution
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/targeted_execution.py \
+            --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
+            --engine native_android \
+            --test-command "${{ inputs.test_command }}" \
+            --lint-command "${{ inputs.lint_command }}" \
+            --build-command "${{ inputs.build_command }}" \
+            --output "$GITHUB_WORKSPACE/applab-report/execution-plan.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Adaptive plan summary
+        shell: bash
+        run: |
+          {
+            echo "## AppLab v0.9 Adaptive Preflight"
+            echo
+            echo "- Lane: **${{ steps.preflight.outputs.lane }}**"
+            echo "- Effective mode: `${{ steps.preflight.outputs.effective_mode }}`"
+            echo "- Risk: `${{ steps.preflight.outputs.risk_score }}/100`"
+            echo "- Confidence: `${{ steps.preflight.outputs.confidence }}`"
+            echo "- Gradle batch safe: `${{ steps.execution.outputs.batch_safe }}`"
+            echo "- Shadow FULL: `${{ steps.preflight.outputs.shadow_full }}`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Validate Android project
+        if: steps.preflight.outputs.lane != 'NO_RUNTIME_CHANGE'
         shell: bash
         run: |
           PROJECT_DIR="$GITHUB_WORKSPACE/target/${{ inputs.working_directory }}"
@@ -359,12 +420,14 @@ jobs:
           fi
 
       - name: Setup Java
+        if: steps.preflight.outputs.lane != 'NO_RUNTIME_CHANGE'
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: ${{ inputs.java_version }}
 
       - name: Install Android SDK components
+        if: steps.preflight.outputs.lane != 'NO_RUNTIME_CHANGE'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -387,12 +450,13 @@ jobs:
             "build-tools;${{ inputs.build_tools }}"
 
       - name: Setup Gradle
+        if: steps.preflight.outputs.lane != 'NO_RUNTIME_CHANGE'
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: ${{ inputs.gradle_version }}
 
       - name: Target preparation
-        if: inputs.prepare_command != ''
+        if: steps.preflight.outputs.lane != 'NO_RUNTIME_CHANGE' && inputs.prepare_command != ''
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
         env:
@@ -400,38 +464,97 @@ jobs:
         run: bash -Eeuo pipefail -c "$APPLAB_PREPARE_COMMAND"
 
       - name: Unit tests
-        if: inputs.test_command != ''
+        if: steps.preflight.outputs.lane != 'NO_RUNTIME_CHANGE' && steps.execution.outputs.batch_safe != 'true' && steps.execution.outputs.test != ''
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
         env:
-          APPLAB_TEST_COMMAND: ${{ inputs.test_command }}
+          APPLAB_TEST_COMMAND: ${{ steps.execution.outputs.test }}
         run: |
           set -o pipefail
+          python "$GITHUB_WORKSPACE/.applab/scripts/verification_telemetry.py" mark --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" --phase unit_tests --event start
           bash -Eeuo pipefail -c "$APPLAB_TEST_COMMAND" 2>&1 |
             tee "$GITHUB_WORKSPACE/applab-report/android-test.txt"
+          python "$GITHUB_WORKSPACE/.applab/scripts/verification_telemetry.py" mark --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" --phase unit_tests --event end
 
       - name: Android lint
-        if: inputs.lint_command != ''
+        if: steps.preflight.outputs.lane != 'NO_RUNTIME_CHANGE' && steps.execution.outputs.batch_safe != 'true' && steps.execution.outputs.lint != ''
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
         env:
-          APPLAB_LINT_COMMAND: ${{ inputs.lint_command }}
+          APPLAB_LINT_COMMAND: ${{ steps.execution.outputs.lint }}
         run: |
           set -o pipefail
+          python "$GITHUB_WORKSPACE/.applab/scripts/verification_telemetry.py" mark --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" --phase lint --event start
           bash -Eeuo pipefail -c "$APPLAB_LINT_COMMAND" 2>&1 |
             tee "$GITHUB_WORKSPACE/applab-report/android-lint.txt"
+          python "$GITHUB_WORKSPACE/.applab/scripts/verification_telemetry.py" mark --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" --phase lint --event end
+
+      - name: Optimized Gradle task batch
+        if: steps.preflight.outputs.lane != 'NO_RUNTIME_CHANGE' && steps.execution.outputs.batch_safe == 'true' && steps.execution.outputs.batch != ''
+        working-directory: target/${{ inputs.working_directory }}
+        shell: bash
+        env:
+          APPLAB_GRADLE_BATCH: ${{ steps.execution.outputs.batch }}
+        run: |
+          set -o pipefail
+          python "$GITHUB_WORKSPACE/.applab/scripts/verification_telemetry.py" mark --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" --phase gradle_batch --event start
+          bash -Eeuo pipefail -c "$APPLAB_GRADLE_BATCH" 2>&1 |
+            tee "$GITHUB_WORKSPACE/applab-report/android-gradle-batch.txt"
+          python "$GITHUB_WORKSPACE/.applab/scripts/verification_telemetry.py" mark --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" --phase gradle_batch --event end
 
       - name: Build APK
+        if: steps.preflight.outputs.runtime_changed == 'true' && steps.execution.outputs.batch_safe != 'true'
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
         env:
           APPLAB_BUILD_COMMAND: ${{ inputs.build_command }}
         run: |
           set -o pipefail
+          python "$GITHUB_WORKSPACE/.applab/scripts/verification_telemetry.py" mark --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" --phase build --event start
           bash -Eeuo pipefail -c "$APPLAB_BUILD_COMMAND" 2>&1 |
             tee "$GITHUB_WORKSPACE/applab-report/android-build.txt"
+          python "$GITHUB_WORKSPACE/.applab/scripts/verification_telemetry.py" mark --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" --phase build --event end
+
+      - name: Finalize non-runtime adaptive verification
+        if: steps.preflight.outputs.runtime_changed != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/preflight_result.py \
+            --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
+            --report-dir "$GITHUB_WORKSPACE/applab-report" \
+            --repository "${{ inputs.repository }}" \
+            --ref "${{ inputs.ref }}" \
+            --resolved-sha "${{ steps.target.outputs.resolved_sha }}" \
+            --history-key "${{ inputs.history_key }}" \
+            --engine native_android
+
+      - name: Upload non-runtime adaptive result
+        if: steps.preflight.outputs.runtime_changed != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-${{ inputs.history_key }}-${{ github.run_id }}
+          path: applab-report/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Prepare non-runtime watcher cache
+        if: steps.preflight.outputs.runtime_changed != 'true' && inputs.cache_verification
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.applab-watch-cache"
+          cp "$GITHUB_WORKSPACE/applab-report/result.json" "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
+          cp "$GITHUB_WORKSPACE/applab-report/summary.md" "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
+
+      - name: Cache non-runtime resolved commit
+        if: steps.preflight.outputs.runtime_changed != 'true' && inputs.cache_verification
+        uses: actions/cache/save@v6
+        with:
+          path: .applab-watch-cache
+          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
 
       - name: Resolve APK
+        if: steps.preflight.outputs.runtime_changed == 'true'
         id: apk
         shell: bash
         run: |
@@ -447,7 +570,7 @@ jobs:
           } | tee "$GITHUB_WORKSPACE/applab-report/apk.txt"
 
       - name: Verify APK signature
-        if: inputs.verify_signature
+        if: steps.preflight.outputs.runtime_changed == 'true' && inputs.verify_signature
         shell: bash
         run: |
           "$ANDROID_HOME/build-tools/${{ inputs.build_tools }}/apksigner" \
@@ -456,6 +579,7 @@ jobs:
 
 
       - name: Restore trusted AppLab contract packager
+        if: steps.preflight.outputs.runtime_changed == 'true'
         shell: bash
         env:
           APPLAB_TRUSTED_SHA: ${{ job.workflow_sha }}
@@ -466,6 +590,7 @@ jobs:
           test "$(git -C "$GITHUB_WORKSPACE/.applab" rev-parse HEAD)" = "$APPLAB_TRUSTED_SHA"
 
       - name: Package isolated APK contract
+        if: steps.preflight.outputs.runtime_changed == 'true'
         id: contract
         shell: bash
         run: |
@@ -484,6 +609,7 @@ jobs:
             --maestro-flow "${{ inputs.maestro_flow }}" \
             --analysis-mode "${{ inputs.analysis_mode }}" \
             --baseline-sha "${{ inputs.baseline_sha }}" \
+            --analysis-plan-source "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
             --build-command "${{ inputs.build_command }}" \
             --analyze-status "N/A" \
             --lint-status "${{ inputs.lint_command != '' && 'PASS' || 'NOT_RUN' }}" \
@@ -491,6 +617,7 @@ jobs:
             --build-status "PASS"
 
       - name: Upload isolated APK contract
+        if: steps.preflight.outputs.runtime_changed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.contract.outputs.artifact_name }}
@@ -512,7 +639,7 @@ jobs:
   verify:
     name: Trusted verify ${{ inputs.repository }}
     needs: build
-    if: needs.build.result == 'success'
+    if: needs.build.result == 'success' && needs.build.outputs.runtime_changed == 'true'
     uses: ./.github/workflows/trusted-apk-verifier.yml
     with:
       build_artifact_name: ${{ needs.build.outputs.artifact_name }}
