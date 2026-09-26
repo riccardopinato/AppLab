@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -25,6 +26,12 @@ def run_text(command: list[str]) -> str:
 def apk_identity(apk: Path) -> dict[str, str]:
     result = {"package_id": "", "version_name": "", "version_code": ""}
     aapt = shutil.which("aapt")
+    if not aapt:
+        sdk = os.getenv("ANDROID_HOME") or os.getenv("ANDROID_SDK_ROOT")
+        if sdk:
+            candidates = sorted((Path(sdk) / "build-tools").glob("*/aapt"), reverse=True)
+            if candidates:
+                aapt = str(candidates[0])
     if aapt:
         output = run_text([aapt, "dump", "badging", str(apk)])
         line = next((x for x in output.splitlines() if x.startswith("package:")), "")
