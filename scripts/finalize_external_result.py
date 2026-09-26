@@ -80,6 +80,8 @@ def main() -> int:
             )
             payload["impacted_modules"] = adaptive.get("impacted_modules", [])
             payload["targeted"] = adaptive.get("targeted", {})
+            payload["telemetry"] = adaptive.get("telemetry", payload.get("telemetry", {}))
+            payload["calibration_from_lane"] = adaptive.get("calibration_from_lane", "")
 
     calibration_path = report_dir / "shadow-calibration.json"
     if calibration_path.is_file():
