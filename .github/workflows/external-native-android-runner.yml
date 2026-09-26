@@ -260,6 +260,183 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  preflight:
+    name: Adaptive preflight ${{ inputs.repository }}${{ inputs.ref }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      resolved_sha: ${{ steps.target.outputs.resolved_sha }}
+      lane: ${{ steps.plan.outputs.lane }}
+      effective_mode: ${{ steps.plan.outputs.effective_mode }}
+      run_build: ${{ steps.plan.outputs.run_build }}
+      run_runtime: ${{ steps.plan.outputs.run_runtime }}
+      shadow_full: ${{ steps.plan.outputs.shadow_full }}
+      plan_artifact_name: ${{ steps.metadata.outputs.plan_artifact_name }}
+
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .applab
+          persist-credentials: false
+
+      - name: Checkout target for impact analysis
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          path: target
+          fetch-depth: 64
+          persist-credentials: false
+
+      - name: Extend FAST history window when needed
+        if: inputs.analysis_mode == 'fast' && inputs.baseline_sha != ''
+        shell: bash
+        env:
+          BASELINE_SHA: ${{ inputs.baseline_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$BASELINE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            git -C "$GITHUB_WORKSPACE/target" cat-file -e "$BASELINE_SHA^{commit}" 2>/dev/null || {
+              git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --deepen=256 origin || true
+              git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --depth=1 origin "$BASELINE_SHA" || true
+            }
+          fi
+
+      - name: Restore verification history for risk calibration
+        uses: actions/cache/restore@v6
+        with:
+          path: .applab-history
+          key: applab-watch-history-preflight-${{ github.run_id }}
+          restore-keys: |
+            applab-watch-history-
+
+      - name: Resolve target SHA
+        id: target
+        shell: bash
+        run: |
+          SHA="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
+          echo "resolved_sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Compute adaptive impact plan
+        id: plan
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/applab-preflight"
+          python .applab/scripts/smart_test_plan.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --mode "${{ inputs.analysis_mode }}" \
+            --baseline-sha "${{ inputs.baseline_sha }}" \
+            --engine native_android \
+            --working-directory "${{ inputs.working_directory }}" \
+            --history-file "$GITHUB_WORKSPACE/.applab-history/history.jsonl" \
+            --repository "${{ inputs.repository }}" \
+            --output "$GITHUB_WORKSPACE/applab-preflight/analysis-plan.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Set preflight artifact identity
+        id: metadata
+        shell: bash
+        run: |
+          echo "plan_artifact_name=applab-preflight-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload adaptive analysis plan
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.metadata.outputs.plan_artifact_name }}
+          path: applab-preflight/analysis-plan.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Setup Java for STATIC_ONLY
+        if: steps.plan.outputs.lane == 'STATIC_ONLY'
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java_version }}
+
+      - name: Install Android SDK for STATIC_ONLY
+        if: steps.plan.outputs.lane == 'STATIC_ONLY'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$SDKMANAGER" ]]; then SDKMANAGER="$(command -v sdkmanager || true)"; fi
+          [[ -x "$SDKMANAGER" ]] || { echo "sdkmanager not found" >&2; exit 1; }
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          "$SDKMANAGER" "platform-tools" "platforms;android-${{ inputs.compile_sdk }}" "build-tools;${{ inputs.build_tools }}"
+
+      - name: Setup Gradle for STATIC_ONLY
+        if: steps.plan.outputs.lane == 'STATIC_ONLY'
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: ${{ inputs.gradle_version }}
+
+      - name: Target preparation for STATIC_ONLY
+        if: steps.plan.outputs.lane == 'STATIC_ONLY' && inputs.prepare_command != ''
+        working-directory: target/${{ inputs.working_directory }}
+        shell: bash
+        env:
+          APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}
+        run: bash -Eeuo pipefail -c "$APPLAB_PREPARE_COMMAND"
+
+      - name: Run STATIC_ONLY checks
+        id: static_only
+        if: steps.plan.outputs.lane == 'STATIC_ONLY'
+        continue-on-error: true
+        working-directory: target/${{ inputs.working_directory }}
+        shell: bash
+        env:
+          APPLAB_TEST_COMMAND: ${{ inputs.test_command }}
+          APPLAB_LINT_COMMAND: ${{ inputs.lint_command }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -n "$APPLAB_TEST_COMMAND" ]]; then
+            bash -Eeuo pipefail -c "$APPLAB_TEST_COMMAND" 2>&1 | tee "$GITHUB_WORKSPACE/applab-preflight/android-test.txt"
+          fi
+          if [[ -n "$APPLAB_LINT_COMMAND" ]]; then
+            bash -Eeuo pipefail -c "$APPLAB_LINT_COMMAND" 2>&1 | tee "$GITHUB_WORKSPACE/applab-preflight/android-lint.txt"
+          fi
+
+      - name: Finalize short-circuit verification
+        if: always() && (steps.plan.outputs.lane == 'NO_RUNTIME_CHANGE' || steps.plan.outputs.lane == 'STATIC_ONLY')
+        shell: bash
+        env:
+          LANE: ${{ steps.plan.outputs.lane }}
+          STATIC_OUTCOME: ${{ steps.static_only.outcome }}
+        run: |
+          STATUS="SKIPPED"
+          if [[ "$LANE" == "STATIC_ONLY" ]]; then
+            if [[ "$STATIC_OUTCOME" == "success" ]]; then STATUS="PASS"; else STATUS="FAIL"; fi
+          fi
+          python .applab/scripts/preflight_result.py \
+            --plan "$GITHUB_WORKSPACE/applab-preflight/analysis-plan.json" \
+            --report-dir "$GITHUB_WORKSPACE/applab-report" \
+            --repository "${{ inputs.repository }}" \
+            --ref "${{ inputs.ref }}" \
+            --resolved-sha "${{ steps.target.outputs.resolved_sha }}" \
+            --history-key "${{ inputs.history_key }}" \
+            --engine native_android \
+            --run-id "$GITHUB_RUN_ID" \
+            --static-status "$STATUS"
+
+      - name: Upload short-circuit result
+        if: always() && (steps.plan.outputs.lane == 'NO_RUNTIME_CHANGE' || steps.plan.outputs.lane == 'STATIC_ONLY')
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-${{ inputs.history_key }}-${{ github.run_id }}
+          path: applab-report/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Fail failed STATIC_ONLY checks
+        if: steps.plan.outputs.lane == 'STATIC_ONLY' && steps.static_only.outcome != 'success'
+        run: exit 1
+
   build:
     name: Build ${{ inputs.repository }}@${{ inputs.ref }}
     runs-on: ubuntu-latest
@@ -318,16 +495,11 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Fetch FAST baseline commit
-        if: inputs.analysis_mode == 'fast' && inputs.baseline_sha != ''
-        shell: bash
-        env:
-          BASELINE_SHA: ${{ inputs.baseline_sha }}
-        run: |
-          set -Eeuo pipefail
-          if [[ "$BASELINE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            git -C "$GITHUB_WORKSPACE/target" fetch --no-tags --depth=1 origin "$BASELINE_SHA" || true
-          fi
+      - name: Download trusted adaptive preflight plan
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.preflight.outputs.plan_artifact_name }}
+          path: .applab-preflight
 
       - name: Prepare evidence directory
         id: target
@@ -399,37 +571,53 @@ jobs:
           APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}
         run: bash -Eeuo pipefail -c "$APPLAB_PREPARE_COMMAND"
 
-      - name: Unit tests
-        if: inputs.test_command != ''
+      - name: Plan and execute Gradle quality/build graph
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
         env:
           APPLAB_TEST_COMMAND: ${{ inputs.test_command }}
-        run: |
-          set -o pipefail
-          bash -Eeuo pipefail -c "$APPLAB_TEST_COMMAND" 2>&1 |
-            tee "$GITHUB_WORKSPACE/applab-report/android-test.txt"
-
-      - name: Android lint
-        if: inputs.lint_command != ''
-        working-directory: target/${{ inputs.working_directory }}
-        shell: bash
-        env:
           APPLAB_LINT_COMMAND: ${{ inputs.lint_command }}
-        run: |
-          set -o pipefail
-          bash -Eeuo pipefail -c "$APPLAB_LINT_COMMAND" 2>&1 |
-            tee "$GITHUB_WORKSPACE/applab-report/android-lint.txt"
-
-      - name: Build APK
-        working-directory: target/${{ inputs.working_directory }}
-        shell: bash
-        env:
           APPLAB_BUILD_COMMAND: ${{ inputs.build_command }}
         run: |
-          set -o pipefail
-          bash -Eeuo pipefail -c "$APPLAB_BUILD_COMMAND" 2>&1 |
-            tee "$GITHUB_WORKSPACE/applab-report/android-build.txt"
+          set -Eeuo pipefail
+          PLAN="$GITHUB_WORKSPACE/.applab-preflight/analysis-plan.json"
+          EXEC_PLAN="$GITHUB_WORKSPACE/applab-report/gradle-execution-plan.json"
+          python "$GITHUB_WORKSPACE/.applab/scripts/gradle_execution_plan.py" \
+            --test-command "$APPLAB_TEST_COMMAND" \
+            --lint-command "$APPLAB_LINT_COMMAND" \
+            --build-command "$APPLAB_BUILD_COMMAND" \
+            --analysis-plan "$PLAN" \
+            --output "$EXEC_PLAN"
+
+          COMBINED="$(python -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["combined"]).lower())' "$EXEC_PLAN")"
+          COMMAND="$(python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("command",""))' "$EXEC_PLAN")"
+
+          fallback() {
+            if [[ -n "$APPLAB_TEST_COMMAND" ]]; then
+              bash -Eeuo pipefail -c "$APPLAB_TEST_COMMAND" 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/android-test.txt"
+            fi
+            if [[ -n "$APPLAB_LINT_COMMAND" ]]; then
+              bash -Eeuo pipefail -c "$APPLAB_LINT_COMMAND" 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/android-lint.txt"
+            fi
+            bash -Eeuo pipefail -c "$APPLAB_BUILD_COMMAND" 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/android-build.txt"
+          }
+
+          if [[ "$COMBINED" != "true" || -z "$COMMAND" ]]; then
+            fallback
+          else
+            set +e
+            bash -Eeuo pipefail -c "$COMMAND" 2>&1 | tee "$GITHUB_WORKSPACE/applab-report/android-gradle-combined.txt"
+            STATUS=${PIPESTATUS[0]}
+            set -e
+            if [[ "$STATUS" -ne 0 ]]; then
+              if grep -Eqi "Task .* not found|task .* not found|Cannot locate tasks" "$GITHUB_WORKSPACE/applab-report/android-gradle-combined.txt"; then
+                echo "Targeted/combined task graph unavailable; retrying original commands."
+                fallback
+              else
+                exit "$STATUS"
+              fi
+            fi
+          fi
 
       - name: Resolve APK
         id: apk
@@ -482,8 +670,9 @@ jobs:
             --working-directory "${{ inputs.working_directory }}" \
             --package-id "${{ inputs.package_id }}" \
             --maestro-flow "${{ inputs.maestro_flow }}" \
-            --analysis-mode "${{ inputs.analysis_mode }}" \
+            --analysis-mode "${{ needs.preflight.outputs.effective_mode }}" \
             --baseline-sha "${{ inputs.baseline_sha }}" \
+            --analysis-plan-input "$GITHUB_WORKSPACE/.applab-preflight/analysis-plan.json" \
             --build-command "${{ inputs.build_command }}" \
             --analyze-status "N/A" \
             --lint-status "${{ inputs.lint_command != '' && 'PASS' || 'NOT_RUN' }}" \
@@ -511,7 +700,7 @@ jobs:
 
   verify:
     name: Trusted verify ${{ inputs.repository }}
-    needs: build
+    needs: [preflight, build]
     if: needs.build.result == 'success'
     uses: ./.github/workflows/trusted-apk-verifier.yml
     with:
@@ -525,7 +714,7 @@ jobs:
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
-      analysis_mode: ${{ inputs.analysis_mode }}
+      analysis_mode: ${{ needs.preflight.outputs.effective_mode }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
       run_maestro: ${{ inputs.run_maestro }}
       android_prepare_command: ${{ inputs.android_prepare_command }}
@@ -534,8 +723,8 @@ jobs:
 
   report_build_failure:
     name: Report build failure
-    needs: build
-    if: always() && needs.build.result != 'success'
+    needs: [preflight, build]
+    if: always() && needs.preflight.outputs.run_build == 'true' && needs.build.result != 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout trusted AppLab
@@ -549,7 +738,7 @@ jobs:
       - name: Finalize failed build result
         shell: bash
         env:
-          RESOLVED_SHA: ${{ needs.build.outputs.resolved_sha }}
+          RESOLVED_SHA: ${{ needs.build.outputs.resolved_sha || needs.preflight.outputs.resolved_sha }}
         run: |
           set -Eeuo pipefail
           mkdir -p "$GITHUB_WORKSPACE/applab-report"
