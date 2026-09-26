@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from contract_fingerprint import compute as compute_contract_fingerprint
+from contract_fingerprint import manifest as contract_manifest
 
 
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -24,7 +24,7 @@ ENGINES = {"auto", "flutter", "native_android"}
 def api_json(url: str, token: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "AppLab-Repo-Watcher/0.8.1",
+        "User-Agent": "AppLab-Repo-Watcher/0.9.0",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     if token:
@@ -94,31 +94,80 @@ def resolve_sha(repository: str, ref: str, token: str) -> str:
     return sha.lower()
 
 
-def latest_history_sha(path: str, repository: str) -> str:
+def matching_history(
+    path: str,
+    repository: str,
+    history_key: str,
+    ref: str,
+    engine: str,
+) -> list[dict[str, Any]]:
     if not path:
-        return ""
+        return []
     history = Path(path)
     if not history.is_file():
-        return ""
-    latest_at = ""
-    latest_sha = ""
+        return []
+    rows: list[dict[str, Any]] = []
     for raw in history.read_text(encoding="utf-8", errors="ignore").splitlines():
         try:
             item = json.loads(raw)
         except json.JSONDecodeError:
             continue
-        if not isinstance(item, dict) or str(item.get("repository", "")).strip() != repository:
+        if not isinstance(item, dict):
             continue
+        if str(item.get("repository", "")).strip() != repository:
+            continue
+        row_key = str(item.get("history_key", "")).strip()
+        if row_key and row_key != history_key:
+            continue
+        row_ref = str(item.get("requested_ref", "")).strip()
+        row_ref_is_sha = bool(re.fullmatch(r"[0-9a-fA-F]{40}", row_ref))
+        if row_ref and not row_ref_is_sha and row_ref != ref:
+            continue
+        row_engine = str(item.get("engine", "")).strip()
+        if row_engine and row_engine != engine and engine != "auto":
+            continue
+        rows.append(item)
+    rows.sort(key=lambda item: str(item.get("recorded_at", "")))
+    return rows
+
+
+def latest_history_sha(
+    path: str,
+    repository: str,
+    history_key: str,
+    ref: str,
+    engine: str,
+) -> str:
+    latest_sha = ""
+    for item in matching_history(path, repository, history_key, ref, engine):
         if str(item.get("result", "")).strip().upper() != "PASS":
             continue
         sha = str(item.get("resolved_sha", "")).strip().lower()
-        if not re.fullmatch(r"[0-9a-f]{40}", sha):
-            continue
-        recorded = str(item.get("recorded_at", ""))
-        if recorded >= latest_at:
-            latest_at = recorded
+        if re.fullmatch(r"[0-9a-f]{40}", sha):
             latest_sha = sha
     return latest_sha
+
+
+def recent_failure_bias(
+    path: str,
+    repository: str,
+    history_key: str,
+    ref: str,
+    engine: str,
+) -> int:
+    rows = matching_history(path, repository, history_key, ref, engine)[-20:]
+    bias = 0
+    consecutive_failures = 0
+    for item in rows:
+        result = str(item.get("result", "")).strip().upper()
+        if result == "FAIL":
+            bias += 3
+            consecutive_failures += 1
+        elif result == "PASS":
+            consecutive_failures = 0
+    if consecutive_failures:
+        bias += min(8, consecutive_failures * 2)
+    return min(25, bias)
 
 
 def self_test_history() -> None:
@@ -126,14 +175,32 @@ def self_test_history() -> None:
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "history.jsonl"
         rows = [
-            {"repository": "owner/app", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-02T00:00:00Z", "result": "FAIL", "resolved_sha": "b" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
+            {
+                "repository": "owner/app", "history_key": "main", "requested_ref": "main",
+                "engine": "flutter", "recorded_at": "2026-01-01T00:00:00Z",
+                "result": "PASS", "resolved_sha": "a" * 40,
+            },
+            {
+                "repository": "owner/app", "history_key": "beta", "requested_ref": "beta",
+                "engine": "flutter", "recorded_at": "2026-01-02T00:00:00Z",
+                "result": "PASS", "resolved_sha": "b" * 40,
+            },
+            {
+                "repository": "owner/app", "history_key": "main", "requested_ref": "main",
+                "engine": "flutter", "recorded_at": "2026-01-03T00:00:00Z",
+                "result": "FAIL", "resolved_sha": "c" * 40,
+            },
+            {
+                "repository": "owner/app", "history_key": "main", "requested_ref": "main",
+                "engine": "flutter", "recorded_at": "2026-01-04T00:00:00Z",
+                "result": "PASS", "resolved_sha": "d" * 40,
+            },
         ]
         path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
-        assert latest_history_sha(str(path), "owner/app") == "c" * 40
-        assert latest_history_sha(str(path), "owner/missing") == ""
-
+        assert latest_history_sha(str(path), "owner/app", "main", "main", "flutter") == "d" * 40
+        assert latest_history_sha(str(path), "owner/app", "beta", "beta", "flutter") == "b" * 40
+        assert latest_history_sha(str(path), "owner/app", "missing", "main", "flutter") == ""
+        assert recent_failure_bias(str(path), "owner/app", "main", "main", "flutter") >= 3
 
 def entry_fingerprint(entry: dict[str, Any]) -> str:
     normalized = {
@@ -167,6 +234,9 @@ def main() -> int:
     parser.add_argument("--flutter-matrix-output")
     parser.add_argument("--native-matrix-output")
     parser.add_argument("--auto-matrix-output")
+    parser.add_argument("--shadow-flutter-matrix-output")
+    parser.add_argument("--shadow-native-matrix-output")
+    parser.add_argument("--shadow-auto-matrix-output")
     parser.add_argument("--status-output")
     parser.add_argument("--history-file", default="")
     parser.add_argument("--only-repository", default="")
@@ -178,9 +248,13 @@ def main() -> int:
     if data.get("schema_version") != 1:
         raise SystemExit("Unsupported watchlist schema_version")
 
-    contract_fingerprint = compute_contract_fingerprint(
-        Path(__file__).resolve().parent.parent
-    )[:16]
+    contract_state = contract_manifest(Path(__file__).resolve().parent.parent)
+    full_contract_fingerprint = str(contract_state["full"])[:16]
+    core_contract_fingerprint = str(contract_state["core"])[:16]
+    domain_fingerprints = {
+        key: str(value)[:16]
+        for key, value in dict(contract_state["domains"]).items()
+    }
 
     entries = data.get("repositories")
     if not isinstance(entries, list):
@@ -224,6 +298,9 @@ def main() -> int:
     flutter_matrix: list[dict[str, Any]] = []
     native_matrix: list[dict[str, Any]] = []
     auto_matrix: list[dict[str, Any]] = []
+    shadow_flutter_matrix: list[dict[str, Any]] = []
+    shadow_native_matrix: list[dict[str, Any]] = []
+    shadow_auto_matrix: list[dict[str, Any]] = []
     status: list[dict[str, Any]] = []
 
     for entry in entries:
@@ -237,6 +314,35 @@ def main() -> int:
             continue
 
         config_fingerprint = entry_fingerprint(entry)
+        history_rows = matching_history(
+            args.history_file,
+            repository,
+            str(entry["key"]),
+            str(entry["ref"]),
+            engine,
+        )
+        latest_pass = next(
+            (row for row in reversed(history_rows) if str(row.get("result", "")).upper() == "PASS"),
+            None,
+        )
+        selected_domains: set[str] = {"visual"}
+        if latest_pass:
+            prior_plan = latest_pass.get("adaptive_plan")
+            if isinstance(prior_plan, dict):
+                prior_selected = prior_plan.get("selected_labs")
+                if isinstance(prior_selected, dict):
+                    selected_domains.update(
+                        lab for lab, enabled in prior_selected.items()
+                        if enabled and lab in domain_fingerprints
+                    )
+        if latest_pass:
+            domain_material = "|".join(
+                [core_contract_fingerprint]
+                + [f"{name}:{domain_fingerprints[name]}" for name in sorted(selected_domains)]
+            )
+            contract_fingerprint = hashlib.sha256(domain_material.encode()).hexdigest()[:16]
+        else:
+            contract_fingerprint = full_contract_fingerprint
         item_status: dict[str, Any] = {
             "key": entry["key"],
             "engine": engine,
@@ -247,7 +353,15 @@ def main() -> int:
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
-            previous_verified_sha = latest_history_sha(args.history_file, repository)
+            history_key = str(entry["key"])
+            ref = str(entry["ref"])
+            previous_verified_sha = latest_history_sha(
+                args.history_file, repository, history_key, ref, engine
+            )
+            history_risk_bias = recent_failure_bias(
+                args.history_file, repository, history_key, ref, engine
+            )
+            shadow_full_sample = int(hashlib.sha256(sha.encode()).hexdigest()[:8], 16) % 10 == 0
             cache_key = (
                 f"applab-c{contract_fingerprint}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
@@ -263,6 +377,8 @@ def main() -> int:
                     "cached": cached,
                     "scheduled": scheduled,
                     "previous_verified_sha": previous_verified_sha,
+                    "history_risk_bias": history_risk_bias,
+                    "shadow_full_sample": shadow_full_sample,
                 }
             )
             if scheduled:
@@ -271,6 +387,8 @@ def main() -> int:
                     "engine": engine,
                     "resolved_sha": sha,
                     "previous_verified_sha": previous_verified_sha,
+                    "history_risk_bias": history_risk_bias,
+                    "shadow_full_sample": shadow_full_sample,
                     "cache_epoch": cache_epoch,
                     "contract_fingerprint": contract_fingerprint,
                     "config_fingerprint": config_fingerprint,
@@ -282,6 +400,13 @@ def main() -> int:
                     native_matrix.append(resolved)
                 elif engine == "auto":
                     auto_matrix.append(resolved)
+                if shadow_full_sample:
+                    if engine == "flutter":
+                        shadow_flutter_matrix.append(resolved)
+                    elif engine == "native_android":
+                        shadow_native_matrix.append(resolved)
+                    elif engine == "auto":
+                        shadow_auto_matrix.append(resolved)
         except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
             item_status.update({"scheduled": False, "error": str(exc)})
         status.append(item_status)
@@ -290,6 +415,9 @@ def main() -> int:
     write_matrix(args.flutter_matrix_output, flutter_matrix)
     write_matrix(args.native_matrix_output, native_matrix)
     write_matrix(args.auto_matrix_output, auto_matrix)
+    write_matrix(args.shadow_flutter_matrix_output, shadow_flutter_matrix)
+    write_matrix(args.shadow_native_matrix_output, shadow_native_matrix)
+    write_matrix(args.shadow_auto_matrix_output, shadow_auto_matrix)
 
     if not args.matrix_output:
         print(json.dumps({"include": matrix}, separators=(",", ":")))
@@ -298,11 +426,14 @@ def main() -> int:
         "schema_version": 1,
         "force": args.force,
         "only_repository": only_repository,
-        "contract_fingerprint": contract_fingerprint,
+        "contract_fingerprint": full_contract_fingerprint,
+        "core_contract_fingerprint": core_contract_fingerprint,
+        "domain_fingerprints": domain_fingerprints,
         "scheduled_count": len(matrix),
         "flutter_scheduled_count": len(flutter_matrix),
         "native_scheduled_count": len(native_matrix),
         "auto_scheduled_count": len(auto_matrix),
+        "shadow_scheduled_count": len(shadow_flutter_matrix) + len(shadow_native_matrix) + len(shadow_auto_matrix),
         "repositories": status,
     }
 
