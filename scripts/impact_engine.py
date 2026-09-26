@@ -470,6 +470,7 @@ def main() -> int:
     ))
     plan["telemetry"] = {
         "planner_duration_ms": round((time.perf_counter() - started) * 1000, 2),
+        "plan_generated_unix_ms": int(time.time() * 1000),
         "changed_file_count": plan.get("changed_file_count", 0),
         "risk_score": plan.get("risk", {}).get("score", 0),
         "confidence": plan.get("confidence", 0),
