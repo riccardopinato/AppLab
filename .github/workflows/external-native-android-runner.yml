@@ -374,7 +374,10 @@ jobs:
           set -Eeuo pipefail
           mkdir -p "$GITHUB_WORKSPACE/applab-source"
           git -C "$GITHUB_WORKSPACE/target" archive             --format=tar             --output="$GITHUB_WORKSPACE/applab-source/target.tar"             "${{ steps.target.outputs.resolved_sha }}"
-          sha256sum "$GITHUB_WORKSPACE/applab-source/target.tar" > "$GITHUB_WORKSPACE/applab-source/target.tar.sha256"
+          (
+            cd "$GITHUB_WORKSPACE/applab-source"
+            sha256sum target.tar > target.tar.sha256
+          )
 
       - name: Upload exact preflight source snapshot
         if: steps.plan.outputs.run_build == 'true'
