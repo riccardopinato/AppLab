@@ -375,7 +375,7 @@ jobs:
           BASELINE_TRUSTED: ${{ inputs.baseline_trusted }}
         run: |
           set -Eeuo pipefail
-          START="$(date +%s)"
+          START="$(date +%s%3N)"
           TRUSTED_ARGS=()
           if [[ "$BASELINE_TRUSTED" == "true" ]]; then
             TRUSTED_ARGS+=(--baseline-trusted)
@@ -388,10 +388,10 @@ jobs:
             --output "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
             --github-output "$GITHUB_OUTPUT" \
             "${TRUSTED_ARGS[@]}"
-          END="$(date +%s)"
+          END="$(date +%s%3N)"
           python - "$GITHUB_WORKSPACE/applab-report/timings.json" "$START" "$END" <<'PY'
           import json,sys
-          json.dump({"planner_seconds":max(0,int(sys.argv[3])-int(sys.argv[2]))},open(sys.argv[1],"w"),indent=2)
+          json.dump({"planner_seconds":round(max(0,int(sys.argv[3])-int(sys.argv[2]))/1000.0,3)},open(sys.argv[1],"w"),indent=2)
           PY
 
       - name: Validate Android project
@@ -482,7 +482,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           set -o pipefail
-          START="$(date +%s)"
+          START="$(date +%s%3N)"
           CHOSEN="$COMBINED_GRADLE_COMMAND"
           if [[ -n "$TARGETED_GRADLE_COMMAND" ]]; then
             if bash -Eeuo pipefail -c "$TARGETED_GRADLE_COMMAND --dry-run" >"$RUNNER_TEMP/applab-gradle-targeted-dry-run.txt" 2>&1; then
@@ -495,13 +495,13 @@ jobs:
           fi
           bash -Eeuo pipefail -c "$CHOSEN" 2>&1 |
             tee "$GITHUB_WORKSPACE/applab-report/android-gradle-combined.txt"
-          END="$(date +%s)"
+          END="$(date +%s%3N)"
           python - "$GITHUB_WORKSPACE/applab-report/timings.json" "$START" "$END" <<'PY'
           import json,os,sys
           path,start,end=sys.argv[1],int(sys.argv[2]),int(sys.argv[3])
           try: data=json.load(open(path))
           except Exception: data={}
-          data["build_seconds"]=max(0,end-start)
+          data["build_seconds"]=round(max(0,end-start)/1000.0,3)
           json.dump(data,open(path,"w"),indent=2,sort_keys=True)
           PY
 
@@ -565,16 +565,16 @@ jobs:
         run: |
           set -Eeuo pipefail
           set -o pipefail
-          START="$(date +%s)"
+          START="$(date +%s%3N)"
           bash -Eeuo pipefail -c "$APPLAB_BUILD_COMMAND" 2>&1 |
             tee "$GITHUB_WORKSPACE/applab-report/android-build.txt"
-          END="$(date +%s)"
+          END="$(date +%s%3N)"
           python - "$GITHUB_WORKSPACE/applab-report/timings.json" "$START" "$END" <<'PY'
           import json,sys
           path,start,end=sys.argv[1],int(sys.argv[2]),int(sys.argv[3])
           try: data=json.load(open(path))
           except Exception: data={}
-          data["build_seconds"]=max(0,end-start)
+          data["build_seconds"]=round(max(0,end-start)/1000.0,3)
           json.dump(data,open(path,"w"),indent=2,sort_keys=True)
           PY
 
