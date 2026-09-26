@@ -1,4 +1,6 @@
-# AppLab v0.8.1 — Fast Analysis Engine & Smart Test Orchestration
+# AppLab v0.9.0 — Fast Analysis Engine & Smart Test Orchestration
+
+AppLab v0.9 keeps three explicit verification modes, while the Adaptive Impact Engine chooses a finer execution lane before expensive work. See `ADAPTIVE_IMPACT_ENGINE.md`.
 
 AppLab keeps three explicit verification modes:
 
