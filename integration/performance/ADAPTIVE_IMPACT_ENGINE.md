@@ -127,10 +127,14 @@ the original project commands.
 
 Repo Watcher restores central history. The planner inspects the last bounded
 history window and adds risk for previous FAIL/ERROR specialist-lab outcomes
-that are relevant to the current selected domains.
+that are relevant to the current selected domains. Historical evidence is
+scoped by repository, watcher history key and source ref; legacy rows that stored
+a pinned SHA as their ref are accepted only as a migration compatibility case.
 
 Manual runs without history remain valid: they simply receive no historical
-boost.
+boost. Successful NO_RUNTIME_CHANGE and STATIC_ONLY results are cached by the
+same resolved-SHA watcher identity as runtime results, avoiding repeated hourly
+analysis of an unchanged commit.
 
 ## Shadow FULL calibration
 
