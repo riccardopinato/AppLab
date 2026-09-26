@@ -148,6 +148,18 @@ HIGH_RISK_PATTERNS = (
     r"alarm",
 )
 
+# Distinct semantic categories carry different blast-radius weights. Applying a
+# category once per change-set avoids score inflation from many similar files,
+# while small schema/signing/build-identity changes still escalate safely.
+RISK_CATEGORIES: tuple[tuple[int, str, str], ...] = (
+    (65, r"(migration|schema|database|room|drift|sqlite)", "database/schema"),
+    (65, r"(applicationid|signing|keystore|proguard|(^|/)r8(?:\\.|/|$))", "release identity/security"),
+    (55, r"(androidmanifest\\.xml|minsdk|targetsdk|versioncode|gradle-wrapper|settings\\.gradle|build\\.gradle|gradle\\.properties|pubspec\\.ya?ml)", "platform/build contract"),
+    (40, r"(workmanager|worker|service|alarm|foreground.?service|notification)", "background/system"),
+    (32, r"(network|api|retrofit|dio|ktor|websocket|graphql|sync|connectivity)", "network/sync"),
+    (25, r"(router|navigation|deeplink|auth|login)", "navigation/auth"),
+)
+
 STATIC_ONLY_PATTERNS = (
     r"(^|/)test/",
     r"(^|/)tests/",
@@ -632,18 +644,26 @@ def _risk_and_confidence(
         score = 10
         reasons.append("static/test/CI-only change")
 
+    semantic_corpus_parts: list[str] = []
     for change in evidence.get("changes", []):
         path = str(change.get("path", "")).lower()
         status = str(change.get("status", "M"))
+        semantic_corpus_parts.append(path)
+        semantic_corpus_parts.extend(
+            str(signal).lower() for signal in change.get("content_signals", [])
+        )
         if status in {"D", "R"}:
             score += 4
             reasons.append(f"{status} change: {change.get('path')}")
-        if _matches(path, HIGH_RISK_PATTERNS):
-            score += 12
-            reasons.append(f"high-risk path: {change.get('path')}")
         signals = change.get("content_signals", [])
         if signals:
-            score += min(10, len(signals) * 2)
+            score += min(8, len(signals) * 2)
+
+    semantic_corpus = "\n".join(semantic_corpus_parts)
+    for points, pattern, label in RISK_CATEGORIES:
+        if re.search(pattern, semantic_corpus, re.IGNORECASE):
+            score += points
+            reasons.append(f"risk category: {label}")
 
     if churn >= 500:
         score += 8
@@ -1116,7 +1136,10 @@ def self_test() -> None:
         assert evidence["trusted_range"]
         assert "lib/db.dart" in evidence["changed_files"]
         plan = plan_from_repo(root, "fast", baseline, baseline_trusted=True)
-        assert plan["lane"] in {"FAST_RUNTIME", "FULL_RUNTIME"}
+        assert plan["lane"] == "FULL_RUNTIME"
+        assert plan["fallback_full"]
+        assert plan["risk"]["level"] in {"HIGH", "CRITICAL"}
+        assert any("database/schema" in reason for reason in plan["risk"]["reasons"])
         assert plan["dependency_graph"]["available"]
         assert "test/db_test.dart" in plan["dependency_graph"]["impacted_files"]
 
