@@ -1,6 +1,6 @@
 ## Network Lab active-connectivity hardening
 
-The Network & Offline Lab now derives validated Internet only from active `NetworkAgentInfo` state and the current default network. Stale `NetworkOffer`, request and listener records no longer count as active connectivity after airplane mode is enabled. The lab also stores dedicated offline/recovery Logcat evidence and distinguishes a real target ANR/fatal exception from a process that is simply absent.
+The Network & Offline Lab now derives validated Internet only from active `NetworkAgentInfo` state and the current default network. Stale `NetworkOffer`, request and listener records no longer count as active connectivity after airplane mode is enabled. The lab also stores dedicated offline/recovery Logcat evidence, distinguishes a real target ANR/fatal exception from process state, and requires bounded persistent PID absence before classifying an app as dead so a single transient `pidof` miss under emulator load cannot create a false failure.
 
 ## v0.8.1 — Certification Integrity & Release Artifact Hardening
 
