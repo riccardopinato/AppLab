@@ -342,7 +342,20 @@ def validate_plan(payload: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("invalid confidence")
     return payload
 
+def regression_corpus_test() -> None:
+    corpus_path = Path(__file__).resolve().parent.parent / "integration" / "performance" / "planner-regression-corpus.json"
+    payload = json.loads(corpus_path.read_text(encoding="utf-8"))
+    if payload.get("schema_version") != 1 or not isinstance(payload.get("cases"), list):
+        raise AssertionError("invalid planner regression corpus")
+    for case in payload["cases"]:
+        plan = classify(list(case.get("files", [])), "fast", "a" * 40)
+        assert plan["lane"] == case["lane"], f"{case['name']}: lane {plan['lane']}"
+        for lab in case.get("labs", []):
+            assert plan["selected_labs"].get(lab), f"{case['name']}: expected {lab}"
+
+
 def self_test() -> None:
+    regression_corpus_test()
     docs = classify(["README.md"], "fast", "a"*40)
     assert docs["lane"] == "NO_RUNTIME_CHANGE"
     db = classify(["app/src/main/java/x/AppDatabase.kt"], "fast", "a"*40)
