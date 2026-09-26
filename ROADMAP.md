@@ -22,6 +22,7 @@ publish a certified release artifact.
 
 ### v0.9.0 — Adaptive Impact Analysis & Incremental Verification
 
+- [x] Harden Configuration/Lifecycle background-return checks: allow one bounded cold relaunch when Android reclaims the process after foreground transition, while still failing on target ANR/fatal evidence.
 - [x] Move impact planning before expensive analyze/test/build/runtime work.
 - [x] Add five lanes: NO_RUNTIME_CHANGE, STATIC_ONLY, FAST_RUNTIME,
   FULL_RUNTIME and CERTIFICATION.

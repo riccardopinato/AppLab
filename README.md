@@ -1,3 +1,12 @@
+## Configuration/Lifecycle transient process-loss recovery
+
+The Configuration & Lifecycle Stress Lab now distinguishes an Android-allowed
+background process reclaim from a crash. During a foreground-return stage, if
+the process disappears after an initially successful foreground transition, the
+lab performs one bounded cold relaunch and re-captures the stage. ANR/fatal
+Logcat evidence still fails closed, so this recovery removes a timing race
+without masking application crashes.
+
 ## v0.9.0 — Adaptive Impact Analysis & Incremental Verification Engine
 
 AppLab v0.9 moves the verification decision **before** expensive static analysis,

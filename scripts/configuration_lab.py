@@ -251,9 +251,23 @@ def snapshot_stage(
     report_dir: Path,
     name: str,
     config: dict[str, Any],
+    *,
+    recover_process_loss: bool = False,
 ) -> tuple[dict[str, Any], list[Finding]]:
     ui = dump_ui(report_dir, name)
     size = capture_png(report_dir, name)
+    recovered_pid = ""
+    if recover_process_loss and not pid_of(package_id):
+        # Android may legitimately reclaim a background process immediately
+        # after the first foreground transition. Treat one successful cold
+        # relaunch as lifecycle recovery, not as an application failure. Fatal
+        # exceptions/ANRs remain visible in Logcat and still fail closed below.
+        recovered_pid = launch(package_id, timeout=15.0)
+        if recovered_pid:
+            time.sleep(config["settle_seconds"])
+            ui = dump_ui(report_dir, name)
+            size = capture_png(report_dir, name)
+
     unhealthy = runtime_unhealthy(package_id)
     findings: list[Finding] = []
     if unhealthy:
@@ -283,6 +297,8 @@ def snapshot_stage(
         "screenshot_height": size[1],
         "ui_hierarchy_captured": bool(ui),
         "runtime_unhealthy_reason": unhealthy or None,
+        "recovered_after_process_loss": bool(recovered_pid),
+        "recovered_pid": recovered_pid or None,
     }, findings
 
 
@@ -300,7 +316,7 @@ def evaluate(
     if not config["enabled"]:
         return {
             "schema_version": 1,
-            "configuration_lab_version": "0.7.7",
+            "configuration_lab_version": "0.7.7.1",
             "result": "SKIPPED",
             "package_id": package_id,
             "config": config,
@@ -348,7 +364,11 @@ def evaluate(
             foreground_pid = launch(package_id)
             time.sleep(config["settle_seconds"])
             stage, extra = snapshot_stage(
-                package_id, report_dir, f"config-foreground-{cycle}", config
+                package_id,
+                report_dir,
+                f"config-foreground-{cycle}",
+                config,
+                recover_process_loss=True,
             )
             stage["background_pid"] = background_pid
             stage["foreground_pid"] = foreground_pid
