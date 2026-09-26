@@ -1,3 +1,15 @@
+## v0.9.0 — Adaptive Impact Analysis & Incremental Verification
+
+AppLab v0.9 moves change-impact planning before expensive analyze/test/build/emulator work. It classifies each change into `NO_RUNTIME_CHANGE`, `STATIC_ONLY`, `FAST_RUNTIME`, `FULL_RUNTIME` or `CERTIFICATION`, then uses deterministic risk + confidence to choose the minimum safe work. Missing or unsafe evidence always escalates to FULL.
+
+FAST now uses change status/churn, module/import context and recent failures for the same target identity. Flutter can run bounded targeted analyze/tests; native Android can merge compatible test/lint/build work into one Gradle task graph. Documentation/static-only commits can skip APK/emulator work while emitting an explicit result where runtime labs remain `SKIPPED`, never fake PASS.
+
+A deterministic FAST sample runs as shadow FULL. AppLab preserves the original FAST prediction and compares skipped predictions with actual FULL outcomes; a false-negative is recorded as a critical calibration failure. Trusted runtime also reuses a pinned Maestro cache and a clean pre-app AVD snapshot.
+
+Verification cache invalidation is domain-scoped: results record `core + selected labs` and their contract fingerprint, so unrelated lab implementation changes no longer invalidate an already verified SHA. Control Center exposes lane, risk, confidence and shadow state.
+
+See `integration/performance/ADAPTIVE_IMPACT_ENGINE.md` and `ROADMAP.md`.
+
 ## v0.8.1 — Certification Integrity & Release Artifact Hardening
 
 AppLab v0.8.1 closes the release-integrity gaps found in the v0.8.0 audit. Production Certification now routes auto-discovered projects through an explicit **RELEASE** build profile, rejects DEBUG artifacts and Android Debug certificates, records the signing-certificate SHA-256, and can enforce an expected production signer from project policy.
