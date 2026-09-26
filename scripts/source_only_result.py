@@ -41,6 +41,17 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
         else "Only static/test/CI surfaces changed; targeted static verification passed and no APK runtime was required."
     )
 
+    timings: dict[str, Any] = {}
+    timings_path = report_dir / "timings.json"
+    if timings_path.is_file():
+        try:
+            loaded_timings = json.loads(timings_path.read_text(encoding="utf-8"))
+            if isinstance(loaded_timings, dict):
+                timings = loaded_timings
+        except (json.JSONDecodeError, OSError):
+            timings = {}
+    timings["total_seconds"] = float(timings.get("planner_seconds", 0) or 0)
+
     payload = {
         "schema_version": 2,
         "applab_version": APPLAB_VERSION,
@@ -67,6 +78,7 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
             plan.get("selected_labs", {}),
         )[:16],
         "shadow_calibration": {},
+        "timings": timings,
         "certification_status": "NOT_REQUESTED",
         "release": {},
         "maestro": "SKIPPED",
