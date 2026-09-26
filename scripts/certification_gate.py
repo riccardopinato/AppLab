@@ -5,11 +5,13 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 APPLAB_VERSION = "0.8.0"
+MAX_CERTIFIED_APK_BYTES = 600 * 1024 * 1024
 
 STRICT_GATES: tuple[tuple[str, str], ...] = (
     ("maestro", "Maestro acceptance"),
@@ -125,10 +127,60 @@ def evaluate(
             }
         )
 
+    repository = str(contract.get("repository", "")).strip()
+    resolved_sha = str(contract.get("resolved_sha", "")).strip().lower()
+    engine = str(contract.get("engine", "")).strip()
+    if not repository:
+        blockers.append({"gate": "source_repository", "label": "Source repository", "observed": "MISSING"})
+    if not re.fullmatch(r"[0-9a-f]{40}", resolved_sha):
+        blockers.append({"gate": "source_commit", "label": "Resolved source commit", "observed": resolved_sha or "MISSING"})
+    if engine not in {"flutter", "native_android"}:
+        blockers.append({"gate": "source_engine", "label": "Build engine", "observed": engine or "MISSING"})
+
+    quality = contract.get("quality_evidence")
+    if not isinstance(quality, dict):
+        quality = {}
+    required_quality = (
+        ("analyze", "Static analysis"),
+        ("unit_tests", "Unit tests"),
+        ("build", "APK build"),
+    ) if engine == "flutter" else (
+        ("lint", "Android lint"),
+        ("unit_tests", "Unit tests"),
+        ("build", "APK build"),
+    )
+    for key, label in required_quality:
+        observed = str(quality.get(key, "")).strip().upper()
+        if observed == "PASS":
+            continue
+        finding = {"gate": f"build_{key}", "label": label, "observed": observed or "MISSING"}
+        if observed in FAIL_STATES:
+            failures.append(finding)
+        else:
+            blockers.append(finding)
+
     for key, label in STRICT_GATES:
         classify_gate(key, label, result.get(key), failures, blockers)
 
-    expected_hash = str(contract.get("apk", {}).get("sha256", "")).strip().lower()
+    apk_contract = contract.get("apk")
+    if not isinstance(apk_contract, dict):
+        apk_contract = {}
+    expected_hash = str(apk_contract.get("sha256", "")).strip().lower()
+    apk_size = int(apk_contract.get("size_bytes", 0) or 0)
+    package_id = str(apk_contract.get("package_id", "") or contract.get("package_id", "")).strip()
+    version_name = str(apk_contract.get("version_name", "")).strip()
+    version_code = str(apk_contract.get("version_code", "")).strip()
+    if not package_id:
+        blockers.append({"gate": "apk_package", "label": "APK package id", "observed": "MISSING"})
+    if not version_name:
+        blockers.append({"gate": "apk_version_name", "label": "APK version name", "observed": "MISSING"})
+    if not version_code:
+        blockers.append({"gate": "apk_version_code", "label": "APK version code", "observed": "MISSING"})
+    if apk_size <= 0:
+        blockers.append({"gate": "apk_size", "label": "APK size audit", "observed": "MISSING"})
+    elif apk_size > MAX_CERTIFIED_APK_BYTES:
+        failures.append({"gate": "apk_size", "label": "APK size audit", "observed": f"{apk_size}_BYTES_EXCEEDS_LIMIT"})
+
     actual_hash = ""
     if not source_apk.is_file():
         blockers.append(
@@ -164,6 +216,9 @@ def evaluate(
     else:
         status = "CERTIFIED"
 
+    controls = {key: str(result.get(key, "") or "MISSING").upper() for key, _ in STRICT_GATES}
+    controls["trusted_runtime"] = runtime_result or "MISSING"
+
     return {
         "schema_version": 1,
         "applab_version": APPLAB_VERSION,
@@ -174,6 +229,31 @@ def evaluate(
         "runtime_result": runtime_result or "MISSING",
         "failures": failures,
         "blockers": blockers,
+        "source": {
+            "repository": repository,
+            "resolved_sha": resolved_sha,
+            "engine": engine,
+        },
+        "build_quality": {
+            "checks": quality,
+            "required": [key for key, _ in required_quality],
+        },
+        "apk": {
+            "package_id": package_id,
+            "version_name": version_name,
+            "version_code": version_code,
+            "size_bytes": apk_size,
+            "max_certified_size_bytes": MAX_CERTIFIED_APK_BYTES,
+            "size_audit": "PASS" if 0 < apk_size <= MAX_CERTIFIED_APK_BYTES else "FAIL",
+            "sha256": actual_hash,
+            "expected_sha256": expected_hash,
+        },
+        "applab_controls": controls,
+        "real_device": {
+            "status": "NOT_TESTED",
+            "required": False,
+            "reason": "Hosted CI certification uses the controlled Android emulator lane; physical-device evidence must be attached separately when a project requires it.",
+        },
         "apk_sha256": actual_hash,
         "expected_apk_sha256": expected_hash,
         "matrix": [
@@ -209,9 +289,27 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"API {lane['api_level']} / {lane['emulator_profile']} / "
             f"{lane['target']} / {lane['arch']}"
         ),
+        f"- Repository: {report.get('source', {}).get('repository') or 'unknown'}",
+        f"- Commit: {report.get('source', {}).get('resolved_sha') or 'unknown'}",
+        f"- Engine: {report.get('source', {}).get('engine') or 'unknown'}",
+        f"- APK: {report.get('apk', {}).get('package_id') or 'unknown'} "
+        f"{report.get('apk', {}).get('version_name') or '?'} "
+        f"({report.get('apk', {}).get('version_code') or '?'})",
+        f"- APK size: {report.get('apk', {}).get('size_bytes') or 0} bytes "
+        f"[{report.get('apk', {}).get('size_audit') or 'UNKNOWN'}]",
         f"- APK SHA-256: {report.get('apk_sha256') or 'unavailable'}",
+        f"- Real device: {report.get('real_device', {}).get('status', 'UNKNOWN')}",
+        "",
+        "## Build quality",
         "",
     ]
+    for key, value in report.get("build_quality", {}).get("checks", {}).items():
+        required = "required" if key in report.get("build_quality", {}).get("required", []) else "supporting"
+        lines.append(f"- {key}: **{value}** ({required})")
+    lines.extend(["", "## AppLab controls", ""])
+    for key, value in report.get("applab_controls", {}).items():
+        lines.append(f"- {key}: **{value}**")
+    lines.append("")
 
     if report["failures"]:
         lines.extend(["## Failures", ""])
@@ -274,6 +372,8 @@ def apply_to_result(
         evidence = {}
     evidence["certification_json"] = "certification.json"
     evidence["certification_summary"] = "certification.md"
+    evidence["evidence_bundle_json"] = "evidence-bundle.json"
+    evidence["evidence_bundle_summary"] = "evidence-bundle.md"
     result["evidence"] = evidence
     write_json(result_path, result)
     return result
@@ -293,7 +393,22 @@ def self_test() -> None:
         apk.write_bytes(b"certified-apk")
         contract = {
             "analysis_mode": "certification",
-            "apk": {"sha256": sha256(apk)},
+            "repository": "owner/repo",
+            "resolved_sha": "a" * 40,
+            "engine": "flutter",
+            "quality_evidence": {
+                "analyze": "PASS",
+                "lint": "N/A",
+                "unit_tests": "PASS",
+                "build": "PASS",
+            },
+            "apk": {
+                "sha256": sha256(apk),
+                "size_bytes": apk.stat().st_size,
+                "package_id": "com.example.app",
+                "version_name": "1.0.0",
+                "version_code": "1",
+            },
         }
 
         certified = evaluate(
@@ -348,8 +463,8 @@ def self_test() -> None:
         assert blocked_mode["status"] == "BLOCKED"
 
         bad_contract = {
-            "analysis_mode": "certification",
-            "apk": {"sha256": "0" * 64},
+            **contract,
+            "apk": {**contract["apk"], "sha256": "0" * 64},
         }
         mismatch = evaluate(
             pass_result,
@@ -430,6 +545,8 @@ def main() -> int:
 
     write_json(report_dir / "certification.json", report)
     write_markdown(report_dir / "certification.md", report)
+    write_json(report_dir / "evidence-bundle.json", report)
+    write_markdown(report_dir / "evidence-bundle.md", report)
     apply_to_result(result_path, report)
 
     github_output("status", report["status"])
