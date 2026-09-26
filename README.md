@@ -32,6 +32,12 @@ compared with the complete runtime result, producing explicit divergence and
 false-negative evidence. Pipeline metrics record planner latency, change/impact
 size, selected-lab count, quality-stage timings and shadow calibration results.
 
+The dependency blast-radius pass is also process-efficient: it reads bounded
+tracked source files directly from the already checked-out target instead of
+spawning up to thousands of per-file `git show` subprocesses. Files are capped
+at 256 KiB, symlinks/out-of-root paths are ignored, and the existing 5,000-file
+/ 200-impact bounds remain intact.
+
 Runtime startup is also optimized without weakening isolation: Maestro 2.10.0
 is cached by pinned version, while Android verification restores a clean AVD
 cache generated in a separate preparation job. Verification jobs restore but do
