@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,31 @@ def read_text(path: Path) -> str:
 
 def files_under(root: Path, names: set[str] | None = None) -> list[Path]:
     result: list[Path] = []
+
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "ls-files"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError):
+        completed = None
+
+    if completed is not None and completed.returncode == 0:
+        for raw in completed.stdout.splitlines():
+            rel = raw.strip().replace("\\", "/")
+            if not rel:
+                continue
+            path = root / rel
+            if any(part in IGNORED_DIRS for part in path.parts):
+                continue
+            if path.is_file() and (names is None or path.name in names):
+                result.append(path)
+        return result
+
     for path in root.rglob("*"):
         if any(part in IGNORED_DIRS for part in path.parts):
             continue
