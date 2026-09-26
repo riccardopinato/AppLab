@@ -43,12 +43,17 @@ def compare(plan: dict[str, Any], fast: dict[str, Any], full: dict[str, Any]) ->
         if fast_selected and full_state == "PASS":
             over_selected_labs.append(lab)
 
+    runtime_divergence = (
+        str(fast.get("result", "")).upper() == "PASS"
+        and str(full.get("result", "")).upper() in {"FAIL", "ERROR"}
+    )
     result = {
         "schema_version": 1,
         "performed": True,
         "comparable_labs": comparable,
-        "false_negatives": len(false_negative_labs),
+        "false_negatives": len(false_negative_labs) + int(runtime_divergence and not false_negative_labs),
         "false_negative_labs": false_negative_labs,
+        "runtime_divergence": runtime_divergence,
         "over_selection": len(over_selected_labs),
         "over_selected_labs": over_selected_labs,
         "fast_result": fast.get("result", "UNKNOWN"),
@@ -62,10 +67,10 @@ def apply(main_result: Path, calibration: dict[str, Any]) -> None:
     payload["shadow_calibration"] = calibration
     if calibration["false_negatives"]:
         payload["result"] = "FAIL"
+        detail = ", ".join(calibration["false_negative_labs"]) or "FULL runtime/core divergence"
         payload["reason"] = (
-            "FAST shadow calibration discovered a specialist failure that the "
-            "selected FAST plan would have skipped: "
-            + ", ".join(calibration["false_negative_labs"])
+            "FAST shadow calibration discovered a failure not represented by "
+            "the FAST verdict: " + detail
         )
     main_result.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
