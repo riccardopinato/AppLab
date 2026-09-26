@@ -22,6 +22,10 @@ on:
       - "scripts/background_lab.py"
       - "scripts/storage_lab.py"
       - "scripts/smart_test_plan.py"
+      - "scripts/non_runtime_result.py"
+      - "scripts/shadow_calibration.py"
+      - "scripts/attach_shadow_results.py"
+      - "scripts/analysis_telemetry.py"
       - "scripts/upgrade_lab.py"
       - "scripts/prepare_upgrade_baseline.py"
       - "scripts/prepare_performance_baseline.py"
@@ -71,6 +75,12 @@ jobs:
       flutter_matrix: ${{ steps.matrix.outputs.flutter_matrix }}
       native_matrix: ${{ steps.matrix.outputs.native_matrix }}
       auto_matrix: ${{ steps.matrix.outputs.auto_matrix }}
+      shadow_flutter_matrix: ${{ steps.matrix.outputs.shadow_flutter_matrix }}
+      shadow_native_matrix: ${{ steps.matrix.outputs.shadow_native_matrix }}
+      shadow_auto_matrix: ${{ steps.matrix.outputs.shadow_auto_matrix }}
+      has_shadow_flutter_work: ${{ steps.matrix.outputs.has_shadow_flutter_work }}
+      has_shadow_native_work: ${{ steps.matrix.outputs.has_shadow_native_work }}
+      has_shadow_auto_work: ${{ steps.matrix.outputs.has_shadow_auto_work }}
       has_flutter_work: ${{ steps.matrix.outputs.has_flutter_work }}
       has_native_work: ${{ steps.matrix.outputs.has_native_work }}
       has_auto_work: ${{ steps.matrix.outputs.has_auto_work }}
@@ -114,6 +124,9 @@ jobs:
             --flutter-matrix-output "$RUNNER_TEMP/flutter-matrix.json"
             --native-matrix-output "$RUNNER_TEMP/native-matrix.json"
             --auto-matrix-output "$RUNNER_TEMP/auto-matrix.json"
+            --shadow-flutter-matrix-output "$RUNNER_TEMP/shadow-flutter-matrix.json"
+            --shadow-native-matrix-output "$RUNNER_TEMP/shadow-native-matrix.json"
+            --shadow-auto-matrix-output "$RUNNER_TEMP/shadow-auto-matrix.json"
             --status-output "$GITHUB_WORKSPACE/watch-discovery.json"
             --history-file "$GITHUB_WORKSPACE/.applab-history/history.jsonl"
           )
@@ -129,14 +142,23 @@ jobs:
           FLUTTER_MATRIX="$(cat "$RUNNER_TEMP/flutter-matrix.json")"
           NATIVE_MATRIX="$(cat "$RUNNER_TEMP/native-matrix.json")"
           AUTO_MATRIX="$(cat "$RUNNER_TEMP/auto-matrix.json")"
+          SHADOW_FLUTTER_MATRIX="$(cat "$RUNNER_TEMP/shadow-flutter-matrix.json")"
+          SHADOW_NATIVE_MATRIX="$(cat "$RUNNER_TEMP/shadow-native-matrix.json")"
+          SHADOW_AUTO_MATRIX="$(cat "$RUNNER_TEMP/shadow-auto-matrix.json")"
           FLUTTER_COUNT="$(python -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["include"]))' "$RUNNER_TEMP/flutter-matrix.json")"
           NATIVE_COUNT="$(python -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["include"]))' "$RUNNER_TEMP/native-matrix.json")"
           AUTO_COUNT="$(python -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["include"]))' "$RUNNER_TEMP/auto-matrix.json")"
+          SHADOW_FLUTTER_COUNT="$(python -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["include"]))' "$RUNNER_TEMP/shadow-flutter-matrix.json")"
+          SHADOW_NATIVE_COUNT="$(python -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["include"]))' "$RUNNER_TEMP/shadow-native-matrix.json")"
+          SHADOW_AUTO_COUNT="$(python -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["include"]))' "$RUNNER_TEMP/shadow-auto-matrix.json")"
           COUNT=$((FLUTTER_COUNT + NATIVE_COUNT + AUTO_COUNT))
 
           echo "flutter_matrix=$FLUTTER_MATRIX" >> "$GITHUB_OUTPUT"
           echo "native_matrix=$NATIVE_MATRIX" >> "$GITHUB_OUTPUT"
           echo "auto_matrix=$AUTO_MATRIX" >> "$GITHUB_OUTPUT"
+          echo "shadow_flutter_matrix=$SHADOW_FLUTTER_MATRIX" >> "$GITHUB_OUTPUT"
+          echo "shadow_native_matrix=$SHADOW_NATIVE_MATRIX" >> "$GITHUB_OUTPUT"
+          echo "shadow_auto_matrix=$SHADOW_AUTO_MATRIX" >> "$GITHUB_OUTPUT"
           echo "scheduled_count=$COUNT" >> "$GITHUB_OUTPUT"
 
           [[ "$FLUTTER_COUNT" -gt 0 ]] &&
@@ -150,6 +172,16 @@ jobs:
           [[ "$AUTO_COUNT" -gt 0 ]] &&
             echo "has_auto_work=true" >> "$GITHUB_OUTPUT" ||
             echo "has_auto_work=false" >> "$GITHUB_OUTPUT"
+
+          [[ "$SHADOW_FLUTTER_COUNT" -gt 0 ]] &&
+            echo "has_shadow_flutter_work=true" >> "$GITHUB_OUTPUT" ||
+            echo "has_shadow_flutter_work=false" >> "$GITHUB_OUTPUT"
+          [[ "$SHADOW_NATIVE_COUNT" -gt 0 ]] &&
+            echo "has_shadow_native_work=true" >> "$GITHUB_OUTPUT" ||
+            echo "has_shadow_native_work=false" >> "$GITHUB_OUTPUT"
+          [[ "$SHADOW_AUTO_COUNT" -gt 0 ]] &&
+            echo "has_shadow_auto_work=true" >> "$GITHUB_OUTPUT" ||
+            echo "has_shadow_auto_work=false" >> "$GITHUB_OUTPUT"
 
       - name: Discovery summary
         shell: bash
@@ -167,6 +199,7 @@ jobs:
           print(f"- Flutter: {data.get('flutter_scheduled_count', 0)}")
           print(f"- Native Android: {data.get('native_scheduled_count', 0)}")
           print(f"- Auto: {data.get('auto_scheduled_count', 0)}")
+          print(f"- Shadow FULL samples: {data.get('shadow_scheduled_count', 0)}")
           print(f"- Contract: `{data.get('contract_fingerprint', 'unknown')}`")
           print()
           print("| Engine | Repository | SHA | State |")
@@ -229,6 +262,7 @@ jobs:
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
+      history_risk_bias: ${{ matrix.history_risk_bias }}
 
   verify_native:
     name: Native Android ${{ matrix.repository }}
@@ -265,6 +299,7 @@ jobs:
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
+      history_risk_bias: ${{ matrix.history_risk_bias }}
 
   verify_auto:
     name: Auto ${{ matrix.repository }}
@@ -285,11 +320,105 @@ jobs:
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
+      history_risk_bias: ${{ matrix.history_risk_bias }}
+
+  shadow_flutter:
+    name: Shadow FULL Flutter ${{ matrix.repository }}
+    if: needs.discover.outputs.has_shadow_flutter_work == 'true'
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.shadow_flutter_matrix) }}
+    uses: ./.github/workflows/external-project-runner.yml
+    with:
+      repository: ${{ matrix.repository }}
+      ref: ${{ matrix.resolved_sha }}
+      working_directory: ${{ matrix.working_directory }}
+      flutter_channel: ${{ matrix.flutter_channel }}
+      flutter_version: ${{ matrix.flutter_version }}
+      java_version: ${{ matrix.java_version }}
+      prepare_command: ${{ matrix.prepare_command }}
+      post_pub_get_command: ${{ matrix.post_pub_get_command }}
+      android_prepare_command: ${{ matrix.android_prepare_command }}
+      api_level: ${{ matrix.api_level }}
+      emulator_profile: ${{ matrix.emulator_profile }}
+      apk_path: ${{ matrix.apk_path }}
+      package_id: ${{ matrix.package_id }}
+      build_command: ${{ matrix.build_command }}
+      run_flutter_tests: ${{ matrix.run_flutter_tests }}
+      run_maestro: ${{ matrix.run_maestro }}
+      maestro_flow: ${{ matrix.maestro_flow }}
+      history_key: ${{ matrix.key }}-shadow
+      cache_verification: false
+      contract_fingerprint: ${{ matrix.contract_fingerprint }}
+      config_fingerprint: ${{ matrix.config_fingerprint }}
+      analysis_mode: full
+      baseline_sha: ""
+      history_risk_bias: 0
+      publish_release_artifact: false
+
+  shadow_native:
+    name: Shadow FULL Native ${{ matrix.repository }}
+    if: needs.discover.outputs.has_shadow_native_work == 'true'
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.shadow_native_matrix) }}
+    uses: ./.github/workflows/external-native-android-runner.yml
+    with:
+      repository: ${{ matrix.repository }}
+      ref: ${{ matrix.resolved_sha }}
+      working_directory: ${{ matrix.working_directory }}
+      java_version: ${{ matrix.java_version }}
+      gradle_version: ${{ matrix.gradle_version }}
+      compile_sdk: ${{ matrix.compile_sdk }}
+      build_tools: ${{ matrix.build_tools }}
+      prepare_command: ${{ matrix.prepare_command }}
+      test_command: ${{ matrix.test_command }}
+      lint_command: ${{ matrix.lint_command }}
+      build_command: ${{ matrix.build_command }}
+      apk_path: ${{ matrix.apk_path }}
+      package_id: ${{ matrix.package_id }}
+      verify_signature: ${{ matrix.verify_signature }}
+      android_prepare_command: ${{ matrix.android_prepare_command }}
+      api_level: ${{ matrix.api_level }}
+      emulator_profile: ${{ matrix.emulator_profile }}
+      run_maestro: ${{ matrix.run_maestro }}
+      maestro_flow: ${{ matrix.maestro_flow }}
+      history_key: ${{ matrix.key }}-shadow
+      cache_verification: false
+      contract_fingerprint: ${{ matrix.contract_fingerprint }}
+      config_fingerprint: ${{ matrix.config_fingerprint }}
+      analysis_mode: full
+      baseline_sha: ""
+      history_risk_bias: 0
+      publish_release_artifact: false
+
+  shadow_auto:
+    name: Shadow FULL Auto ${{ matrix.repository }}
+    if: needs.discover.outputs.has_shadow_auto_work == 'true'
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.shadow_auto_matrix) }}
+    uses: ./.github/workflows/universal-project-runner.yml
+    with:
+      repository: ${{ matrix.repository }}
+      ref: ${{ matrix.resolved_sha }}
+      run_maestro: true
+      history_key: ${{ matrix.key }}-shadow
+      cache_verification: false
+      contract_fingerprint: ${{ matrix.contract_fingerprint }}
+      config_fingerprint: ${{ matrix.config_fingerprint }}
+      analysis_mode: full
+      baseline_sha: ""
+      history_risk_bias: 0
+      publish_release_artifact: false
 
   aggregate:
     name: Update central watcher history
     if: always()
-    needs: [discover, verify_flutter, verify_native, verify_auto]
+    needs: [discover, verify_flutter, verify_native, verify_auto, shadow_flutter, shadow_native, shadow_auto]
     runs-on: ubuntu-latest
 
     steps:
@@ -307,10 +436,19 @@ jobs:
       - name: Download current watcher reports
         uses: actions/download-artifact@v8
         with:
-          pattern: applab-watch-*
+          pattern: applab-*-${{ github.run_id }}
           path: watch-results
           merge-multiple: false
         continue-on-error: true
+
+      - name: Attach shadow FULL calibration
+        shell: bash
+        run: |
+          python scripts/attach_shadow_results.py \
+            --results-dir watch-results \
+            --run-id "$GITHUB_RUN_ID" \
+            --output-summary shadow-calibration-summary.json
+          cat shadow-calibration-summary.json >> "$GITHUB_STEP_SUMMARY"
 
       - name: Aggregate current results
         shell: bash
@@ -326,6 +464,9 @@ jobs:
             --watchlist watchlist.json \
             --history-file .applab-history/history.jsonl \
             --output .applab-history/control-center.json
+          python scripts/analysis_telemetry.py \
+            --history .applab-history/history.jsonl \
+            --output .applab-history/adaptive-telemetry.json
           cat watch-summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save central history
@@ -344,5 +485,7 @@ jobs:
             watch-summary.md
             .applab-history/history.jsonl
             .applab-history/control-center.json
+            .applab-history/adaptive-telemetry.json
+            shadow-calibration-summary.json
           if-no-files-found: warn
           retention-days: 90
