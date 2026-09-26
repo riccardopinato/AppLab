@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "name": "docs-only",
+      "files": [
+        "README.md"
+      ],
+      "lane": "NO_RUNTIME_CHANGE",
+      "labs": []
+    },
+    {
+      "name": "test-only",
+      "files": [
+        "test/features/home_test.dart"
+      ],
+      "lane": "STATIC_ONLY",
+      "labs": []
+    },
+    {
+      "name": "manifest-permission",
+      "files": [
+        "app/src/main/AndroidManifest.xml"
+      ],
+      "lane": "FAST_RUNTIME",
+      "labs": [
+        "system",
+        "upgrade",
+        "performance"
+      ]
+    },
+    {
+      "name": "network-client",
+      "files": [
+        "lib/data/api_client.dart"
+      ],
+      "lane": "FAST_RUNTIME",
+      "labs": [
+        "network",
+        "configuration",
+        "performance"
+      ]
+    },
+    {
+      "name": "background-worker",
+      "files": [
+        "app/src/main/java/com/example/SyncWorker.kt"
+      ],
+      "lane": "FAST_RUNTIME",
+      "labs": [
+        "background",
+        "resource_pressure",
+        "performance"
+      ]
+    },
+    {
+      "name": "notification-service",
+      "files": [
+        "app/src/main/java/com/example/NotificationService.kt"
+      ],
+      "lane": "FAST_RUNTIME",
+      "labs": [
+        "system",
+        "background",
+        "resource_pressure",
+        "performance"
+      ]
+    },
+    {
+      "name": "database-migration",
+      "files": [
+        "app/src/main/java/com/example/Migration_4_5.kt"
+      ],
+      "lane": "FAST_RUNTIME",
+      "labs": [
+        "persistence",
+        "storage",
+        "upgrade",
+        "performance"
+      ]
+    },
+    {
+      "name": "flutter-ui",
+      "files": [
+        "lib/features/home/home_page.dart"
+      ],
+      "lane": "FAST_RUNTIME",
+      "labs": [
+        "configuration",
+        "performance"
+      ]
+    },
+    {
+      "name": "pubspec-dependency",
+      "files": [
+        "pubspec.yaml"
+      ],
+      "lane": "FAST_RUNTIME",
+      "labs": [
+        "performance",
+        "upgrade"
+      ]
+    },
+    {
+      "name": "gradle-build-config",
+      "files": [
+        "app/build.gradle.kts"
+      ],
+      "lane": "FAST_RUNTIME",
+      "labs": [
+        "performance",
+        "upgrade"
+      ]
+    }
+  ]
+}
