@@ -415,6 +415,11 @@ jobs:
           python .applab/scripts/verification_telemetry.py merge \
             --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" \
             --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json"
+          python .applab/scripts/domain_fingerprint.py \
+            --root "$GITHUB_WORKSPACE/.applab" \
+            --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
+            --output "$GITHUB_WORKSPACE/applab-report/domain-fingerprints.json" \
+            --github-output "$GITHUB_OUTPUT"
           python .applab/scripts/verification_telemetry.py mark \
             --file "$GITHUB_WORKSPACE/applab-report/telemetry.json" \
             --phase preflight --event end
@@ -567,7 +572,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: .applab-watch-cache
-          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
+          key: applab-c${{ steps.preflight.outputs.selected_contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
 
       - name: Tune Gradle memory for hosted build
         if: steps.preflight.outputs.runtime_changed == 'true'
