@@ -47,7 +47,9 @@ publish a certified release artifact.
 - [x] Add pinned Maestro cache.
 - [x] Add per-domain verification fingerprints.
 - [x] Add adaptive metrics: planner latency, changed/impacted files, selected
-  labs, quality timings and shadow divergence.
+  labs, quality/runtime timings, AVD/Maestro cache hits and shadow divergence.
+- [x] Aggregate p50/p95 planner, quality, runtime and observed pipeline latency
+  from central history and expose them in Control Center.
 - [x] Surface lane/risk/confidence in watcher history and Control Center.
 - [x] Prefer `git ls-files` for project auto-discovery.
 - [x] Keep Universal Runner discovery checkout separate from target build
@@ -134,8 +136,8 @@ These are explicit engineering boundaries, not hidden assumptions:
 
 ## Next validation targets
 
-- Measure FAST/FULL wall-clock p50/p95 over real watcher history.
-- Measure shadow false-negative and over-selection rates.
+- Accumulate enough real watcher samples for statistically meaningful p50/p95.
+- Measure shadow false-negative and over-selection rates over a meaningful sample.
 - Tune risk thresholds only from measured calibration evidence.
 - Expand dependency adapters when real projects demonstrate a repeatable blind
   spot; do not add speculative complexity.
