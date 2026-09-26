@@ -1,3 +1,7 @@
+## Network Lab active-connectivity hardening
+
+The Network & Offline Lab now derives validated Internet only from active `NetworkAgentInfo` state and the current default network. Stale `NetworkOffer`, request and listener records no longer count as active connectivity after airplane mode is enabled. The lab also stores dedicated offline/recovery Logcat evidence and distinguishes a real target ANR/fatal exception from a process that is simply absent.
+
 ## v0.8.1 — Certification Integrity & Release Artifact Hardening
 
 AppLab v0.8.1 closes the release-integrity gaps found in the v0.8.0 audit. Production Certification now routes auto-discovered projects through an explicit **RELEASE** build profile, rejects DEBUG artifacts and Android Debug certificates, records the signing-certificate SHA-256, and can enforce an expected production signer from project policy.
