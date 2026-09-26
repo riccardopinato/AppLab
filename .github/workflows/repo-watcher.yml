@@ -264,6 +264,7 @@ jobs:
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
+      baseline_sha: ${{ matrix.previous_verified_sha }}
 
   verify_auto:
     name: Auto ${{ matrix.repository }}
@@ -283,6 +284,7 @@ jobs:
       contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
+      baseline_sha: ${{ matrix.previous_verified_sha }}
 
   aggregate:
     name: Update central watcher history
