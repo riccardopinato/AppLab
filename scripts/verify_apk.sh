@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+RUN_STARTED_EPOCH="$(date +%s)"
 
 APK_PATH="${1:-}"
 PACKAGE_ID="${2:-${APP_ID:-}}"
@@ -9,7 +10,7 @@ START_TIMEOUT="${START_TIMEOUT:-30}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-5}"
 MAESTRO_FLOW="${MAESTRO_FLOW:-}"
 RUN_MAESTRO="${RUN_MAESTRO:-false}"
-APPLAB_VERSION="${APPLAB_VERSION:-0.8.1}"
+APPLAB_VERSION="${APPLAB_VERSION:-0.9.0}"
 ANALYSIS_PLAN_JSON="${APPLAB_ANALYSIS_PLAN_JSON:-}"
 ANALYSIS_MODE="${APPLAB_ANALYSIS_MODE:-full}"
 export APPLAB_EFFECTIVE_ANALYSIS_MODE="$ANALYSIS_MODE"
@@ -61,8 +62,10 @@ write_result_json() {
   local maestro_result="${4:-SKIPPED}"
 
   mkdir -p "$REPORT_DIR"
+  local runtime_seconds
+  runtime_seconds="$(( $(date +%s) - RUN_STARTED_EPOCH ))"
   if command -v python3 >/dev/null 2>&1; then
-    python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" "${SYSTEM_LAB_RESULT:-SKIPPED}" "${NETWORK_LAB_RESULT:-SKIPPED}" "${PERSISTENCE_LAB_RESULT:-SKIPPED}" "${CONFIGURATION_LAB_RESULT:-SKIPPED}" "${RESOURCE_PRESSURE_LAB_RESULT:-SKIPPED}" "${BACKGROUND_LAB_RESULT:-SKIPPED}" "${STORAGE_LAB_RESULT:-SKIPPED}" "${UPGRADE_LAB_RESULT:-NO_BASELINE}" "${PERFORMANCE_LAB_RESULT:-SKIPPED}" <<'PY'
+    APPLAB_RUNTIME_SECONDS="$runtime_seconds" python3 - "$REPORT_DIR/result.json" "$result" "${PACKAGE_ID:-}" "$maestro_result" "$pid_value" "$reason" "$APPLAB_VERSION" "${APK_PATH:-}" "${VISUAL_QA_RESULT:-SKIPPED}" "${VISUAL_REGRESSION_RESULT:-NO_BASELINE}" "${VISUAL_JOURNEY_RESULT:-SKIPPED}" "${INTERACTION_CRAWL_RESULT:-SKIPPED}" "${SYSTEM_LAB_RESULT:-SKIPPED}" "${NETWORK_LAB_RESULT:-SKIPPED}" "${PERSISTENCE_LAB_RESULT:-SKIPPED}" "${CONFIGURATION_LAB_RESULT:-SKIPPED}" "${RESOURCE_PRESSURE_LAB_RESULT:-SKIPPED}" "${BACKGROUND_LAB_RESULT:-SKIPPED}" "${STORAGE_LAB_RESULT:-SKIPPED}" "${UPGRADE_LAB_RESULT:-NO_BASELINE}" "${PERFORMANCE_LAB_RESULT:-SKIPPED}" <<'PY'
 import json
 import os
 import sys
@@ -74,6 +77,7 @@ payload = {
     "schema_version": 1,
     "applab_version": version,
     "analysis_mode": os.environ.get("APPLAB_EFFECTIVE_ANALYSIS_MODE", "full"),
+    "runtime_seconds": float(os.environ.get("APPLAB_RUNTIME_SECONDS", "0") or 0),
     "generated_at": datetime.now(timezone.utc).isoformat(),
     "result": result,
     "reason": reason or None,
