@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-APPLAB_VERSION = "0.8.1"
+APPLAB_VERSION = "0.9.0"
 
 
 def load_json(path: Path) -> dict[str, Any]:
