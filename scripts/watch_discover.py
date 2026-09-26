@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from contract_fingerprint import compute as compute_contract_fingerprint
+from contract_fingerprint import manifest as contract_manifest
 
 
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -247,9 +247,13 @@ def main() -> int:
     if data.get("schema_version") != 1:
         raise SystemExit("Unsupported watchlist schema_version")
 
-    contract_fingerprint = compute_contract_fingerprint(
-        Path(__file__).resolve().parent.parent
-    )[:16]
+    contract_state = contract_manifest(Path(__file__).resolve().parent.parent)
+    full_contract_fingerprint = str(contract_state["full"])[:16]
+    core_contract_fingerprint = str(contract_state["core"])[:16]
+    domain_fingerprints = {
+        key: str(value)[:16]
+        for key, value in dict(contract_state["domains"]).items()
+    }
 
     entries = data.get("repositories")
     if not isinstance(entries, list):
@@ -309,6 +313,35 @@ def main() -> int:
             continue
 
         config_fingerprint = entry_fingerprint(entry)
+        history_rows = matching_history(
+            args.history_file,
+            repository,
+            str(entry["key"]),
+            str(entry["ref"]),
+            engine,
+        )
+        latest_pass = next(
+            (row for row in reversed(history_rows) if str(row.get("result", "")).upper() == "PASS"),
+            None,
+        )
+        selected_domains: set[str] = {"visual"}
+        if latest_pass:
+            prior_plan = latest_pass.get("adaptive_plan")
+            if isinstance(prior_plan, dict):
+                prior_selected = prior_plan.get("selected_labs")
+                if isinstance(prior_selected, dict):
+                    selected_domains.update(
+                        lab for lab, enabled in prior_selected.items()
+                        if enabled and lab in domain_fingerprints
+                    )
+        if latest_pass:
+            domain_material = "|".join(
+                [core_contract_fingerprint]
+                + [f"{name}:{domain_fingerprints[name]}" for name in sorted(selected_domains)]
+            )
+            contract_fingerprint = hashlib.sha256(domain_material.encode()).hexdigest()[:16]
+        else:
+            contract_fingerprint = full_contract_fingerprint
         item_status: dict[str, Any] = {
             "key": entry["key"],
             "engine": engine,
@@ -392,7 +425,9 @@ def main() -> int:
         "schema_version": 1,
         "force": args.force,
         "only_repository": only_repository,
-        "contract_fingerprint": contract_fingerprint,
+        "contract_fingerprint": full_contract_fingerprint,
+        "core_contract_fingerprint": core_contract_fingerprint,
+        "domain_fingerprints": domain_fingerprints,
         "scheduled_count": len(matrix),
         "flutter_scheduled_count": len(flutter_matrix),
         "native_scheduled_count": len(native_matrix),
