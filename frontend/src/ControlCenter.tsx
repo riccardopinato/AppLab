@@ -128,6 +128,17 @@ type Snapshot = {
     lanes?: Record<string, number>;
     shadow_runs?: number;
     shadow_false_negatives?: number;
+    adaptive_metrics?: {
+      sample_count?: number;
+      planner_ms?: { p50?: number | null; p95?: number | null };
+      total_seconds?: { p50?: number | null; p95?: number | null };
+      runtime_seconds?: { p50?: number | null; p95?: number | null };
+      quality_seconds?: { p50?: number | null; p95?: number | null };
+      avd_cache_hit_ratio?: number | null;
+      maestro_cache_hit_ratio?: number | null;
+      shadow_runs?: number;
+      shadow_false_negatives?: number;
+    };
   };
   projects: ProjectRow[];
   recent: RecentRow[];
@@ -238,6 +249,41 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <strong>{snapshot.summary.not_run}</strong>
             </div>
           </div>
+
+          {snapshot.summary.adaptive_metrics ? (
+            <div className="cc-summary">
+              <div>
+                <span>Adaptive samples</span>
+                <strong>{snapshot.summary.adaptive_metrics.sample_count ?? 0}</strong>
+              </div>
+              <div>
+                <span>Total p50 / p95</span>
+                <strong>
+                  {snapshot.summary.adaptive_metrics.total_seconds?.p50 ?? "—"}s /{" "}
+                  {snapshot.summary.adaptive_metrics.total_seconds?.p95 ?? "—"}s
+                </strong>
+              </div>
+              <div>
+                <span>Runtime p50 / p95</span>
+                <strong>
+                  {snapshot.summary.adaptive_metrics.runtime_seconds?.p50 ?? "—"}s /{" "}
+                  {snapshot.summary.adaptive_metrics.runtime_seconds?.p95 ?? "—"}s
+                </strong>
+              </div>
+              <div>
+                <span>AVD cache</span>
+                <strong>
+                  {snapshot.summary.adaptive_metrics.avd_cache_hit_ratio != null
+                    ? `${Math.round(snapshot.summary.adaptive_metrics.avd_cache_hit_ratio * 100)}%`
+                    : "—"}
+                </strong>
+              </div>
+              <div>
+                <span>Shadow false negatives</span>
+                <strong>{snapshot.summary.adaptive_metrics.shadow_false_negatives ?? 0}</strong>
+              </div>
+            </div>
+          ) : null}
 
           <div className="cc-table-wrap">
             <table className="cc-table">
