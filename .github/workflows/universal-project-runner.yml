@@ -12,6 +12,11 @@ on:
         required: false
         default: main
         type: string
+      source_ref:
+        description: Logical branch/tag ref used for watcher baseline identity
+        required: false
+        default: ""
+        type: string
       run_maestro:
         description: Run Maestro after app launch
         required: false
@@ -60,6 +65,11 @@ on:
       ref:
         required: false
         default: main
+        type: string
+      source_ref:
+        description: Logical branch/tag ref used for watcher baseline identity
+        required: false
+        default: ""
         type: string
       run_maestro:
         required: false
@@ -180,6 +190,7 @@ jobs:
     with:
       repository: ${{ inputs.repository }}
       ref: ${{ inputs.ref }}
+      source_ref: ${{ inputs.source_ref }}
       working_directory: ${{ fromJSON(needs.discover.outputs.profile).working_directory }}
       flutter_channel: ${{ fromJSON(needs.discover.outputs.profile).flutter_channel }}
       flutter_version: ${{ fromJSON(needs.discover.outputs.profile).flutter_version }}
@@ -213,6 +224,7 @@ jobs:
     with:
       repository: ${{ inputs.repository }}
       ref: ${{ inputs.ref }}
+      source_ref: ${{ inputs.source_ref }}
       working_directory: ${{ fromJSON(needs.discover.outputs.profile).working_directory }}
       java_version: ${{ fromJSON(needs.discover.outputs.profile).java_version }}
       gradle_version: ${{ fromJSON(needs.discover.outputs.profile).gradle_version }}
