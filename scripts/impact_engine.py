@@ -314,6 +314,7 @@ def analyze_repository(
     baseline_sha: str,
     repository: str = "",
     history_file: str = "",
+    historical_risk: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     root = repo_root.resolve()
@@ -349,7 +350,7 @@ def analyze_repository(
             "risk_level": "CRITICAL" if requested == "certification" else "HIGH",
             "confidence": 1.0,
             "reasons": [f"{lane} explicitly requested"],
-            "historical_risk": historical_domain_risk(history_file, repository),
+            "historical_risk": (historical_risk or historical_domain_risk(history_file, repository)),
             "shadow_full": False,
             "runtime_changed": True,
             "static_targets": {
@@ -440,7 +441,7 @@ def analyze_repository(
     for path in impacted:
         domains.update(domains_for_text(path))
 
-    history = historical_domain_risk(history_file, repository)
+    history = historical_risk or historical_domain_risk(history_file, repository)
     docs_only = bool(records) and all(is_docs_only(str(i["path"])) for i in records)
     static_only = bool(records) and all(
         is_docs_only(str(i["path"])) or is_test_path(str(i["path"])) or is_static_config(str(i["path"]))
@@ -620,6 +621,7 @@ def main() -> int:
     parser.add_argument("--baseline-sha", default="")
     parser.add_argument("--repository", default="")
     parser.add_argument("--history-file", default="")
+    parser.add_argument("--historical-risk-json", default="")
     parser.add_argument("--output")
     parser.add_argument("--github-output")
     parser.add_argument("--self-test", action="store_true")
@@ -630,9 +632,18 @@ def main() -> int:
         return 0
     if not args.repo_root:
         raise SystemExit("--repo-root is required")
+    historical_risk = {}
+    if args.historical_risk_json:
+        value = json.loads(args.historical_risk_json)
+        if not isinstance(value, dict) or not all(
+            isinstance(k, str) and isinstance(v, int) and v >= 0 for k, v in value.items()
+        ):
+            raise SystemExit("--historical-risk-json must be an object of non-negative integer counts")
+        historical_risk = value
     payload = analyze_repository(
         Path(args.repo_root), args.mode, args.baseline_sha,
         repository=args.repository, history_file=args.history_file,
+        historical_risk=historical_risk,
     )
     validate(payload)
     text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
