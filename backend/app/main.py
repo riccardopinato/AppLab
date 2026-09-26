@@ -135,6 +135,10 @@ def health() -> dict:
             "fast-analysis-smart-orchestration",
             "production-certification-gate",
             "certification-integrity-hardening",
+            "adaptive-impact-analysis",
+            "incremental-verification",
+            "risk-confidence-engine",
+            "shadow-full-calibration",
         ],
     }
 
