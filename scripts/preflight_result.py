@@ -29,6 +29,16 @@ def main() -> int:
     target_plan = report / "analysis-plan.json"
     target_plan.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
+    fingerprint = ""
+    fingerprint_path = report / "domain-fingerprints.json"
+    if fingerprint_path.is_file():
+        try:
+            fp_payload = json.loads(fingerprint_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            fp_payload = {}
+        if isinstance(fp_payload, dict):
+            fingerprint = str(fp_payload.get("selected", ""))
+
     reason = (
         "Runtime-affecting sources are unchanged; previous trusted runtime evidence remains applicable."
         if lane == "NO_RUNTIME_CHANGE"
@@ -46,6 +56,8 @@ def main() -> int:
         "risk_level": plan.get("risk_level"),
         "confidence": plan.get("confidence"),
         "analysis_domains": plan.get("domains", []),
+        "selected_labs": plan.get("selected_labs", {}),
+        "analysis_contract_fingerprint": fingerprint,
         "shadow_full": False,
         "runtime_changed": False,
         "runtime_evidence_sha": plan.get("baseline_sha", ""),
