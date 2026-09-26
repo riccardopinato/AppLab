@@ -29,6 +29,7 @@ CORE_FILES = (
     "scripts/source_only_result.py",
     "scripts/shadow_calibration.py",
     "scripts/telemetry_summary.py",
+    "scripts/gradle_execution_plan.py",
     "scripts/project_autodiscover.py",
     ".github/workflows/external-project-runner.yml",
     ".github/workflows/external-native-android-runner.yml",
