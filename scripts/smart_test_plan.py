@@ -861,7 +861,44 @@ def emit_github_output(path: str, payload: dict[str, Any]) -> None:
         handle.write("flutter_test_targets=" + json.dumps(flutter.get("tests", []), separators=(",", ":")) + "\n")
         handle.write("android_modules=" + json.dumps(android.get("modules", []), separators=(",", ":")) + "\n")
 
+def regression_corpus() -> None:
+    cases = [
+        (["README.md"], "no_runtime", ()),
+        (["test/home_test.dart"], "static_only", ()),
+        (["app/src/main/AndroidManifest.xml"], "fast_runtime", ("system", "upgrade")),
+        (["lib/data/api_client.dart"], "fast_runtime", ("network", "performance")),
+        (["app/src/main/java/x/SyncWorker.kt"], "fast_runtime", ("background", "resource_pressure")),
+        (["app/src/main/java/x/AppDatabase.kt"], "fast_runtime", ("persistence", "storage", "upgrade")),
+        (["lib/screens/home_page.dart"], "fast_runtime", ("configuration", "performance")),
+        (["lib/services/NotificationService.dart"], "fast_runtime", ("system", "background")),
+        (["lib/cache/image_cache.dart"], "fast_runtime", ("performance", "resource_pressure", "storage")),
+    ]
+    for files, expected_lane, expected_labs in cases:
+        change_set = {
+            "trusted": True,
+            "changes": [{"status": "M", "path": path, "added": 8, "deleted": 2} for path in files],
+            "too_large": False,
+        }
+        payload = classify(files, "fast", "a" * 40, change_set=change_set)
+        assert payload["lane"] == expected_lane, (files, payload["lane"], expected_lane)
+        for lab in expected_labs:
+            assert payload["selected_labs"][lab], (files, lab, payload["selected_labs"])
+
+    huge = classify(
+        [f"lib/generated/file_{i}.dart" for i in range(501)],
+        "fast",
+        "a" * 40,
+        change_set={
+            "trusted": True,
+            "changes": [{"status": "M", "path": f"lib/generated/file_{i}.dart", "added": 1, "deleted": 1} for i in range(501)],
+            "too_large": True,
+        },
+    )
+    assert huge["lane"] == "full_runtime" and huge["fallback_full"]
+
+
 def self_test() -> None:
+    regression_corpus()
     docs = classify(
         ["README.md"],
         "fast",
