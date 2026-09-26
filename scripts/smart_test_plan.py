@@ -76,16 +76,6 @@ def git_changed_files(repo_root: Path, baseline_sha: str = "") -> list[str]:
     if exists.returncode != 0:
         return []
 
-    ancestor = subprocess.run(
-        ["git", "-C", str(repo_root), "merge-base", "--is-ancestor", baseline, "HEAD"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-        timeout=15,
-    )
-    if ancestor.returncode != 0:
-        return []
-
     result = subprocess.run(
         ["git", "-C", str(repo_root), "diff", "--name-only", "--find-renames", f"{baseline}..HEAD"],
         text=True,
@@ -178,6 +168,9 @@ def validate_plan(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
         raise ValueError("invalid analysis plan schema")
     mode = str(payload.get("mode", "")).lower()
+    baseline_sha = str(payload.get("baseline_sha", "")).strip().lower()
+    if baseline_sha and not re.fullmatch(r"[0-9a-f]{40}", baseline_sha):
+        raise ValueError("invalid analysis plan baseline SHA")
     if mode not in {"fast", "full", "certification"}:
         raise ValueError("invalid analysis plan mode")
     selected = payload.get("selected_labs")
