@@ -385,8 +385,18 @@ def risk_and_confidence(evidence: dict[str, Any], selected: dict[str, bool], his
     confidence = max(0.0, min(1.0, round(confidence, 2)))
     return score, level, confidence, reasons
 
-def static_plan(repo_root: Path, paths: list[str], engine: str) -> dict[str, Any]:
-    dart = [p for p in paths if p.lower().endswith(".dart") and not is_generated(p)]
+def static_plan(repo_root: Path, paths: list[str], engine: str, working_directory: str = ".") -> dict[str, Any]:
+    prefix = working_directory.strip().strip("/")
+    scoped: list[str] = []
+    for path in paths:
+        normalized = path.replace("\\", "/")
+        if prefix and prefix != ".":
+            marker = prefix + "/"
+            if not normalized.startswith(marker):
+                continue
+            normalized = normalized[len(marker):]
+        scoped.append(normalized)
+    dart = [p for p in scoped if p.lower().endswith(".dart") and not is_generated(p)]
     analyze_targets: set[str] = set()
     test_targets: set[str] = set()
     for p in dart:
@@ -402,7 +412,7 @@ def static_plan(repo_root: Path, paths: list[str], engine: str) -> dict[str, Any
                 test_targets.add(candidate.as_posix())
         if is_test(p):
             test_targets.add(p)
-    modules = sorted({module_for(p) for p in paths if Path(p).suffix.lower() in SOURCE_SUFFIXES})
+    modules = sorted({module_for(p) for p in scoped if Path(p).suffix.lower() in SOURCE_SUFFIXES})
     return {
         "engine": engine,
         "targeted": bool(paths),
@@ -428,6 +438,7 @@ def build_plan(
     engine: str = "unknown",
     history_file: str = "",
     repository: str = "",
+    working_directory: str = ".",
 ) -> dict[str, Any]:
     requested = mode.lower().strip()
     if requested not in {"fast", "full", "certification"}:
@@ -456,7 +467,7 @@ def build_plan(
             "imports": [],
             "risk": {"score": 100 if requested == "certification" else 75, "level": "CRITICAL" if requested == "certification" else "HIGH", "reasons": [requested + " explicitly requested"]},
             "confidence": 1.0,
-            "static_plan": static_plan(repo_root, [], engine),
+            "static_plan": static_plan(repo_root, [], engine, working_directory),
             "run": {"static": True, "build": True, "runtime": True, "full_static": True},
             "fallback_full": False,
             "fallback_reason": "",
@@ -467,7 +478,7 @@ def build_plan(
 
     evidence = git_diff_evidence(repo_root, baseline_sha)
     if not evidence["baseline"]["trusted"]:
-        plan = build_plan(repo_root, "full", baseline_sha, engine, history_file, repository)
+        plan = build_plan(repo_root, "full", baseline_sha, engine, history_file, repository, working_directory)
         plan.update({
             "requested_mode": "fast",
             "fallback_full": True,
@@ -491,7 +502,7 @@ def build_plan(
             "changed_files": [], "changes": [], "selected_labs": selected,
             "reasons": {lab: [] for lab in LABS}, "impacted_modules": [], "dependency_signals": {}, "imports": [],
             "risk": {"score": 0, "level": "LOW", "reasons": ["no source changes"]},
-            "confidence": 1.0, "static_plan": static_plan(repo_root, [], engine),
+            "confidence": 1.0, "static_plan": static_plan(repo_root, [], engine, working_directory),
             "run": {"static": False, "build": False, "runtime": False, "full_static": False},
             "fallback_full": False, "fallback_reason": "", "shadow_full": False, "history_risk": {},
             "diff": {"files": 0, "additions": 0, "deletions": 0, "truncated": evidence["diff_truncated"], "oversized": evidence["oversized"]},
@@ -568,7 +579,7 @@ def build_plan(
         "imports": imports,
         "risk": {"score": risk_score, "level": risk_level, "reasons": risk_reasons},
         "confidence": confidence,
-        "static_plan": static_plan(repo_root, paths, engine),
+        "static_plan": static_plan(repo_root, paths, engine, working_directory),
         "run": run,
         "fallback_full": fallback,
         "fallback_reason": fallback_reason,
@@ -724,6 +735,7 @@ def main() -> int:
     parser.add_argument("--engine", default="unknown")
     parser.add_argument("--history-file", default="")
     parser.add_argument("--repository", default="")
+    parser.add_argument("--working-directory", default=".")
     parser.add_argument("--output")
     parser.add_argument("--github-output", default="")
     parser.add_argument("--self-test", action="store_true")
@@ -736,7 +748,7 @@ def main() -> int:
     started = time.perf_counter()
     plan = build_plan(
         Path(args.repo_root).resolve(), args.mode, args.baseline_sha,
-        args.engine, args.history_file, args.repository,
+        args.engine, args.history_file, args.repository, args.working_directory,
     )
     plan["planner_elapsed_ms"] = round((time.perf_counter() - started) * 1000, 2)
     validate_plan(plan)
