@@ -5,7 +5,9 @@ import argparse
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any\n\nfrom contract_fingerprint import compute_selected
+from typing import Any
+
+from contract_fingerprint import compute_selected
 
 APPLAB_VERSION = "0.9.0"
 
