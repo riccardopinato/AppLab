@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import smart_test_plan
+import domain_fingerprint
 from pathlib import Path, PurePosixPath
 
 ALLOWED_EVIDENCE_SUFFIXES = {".yaml", ".yml", ".json"}
@@ -215,7 +216,7 @@ def package(args: argparse.Namespace) -> dict:
 
     contract = {
         "schema_version": 1,
-        "applab_version": "0.8.1",
+        "applab_version": "0.9.0",
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
         "engine": args.engine,
@@ -240,12 +241,31 @@ def package(args: argparse.Namespace) -> dict:
         "quality_evidence": quality_evidence,
         "evidence_bytes": total,
     }
-    plan = smart_test_plan.classify(
-        smart_test_plan.git_changed_files(repo_root, args.baseline_sha),
-        args.analysis_mode,
-        args.baseline_sha,
-    )
-    smart_test_plan.validate_plan(plan)
+    if args.analysis_plan_input and Path(args.analysis_plan_input).is_file():
+        plan = smart_test_plan.validate_plan(
+            json.loads(Path(args.analysis_plan_input).read_text(encoding="utf-8"))
+        )
+    else:
+        plan = smart_test_plan.analyze_repository(
+            repo_root,
+            args.analysis_mode,
+            args.baseline_sha,
+            history_file=args.history_file,
+            repository=args.repository,
+        )
+        smart_test_plan.validate_plan(plan)
+    contract["analysis_lane"] = plan.get("lane", "FULL_RUNTIME")
+    contract["analysis_risk_score"] = plan.get("risk_score", 100)
+    contract["analysis_confidence"] = plan.get("confidence", 0.0)
+    contract["domain_fingerprints"] = domain_fingerprint.compute(Path(__file__).resolve().parent.parent)
+    if args.quality_json and Path(args.quality_json).is_file():
+        quality_payload = json.loads(Path(args.quality_json).read_text(encoding="utf-8"))
+        for source_key, contract_key in {
+            "analyze": "analyze", "lint": "lint", "unit_tests": "unit_tests", "build": "build"
+        }.items():
+            if source_key in quality_payload:
+                contract["quality_evidence"][contract_key] = normalize_check_state(str(quality_payload[source_key]))
+        shutil.copy2(args.quality_json, output / "adaptive-quality.json")
     (output / "analysis-plan.json").write_text(
         json.dumps(plan, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -273,7 +293,7 @@ def self_test() -> None:
             repository="owner/repo", resolved_sha="a"*40, engine="flutter",
             working_directory=".", package_id="com.example.app",
             maestro_flow=".maestro/smoke.yaml",
-            analysis_mode="fast", baseline_sha="",
+            analysis_mode="fast", baseline_sha="", analysis_plan_input="", history_file="", quality_json="",
             build_command="flutter build apk --debug",
             analyze_status="PASS", lint_status="N/A",
             test_status="PASS", build_status="PASS",
@@ -297,6 +317,9 @@ def main() -> int:
     parser.add_argument("--maestro-flow", default="")
     parser.add_argument("--analysis-mode", choices=("fast", "full", "certification"), default="full")
     parser.add_argument("--baseline-sha", default="")
+    parser.add_argument("--analysis-plan-input", default="")
+    parser.add_argument("--history-file", default="")
+    parser.add_argument("--quality-json", default="")
     parser.add_argument("--build-command", default="")
     parser.add_argument("--analyze-status", default="NOT_RUN")
     parser.add_argument("--lint-status", default="NOT_RUN")
