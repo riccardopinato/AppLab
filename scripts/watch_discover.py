@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from contract_fingerprint import compute as compute_contract_fingerprint
+import domain_fingerprint
 
 
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -24,7 +25,7 @@ ENGINES = {"auto", "flutter", "native_android"}
 def api_json(url: str, token: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "AppLab-Repo-Watcher/0.8.1",
+        "User-Agent": "AppLab-Repo-Watcher/0.9.0",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     if token:
@@ -94,14 +95,14 @@ def resolve_sha(repository: str, ref: str, token: str) -> str:
     return sha.lower()
 
 
-def latest_history_sha(path: str, repository: str) -> str:
+def latest_history_entry(path: str, repository: str, history_key: str = "", ref: str = "") -> dict[str, Any]:
     if not path:
-        return ""
+        return {}
     history = Path(path)
     if not history.is_file():
-        return ""
+        return {}
     latest_at = ""
-    latest_sha = ""
+    latest: dict[str, Any] = {}
     for raw in history.read_text(encoding="utf-8", errors="ignore").splitlines():
         try:
             item = json.loads(raw)
@@ -109,29 +110,61 @@ def latest_history_sha(path: str, repository: str) -> str:
             continue
         if not isinstance(item, dict) or str(item.get("repository", "")).strip() != repository:
             continue
+        if history_key and str(item.get("history_key", "")).strip() not in {"", history_key}:
+            continue
+        item_ref = str(item.get("requested_ref", item.get("ref", ""))).strip()
+        if (
+            ref
+            and item_ref
+            and item_ref != ref
+            and not re.fullmatch(r"[0-9a-fA-F]{40}", item_ref)
+        ):
+            # v0.8.x watcher records may have stored the pinned SHA as requested_ref.
+            # When history_key matches, accept that legacy identity once so v0.9 can
+            # migrate without discarding an otherwise trusted baseline.
+            continue
         if str(item.get("result", "")).strip().upper() != "PASS":
             continue
         sha = str(item.get("resolved_sha", "")).strip().lower()
         if not re.fullmatch(r"[0-9a-f]{40}", sha):
             continue
-        recorded = str(item.get("recorded_at", ""))
+        recorded = str(item.get("recorded_at", item.get("observed_at", "")))
         if recorded >= latest_at:
             latest_at = recorded
-            latest_sha = sha
-    return latest_sha
+            latest = item
+    return latest
 
+def latest_history_sha(path: str, repository: str, history_key: str = "", ref: str = "") -> str:
+    return str(latest_history_entry(path, repository, history_key, ref).get("resolved_sha", "")).strip().lower()
+
+def adaptive_contract_fingerprint(root: Path, previous: dict[str, Any]) -> str:
+    domains = domain_fingerprint.compute(root)
+    selected = previous.get("selected_labs") if isinstance(previous, dict) else {}
+    if isinstance(selected, dict) and selected:
+        names = {"core", "visual"}
+        names.update(lab for lab, enabled in selected.items() if enabled and lab in domains)
+    else:
+        names = set(domains)
+    digest = hashlib.sha256()
+    for name in sorted(names):
+        digest.update(name.encode())
+        digest.update(b"\0")
+        digest.update(domains.get(name, "").encode())
+        digest.update(b"\0")
+    return digest.hexdigest()[:16]
 
 def self_test_history() -> None:
     import tempfile
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "history.jsonl"
         rows = [
-            {"repository": "owner/app", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-02T00:00:00Z", "result": "FAIL", "resolved_sha": "b" * 40},
-            {"repository": "owner/app", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
+            {"repository": "owner/app", "history_key": "main", "requested_ref": "main", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
+            {"repository": "owner/app", "history_key": "beta", "requested_ref": "beta", "recorded_at": "2026-01-02T00:00:00Z", "result": "PASS", "resolved_sha": "b" * 40},
+            {"repository": "owner/app", "history_key": "main", "requested_ref": "main", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
         ]
         path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
-        assert latest_history_sha(str(path), "owner/app") == "c" * 40
+        assert latest_history_sha(str(path), "owner/app", "main", "main") == "c" * 40
+        assert latest_history_sha(str(path), "owner/app", "beta", "beta") == "b" * 40
         assert latest_history_sha(str(path), "owner/missing") == ""
 
 
@@ -178,9 +211,8 @@ def main() -> int:
     if data.get("schema_version") != 1:
         raise SystemExit("Unsupported watchlist schema_version")
 
-    contract_fingerprint = compute_contract_fingerprint(
-        Path(__file__).resolve().parent.parent
-    )[:16]
+    root = Path(__file__).resolve().parent.parent
+    global_contract_fingerprint = compute_contract_fingerprint(root)[:16]
 
     entries = data.get("repositories")
     if not isinstance(entries, list):
@@ -247,7 +279,11 @@ def main() -> int:
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
-            previous_verified_sha = latest_history_sha(args.history_file, repository)
+            previous_result = latest_history_entry(
+                args.history_file, repository, str(entry["key"]), str(entry["ref"])
+            )
+            previous_verified_sha = str(previous_result.get("resolved_sha", "")).strip().lower()
+            contract_fingerprint = adaptive_contract_fingerprint(root, previous_result)
             cache_key = (
                 f"applab-c{contract_fingerprint}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
@@ -298,11 +334,22 @@ def main() -> int:
         "schema_version": 1,
         "force": args.force,
         "only_repository": only_repository,
-        "contract_fingerprint": contract_fingerprint,
+        "contract_fingerprint": global_contract_fingerprint,
+        "adaptive_domain_fingerprints": domain_fingerprint.compute(root),
         "scheduled_count": len(matrix),
         "flutter_scheduled_count": len(flutter_matrix),
         "native_scheduled_count": len(native_matrix),
         "auto_scheduled_count": len(auto_matrix),
+        "cache_hit_count": sum(1 for item in status if item.get("cached")),
+        "cache_miss_count": sum(
+            1 for item in status
+            if item.get("resolved_sha") and not item.get("cached") and not item.get("error")
+        ),
+        "cache_hit_ratio": round(
+            sum(1 for item in status if item.get("cached"))
+            / max(1, sum(1 for item in status if item.get("resolved_sha") and not item.get("error"))),
+            4,
+        ),
         "repositories": status,
     }
 
