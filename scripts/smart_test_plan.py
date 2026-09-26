@@ -5,6 +5,7 @@ import argparse
 import json
 import re
 import subprocess
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -680,6 +681,9 @@ def self_test() -> None:
         subprocess.run(["git", "-C", str(root), "add", "."], check=True)
         subprocess.run(["git", "-C", str(root), "commit", "-qm", "base"], check=True)
         baseline = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+        base_branch = subprocess.check_output(
+            ["git", "-C", str(root), "rev-parse", "--abbrev-ref", "HEAD"], text=True
+        ).strip()
 
         db_file = root / "app" / "src" / "main" / "java" / "x" / "AppDatabase.kt"
         db_file.parent.mkdir(parents=True)
@@ -706,7 +710,7 @@ def self_test() -> None:
         subprocess.run(["git", "-C", str(root), "add", "."], check=True)
         subprocess.run(["git", "-C", str(root), "commit", "-qm", "other branch"], check=True)
         other_sha = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
-        subprocess.run(["git", "-C", str(root), "checkout", "-q", "master"], check=True)
+        subprocess.run(["git", "-C", str(root), "checkout", "-q", base_branch], check=True)
         diverged = build_plan(root, "fast", other_sha, "native_android")
         assert diverged["fallback_full"] and diverged["fallback_reason"] == "baseline-not-ancestor"
 
@@ -729,10 +733,12 @@ def main() -> int:
         return 0
     if not args.repo_root or not args.output:
         raise SystemExit("--repo-root and --output are required")
+    started = time.perf_counter()
     plan = build_plan(
         Path(args.repo_root).resolve(), args.mode, args.baseline_sha,
         args.engine, args.history_file, args.repository,
     )
+    plan["planner_elapsed_ms"] = round((time.perf_counter() - started) * 1000, 2)
     validate_plan(plan)
     Path(args.output).write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if args.github_output:
