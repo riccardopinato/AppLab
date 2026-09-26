@@ -106,6 +106,11 @@ def build_snapshot(
                 "performance": result.get("performance", {}),
                 "applab_version": result.get("applab_version", ""),
                 "analysis_mode": result.get("analysis_mode", "full"),
+                "analysis_lane": result.get("analysis_lane", ""),
+                "risk": result.get("risk", {}),
+                "confidence": result.get("confidence", {}),
+                "runtime_required": result.get("runtime_required", True),
+                "shadow_calibration": result.get("shadow_calibration", {}),
                 "certification_status": raw_certification_status,
                 "certification_display_status": certification_display_status,
                 "certification": certification_result.get("certification", {}),
@@ -167,6 +172,11 @@ def build_snapshot(
                     "watcher_run_url",
                     "applab_version",
                     "analysis_mode",
+                    "analysis_lane",
+                    "risk",
+                    "confidence",
+                    "runtime_required",
+                    "shadow_calibration",
                     "certification_status",
                     "certification",
                     "release",
@@ -255,6 +265,11 @@ def self_test() -> None:
             "resolved_sha": "fast",
             "applab_version": "0.8.0",
             "analysis_mode": "fast",
+            "analysis_lane": "fast_runtime",
+            "risk": {"score": 31, "level": "low"},
+            "confidence": {"score": 0.94},
+            "runtime_required": True,
+            "shadow_calibration": {"false_negative": False},
             "network_lab": "SKIPPED",
             "persistence_lab": "SKIPPED",
             "configuration_lab": "PASS",
@@ -282,6 +297,10 @@ def self_test() -> None:
     )
     assert first["resolved_sha"] == "fast"
     assert first["analysis_mode"] == "fast"
+    assert first["analysis_lane"] == "fast_runtime"
+    assert first["risk"]["score"] == 31
+    assert first["confidence"]["score"] == 0.94
+    assert first["shadow_calibration"]["false_negative"] is False
     assert first["certification_status"] == "CERTIFIED"
     assert first["certification_display_status"] == "CERTIFIED_STALE"
     assert first["certified_sha"] == "full"
