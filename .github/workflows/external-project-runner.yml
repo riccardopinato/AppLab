@@ -565,7 +565,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: ${{ inputs.repository }}
-          ref: ${{ inputs.ref }}
+          ref: ${{ needs.preflight.outputs.resolved_sha }}
           path: target
           fetch-depth: 2
           persist-credentials: false
