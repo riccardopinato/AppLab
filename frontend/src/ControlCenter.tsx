@@ -138,6 +138,7 @@ type Snapshot = {
       maestro_cache_hit_ratio?: number | null;
       shadow_runs?: number;
       shadow_false_negatives?: number;
+      shadow_over_selections?: number;
     };
   };
   projects: ProjectRow[];
@@ -281,6 +282,10 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <div>
                 <span>Shadow false negatives</span>
                 <strong>{snapshot.summary.adaptive_metrics.shadow_false_negatives ?? 0}</strong>
+              </div>
+              <div>
+                <span>Shadow over-selection</span>
+                <strong>{snapshot.summary.adaptive_metrics.shadow_over_selections ?? 0}</strong>
               </div>
             </div>
           ) : null}
