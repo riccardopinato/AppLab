@@ -168,6 +168,7 @@ def plan_from_impact(impact: dict[str, Any]) -> dict[str, Any]:
         "head_sha": str(impact.get("head_sha", "")),
         "changed_files": changed_paths,
         "changed_file_details": impact.get("changed_files", []),
+        "changed_file_count": int(impact.get("changed_file_count", len(changed_paths))),
         "selected_labs": selected,
         "reasons": reasons,
         "fallback_full": bool(impact.get("fallback_full")),
