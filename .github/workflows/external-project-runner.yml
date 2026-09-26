@@ -12,6 +12,11 @@ on:
         required: false
         default: main
         type: string
+      source_ref:
+        description: Logical branch/tag ref used for watcher baseline identity
+        required: false
+        default: ""
+        type: string
       working_directory:
         description: Flutter project directory inside the target repository
         required: false
@@ -152,6 +157,11 @@ on:
         description: Branch, tag, or commit SHA to verify
         required: false
         default: main
+        type: string
+      source_ref:
+        description: Logical branch/tag ref used for watcher baseline identity
+        required: false
+        default: ""
         type: string
       working_directory:
         description: Flutter project directory inside the target repository
@@ -558,7 +568,7 @@ jobs:
             --plan "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
             --report-dir "$GITHUB_WORKSPACE/applab-report" \
             --repository "${{ inputs.repository }}" \
-            --ref "${{ inputs.ref }}" \
+            --ref "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}" \
             --resolved-sha "${{ steps.target.outputs.resolved_sha }}" \
             --history-key "${{ inputs.history_key }}" \
             --quality-json "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" \
@@ -590,7 +600,7 @@ jobs:
     with:
       build_artifact_name: ${{ needs.build.outputs.artifact_name }}
       repository: ${{ inputs.repository }}
-      ref: ${{ inputs.ref }}
+      ref: ${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}
       resolved_sha: ${{ needs.build.outputs.resolved_sha }}
       engine: "flutter"
       history_key: ${{ inputs.history_key }}
@@ -633,7 +643,7 @@ jobs:
           python .applab/scripts/finalize_external_result.py \
             --report-dir "$GITHUB_WORKSPACE/applab-report" \
             --repository "${{ inputs.repository }}" \
-            --ref "${{ inputs.ref }}" \
+            --ref "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}" \
             --resolved-sha "$SHA" \
             --history-key "${{ inputs.history_key }}" \
             --engine "flutter" \
