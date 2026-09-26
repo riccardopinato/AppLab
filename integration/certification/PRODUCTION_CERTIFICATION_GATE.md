@@ -1,48 +1,66 @@
-# AppLab v0.8.0 — Production Certification Gate
+# AppLab v0.8.1 — Production Certification Gate
 
-AppLab v0.8.0 separates continuous verification from production certification.
+AppLab separates continuous verification from production certification. FAST and FULL are quality-verification modes; only an explicit CERTIFICATION run can authorize the AppLab verified release artifact.
 
-## Verification modes
+## Verdicts
 
-- `fast`: continuous analysis. Core runtime checks always run; specialist labs can be skipped by the Smart Test Planner.
-- `full`: complete diagnostic verification. Every specialist lab runs and passing baselines can be refreshed.
-- `certification`: production gate. Every specialist lab runs and AppLab applies strict release rules after the trusted Android runtime finishes.
+The final status is one of:
 
-FAST and FULL can prove that a build is healthy. Only CERTIFICATION can authorize publication of the AppLab verified APK.
+- `CERTIFIED`: all mandatory build/runtime gates and every required certification lane passed;
+- `NOT_CERTIFIED`: a hard runtime, build, artifact-integrity, signing or compatibility failure occurred;
+- `BLOCKED`: AppLab lacks production-grade evidence, for example WARN/SKIPPED/NO_BASELINE, an unknown artifact variant, missing signing evidence, a missing compatibility lane, or required real-device evidence that was not executed.
 
-## Certification verdicts
+WARN, SKIPPED, NO_BASELINE and unknown evidence are never converted into a production PASS.
 
-The final certification status is one of:
+## Release-only artifact policy
 
-- `CERTIFIED`: every mandatory gate is PASS and the tested APK hash matches the isolated build contract.
-- `NOT_CERTIFIED`: the trusted runtime, a mandatory gate, or APK integrity failed.
-- `BLOCKED`: AppLab could not obtain production-grade evidence, for example because a lab returned WARN/SKIPPED/NO_BASELINE or certification was attempted without the required mode/baseline.
+Auto-discovery exposes separate development and certification profiles.
 
-AppLab never converts WARN, SKIPPED or NO_BASELINE into a production PASS.
+For Flutter, CERTIFICATION uses:
 
-## Mandatory gates
+```
+flutter build apk --release
+build/app/outputs/flutter-apk/app-release.apk
+```
 
-Production certification requires two evidence layers.
+For native Android/Gradle, AppLab derives the corresponding release assemble task where possible and otherwise uses `assembleRelease`.
 
-### Build evidence
+The certification gate rejects an artifact whose detected build variant is DEBUG. An unknown variant blocks rather than passes.
 
-For Flutter targets:
+AppLab also records the signer certificate SHA-256. An Android Debug certificate is rejected. Projects may pin the expected production signing certificate in `.maestro/applab-certification.json`; a mismatch is `NOT_CERTIFIED`.
 
-- static analysis PASS;
-- unit tests PASS;
-- APK build PASS.
+## Project certification policy
 
-For native Android targets:
+Optional policy at repository root or project working directory:
 
-- Android lint PASS;
-- unit tests PASS;
-- APK build PASS.
+```json
+{
+  "schema_version": 1,
+  "requires_real_device": false,
+  "expected_signing_certificate_sha256": "",
+  "max_apk_bytes": 629145600
+}
+```
 
-A required build check reported as `NOT_RUN` blocks certification.
+A working-directory policy may override repository defaults.
 
-### Runtime evidence
+- `requires_real_device=true` deliberately returns BLOCKED in hosted CI until a trusted physical-device lane supplies evidence.
+- `expected_signing_certificate_sha256` accepts the expected 64-hex SHA-256 certificate fingerprint.
+- `max_apk_bytes` is an absolute release-artifact ceiling.
 
-Production certification requires PASS for:
+Performance Lab separately flags material APK-size regressions versus the passing baseline (currently at least 35% and 1 MiB growth); because Performance is mandatory in CERTIFICATION, such a WARN blocks certification.
+
+## Mandatory build evidence
+
+Flutter targets require PASS for static analysis, unit tests and APK build.
+
+Native Android targets require PASS for Android lint, unit tests and APK build.
+
+A required check reported as NOT_RUN blocks certification.
+
+## Mandatory runtime evidence
+
+The primary certification lane requires PASS for:
 
 - Maestro acceptance;
 - Smart Visual QA;
@@ -58,77 +76,75 @@ Production certification requires PASS for:
 - Upgrade & Migration;
 - Performance.
 
-Safe Interaction Crawler remains supporting evidence because a conservative crawler can legitimately find no safe interaction target.
+Safe Interaction Crawler remains supporting evidence because a conservative crawler can legitimately find no safe action.
 
-## Controlled runtime lane
+## Certification matrix
 
-v0.8.0 records an explicit primary certification lane:
+v0.8.1 uses two Android lanes:
 
-- Android API level;
-- emulator hardware profile;
-- Android target image;
-- CPU architecture.
+1. **Primary** — deep CERTIFICATION lane, default API 35 / `pixel_7_pro` / `google_apis` / x86_64.
+2. **Compatibility** — release-profile FULL verification on a second API. With `compatibility_api_level=auto`, AppLab derives a representative API from minSdk while keeping it below the primary API when possible.
 
-The default manual certification workflow uses API 35, `pixel_7_pro`, `google_apis`, and x86_64. API level and emulator profile are explicit workflow inputs. This is the minimum controlled production matrix for v0.8.0; wider multi-device matrices can be layered on without changing the certification contract.
+The final matrix verdict is generated only after both lanes finish. Compatibility FAIL produces NOT_CERTIFIED; missing/non-conclusive compatibility evidence produces BLOCKED.
 
-## APK integrity and release
+The installable release APK is not published by either individual lane. Only the matrix-finalization job may publish it, and it copies the exact APK bytes from the **primary** isolated build contract after the aggregate status remains CERTIFIED.
 
-The certification gate recomputes SHA-256 from the isolated `app.apk` and compares it with `contract.json`.
+## APK integrity and identity
 
-The release publisher then verifies the same bytes again. A release artifact is created only when:
+The isolated contract records:
 
-1. the trusted runtime result is PASS;
-2. effective analysis mode is `certification`;
-3. certification status is `CERTIFIED`;
-4. the APK SHA-256 matches the build contract.
+- repository and resolved commit SHA;
+- package id;
+- versionName/versionCode;
+- release/debug variant;
+- APK size;
+- APK SHA-256;
+- signer subject and certificate SHA-256;
+- build-quality evidence;
+- certification policy.
 
-FULL and FAST runs do not publish the verified installable APK.
+The certification gate recomputes SHA-256 from `app.apk`. Release publication recomputes it again and refuses any byte mismatch.
+
+## Architecture boundary
+
+Hosted certification currently runs Android Emulator x86_64. A universal RELEASE APK that contains compatible x86_64 code can therefore be certified byte-for-byte and published unchanged.
+
+An ARM64-only distribution artifact cannot honestly receive byte-identical runtime certification on this x86_64 lane. Projects that require ARM64-only or hardware-specific final validation should set `requires_real_device=true`; v0.8.1 will remain BLOCKED until a trusted physical/ARM64 device path is available. AppLab does not label emulator evidence as real-device evidence.
+
+## Real-device evidence
+
+Hosted CI records physical-device state explicitly. If real-device validation is not required, the Evidence Bundle still says `NOT_TESTED` rather than implying otherwise. If policy requires it, CERTIFICATION blocks.
+
+This is especially appropriate for sensor-, camera-, Bluetooth-, OEM-background-, biometric- or other hardware-dependent applications.
+
+## Evidence Bundle
+
+A certification produces and retains:
+
+- `result.json`;
+- `certification.json/.md`;
+- `evidence-bundle.json/.md`;
+- `certification-matrix.md`;
+- compatibility result;
+- build contract and analysis plan;
+- runtime screenshots/logs and lab evidence from the trusted verification artifact.
+
+The final release bundle places the exact certified APK beside an `evidence/` directory with the essential production evidence. Final certification/release artifacts are retained for 90 days in GitHub Actions.
+
+## Control Center
+
+The last historical certification is preserved, but its relationship to the latest verified SHA is explicit:
+
+- `CERTIFIED_CURRENT`: certified SHA equals the latest project SHA known to AppLab;
+- `CERTIFIED_STALE`: a newer verified SHA exists and the older certification is retained only as history;
+- `BLOCKED` / `NOT_CERTIFIED`: latest certification attempt did not authorize release.
+
+A newer FAST PASS never silently upgrades itself to CERTIFIED.
 
 ## Baselines
 
-FULL runs remain the normal way to seed or refresh Visual, Performance and Upgrade baselines. A successful CERTIFICATION run may also refresh passing baselines.
-
-Certification does not weaken itself to create a missing baseline: missing production evidence produces `BLOCKED`. Run a successful FULL verification first.
-
-## Evidence
-
-A certification run adds:
-
-- `certification.json` — machine-readable verdict, failures, blockers, runtime lane and APK digest;
-- `evidence-bundle.json` — complete machine-readable evidence bundle with repository, resolved commit, engine, build-quality checks, APK identity/version/size/hash, AppLab control verdicts, runtime matrix and real-device status;
-- `evidence-bundle.md` — readable form of the same evidence bundle;
-- `certification.md` — readable production decision;
-- `certification_status` and `certification` in `result.json`;
-- production certification state in Repo Watcher history and Control Center.
-
-The Control Center preserves the last production certification even if newer FAST checks run afterward.
-
-Physical-device execution is not silently implied by hosted CI. v0.8.0 records `real_device.status=NOT_TESTED` unless separate real-device evidence is attached by the project. This keeps certification evidence honest while allowing projects with hardware-dependent features to impose a stricter release policy.
-
-## Manual workflow
-
-Run **Production Certification** and provide:
-
-- repository;
-- ref;
-- Android API level;
-- emulator profile.
-
-The workflow resolves the watched project's stable history key, runs universal project discovery, forces Maestro, uses `analysis_mode=certification`, records the certification in central history, and publishes a release APK only for `CERTIFIED`.
-
-## Network-lab hardening
-
-v0.8.0 also removes a false-negative source observed on hosted Android emulators. Android may reclaim a process while network capabilities are changing. AppLab no longer treats process disappearance alone as an application crash.
-
-It attempts a clean relaunch and still fails on:
-
-- fatal exception;
-- ANR;
-- failed offline relaunch;
-- failed recovery relaunch.
-
-This keeps application failures strict while separating them from hosted-emulator process churn.
+FULL is the normal baseline-seeding path. Missing production evidence does not get weakened during CERTIFICATION: a missing required baseline yields BLOCKED. Passing certification lanes may promote eligible baselines under their own stable history keys.
 
 ## Release rule
 
-A build is production-certified only from explicit evidence generated by the current certification run. Historical FAST/FULL PASS results are never relabeled as CERTIFIED.
+A public AppLab release artifact must be the exact primary APK bytes covered by the final CERTIFIED matrix. Build success, a FAST PASS, a FULL PASS, or a historical certification on an older SHA is insufficient.
