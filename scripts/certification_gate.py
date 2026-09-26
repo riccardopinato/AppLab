@@ -217,6 +217,7 @@ def evaluate(
         status = "CERTIFIED"
 
     controls = {key: str(result.get(key, "") or "MISSING").upper() for key, _ in STRICT_GATES}
+    controls["interaction_crawl"] = str(result.get("interaction_crawl", "") or "MISSING").upper()
     controls["trusted_runtime"] = runtime_result or "MISSING"
 
     return {
