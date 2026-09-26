@@ -95,6 +95,13 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         if value not in valid_quality_states:
             raise ValueError(f"Invalid quality evidence state for {key}: {value!r}")
 
+    timings = payload.get("timings", {})
+    if not isinstance(timings, dict):
+        raise ValueError("timings must be an object")
+    build_elapsed = timings.get("build_job_elapsed_seconds", 0)
+    if not isinstance(build_elapsed, (int, float)) or float(build_elapsed) < 0:
+        raise ValueError("Invalid build_job_elapsed_seconds")
+
     working = safe_relative(str(payload.get("working_directory", ".")))
     flow_raw = str(payload.get("maestro_flow", "")).strip()
     flow = safe_relative(flow_raw) if flow_raw else None
@@ -252,6 +259,7 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         "analysis_baseline_sha": baseline_sha,
         "analysis_plan_file": str(analysis_plan_path),
         "quality_evidence_json": json.dumps(quality, separators=(",", ":")),
+        "build_timings_json": json.dumps(timings, separators=(",", ":")),
         "certification_policy_json": json.dumps(certification_policy, separators=(",", ":")),
     }
 
@@ -324,6 +332,7 @@ def self_test() -> None:
             "quality_evidence": {
                 "analyze":"PASS","lint":"N/A","unit_tests":"PASS","build":"PASS"
             },
+            "timings": {"build_job_elapsed_seconds": 1.25},
         }
         (root / "analysis-plan.json").write_text(
             json.dumps(smart_test_plan.classify(["lib/home.dart"], "fast", "b" * 40)),
