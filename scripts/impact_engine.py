@@ -7,10 +7,12 @@ import json
 import re
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
 import smart_test_plan
+import contract_fingerprint
 
 MAX_CHANGED_FILES = 500
 RUNTIME_SUFFIXES = {
@@ -266,6 +268,8 @@ def targeted_scopes(records: list[dict[str, Any]], engine: str) -> dict[str, lis
                     scopes.add(scope)
                 if len(parts) >= 3 and parts[1] in {"features", "feature"}:
                     tests.add(f"test/{parts[1]}/{parts[2]}")
+            elif parts and parts[0] in {"test", "integration_test"}:
+                tests.add("/".join(parts[: min(len(parts), 3)]))
     else:
         modules = impacted_modules(records, engine)
         scopes.update(modules)
@@ -320,6 +324,10 @@ def make_plan(repo: Path, engine: str, requested_mode: str, baseline_sha: str, h
     run_build = runtime_required
     run_static = lane != "NO_RUNTIME_CHANGE"
     run_tests = lane != "NO_RUNTIME_CHANGE"
+    cache_domains = ["core"] + sorted(k for k, v in specialist["selected_labs"].items() if v)
+    if effective_mode == "certification":
+        cache_domains.append("certification")
+
     return {
         "schema_version": 1,
         "planner_version": "0.9.0",
@@ -347,7 +355,7 @@ def make_plan(repo: Path, engine: str, requested_mode: str, baseline_sha: str, h
         "runtime_required": runtime_required,
         "shadow_full": shadow,
         "shadow_sample_percent": shadow_percent,
-        "cache_domains": ["core"] + sorted(k for k, v in specialist["selected_labs"].items() if v),
+        "cache_domains": sorted(set(cache_domains)),
         "reasons": lane_reasons,
         "historical_failure_count": max(0, historical_failures),
     }
@@ -380,6 +388,7 @@ def emit_outputs(path: Path, plan: dict[str, Any], output_file: Path) -> None:
         "analysis_scopes_json": json.dumps(plan["targeted"]["analysis_scopes"], separators=(",", ":")),
         "test_scopes_json": json.dumps(plan["targeted"]["test_scopes"], separators=(",", ":")),
         "cache_domains": "-".join(plan["cache_domains"]),
+        "domain_contract_fingerprint": str(plan.get("domain_contract_fingerprint", "")),
     }
     with path.open("a", encoding="utf-8") as handle:
         for key, value in values.items():
@@ -436,6 +445,7 @@ def main() -> int:
     parser.add_argument("--baseline-sha", default="")
     parser.add_argument("--historical-failures", type=int, default=0)
     parser.add_argument("--shadow-percent", type=int, default=10)
+    parser.add_argument("--contract-root", default="")
     parser.add_argument("--output")
     parser.add_argument("--github-output")
     parser.add_argument("--self-test", action="store_true")
@@ -446,6 +456,7 @@ def main() -> int:
     if not args.repo_root or not args.output:
         raise SystemExit("--repo-root and --output are required")
     output = Path(args.output)
+    started = time.perf_counter()
     plan = validate(make_plan(
         Path(args.repo_root).resolve(),
         args.engine,
@@ -454,6 +465,19 @@ def main() -> int:
         args.historical_failures,
         args.shadow_percent,
     ))
+    plan["telemetry"] = {
+        "planner_duration_ms": round((time.perf_counter() - started) * 1000, 2),
+        "changed_file_count": plan.get("changed_file_count", 0),
+        "risk_score": plan.get("risk", {}).get("score", 0),
+        "confidence": plan.get("confidence", 0),
+    }
+    if args.contract_root:
+        domains = set(plan.get("cache_domains", ["core"]))
+        plan["domain_contract_fingerprint"] = contract_fingerprint.compute_selected(
+            Path(args.contract_root), domains
+        )[:16]
+    else:
+        plan["domain_contract_fingerprint"] = ""
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if args.github_output:
