@@ -20,7 +20,6 @@ DEFAULT_CERTIFICATION_POLICY = {
     "requires_real_device": False,
     "expected_signing_certificate_sha256": "",
     "max_apk_bytes": 600 * 1024 * 1024,
-    "max_apk_growth_percent": 35.0,
 }
 
 def run_text(command: list[str]) -> str:
@@ -103,7 +102,6 @@ def load_certification_policy(repo_root: Path, working: PurePosixPath) -> dict[s
             "requires_real_device",
             "expected_signing_certificate_sha256",
             "max_apk_bytes",
-            "max_apk_growth_percent",
         ):
             if key in payload:
                 policy[key] = payload[key]
@@ -118,10 +116,6 @@ def load_certification_policy(repo_root: Path, working: PurePosixPath) -> dict[s
     if max_bytes <= 0:
         raise ValueError("max_apk_bytes must be positive")
     policy["max_apk_bytes"] = max_bytes
-    growth = float(policy["max_apk_growth_percent"])
-    if growth < 0:
-        raise ValueError("max_apk_growth_percent must be non-negative")
-    policy["max_apk_growth_percent"] = growth
     return policy
 
 def normalize_check_state(value: str) -> str:
