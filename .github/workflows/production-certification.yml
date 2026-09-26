@@ -132,6 +132,7 @@ jobs:
     with:
       repository: ${{ inputs.repository }}
       ref: ${{ needs.resolve.outputs.resolved_sha }}
+      source_ref: ${{ inputs.ref }}
       run_maestro: true
       history_key: ${{ needs.resolve.outputs.history_key }}
       cache_verification: false
@@ -150,6 +151,7 @@ jobs:
     with:
       repository: ${{ inputs.repository }}
       ref: ${{ needs.resolve.outputs.resolved_sha }}
+      source_ref: ${{ inputs.ref }}
       run_maestro: true
       history_key: ${{ needs.resolve.outputs.history_key }}-compat
       cache_verification: false
