@@ -230,6 +230,7 @@ def package(args: argparse.Namespace) -> dict:
             args.engine,
             args.history_file,
             args.repository,
+            str(working),
         )
     smart_test_plan.validate_plan(plan)
 
