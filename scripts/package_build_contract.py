@@ -213,9 +213,28 @@ def package(args: argparse.Namespace) -> dict:
         "build": normalize_check_state(args.build_status),
     }
 
+    if args.analysis_plan_file:
+        plan_path = Path(args.analysis_plan_file).resolve()
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        smart_test_plan.validate_plan(plan)
+        if str(plan.get("baseline_sha", "")).lower() != args.baseline_sha.strip().lower():
+            raise ValueError("preflight analysis baseline does not match build contract")
+        if str(plan.get("head_sha", "")) and str(plan.get("head_sha", "")).lower() != args.resolved_sha.strip().lower():
+            raise ValueError("preflight analysis HEAD does not match resolved SHA")
+        if not bool(plan.get("runtime_required")):
+            raise ValueError("build contract cannot package a source-only analysis lane")
+    else:
+        plan = smart_test_plan.plan_from_repo(
+            repo_root,
+            args.analysis_mode,
+            args.baseline_sha,
+            baseline_trusted=args.baseline_trusted,
+            history_risk=args.history_risk_json,
+        )
+
     contract = {
-        "schema_version": 1,
-        "applab_version": "0.8.1",
+        "schema_version": 2,
+        "applab_version": "0.9.0",
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
         "engine": args.engine,
@@ -225,6 +244,9 @@ def package(args: argparse.Namespace) -> dict:
         "analysis_mode": args.analysis_mode,
         "analysis_baseline_sha": args.baseline_sha.strip().lower(),
         "analysis_plan": "analysis-plan.json",
+        "shadow_analysis_plan": "shadow-full-plan.json" if plan.get("shadow_full_recommended") else "",
+        "analysis_lane": plan.get("lane", ""),
+        "analysis_risk": plan.get("risk", {}),
         "certification_policy": certification_policy,
         "apk": {
             "path": "app.apk",
@@ -240,16 +262,22 @@ def package(args: argparse.Namespace) -> dict:
         "quality_evidence": quality_evidence,
         "evidence_bytes": total,
     }
-    plan = smart_test_plan.classify(
-        smart_test_plan.git_changed_files(repo_root, args.baseline_sha),
-        args.analysis_mode,
-        args.baseline_sha,
-    )
     smart_test_plan.validate_plan(plan)
     (output / "analysis-plan.json").write_text(
         json.dumps(plan, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    if plan.get("shadow_full_recommended"):
+        shadow = smart_test_plan.classify(
+            list(plan.get("changed_files", [])),
+            "full",
+            args.baseline_sha,
+        )
+        shadow["head_sha"] = plan.get("head_sha", "")
+        (output / "shadow-full-plan.json").write_text(
+            json.dumps(shadow, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
     (output / "contract.json").write_text(
         json.dumps(contract, indent=2, sort_keys=True) + "\n",
@@ -273,7 +301,8 @@ def self_test() -> None:
             repository="owner/repo", resolved_sha="a"*40, engine="flutter",
             working_directory=".", package_id="com.example.app",
             maestro_flow=".maestro/smoke.yaml",
-            analysis_mode="fast", baseline_sha="",
+            analysis_mode="full", baseline_sha="",
+            baseline_trusted=False, history_risk_json="", analysis_plan_file="",
             build_command="flutter build apk --debug",
             analyze_status="PASS", lint_status="N/A",
             test_status="PASS", build_status="PASS",
@@ -297,6 +326,9 @@ def main() -> int:
     parser.add_argument("--maestro-flow", default="")
     parser.add_argument("--analysis-mode", choices=("fast", "full", "certification"), default="full")
     parser.add_argument("--baseline-sha", default="")
+    parser.add_argument("--baseline-trusted", action="store_true")
+    parser.add_argument("--history-risk-json", default="")
+    parser.add_argument("--analysis-plan-file", default="")
     parser.add_argument("--build-command", default="")
     parser.add_argument("--analyze-status", default="NOT_RUN")
     parser.add_argument("--lint-status", default="NOT_RUN")
