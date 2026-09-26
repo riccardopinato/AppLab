@@ -74,6 +74,7 @@ def main() -> int:
     parser.add_argument("--root", default=".")
     parser.add_argument("--plan")
     parser.add_argument("--output")
+    parser.add_argument("--github-output", default="")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
@@ -89,6 +90,9 @@ def main() -> int:
         Path(args.output).write_text(text, encoding="utf-8")
     else:
         print(text, end="")
+    if args.github_output:
+        with Path(args.github_output).open("a", encoding="utf-8") as handle:
+            handle.write(f"selected_contract_fingerprint={payload.get('selected', payload['core'])}\n")
     return 0
 
 if __name__ == "__main__":
