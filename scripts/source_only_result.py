@@ -5,7 +5,7 @@ import argparse
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any\n\nfrom contract_fingerprint import compute_selected
 
 APPLAB_VERSION = "0.9.0"
 
@@ -62,6 +62,10 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
         "change_summary": plan.get("change_summary", {}),
         "dependency_graph": plan.get("dependency_graph", {}),
         "selected_labs": plan.get("selected_labs", {}),
+        "verification_contract_fingerprint": compute_selected(
+            Path(__file__).resolve().parent.parent,
+            plan.get("selected_labs", {}),
+        )[:16],
         "shadow_calibration": {},
         "certification_status": "NOT_REQUESTED",
         "release": {},
