@@ -665,6 +665,23 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Prepare non-runtime verification cache payload
+        if: inputs.cache_verification && steps.impact.outputs.runtime_required != 'true'
+        shell: bash
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/.applab-watch-cache"
+          mkdir -p "$GITHUB_WORKSPACE/.applab-watch-cache"
+          cp "$GITHUB_WORKSPACE/applab-report/result.json" "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
+          cp "$GITHUB_WORKSPACE/applab-report/summary.md" "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
+          cp "$GITHUB_WORKSPACE/applab-report/impact-plan.json" "$GITHUB_WORKSPACE/.applab-watch-cache/impact-plan.json"
+
+      - name: Cache non-runtime resolved commit
+        if: inputs.cache_verification && steps.impact.outputs.runtime_required != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .applab-watch-cache
+          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
+
       - name: Upload build-phase evidence
         if: always()
         uses: actions/upload-artifact@v7
