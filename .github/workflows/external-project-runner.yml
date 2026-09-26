@@ -369,7 +369,7 @@ jobs:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
           path: target
-          fetch-depth: 2
+          fetch-depth: 50
           persist-credentials: false
 
       - name: Fetch FAST baseline commit
