@@ -472,7 +472,11 @@ jobs:
             echo "Expected APK not found or empty: $APK_FILE" >&2
             exit 1
           fi
+          CANDIDATE_APK="$RUNNER_TEMP/applab-candidate.apk"
+          cp "$APK_FILE" "$CANDIDATE_APK"
+          test "$(sha256sum "$APK_FILE" | awk '{print $1}')" = "$(sha256sum "$CANDIDATE_APK" | awk '{print $1}')"
           echo "apk_file=$APK_FILE" >> "$GITHUB_OUTPUT"
+          echo "candidate_file=$CANDIDATE_APK" >> "$GITHUB_OUTPUT"
           {
             ls -lh "$APK_FILE"
             sha256sum "$APK_FILE"
@@ -498,6 +502,24 @@ jobs:
           git -C "$GITHUB_WORKSPACE/.applab" clean -ffd
           test "$(git -C "$GITHUB_WORKSPACE/.applab" rev-parse HEAD)" = "$APPLAB_TRUSTED_SHA"
 
+      - name: Restore target source before trusted packaging
+        if: steps.impact.outputs.run_build == 'true'
+        id: trusted_target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          TARGET_ROOT="$GITHUB_WORKSPACE/target"
+          EXPECTED_SHA="${{ steps.target.outputs.resolved_sha }}"
+          test "$(git -C "$TARGET_ROOT" rev-parse HEAD)" = "$EXPECTED_SHA"
+          git -C "$TARGET_ROOT" reset --hard "$EXPECTED_SHA"
+          git -C "$TARGET_ROOT" clean -ffd
+          test "$(git -C "$TARGET_ROOT" rev-parse HEAD)" = "$EXPECTED_SHA"
+          mkdir -p "$TARGET_ROOT/.applab-candidate"
+          TRUSTED_APK="$TARGET_ROOT/.applab-candidate/app.apk"
+          cp "${{ steps.apk.outputs.candidate_file }}" "$TRUSTED_APK"
+          test "$(sha256sum "${{ steps.apk.outputs.candidate_file }}" | awk '{print $1}')" = "$(sha256sum "$TRUSTED_APK" | awk '{print $1}')"
+          echo "apk_file=$TRUSTED_APK" >> "$GITHUB_OUTPUT"
+
       - name: Package isolated APK contract
         if: steps.impact.outputs.run_build == 'true'
         id: contract
@@ -508,7 +530,7 @@ jobs:
           echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
           python .applab/scripts/package_build_contract.py \
             --repo-root "$GITHUB_WORKSPACE/target" \
-            --apk "${{ steps.apk.outputs.apk_file }}" \
+            --apk "${{ steps.trusted_target.outputs.apk_file }}" \
             --output "$GITHUB_WORKSPACE/applab-build-contract" \
             --repository "${{ inputs.repository }}" \
             --resolved-sha "${{ steps.target.outputs.resolved_sha }}" \
@@ -519,6 +541,9 @@ jobs:
             --analysis-mode "${{ inputs.analysis_mode }}" \
             --baseline-sha "${{ inputs.baseline_sha }}" \
             --analysis-plan-input "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
+            --history-file "$GITHUB_WORKSPACE/.applab-history/history.jsonl" \
+            --history-key "${{ inputs.history_key }}" \
+            --source-ref "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}" \
             --quality-json "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" \
             --build-command "${{ inputs.build_command }}" \
             --analyze-status "N/A" \
