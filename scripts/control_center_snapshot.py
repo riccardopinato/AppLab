@@ -106,6 +106,13 @@ def build_snapshot(
                 "performance": result.get("performance", {}),
                 "applab_version": result.get("applab_version", ""),
                 "analysis_mode": result.get("analysis_mode", "full"),
+                "analysis_lane": result.get("analysis_lane", ""),
+                "risk_score": result.get("risk_score"),
+                "risk_level": result.get("risk_level", ""),
+                "confidence": result.get("confidence"),
+                "shadow_full": bool(result.get("shadow_full", False)),
+                "shadow_calibration": result.get("shadow_calibration", {}),
+                "runtime_changed": result.get("runtime_changed"),
                 "certification_status": raw_certification_status,
                 "certification_display_status": certification_display_status,
                 "certification": certification_result.get("certification", {}),
@@ -135,6 +142,11 @@ def build_snapshot(
     not_certified_count = sum(
         1 for item in projects if item["certification_status"] == "NOT_CERTIFIED"
     )
+    fast_runtime_count = sum(1 for item in projects if item.get("analysis_lane") == "FAST_RUNTIME")
+    full_runtime_count = sum(1 for item in projects if item.get("analysis_lane") == "FULL_RUNTIME")
+    source_only_count = sum(1 for item in projects if item.get("analysis_lane") == "NO_RUNTIME_CHANGE")
+    static_only_count = sum(1 for item in projects if item.get("analysis_lane") == "STATIC_ONLY")
+    shadow_sample_count = sum(1 for item in projects if item.get("shadow_full"))
 
     recent = sorted(
         (
@@ -167,6 +179,13 @@ def build_snapshot(
                     "watcher_run_url",
                     "applab_version",
                     "analysis_mode",
+                    "analysis_lane",
+                    "risk_score",
+                    "risk_level",
+                    "confidence",
+                    "shadow_full",
+                    "shadow_calibration",
+                    "runtime_changed",
                     "certification_status",
                     "certification",
                     "release",
@@ -191,6 +210,11 @@ def build_snapshot(
             "certified_stale": certified_stale_count,
             "certification_blocked": certification_blocked_count,
             "not_certified": not_certified_count,
+            "fast_runtime": fast_runtime_count,
+            "full_runtime": full_runtime_count,
+            "source_only": source_only_count,
+            "static_only": static_only_count,
+            "shadow_samples": shadow_sample_count,
         },
         "projects": projects,
         "recent": recent,
@@ -226,7 +250,7 @@ def self_test() -> None:
             "recorded_at": "2026-01-02T00:00:00Z",
             "result": "PASS",
             "resolved_sha": "full",
-            "applab_version": "0.8.0",
+            "applab_version": "0.9.0",
             "analysis_mode": "certification",
             "certification_status": "CERTIFIED",
             "certification": {
@@ -253,8 +277,14 @@ def self_test() -> None:
             "recorded_at": "2026-01-03T00:00:00Z",
             "result": "PASS",
             "resolved_sha": "fast",
-            "applab_version": "0.8.0",
+            "applab_version": "0.9.0",
             "analysis_mode": "fast",
+            "analysis_lane": "FAST_RUNTIME",
+            "risk_score": 32,
+            "risk_level": "LOW",
+            "confidence": 0.94,
+            "shadow_full": False,
+            "runtime_changed": True,
             "network_lab": "SKIPPED",
             "persistence_lab": "SKIPPED",
             "configuration_lab": "PASS",
@@ -276,12 +306,20 @@ def self_test() -> None:
         "certified_stale": 1,
         "certification_blocked": 0,
         "not_certified": 0,
+        "fast_runtime": 1,
+        "full_runtime": 0,
+        "source_only": 0,
+        "static_only": 0,
+        "shadow_samples": 0,
     }
     first = next(
         item for item in snapshot["projects"] if item["repository"] == "owner/one"
     )
     assert first["resolved_sha"] == "fast"
     assert first["analysis_mode"] == "fast"
+    assert first["analysis_lane"] == "FAST_RUNTIME"
+    assert first["risk_score"] == 32
+    assert first["confidence"] == 0.94
     assert first["certification_status"] == "CERTIFIED"
     assert first["certification_display_status"] == "CERTIFIED_STALE"
     assert first["certified_sha"] == "full"
