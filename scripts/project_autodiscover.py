@@ -5,6 +5,7 @@ import argparse
 import json
 import re
 import tempfile
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,29 @@ def read_text(path: Path) -> str:
 
 def files_under(root: Path, names: set[str] | None = None) -> list[Path]:
     result: list[Path] = []
+    # Prefer Git's tracked-file index: it is much faster on large repositories
+    # and excludes build output/untracked dependency trees by construction.
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        completed = None
+    if completed is not None and completed.returncode == 0 and completed.stdout:
+        for raw in completed.stdout.split(b"\0"):
+            if not raw:
+                continue
+            rel_path = raw.decode("utf-8", errors="ignore")
+            path = root / rel_path
+            if any(part in IGNORED_DIRS for part in Path(rel_path).parts):
+                continue
+            if path.is_file() and (names is None or path.name in names):
+                result.append(path)
+        return result
     for path in root.rglob("*"):
         if any(part in IGNORED_DIRS for part in path.parts):
             continue
