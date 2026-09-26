@@ -43,14 +43,14 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
     contract_path = root / "contract.json"
     apk = root / "app.apk"
     evidence = root / "target-evidence"
-    analysis_plan_path = root / "analysis-plan.json"
+    analysis_plan_path = root / "analysis-plan.json"\n    shadow_plan_path = root / "shadow-full-plan.json"
     if not contract_path.is_file() or contract_path.is_symlink():
         raise ValueError("contract.json is missing or invalid")
     if not apk.is_file() or apk.is_symlink():
         raise ValueError("app.apk is missing or invalid")
 
     payload = json.loads(contract_path.read_text(encoding="utf-8"))
-    if payload.get("schema_version") != 1:
+    if payload.get("schema_version") != 2:
         raise ValueError("Unsupported build contract schema")
     if payload.get("repository") != expected_repository:
         raise ValueError("Build contract repository mismatch")
@@ -116,6 +116,28 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
     )
     if str(analysis_plan.get("baseline_sha", "")).strip().lower() != baseline_sha:
         raise ValueError("Analysis plan baseline SHA mismatch")
+    if str(analysis_plan.get("mode", "")).strip().lower() != analysis_mode:
+        raise ValueError("Analysis plan effective mode mismatch")
+    lane = str(analysis_plan.get("lane", ""))
+    if str(payload.get("analysis_lane", "")) != lane:
+        raise ValueError("Analysis lane mismatch")
+    if payload.get("analysis_risk") != analysis_plan.get("risk"):
+        raise ValueError("Analysis risk contract mismatch")
+
+    shadow_reference = str(payload.get("shadow_analysis_plan", ""))
+    shadow_plan: dict = {}
+    if shadow_reference:
+        if shadow_reference != "shadow-full-plan.json":
+            raise ValueError("Unexpected shadow analysis plan reference")
+        if not shadow_plan_path.is_file() or shadow_plan_path.is_symlink():
+            raise ValueError("shadow-full-plan.json is missing or invalid")
+        shadow_plan = smart_test_plan.validate_plan(
+            json.loads(shadow_plan_path.read_text(encoding="utf-8"))
+        )
+        if shadow_plan.get("mode") != "full" or shadow_plan.get("lane") != "FULL_RUNTIME":
+            raise ValueError("Shadow plan must be FULL_RUNTIME")
+        if str(shadow_plan.get("baseline_sha", "")).strip().lower() != baseline_sha:
+            raise ValueError("Shadow analysis baseline mismatch")
     if package_id and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package_id):
         raise ValueError("Invalid package id in build contract")
 
@@ -234,6 +256,10 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         "analysis_mode": analysis_mode,
         "analysis_baseline_sha": baseline_sha,
         "analysis_plan_file": str(analysis_plan_path),
+        "shadow_plan_file": str(shadow_plan_path) if shadow_reference else "",
+        "analysis_lane": lane,
+        "analysis_risk_json": json.dumps(analysis_plan.get("risk", {}), separators=(",", ":")),
+        "shadow_full": str(bool(shadow_reference)).lower(),
         "quality_evidence_json": json.dumps(quality, separators=(",", ":")),
         "certification_policy_json": json.dumps(certification_policy, separators=(",", ":")),
     }
@@ -282,12 +308,15 @@ def self_test() -> None:
             encoding="utf-8",
         )
         payload = {
-            "schema_version": 1, "repository": "owner/repo", "resolved_sha": "a"*40,
+            "schema_version": 2, "repository": "owner/repo", "resolved_sha": "a"*40,
             "engine": "flutter", "working_directory": ".", "package_id": "com.example.app",
             "maestro_flow": ".maestro/smoke.yaml",
             "analysis_mode": "fast",
             "analysis_baseline_sha": "b" * 40,
             "analysis_plan": "analysis-plan.json",
+            "shadow_analysis_plan": "",
+            "analysis_lane": "FAST_RUNTIME",
+            "analysis_risk": {"score":20,"level":"LOW","confidence":0.8,"reasons":["path-only compatibility mode"]},
             "certification_policy": {
                 "schema_version":1,
                 "requires_real_device":False,
