@@ -121,6 +121,40 @@ def latest_history_sha(path: str, repository: str) -> str:
     return latest_sha
 
 
+def historical_risk_counts(path: str, repository: str) -> dict[str, int]:
+    if not path:
+        return {}
+    history = Path(path)
+    if not history.is_file():
+        return {}
+    rows: list[dict[str, Any]] = []
+    for raw in history.read_text(encoding="utf-8", errors="ignore").splitlines():
+        try:
+            item = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(item, dict) and str(item.get("repository", "")).strip() == repository:
+            rows.append(item)
+    domains = (
+        "system", "performance", "network", "persistence", "configuration",
+        "resource_pressure", "background", "storage", "upgrade",
+    )
+    counts: dict[str, int] = {}
+    for item in rows[-30:]:
+        for domain in domains:
+            value = str(item.get(f"{domain}_lab", "")).upper()
+            if value in {"FAIL", "ERROR", "WARN"}:
+                counts[domain] = counts.get(domain, 0) + 1
+        shadow = item.get("shadow_calibration")
+        if isinstance(shadow, dict):
+            for domain in shadow.get("false_negative_labs", []):
+                if isinstance(domain, str) and domain in domains:
+                    counts[domain] = counts.get(domain, 0) + 3
+        if str(item.get("result", "")).upper() == "FAIL":
+            counts["generic_failure"] = counts.get("generic_failure", 0) + 1
+    return counts
+
+
 def self_test_history() -> None:
     import tempfile
     with tempfile.TemporaryDirectory() as raw:
@@ -248,6 +282,8 @@ def main() -> int:
         try:
             sha = resolve_sha(repository, str(entry["ref"]), token)
             previous_verified_sha = latest_history_sha(args.history_file, repository)
+            historical_risk = historical_risk_counts(args.history_file, repository)
+            historical_risk_json = json.dumps(historical_risk, sort_keys=True, separators=(",", ":"))
             cache_key = (
                 f"applab-c{contract_fingerprint}-"
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
@@ -263,6 +299,7 @@ def main() -> int:
                     "cached": cached,
                     "scheduled": scheduled,
                     "previous_verified_sha": previous_verified_sha,
+                    "historical_risk": historical_risk,
                 }
             )
             if scheduled:
@@ -271,6 +308,7 @@ def main() -> int:
                     "engine": engine,
                     "resolved_sha": sha,
                     "previous_verified_sha": previous_verified_sha,
+                    "historical_risk_json": historical_risk_json,
                     "cache_epoch": cache_epoch,
                     "contract_fingerprint": contract_fingerprint,
                     "config_fingerprint": config_fingerprint,
