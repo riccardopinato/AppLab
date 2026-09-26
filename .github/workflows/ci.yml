@@ -47,6 +47,7 @@ jobs:
             scripts/preflight_result.py \
             scripts/shadow_calibration.py \
             scripts/gradle_execution_plan.py \
+            scripts/analysis_metrics.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
             scripts/prepare_performance_baseline.py \
@@ -77,6 +78,7 @@ jobs:
           PYTHONPATH=scripts python scripts/planner_regression_corpus.py
           python scripts/shadow_calibration.py --self-test --plan /dev/null --result /dev/null --output /dev/null
           python scripts/gradle_execution_plan.py --self-test
+          python scripts/analysis_metrics.py --self-test
           python scripts/upgrade_lab.py --self-test
           python scripts/prepare_upgrade_baseline.py --self-test
           python scripts/prepare_performance_baseline.py --self-test
