@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v1.0.0 — Autonomous Quality Platform**
+Current production baseline: **v1.3.0 — Product, UX & Architecture Intelligence**
 
 ## Product rule
 
@@ -19,6 +19,30 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v1.3.0 — Architecture & Data Intelligence
+
+- [x] Inventory repository/service/model/database structure from bounded source evidence.
+- [x] Detect local persistence, remote/sync and offline-handling signals.
+- [x] Emit conservative local-first assessments instead of unsupported claims.
+- [x] Flag direct remote SDK usage in UI-like files as an advisory review target.
+- [x] Detect premium-policy scattering and secret-like tracked material as review signals.
+- [x] Keep architecture findings advisory and separate from runtime certification.
+
+### v1.2.0 — UX & Product Lab
+
+- [x] Detect loading, error, empty, confirmation, undo, onboarding, search and accessibility evidence.
+- [x] Inventory navigation/UI surface from repository structure.
+- [x] Add destructive-flow lifecycle evidence for delete/remove, trash/archive/restore and side-effect cleanup.
+- [x] Emit explicit REVIEW findings without converting static heuristics into build failures.
+
+### v1.1.0 — Product Analysis Engine
+
+- [x] Detect stack, languages, product surface and test surface.
+- [x] Inventory source evidence for auth, persistence, network, background work, notifications, monetization, analytics, AI/ML, export/backup, media, maps/location and cloud/sync.
+- [x] Produce machine-readable JSON plus human-readable Markdown evidence.
+- [x] Add a reusable/manual App Intelligence workflow that scans each target repository once.
+- [x] Preserve the v1.0 trust boundary: product analysis cannot weaken verification or certification.
 
 ### v1.0.0 — Autonomous Quality Platform
 
@@ -220,6 +244,10 @@ These are explicit engineering boundaries, not hidden assumptions:
    certification until trusted device evidence exists.
 
 ## Next validation targets
+
+- Integrate App Intelligence summaries into the Control Center after enough real-project reports exist.
+- Use real audits to refine heuristics and reduce false-positive review signals.
+- Design v1.4 Competitor & Market Lab as an explicitly external-data layer, isolated from trusted source/runtime verification.
 
 - Accumulate enough real watcher samples for statistically meaningful p50/p95.
 - Measure shadow false-negative, missed-WARN and over-selection rates over a meaningful sample.
