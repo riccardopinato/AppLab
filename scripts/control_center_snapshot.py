@@ -45,6 +45,8 @@ def adaptive_history_metrics(history: list[dict[str, Any]]) -> dict[str, Any]:
     avd_hits = avd_observed = maestro_hits = maestro_observed = 0
     shadow_runs = shadow_false_negatives = shadow_missed_warnings = 0
     shadow_over_selections = 0
+    budget_exceeded_runs = 0
+    learning_applied_runs = 0
 
     for item in history:
         metrics = item.get("pipeline_metrics")
@@ -89,6 +91,8 @@ def adaptive_history_metrics(history: list[dict[str, Any]]) -> dict[str, Any]:
         shadow_over_selections += int(
             metrics.get("shadow_over_selection_count", 0) or 0
         )
+        budget_exceeded_runs += int(bool(metrics.get("budget_exceeded", False)))
+        learning_applied_runs += int(int(metrics.get("learning_applied_lab_count", 0) or 0) > 0)
 
     lane_metrics = {
         lane: {
@@ -136,6 +140,8 @@ def adaptive_history_metrics(history: list[dict[str, Any]]) -> dict[str, Any]:
         "shadow_false_negatives": shadow_false_negatives,
         "shadow_missed_warnings": shadow_missed_warnings,
         "shadow_over_selections": shadow_over_selections,
+        "budget_exceeded_runs": budget_exceeded_runs,
+        "learning_applied_runs": learning_applied_runs,
     }
 
 
@@ -229,6 +235,15 @@ def build_snapshot(
                 "shadow_full": bool(result.get("shadow_full", False)),
                 "pipeline_metrics": result.get("pipeline_metrics", {}),
                 "shadow_calibration": result.get("shadow_calibration", {}),
+                "failure_intelligence": result.get("failure_intelligence", {}),
+                "flaky_detection": result.get("flaky_detection", {}),
+                "release_readiness": result.get("release_readiness", {}),
+                "project_state": result.get("project_state", {}),
+                "playbook": result.get("playbook", {}),
+                "learning_profile": result.get("learning_profile", {}),
+                "learning_applied_labs": result.get("learning_applied_labs", []),
+                "verification_budget_seconds": result.get("verification_budget_seconds"),
+                "budget_pressure": bool(result.get("budget_pressure", False)),
                 "certification_status": raw_certification_status,
                 "certification_display_status": certification_display_status,
                 "certification": certification_result.get("certification", {}),
@@ -266,6 +281,18 @@ def build_snapshot(
     shadow_false_negatives = sum(
         int((item.get("shadow_calibration") or {}).get("false_negative_count", 0) or 0)
         for item in projects
+    )
+    retryable_failures = sum(
+        1 for item in projects
+        if bool((item.get("failure_intelligence") or {}).get("retryable", False))
+    )
+    flaky_suspects = sum(
+        1 for item in projects
+        if bool((item.get("flaky_detection") or {}).get("suspected", False))
+    )
+    release_ready = sum(
+        1 for item in projects
+        if str((item.get("release_readiness") or {}).get("status", "")) == "RELEASE_READY"
     )
 
     recent = sorted(
@@ -305,6 +332,15 @@ def build_snapshot(
                     "shadow_full",
                     "pipeline_metrics",
                     "shadow_calibration",
+                    "failure_intelligence",
+                    "flaky_detection",
+                    "release_readiness",
+                    "project_state",
+                    "playbook",
+                    "learning_profile",
+                    "learning_applied_labs",
+                    "verification_budget_seconds",
+                    "budget_pressure",
                     "certification_status",
                     "certification",
                     "release",
@@ -332,6 +368,9 @@ def build_snapshot(
             "lanes": lane_counts,
             "shadow_runs": shadow_runs,
             "shadow_false_negatives": shadow_false_negatives,
+            "retryable_failures": retryable_failures,
+            "flaky_suspects": flaky_suspects,
+            "release_ready": release_ready,
             "adaptive_metrics": adaptive_history_metrics(history),
         },
         "projects": projects,
