@@ -226,7 +226,7 @@ def package(args: argparse.Namespace) -> dict:
 
     contract = {
         "schema_version": 1,
-        "applab_version": "0.9.0",
+        "applab_version": "0.9.1",
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
         "engine": args.engine,
