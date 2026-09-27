@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v1.3.0 — Product, UX & Architecture Intelligence**
+Current production baseline: **v1.4.0 — Competitor & Market Lab**
 
 ## Product rule
 
@@ -19,6 +19,17 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v1.4.0 — Competitor & Market Lab
+
+- [x] Add an external-evidence market layer isolated from trusted runtime verification.
+- [x] Require traceable source URLs for competitor capabilities, pricing, ratings and review themes.
+- [x] Compare project source signals with competitor capability frequency without treating NOT_DETECTED as proven absence.
+- [x] Classify parity, project differentiator signals and market-gap review targets.
+- [x] Aggregate recurring negative review themes only across multiple competitors.
+- [x] Report pricing-model and same-currency ranges without currency conversion or automatic price recommendations.
+- [x] Add reusable/manual workflow plus JSON/Markdown evidence outputs.
+- [x] Preserve PASS/FAIL, FAST/FULL and CERTIFICATION boundaries.
 
 ### v1.3.0 — Architecture & Data Intelligence
 
@@ -247,7 +258,8 @@ These are explicit engineering boundaries, not hidden assumptions:
 
 - Integrate App Intelligence summaries into the Control Center after enough real-project reports exist.
 - Use real audits to refine heuristics and reduce false-positive review signals.
-- Design v1.4 Competitor & Market Lab as an explicitly external-data layer, isolated from trusted source/runtime verification.
+- Calibrate the v1.4 capability taxonomy against real competitor evidence before broadening aliases or automating acquisition.
+- Design v1.5 Cross-App Intelligence using only project-scoped evidence plus explicitly bounded reusable patterns.
 
 - Accumulate enough real watcher samples for statistically meaningful p50/p95.
 - Measure shadow false-negative, missed-WARN and over-selection rates over a meaningful sample.
