@@ -52,6 +52,13 @@ type ProjectRow = {
   risk_score?: number | null;
   confidence?: number | null;
   shadow_full?: boolean;
+  failure_intelligence?: { kind?: string; retryable?: boolean; reason?: string };
+  flaky_detection?: { suspected?: boolean; labs?: string[] };
+  release_readiness?: { status?: string; missing_gates?: string[] };
+  playbook?: { category?: string; recommended_playbook?: string; required_labs?: string[] };
+  learning_applied_labs?: string[];
+  verification_budget_seconds?: number | null;
+  budget_pressure?: boolean;
   certification_status: string;
   certification_display_status?: string;
   certified_sha?: string;
@@ -99,6 +106,13 @@ type RecentRow = {
   risk_score?: number | null;
   confidence?: number | null;
   shadow_full?: boolean;
+  failure_intelligence?: { kind?: string; retryable?: boolean };
+  flaky_detection?: { suspected?: boolean; labs?: string[] };
+  release_readiness?: { status?: string };
+  playbook?: { category?: string; recommended_playbook?: string };
+  learning_applied_labs?: string[];
+  verification_budget_seconds?: number | null;
+  budget_pressure?: boolean;
   certification_status?: string;
   certification?: {
     status?: string;
@@ -128,6 +142,9 @@ type Snapshot = {
     lanes?: Record<string, number>;
     shadow_runs?: number;
     shadow_false_negatives?: number;
+    retryable_failures?: number;
+    flaky_suspects?: number;
+    release_ready?: number;
     adaptive_metrics?: {
       sample_count?: number;
       planner_ms?: { p50?: number | null; p95?: number | null };
@@ -148,6 +165,8 @@ type Snapshot = {
       shadow_false_negatives?: number;
       shadow_missed_warnings?: number;
       shadow_over_selections?: number;
+      budget_exceeded_runs?: number;
+      learning_applied_runs?: number;
     };
   };
   projects: ProjectRow[];
@@ -300,6 +319,26 @@ export default function ControlCenter({ backend }: { backend: string }) {
                 <span>Shadow over-selection</span>
                 <strong>{snapshot.summary.adaptive_metrics.shadow_over_selections ?? 0}</strong>
               </div>
+              <div>
+                <span>Budget exceeded</span>
+                <strong>{snapshot.summary.adaptive_metrics.budget_exceeded_runs ?? 0}</strong>
+              </div>
+              <div>
+                <span>Learning applied</span>
+                <strong>{snapshot.summary.adaptive_metrics.learning_applied_runs ?? 0}</strong>
+              </div>
+              <div>
+                <span>Retryable failures</span>
+                <strong>{snapshot.summary.retryable_failures ?? 0}</strong>
+              </div>
+              <div>
+                <span>Flaky suspects</span>
+                <strong>{snapshot.summary.flaky_suspects ?? 0}</strong>
+              </div>
+              <div className="good">
+                <span>Release ready</span>
+                <strong>{snapshot.summary.release_ready ?? 0}</strong>
+              </div>
             </div>
           ) : null}
 
@@ -331,6 +370,9 @@ export default function ControlCenter({ backend }: { backend: string }) {
                   <th>Lane</th>
                   <th>Risk</th>
                   <th>Confidence</th>
+                  <th>Playbook</th>
+                  <th>Failure</th>
+                  <th>Readiness</th>
                   <th>Certification</th>
                   <th>Verdict</th>
                   <th>Maestro</th>
@@ -366,6 +408,28 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     <td>{project.analysis_lane ?? "FULL_RUNTIME"}{project.shadow_full ? " · shadow" : ""}</td>
                     <td>{project.risk_score ?? "—"}</td>
                     <td>{project.confidence != null ? `${Math.round(project.confidence * 100)}%` : "—"}</td>
+                    <td>
+                      <div className="cc-project">
+                        <span>{project.playbook?.category ?? "—"}</span>
+                        <small>{project.learning_applied_labs?.length ? `learned +${project.learning_applied_labs.length}` : "baseline policy"}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cc-project">
+                        <span className={badgeClass(project.failure_intelligence?.kind === "NONE" ? "PASS" : project.failure_intelligence?.retryable ? "WARN" : project.failure_intelligence?.kind ? "FAIL" : "—")}>
+                          {project.failure_intelligence?.kind ?? "—"}
+                        </span>
+                        <small>{project.failure_intelligence?.retryable ? "retryable" : project.flaky_detection?.suspected ? "flaky suspect" : "—"}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cc-project">
+                        <span className={badgeClass(project.release_readiness?.status === "RELEASE_READY" ? "PASS" : project.release_readiness?.status === "BLOCKED" ? "FAIL" : "WARN")}>
+                          {project.release_readiness?.status ?? "—"}
+                        </span>
+                        <small>{project.verification_budget_seconds ? `${project.verification_budget_seconds}s budget${project.budget_pressure ? " · pressure" : ""}` : "no budget data"}</small>
+                      </div>
+                    </td>
                     <td>
                       <div className="cc-project">
                         <span className={badgeClass(project.certification_display_status ?? project.certification_status)}>
@@ -458,6 +522,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     {item.engine ? ` · ${item.engine}` : ""}
                     {item.analysis_lane ? ` · ${item.analysis_lane}` : ""}
                     {item.risk_score != null ? ` · risk ${item.risk_score}` : ""}
+                    {item.failure_intelligence?.kind ? ` · ${item.failure_intelligence.kind}` : ""}
+                    {item.release_readiness?.status ? ` · ${item.release_readiness.status}` : ""}
                     {item.certification_status &&
                     item.certification_status !== "NOT_REQUESTED"
                       ? ` · ${item.certification_status}`
