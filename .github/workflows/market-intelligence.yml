@@ -1,0 +1,139 @@
+name: AppLab Competitor & Market Lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: "Target repository in owner/name form. Empty = this repository."
+        required: false
+        default: ""
+        type: string
+      target_ref:
+        description: "Branch, tag or SHA to analyze."
+        required: false
+        default: "main"
+        type: string
+      evidence_path:
+        description: "Market evidence JSON path. AppLab checkout is checked first, then target checkout."
+        required: true
+        default: "market-evidence.json"
+        type: string
+  workflow_call:
+    inputs:
+      target_repository:
+        required: false
+        default: ""
+        type: string
+      target_ref:
+        required: false
+        default: "main"
+        type: string
+      evidence_path:
+        required: true
+        type: string
+    secrets:
+      APPLAB_TARGET_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-market-${{ inputs.target_repository || github.repository }}-${{ inputs.target_ref || 'main' }}
+  cancel-in-progress: true
+
+jobs:
+  market:
+    name: Competitor · Market intelligence
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .applab
+          persist-credentials: false
+
+      - name: Resolve target
+        id: target
+        shell: bash
+        env:
+          INPUT_REPOSITORY: ${{ inputs.target_repository }}
+          INPUT_REF: ${{ inputs.target_ref }}
+        run: |
+          set -Eeuo pipefail
+          REPOSITORY="${INPUT_REPOSITORY:-}"
+          REF="${INPUT_REF:-main}"
+          [[ -n "$REPOSITORY" ]] || REPOSITORY="${{ github.repository }}"
+          echo "repository=$REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout target repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.target.outputs.repository }}
+          ref: ${{ steps.target.outputs.ref }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+          token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
+
+      - name: Resolve market evidence
+        id: evidence
+        shell: bash
+        env:
+          EVIDENCE_PATH: ${{ inputs.evidence_path }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$EVIDENCE_PATH" ]] || { echo "evidence_path is required" >&2; exit 1; }
+          case "$EVIDENCE_PATH" in
+            /*|*../*|../*|*/..) echo "Unsafe evidence_path" >&2; exit 1 ;;
+          esac
+          if [[ -f "$GITHUB_WORKSPACE/.applab/$EVIDENCE_PATH" ]]; then
+            FILE="$GITHUB_WORKSPACE/.applab/$EVIDENCE_PATH"
+          elif [[ -f "$GITHUB_WORKSPACE/target/$EVIDENCE_PATH" ]]; then
+            FILE="$GITHUB_WORKSPACE/target/$EVIDENCE_PATH"
+          else
+            echo "Market evidence not found: $EVIDENCE_PATH" >&2
+            exit 1
+          fi
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Build current project intelligence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/app_intelligence.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --output-dir "$GITHUB_WORKSPACE/applab-intelligence"
+
+      - name: Run Competitor & Market Lab
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/market_intelligence.py \
+            --evidence "${{ steps.evidence.outputs.file }}" \
+            --app-intelligence "$GITHUB_WORKSPACE/applab-intelligence/app-intelligence.json" \
+            --output-dir "$GITHUB_WORKSPACE/applab-market"
+
+      - name: Publish market report to workflow summary
+        shell: bash
+        run: |
+          {
+            echo "## AppLab Competitor & Market Lab"
+            echo
+            echo "**Target:** \`${{ steps.target.outputs.repository }}@${{ steps.target.outputs.ref }}\`"
+            echo
+            cat "$GITHUB_WORKSPACE/applab-market/market-intelligence.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload market evidence bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-market-intelligence-${{ github.run_id }}
+          path: |
+            applab-intelligence/
+            applab-market/
+          if-no-files-found: error
+          retention-days: 30
