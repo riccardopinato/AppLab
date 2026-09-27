@@ -46,7 +46,9 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "scripts/pipeline_metrics.py",
     ),
     ".github/workflows/trusted-apk-verifier.yml": (
-        "Prepare clean Android AVD cache",
+        "Restore clean AVD snapshot",
+        "Create pristine AVD snapshot on cache miss",
+        "Save pristine AVD snapshot before target execution",
         "force-avd-creation: false",
         "Cache pinned Maestro",
         "runtime-timing.json",
@@ -66,6 +68,8 @@ REQUIRED: dict[str, tuple[str, ...]] = {
 FORBIDDEN: dict[str, tuple[str, ...]] = {
     ".github/workflows/trusted-apk-verifier.yml": (
         "AppLab v0.8.0 Trusted APK Verification",
+        "needs.prepare_avd",
+        "if: always() && inputs.cache_verification\n        uses: actions/cache/save",
     ),
 }
 
