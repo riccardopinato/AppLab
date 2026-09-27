@@ -67,6 +67,7 @@ jobs:
             scripts/visual_journey_runtime.py \
             scripts/watch_discover.py \
             scripts/watch_aggregate.py \
+            scripts/app_intelligence.py \\
             scripts/control_center_snapshot.py
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/interaction_crawler.py --self-test
@@ -105,6 +106,7 @@ jobs:
           python scripts/watch_discover.py \
             --watchlist watchlist.json \
             --validate-only
+          python scripts/app_intelligence.py --self-test
           python scripts/control_center_snapshot.py --self-test
 
       - name: Frontend build
