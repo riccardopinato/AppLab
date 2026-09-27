@@ -132,12 +132,21 @@ type Snapshot = {
       sample_count?: number;
       planner_ms?: { p50?: number | null; p95?: number | null };
       total_seconds?: { p50?: number | null; p95?: number | null };
+      wall_clock_seconds?: { p50?: number | null; p95?: number | null };
       runtime_seconds?: { p50?: number | null; p95?: number | null };
       quality_seconds?: { p50?: number | null; p95?: number | null };
+      lane_metrics?: Record<
+        string,
+        {
+          sample_count?: number;
+          wall_clock_seconds?: { p50?: number | null; p95?: number | null };
+        }
+      >;
       avd_cache_hit_ratio?: number | null;
       maestro_cache_hit_ratio?: number | null;
       shadow_runs?: number;
       shadow_false_negatives?: number;
+      shadow_missed_warnings?: number;
       shadow_over_selections?: number;
     };
   };
@@ -258,10 +267,10 @@ export default function ControlCenter({ backend }: { backend: string }) {
                 <strong>{snapshot.summary.adaptive_metrics.sample_count ?? 0}</strong>
               </div>
               <div>
-                <span>Total p50 / p95</span>
+                <span>Wall clock p50 / p95</span>
                 <strong>
-                  {snapshot.summary.adaptive_metrics.total_seconds?.p50 ?? "—"}s /{" "}
-                  {snapshot.summary.adaptive_metrics.total_seconds?.p95 ?? "—"}s
+                  {snapshot.summary.adaptive_metrics.wall_clock_seconds?.p50 ?? "—"}s /{" "}
+                  {snapshot.summary.adaptive_metrics.wall_clock_seconds?.p95 ?? "—"}s
                 </strong>
               </div>
               <div>
@@ -284,9 +293,30 @@ export default function ControlCenter({ backend }: { backend: string }) {
                 <strong>{snapshot.summary.adaptive_metrics.shadow_false_negatives ?? 0}</strong>
               </div>
               <div>
+                <span>Shadow missed WARN</span>
+                <strong>{snapshot.summary.adaptive_metrics.shadow_missed_warnings ?? 0}</strong>
+              </div>
+              <div>
                 <span>Shadow over-selection</span>
                 <strong>{snapshot.summary.adaptive_metrics.shadow_over_selections ?? 0}</strong>
               </div>
+            </div>
+          ) : null}
+
+          {snapshot.summary.adaptive_metrics?.lane_metrics ? (
+            <div className="cc-summary">
+              {Object.entries(snapshot.summary.adaptive_metrics.lane_metrics).map(
+                ([lane, metrics]) => (
+                  <div key={lane}>
+                    <span>{lane}</span>
+                    <strong>
+                      {metrics.wall_clock_seconds?.p50 ?? "—"}s /{" "}
+                      {metrics.wall_clock_seconds?.p95 ?? "—"}s
+                    </strong>
+                    <small>{metrics.sample_count ?? 0} samples</small>
+                  </div>
+                ),
+              )}
             </div>
           ) : null}
 
