@@ -61,9 +61,9 @@ def classify_failure(result: dict[str, Any], plan: dict[str, Any]) -> dict[str, 
     elif any(keyword in reason for keyword in INFRA_KEYWORDS):
         kind, retryable = "INFRA_ERROR", True
         explanation = "failure matches transient infrastructure/runtime signals"
-    elif "build" in reason or str(result.get("pipeline_status", "")).lower() == "failure":
+    elif any(token in reason for token in ("compile error", "compilation failed", "unit test failed", "lint failed", "quality gate failed", "target build failed")):
         kind, retryable = "BUILD_OR_QUALITY_FAILURE", False
-        explanation = "target build or quality gate failed without transient infrastructure evidence"
+        explanation = "deterministic target build or quality evidence failed"
     else:
         kind, retryable = "UNKNOWN_FAILURE", True
         explanation = "failure source is not proven; bounded retry remains safer than suppression"
