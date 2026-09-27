@@ -473,7 +473,7 @@ def _plan(requested: str, effective: str, lane: str, baseline_sha: str, evidence
     changed = [str(x.get("path", "")) for x in evidence.get("files", []) if x.get("path")]
     targets = targeted_paths(changed, impacted)
     return {
-        "schema_version": 2, "planner_version": "0.9.0", "requested_mode": requested,
+        "schema_version": 2, "planner_version": "0.9.1", "requested_mode": requested,
         "mode": effective, "lane": lane, "repository": repository, "baseline_sha": baseline_sha,
         "diff_status": evidence.get("status", ""), "changed_files": changed,
         "changes": evidence.get("files", []), "additions": int(evidence.get("additions", 0)),
