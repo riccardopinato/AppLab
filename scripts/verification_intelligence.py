@@ -254,6 +254,39 @@ def self_test() -> None:
     )
     assert passed["release_readiness"]["status"] == "RELEASE_READY"
     assert passed["failure_intelligence"]["kind"] == "NONE"
+
+    infra = enrich_result(
+        {
+            "result": "FAIL",
+            "pipeline_status": "failure",
+            "reason": "Android emulator timeout while starting runner",
+            "runtime_executed": False,
+        },
+        {**plan, "learning_profile": {"sample_count": 0, "unstable_labs": []}},
+    )
+    assert infra["failure_intelligence"]["kind"] == "INFRA_ERROR"
+    assert infra["failure_intelligence"]["retryable"] is True
+    assert infra["release_readiness"]["status"] == "BLOCKED"
+    assert infra["knowledge_feedback"]["has_feedback"] is True
+    assert any(
+        item.get("domain") == "infrastructure"
+        for item in infra["knowledge_feedback"]["lessons"]
+    )
+
+    unknown = enrich_result(
+        {
+            "result": "FAIL",
+            "pipeline_status": "failure",
+            "reason": "unclassified verification interruption",
+            "runtime_executed": False,
+        },
+        {**plan, "learning_profile": {"sample_count": 0, "unstable_labs": []}},
+    )
+    assert unknown["failure_intelligence"]["kind"] == "UNKNOWN_FAILURE"
+    assert unknown["failure_intelligence"]["retryable"] is True
+    assert unknown["project_state"]["release_readiness"] == "BLOCKED"
+    assert unknown["project_state"]["resolved_sha"] == "b" * 40
+
     print("AppLab verification intelligence self-test PASS")
 
 
