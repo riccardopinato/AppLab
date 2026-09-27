@@ -122,6 +122,34 @@
         "performance",
         "upgrade"
       ]
+    },
+    {
+      "name": "nested-flutter-test-only",
+      "files": [
+        "packages/mobile/test/features/home_test.dart"
+      ],
+      "lane": "STATIC_ONLY",
+      "labs": []
+    },
+    {
+      "name": "android-instrumentation-test-only",
+      "files": [
+        "feature/src/androidTest/java/com/example/FlowTest.kt"
+      ],
+      "lane": "STATIC_ONLY",
+      "labs": []
+    },
+    {
+      "name": "github-workflow-build-profile",
+      "files": [
+        ".github/workflows/ci.yml"
+      ],
+      "lane": "FULL_RUNTIME",
+      "labs": [
+        "configuration",
+        "performance",
+        "upgrade"
+      ]
     }
   ]
 }

@@ -38,10 +38,14 @@ def percentile(values: list[float], percent: float) -> float | None:
 def adaptive_history_metrics(history: list[dict[str, Any]]) -> dict[str, Any]:
     planner_ms: list[float] = []
     total_seconds: list[float] = []
+    wall_seconds: list[float] = []
     runtime_seconds: list[float] = []
     quality_seconds: list[float] = []
+    lane_wall: dict[str, list[float]] = {}
     avd_hits = avd_observed = maestro_hits = maestro_observed = 0
-    shadow_runs = shadow_false_negatives = shadow_over_selections = 0
+    shadow_runs = shadow_false_negatives = shadow_missed_warnings = 0
+    shadow_over_selections = 0
+
     for item in history:
         metrics = item.get("pipeline_metrics")
         if not isinstance(metrics, dict):
@@ -49,12 +53,23 @@ def adaptive_history_metrics(history: list[dict[str, Any]]) -> dict[str, Any]:
         for key, target in (
             ("planner_ms", planner_ms),
             ("total_observed_seconds", total_seconds),
+            ("wall_clock_seconds", wall_seconds),
             ("runtime_seconds", runtime_seconds),
             ("quality_seconds", quality_seconds),
         ):
             value = metrics.get(key)
             if isinstance(value, (int, float)):
                 target.append(float(value))
+
+        lane = str(
+            item.get("analysis_lane")
+            or metrics.get("lane")
+            or "UNKNOWN"
+        ).strip() or "UNKNOWN"
+        wall = metrics.get("wall_clock_seconds")
+        if isinstance(wall, (int, float)):
+            lane_wall.setdefault(lane, []).append(float(wall))
+
         avd = metrics.get("avd_cache_hit")
         if isinstance(avd, bool):
             avd_observed += 1
@@ -65,18 +80,61 @@ def adaptive_history_metrics(history: list[dict[str, Any]]) -> dict[str, Any]:
             maestro_hits += int(maestro)
         if bool(metrics.get("shadow_full")):
             shadow_runs += 1
-        shadow_false_negatives += int(metrics.get("shadow_false_negative_count", 0) or 0)
-        shadow_over_selections += int(metrics.get("shadow_over_selection_count", 0) or 0)
+        shadow_false_negatives += int(
+            metrics.get("shadow_false_negative_count", 0) or 0
+        )
+        shadow_missed_warnings += int(
+            metrics.get("shadow_missed_warning_count", 0) or 0
+        )
+        shadow_over_selections += int(
+            metrics.get("shadow_over_selection_count", 0) or 0
+        )
+
+    lane_metrics = {
+        lane: {
+            "sample_count": len(values),
+            "wall_clock_seconds": {
+                "p50": percentile(values, 0.50),
+                "p95": percentile(values, 0.95),
+            },
+        }
+        for lane, values in sorted(lane_wall.items())
+    }
+
     return {
         "sample_count": len(total_seconds),
-        "planner_ms": {"p50": percentile(planner_ms, 0.50), "p95": percentile(planner_ms, 0.95)},
-        "total_seconds": {"p50": percentile(total_seconds, 0.50), "p95": percentile(total_seconds, 0.95)},
-        "runtime_seconds": {"p50": percentile(runtime_seconds, 0.50), "p95": percentile(runtime_seconds, 0.95)},
-        "quality_seconds": {"p50": percentile(quality_seconds, 0.50), "p95": percentile(quality_seconds, 0.95)},
-        "avd_cache_hit_ratio": round(avd_hits / avd_observed, 4) if avd_observed else None,
-        "maestro_cache_hit_ratio": round(maestro_hits / maestro_observed, 4) if maestro_observed else None,
+        "planner_ms": {
+            "p50": percentile(planner_ms, 0.50),
+            "p95": percentile(planner_ms, 0.95),
+        },
+        "total_seconds": {
+            "p50": percentile(total_seconds, 0.50),
+            "p95": percentile(total_seconds, 0.95),
+        },
+        "wall_clock_seconds": {
+            "p50": percentile(wall_seconds, 0.50),
+            "p95": percentile(wall_seconds, 0.95),
+        },
+        "runtime_seconds": {
+            "p50": percentile(runtime_seconds, 0.50),
+            "p95": percentile(runtime_seconds, 0.95),
+        },
+        "quality_seconds": {
+            "p50": percentile(quality_seconds, 0.50),
+            "p95": percentile(quality_seconds, 0.95),
+        },
+        "lane_metrics": lane_metrics,
+        "avd_cache_hit_ratio": (
+            round(avd_hits / avd_observed, 4) if avd_observed else None
+        ),
+        "maestro_cache_hit_ratio": (
+            round(maestro_hits / maestro_observed, 4)
+            if maestro_observed
+            else None
+        ),
         "shadow_runs": shadow_runs,
         "shadow_false_negatives": shadow_false_negatives,
+        "shadow_missed_warnings": shadow_missed_warnings,
         "shadow_over_selections": shadow_over_selections,
     }
 
@@ -282,6 +340,38 @@ def build_snapshot(
 
 
 def self_test() -> None:
+    adaptive = adaptive_history_metrics(
+        [
+            {
+                "analysis_lane": "FAST_RUNTIME",
+                "pipeline_metrics": {
+                    "planner_ms": 100,
+                    "total_observed_seconds": 4.0,
+                    "wall_clock_seconds": 10.0,
+                    "runtime_seconds": 3.0,
+                    "quality_seconds": 0.9,
+                    "shadow_full": True,
+                    "shadow_false_negative_count": 0,
+                    "shadow_missed_warning_count": 1,
+                    "shadow_over_selection_count": 2,
+                },
+            },
+            {
+                "analysis_lane": "FAST_RUNTIME",
+                "pipeline_metrics": {
+                    "planner_ms": 120,
+                    "total_observed_seconds": 5.0,
+                    "wall_clock_seconds": 20.0,
+                    "runtime_seconds": 4.0,
+                    "quality_seconds": 0.88,
+                },
+            },
+        ]
+    )
+    assert adaptive["wall_clock_seconds"]["p50"] == 15.0
+    assert adaptive["lane_metrics"]["FAST_RUNTIME"]["sample_count"] == 2
+    assert adaptive["shadow_missed_warnings"] == 1
+
     watchlist = {
         "repositories": [
             {

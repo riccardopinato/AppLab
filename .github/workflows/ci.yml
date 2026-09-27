@@ -48,6 +48,7 @@ jobs:
             scripts/shadow_calibration.py \
             scripts/domain_fingerprint.py \
             scripts/pipeline_metrics.py \
+            scripts/github_run_started_at.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -81,6 +82,7 @@ jobs:
           python scripts/shadow_calibration.py --self-test
           python scripts/domain_fingerprint.py --self-test
           python scripts/pipeline_metrics.py --self-test
+          python scripts/github_run_started_at.py --self-test
           python scripts/workflow_contract_test.py
           python scripts/upgrade_lab.py --self-test
           python scripts/prepare_upgrade_baseline.py --self-test
@@ -115,7 +117,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.9.0"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"0.9.1"'; then
               healthy=true
               break
             fi

@@ -110,6 +110,12 @@ def main()->int:
             assert ":feature:lintDebug" in combined
             assert "assembleDebug" in combined
             assert ":feature:assembleDebug" not in combined
+        assert module_tasks(
+            root,
+            ["./gradlew testDebugUnitTest", "./gradlew lintDebug"],
+            ["feature"],
+            True,
+        ) is not None
         print("AppLab adaptive checks self-test PASS"); return 0
     if not all((args.plan,args.engine,args.project_dir,args.report_dir)):
         raise SystemExit("--plan, --engine, --project-dir and --report-dir are required")
@@ -132,6 +138,16 @@ def main()->int:
         full=lane in {"FULL_RUNTIME","CERTIFICATION"} or risk>=55 or confidence<0.8
         analyze_targets=[local_path(p) for p in plan.get("targets",{}).get("dart_analyze",[])]
         analyze_targets=[p for p in analyze_targets if (project/p).is_file()]
+        changed_dart=[
+            local_path(p)
+            for p in plan.get("changed_files",[])
+            if p.endswith(".dart")
+        ]
+        changed_dart=[p for p in changed_dart if (project/p).is_file()]
+        if lane=="STATIC_ONLY":
+            # Test-only/static Dart changes should not force a repository-wide
+            # flutter analyze when the changed files themselves are safe targets.
+            analyze_targets=list(dict.fromkeys(analyze_targets+changed_dart))
         test_targets=[local_path(p) for p in plan.get("targets",{}).get("dart_tests",[])]
         test_targets=[p for p in test_targets if (project/p).is_file()]
         changed_tests=[local_path(p) for p in plan.get("changed_files",[]) if p.endswith("_test.dart")]

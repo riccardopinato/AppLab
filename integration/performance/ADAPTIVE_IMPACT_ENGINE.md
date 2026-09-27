@@ -1,8 +1,8 @@
-# AppLab v0.9 — Adaptive Impact Analysis & Incremental Verification Engine
+# AppLab v0.9.1 — Adaptive Impact Analysis & Incremental Verification Engine
 
 ## Objective
 
-FAST must be selective, not superficial. AppLab v0.9 moves impact analysis in
+FAST must be selective, not superficial. AppLab v0.9.1 keeps impact analysis in
 front of expensive build/runtime work and spends verification time according to
 evidence, risk and confidence.
 
@@ -46,7 +46,9 @@ git diff --unified=0 BASELINE..HEAD
 
 The plan therefore distinguishes additions, modifications, deletions and
 renames, records aggregate line churn and keeps a bounded set of changed hunk
-lines for semantic risk signals.
+lines for retained evidence. The planner also records the total semantic-line
+count and whether retained evidence was truncated. Truncation lowers confidence;
+combined or dependency-cap truncation can force FULL_RUNTIME.
 
 Large diffs (>500 changed files or >20,000 added/deleted lines) do not crash
 FAST. They escalate to FULL_RUNTIME.
@@ -59,8 +61,10 @@ are matched against imports in tracked source files and up to 200 dependents are
 added to the impact set.
 
 This graph is deliberately bounded and deterministic. It is not a substitute
-for a compiler dependency graph. Its output increases risk/coverage; ambiguity
-never authorizes an unsafe skip.
+for a compiler dependency graph. Candidate count, scanned count, scan truncation
+and impact-cap state are explicit plan evidence. Partial dependency evidence
+reduces confidence and can force FULL_RUNTIME; ambiguity never authorizes an
+unsafe skip.
 
 ## Risk and confidence
 
@@ -77,11 +81,15 @@ including:
 - impacted dependent files;
 - previous failures in specialist labs relevant to the current change.
 
-Confidence decreases with larger changed/impacted sets and missing supporting
-evidence.
+Confidence decreases with larger changed/impacted sets, missing supporting
+evidence and bounded-analysis truncation.
 
-High risk (>=70) or low confidence (<0.60) escalates automatically to
-FULL_RUNTIME.
+Target workflow changes under `.github/workflows/**` are treated as build
+profile changes because auto-discovery consumes those files for Java/Flutter/
+Gradle/build-command identity; they escalate to FULL_RUNTIME.
+
+High risk (>=70), low confidence (<0.60), dependency impact-cap exhaustion or
+unsafe combined truncation escalates automatically to FULL_RUNTIME.
 
 ## Specialist-lab selection
 
@@ -111,6 +119,9 @@ test candidates. It can execute:
 dart analyze <impacted files>
 flutter test <matching test files>
 ```
+
+Nested/monorepo test paths are recognized independently of repository prefix.
+STATIC_ONLY Dart changes analyze the changed Dart files directly when safe.
 
 When targeting is ambiguous, the project has no safe target, risk is elevated,
 or the lane is FULL/CERTIFICATION, AppLab uses the complete Flutter checks.
@@ -146,8 +157,10 @@ After runtime, `shadow_calibration.py` compares labs FAST predicted it could
 skip with the actual FULL results and records:
 
 - divergence list;
-- false-negative lab list;
-- false-negative count;
+- false-negative lab list/count for FAIL/ERROR;
+- missed-WARN lab list/count;
+- missing-baseline evidence separately;
+- over-selection only for genuinely non-executed labs;
 - safe/unsafe calibration verdict.
 
 This is the evidence used to tune future thresholds. Thresholds must not be
@@ -157,9 +170,10 @@ relaxed based on intuition alone.
 
 ### Clean AVD
 
-A separate job creates/restores a clean AVD cache keyed by API, architecture and
-hardware profile. The verification job uses restore-only semantics, so target
-app state is never written back into the shared pristine cache.
+Trusted Verify restores the clean AVD cache in the same job. On a cache miss it
+creates the pristine emulator and saves the cache **before** downloading/
+installing the target APK. Later target execution never writes back to that
+cache, preserving isolation while avoiding a separate runner/job transition.
 
 ### Maestro
 
@@ -169,8 +183,9 @@ The pinned Maestro 2.10.0 installation is cached by runner OS and exact version.
 
 AppLab fingerprints core/visual verification plus every specialist domain
 separately. Repo Watcher uses the domains exercised by the previous trusted run
-when constructing the verification cache fingerprint. If no reliable previous
-domain set exists it conservatively includes all domains.
+when constructing the verification cache fingerprint. Verification-result cache
+entries are PASS-only: build/runtime failures remain retryable. If no reliable
+previous domain set exists it conservatively includes all domains.
 
 ## Metrics
 
@@ -183,17 +198,21 @@ domain set exists it conservatively includes all domains.
 - changed file count;
 - impacted file count;
 - selected specialist-lab count;
-- shadow flag/divergence/false negatives;
-- available static/test/build stage timings.
+- shadow flag/divergence/false negatives/missed warnings;
+- available static/test/build stage timings;
+- true GitHub workflow wall-clock time;
+- estimated orchestration/setup overhead.
 
-Watcher history and Control Center surface lane, risk and confidence.
+Watcher history and Control Center surface lane, risk and confidence plus
+wall-clock p50/p95 split by execution lane.
 
 ## Regression corpus
 
 Planner self-tests cover at minimum:
 
 - docs-only change;
-- test/static-only change;
+- root and nested/monorepo test/static-only change;
+- target GitHub workflow/build-profile change;
 - database/persistence change;
 - >500-file oversized change;
 - dependency impact;

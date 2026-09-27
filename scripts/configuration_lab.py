@@ -413,7 +413,7 @@ def evaluate(
     result = "FAIL" if errors else ("WARN" if warnings else "PASS")
     return {
         "schema_version": 1,
-        "configuration_lab_version": "0.7.7",
+        "configuration_lab_version": "0.7.7.1",
         "result": result,
         "package_id": package_id,
         "config": config,
@@ -460,7 +460,61 @@ def self_test() -> None:
         "com.example.app",
         "mResumedActivity: ActivityRecord{123 u0 com.other.app/.MainActivity t42}",
     )
+
     import tempfile
+
+    # Regression coverage for the v0.7.7.1 transient process-reclaim recovery.
+    originals = {
+        "pid_of": globals()["pid_of"],
+        "launch": globals()["launch"],
+        "dump_ui": globals()["dump_ui"],
+        "capture_png": globals()["capture_png"],
+        "runtime_unhealthy": globals()["runtime_unhealthy"],
+        "sleep": time.sleep,
+    }
+    try:
+        pid_values = iter(["", "456"])
+        globals()["pid_of"] = lambda _package: next(pid_values, "456")
+        globals()["launch"] = lambda _package, timeout=20.0: "456"
+        globals()["dump_ui"] = lambda _report, _name: "<hierarchy/>"
+        globals()["capture_png"] = lambda _report, _name: (1080, 1920)
+        globals()["runtime_unhealthy"] = lambda _package: ""
+        time.sleep = lambda _seconds: None
+        with tempfile.TemporaryDirectory() as raw_recovery:
+            stage, recovery_findings = snapshot_stage(
+                "com.example.app",
+                Path(raw_recovery),
+                "config-foreground-recovery",
+                cfg,
+                recover_process_loss=True,
+            )
+        assert stage["recovered_after_process_loss"] is True
+        assert stage["recovered_pid"] == "456"
+        assert not [x for x in recovery_findings if x.severity == "error"]
+
+        pid_values = iter(["", "456"])
+        globals()["pid_of"] = lambda _package: next(pid_values, "456")
+        globals()["runtime_unhealthy"] = lambda _package: "fatal exception detected"
+        with tempfile.TemporaryDirectory() as raw_fatal:
+            _, fatal_findings = snapshot_stage(
+                "com.example.app",
+                Path(raw_fatal),
+                "config-foreground-fatal",
+                cfg,
+                recover_process_loss=True,
+            )
+        assert any(
+            x.code == "runtime_unhealthy" and x.severity == "error"
+            for x in fatal_findings
+        )
+    finally:
+        globals()["pid_of"] = originals["pid_of"]
+        globals()["launch"] = originals["launch"]
+        globals()["dump_ui"] = originals["dump_ui"]
+        globals()["capture_png"] = originals["capture_png"]
+        globals()["runtime_unhealthy"] = originals["runtime_unhealthy"]
+        time.sleep = originals["sleep"]
+
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "policy.json"
         path.write_text(

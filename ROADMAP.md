@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v0.9.0 — Adaptive Impact Analysis & Incremental Verification Engine**
+Current production baseline: **v0.9.1 — Audit Hardening, Retry Safety & Measured FAST**
 
 ## Product rule
 
@@ -19,6 +19,32 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v0.9.1 — Audit Hardening, Retry Safety & Measured FAST
+
+- [x] Cache only successful PASS verification results; failed SHAs remain
+  retryable by Repo Watcher.
+- [x] Remove failed-build cache writes from Flutter/native runners.
+- [x] Prevent `.github/workflows/**` from being classified as STATIC_ONLY;
+  workflow changes that can affect auto-discovered build identity escalate to
+  FULL_RUNTIME.
+- [x] Record semantic-diff and dependency-scan truncation and lower confidence;
+  dependency caps or combined truncation force FULL.
+- [x] Detect nested/monorepo Flutter tests and Android `src/test` /
+  `src/androidTest` paths as static-only.
+- [x] Use targeted Dart analysis for safe STATIC_ONLY changes.
+- [x] Track true GitHub workflow wall-clock time plus orchestration/setup
+  overhead.
+- [x] Aggregate p50/p95 wall-clock metrics separately by execution lane.
+- [x] Track shadow FULL missed WARNs and missing-baseline evidence separately
+  from hard false negatives/over-selection.
+- [x] Collapse clean AVD preparation into Trusted Verify while saving the
+  pristine snapshot before the target APK is installed.
+- [x] Add lifecycle process-reclaim/fatal regression coverage and align
+  Configuration Lab version to 0.7.7.1.
+- [x] Align backend, frontend, runtime, certification and watcher identity to
+  v0.9.1.
+- [x] Update README, roadmap, adaptive engine docs and workflow contract tests.
 
 ### v0.9.0 — Adaptive Impact Analysis & Incremental Verification
 
@@ -117,7 +143,7 @@ publish a certified release artifact.
 - [x] Repo Watcher and Control Center.
 - [x] Browser-controlled live emulator stack.
 
-## v0.9 evidence contract
+## v0.9.1 evidence contract
 
 Every adaptive plan records:
 
@@ -126,12 +152,14 @@ Every adaptive plan records:
 - baseline and target SHA;
 - diff trust state;
 - file status, additions and deletions;
-- dependency-impacted files;
+- dependency-impacted files plus dependency scan/cap metadata;
+- semantic diff evidence count and truncation state;
 - selected specialist labs and reasons;
 - risk score and confidence;
 - targeted source/test/module scope;
 - FULL fallback reason;
-- shadow FULL decision.
+- shadow FULL decision;
+- workflow profile-change escalation state.
 
 A reduced lane is never represented as a fake runtime PASS. NO_RUNTIME_CHANGE
 and STATIC_ONLY explicitly record `runtime_executed=false` and the SHA whose
@@ -157,7 +185,8 @@ These are explicit engineering boundaries, not hidden assumptions:
 ## Next validation targets
 
 - Accumulate enough real watcher samples for statistically meaningful p50/p95.
-- Measure shadow false-negative and over-selection rates over a meaningful sample.
+- Measure shadow false-negative, missed-WARN and over-selection rates over a meaningful sample.
+- Compare per-lane wall-clock p50/p95 and setup overhead after enough watcher samples.
 - Tune risk thresholds only from measured calibration evidence.
 - Expand dependency adapters when real projects demonstrate a repeatable blind
   spot; do not add speculative complexity.

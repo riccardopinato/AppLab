@@ -1,11 +1,38 @@
-## Configuration/Lifecycle transient process-loss recovery
+## v0.9.1 — Audit Hardening, Retry Safety & Measured FAST
 
-The Configuration & Lifecycle Stress Lab now distinguishes an Android-allowed
+AppLab v0.9.1 closes the P1/P2/P3 findings from the post-v0.9 audit without
+weakening the Build -> Artifact -> Trusted Verify boundary.
+
+Key hardening:
+
+- watcher verification caches are now **PASS-only**; failed build/runtime SHAs
+  remain retryable instead of being silently treated as already checked;
+- target `.github/workflows/**` changes can no longer fall into
+  `STATIC_ONLY`: because auto-discovery reads those files for toolchain/build
+  identity, they escalate to `FULL_RUNTIME`;
+- bounded semantic/dependency scans now disclose truncation, reduce confidence
+  and escalate to FULL when partial evidence is too risky;
+- nested Flutter/Android test paths in monorepos are recognized as static-only,
+  and test-only Dart changes use targeted analysis instead of a repository-wide
+  `flutter analyze` when safe;
+- shadow FULL calibration tracks missed WARNs separately from hard false
+  negatives and no longer treats `NO_BASELINE` as over-selection;
+- pipeline telemetry records GitHub workflow wall-clock time and p50/p95 by
+  execution lane, separating true orchestration cost from internal stage time;
+- pristine AVD creation/cache restore now happens inside the trusted verification
+  job and is saved **before** target APK installation, removing a redundant job
+  transition without allowing target state into the shared snapshot;
+- Configuration/Lifecycle recovery now has explicit regression coverage for both
+  valid Android process reclaim and fatal-exception failure paths.
+
+### Configuration/Lifecycle transient process-loss recovery
+
+The Configuration & Lifecycle Stress Lab distinguishes an Android-allowed
 background process reclaim from a crash. During a foreground-return stage, if
 the process disappears after an initially successful foreground transition, the
 lab performs one bounded cold relaunch and re-captures the stage. ANR/fatal
-Logcat evidence still fails closed, so this recovery removes a timing race
-without masking application crashes.
+Logcat evidence still fails closed. The lab contract is now consistently
+versioned as `0.7.7.1`.
 
 ## v0.9.0 — Adaptive Impact Analysis & Incremental Verification Engine
 
