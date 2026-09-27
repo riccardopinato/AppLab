@@ -461,6 +461,8 @@ def self_test() -> None:
         "mResumedActivity: ActivityRecord{123 u0 com.other.app/.MainActivity t42}",
     )
 
+    import tempfile
+
     # Regression coverage for the v0.7.7.1 transient process-reclaim recovery.
     originals = {
         "pid_of": globals()["pid_of"],
@@ -513,7 +515,6 @@ def self_test() -> None:
         globals()["runtime_unhealthy"] = originals["runtime_unhealthy"]
         time.sleep = originals["sleep"]
 
-    import tempfile
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "policy.json"
         path.write_text(
