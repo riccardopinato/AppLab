@@ -1,0 +1,112 @@
+name: AppLab App Intelligence
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: "Target repository in owner/name form. Empty = this repository."
+        required: false
+        default: ""
+        type: string
+      target_ref:
+        description: "Branch, tag or SHA to analyze."
+        required: false
+        default: "main"
+        type: string
+      max_files:
+        description: "Maximum tracked text files to scan."
+        required: false
+        default: "3500"
+        type: string
+  workflow_call:
+    inputs:
+      target_repository:
+        required: false
+        default: ""
+        type: string
+      target_ref:
+        required: false
+        default: "main"
+        type: string
+      max_files:
+        required: false
+        default: "3500"
+        type: string
+    secrets:
+      APPLAB_TARGET_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-app-intelligence-${{ inputs.target_repository || github.repository }}-${{ inputs.target_ref || 'main' }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Product · UX · Architecture audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .applab
+          persist-credentials: false
+
+      - name: Resolve target
+        id: target
+        shell: bash
+        env:
+          INPUT_REPOSITORY: ${{ inputs.target_repository }}
+          INPUT_REF: ${{ inputs.target_ref }}
+        run: |
+          set -Eeuo pipefail
+          REPOSITORY="${INPUT_REPOSITORY:-}"
+          REF="${INPUT_REF:-main}"
+          [[ -n "$REPOSITORY" ]] || REPOSITORY="${{ github.repository }}"
+          echo "repository=$REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout target repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.target.outputs.repository }}
+          ref: ${{ steps.target.outputs.ref }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+          token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
+
+      - name: Run App Intelligence
+        shell: bash
+        env:
+          MAX_FILES: ${{ inputs.max_files }}
+        run: |
+          set -Eeuo pipefail
+          MAX="${MAX_FILES:-3500}"
+          python .applab/scripts/app_intelligence.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --output-dir "$GITHUB_WORKSPACE/applab-intelligence" \
+            --max-files "$MAX"
+
+      - name: Publish report to workflow summary
+        shell: bash
+        run: |
+          {
+            echo "## AppLab App Intelligence"
+            echo
+            echo "**Target:** \`${{ steps.target.outputs.repository }}@${{ steps.target.outputs.ref }}\`"
+            echo
+            cat "$GITHUB_WORKSPACE/applab-intelligence/app-intelligence.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload App Intelligence evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-app-intelligence-${{ github.run_id }}
+          path: applab-intelligence/
+          if-no-files-found: error
+          retention-days: 30
