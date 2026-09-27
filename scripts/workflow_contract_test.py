@@ -52,14 +52,14 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "runtime-timing.json",
         "pipeline_metrics.py",
         "shadow_calibration.py",
-        "AppLab v0.9.0 Trusted APK Verification",
+        "AppLab v0.9.1 Trusted APK Verification",
         "BASELINE_FALLBACK",
         "effective FULL fallback",
     ),
     ".github/workflows/production-certification.yml": (
         "analysis_mode: certification",
         "source_ref: ${{ inputs.ref }}",
-        "production-certification-v0.9.0",
+        "production-certification-v0.9.1",
     ),
 }
 
