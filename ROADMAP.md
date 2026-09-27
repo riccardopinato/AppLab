@@ -143,7 +143,7 @@ publish a certified release artifact.
 - [x] Repo Watcher and Control Center.
 - [x] Browser-controlled live emulator stack.
 
-## v0.9 evidence contract
+## v0.9.1 evidence contract
 
 Every adaptive plan records:
 
@@ -152,12 +152,14 @@ Every adaptive plan records:
 - baseline and target SHA;
 - diff trust state;
 - file status, additions and deletions;
-- dependency-impacted files;
+- dependency-impacted files plus dependency scan/cap metadata;
+- semantic diff evidence count and truncation state;
 - selected specialist labs and reasons;
 - risk score and confidence;
 - targeted source/test/module scope;
 - FULL fallback reason;
-- shadow FULL decision.
+- shadow FULL decision;
+- workflow profile-change escalation state.
 
 A reduced lane is never represented as a fake runtime PASS. NO_RUNTIME_CHANGE
 and STATIC_ONLY explicitly record `runtime_executed=false` and the SHA whose
@@ -183,7 +185,8 @@ These are explicit engineering boundaries, not hidden assumptions:
 ## Next validation targets
 
 - Accumulate enough real watcher samples for statistically meaningful p50/p95.
-- Measure shadow false-negative and over-selection rates over a meaningful sample.
+- Measure shadow false-negative, missed-WARN and over-selection rates over a meaningful sample.
+- Compare per-lane wall-clock p50/p95 and setup overhead after enough watcher samples.
 - Tune risk thresholds only from measured calibration evidence.
 - Expand dependency adapters when real projects demonstrate a repeatable blind
   spot; do not add speculative complexity.
