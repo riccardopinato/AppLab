@@ -1,3 +1,26 @@
+## v1.4.0 — Competitor & Market Lab
+
+AppLab now adds a source-traceable external market layer. Competitor capabilities,
+pricing observations, ratings and curated review themes are supplied through a
+strict evidence contract and compared with the project's deterministic App
+Intelligence report.
+
+The lab emits capability parity/differentiator/gap-review signals, pricing
+landscapes and recurring cross-competitor pain signals. Market evidence remains
+advisory: it cannot influence runtime PASS/FAIL, adaptive lane selection or
+production CERTIFICATION.
+
+Run locally with:
+
+```bash
+python scripts/market_intelligence.py \
+  --evidence market-evidence.json \
+  --app-intelligence applab-intelligence/app-intelligence.json \
+  --output-dir applab-market
+```
+
+See `integration/market/COMPETITOR_MARKET_LAB.md`.
+
 ## v1.3.0 — Product, UX & Architecture Intelligence
 
 AppLab now adds a deterministic **App Intelligence** layer alongside its existing
