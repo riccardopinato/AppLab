@@ -25,7 +25,7 @@ ENGINES = {"auto", "flutter", "native_android"}
 def api_json(url: str, token: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "AppLab-Repo-Watcher/0.9.1",
+        "User-Agent": "AppLab-Repo-Watcher/1.0.0",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     if token:
@@ -137,6 +137,64 @@ def latest_history_entry(path: str, repository: str, history_key: str = "", ref:
 def latest_history_sha(path: str, repository: str, history_key: str = "", ref: str = "") -> str:
     return str(latest_history_entry(path, repository, history_key, ref).get("resolved_sha", "")).strip().lower()
 
+
+def latest_attempt_entry(
+    path: str,
+    repository: str,
+    history_key: str = "",
+    ref: str = "",
+) -> dict[str, Any]:
+    if not path or not Path(path).is_file():
+        return {}
+    latest_at = ""
+    latest: dict[str, Any] = {}
+    for raw in Path(path).read_text(encoding="utf-8", errors="ignore").splitlines():
+        try:
+            item = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(item, dict) or str(item.get("repository", "")).strip() != repository:
+            continue
+        if history_key and str(item.get("history_key", "")).strip() not in {"", history_key}:
+            continue
+        item_ref = str(item.get("requested_ref", item.get("ref", ""))).strip()
+        if ref and item_ref and item_ref != ref and not re.fullmatch(r"[0-9a-fA-F]{40}", item_ref):
+            continue
+        recorded = str(item.get("recorded_at", item.get("observed_at", "")))
+        if recorded >= latest_at:
+            latest_at = recorded
+            latest = item
+    return latest
+
+
+def retry_attempt_count(
+    path: str,
+    repository: str,
+    resolved_sha: str,
+    history_key: str = "",
+) -> int:
+    if not path or not Path(path).is_file() or not resolved_sha:
+        return 0
+    count = 0
+    for raw in Path(path).read_text(encoding="utf-8", errors="ignore").splitlines():
+        try:
+            item = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if str(item.get("repository", "")).strip() != repository:
+            continue
+        if history_key and str(item.get("history_key", "")).strip() not in {"", history_key}:
+            continue
+        if str(item.get("resolved_sha", "")).strip().lower() != resolved_sha.lower():
+            continue
+        if str(item.get("result", "")).upper() == "PASS":
+            continue
+        failure = item.get("failure_intelligence")
+        retryable = True if not isinstance(failure, dict) else bool(failure.get("retryable", True))
+        if retryable:
+            count += 1
+    return count
+
 def adaptive_contract_fingerprint(root: Path, previous: dict[str, Any]) -> str:
     selected = previous.get("selected_labs") if isinstance(previous, dict) else {}
     return domain_fingerprint.adaptive_digest(
@@ -152,11 +210,15 @@ def self_test_history() -> None:
             {"repository": "owner/app", "history_key": "main", "requested_ref": "main", "recorded_at": "2026-01-01T00:00:00Z", "result": "PASS", "resolved_sha": "a" * 40},
             {"repository": "owner/app", "history_key": "beta", "requested_ref": "beta", "recorded_at": "2026-01-02T00:00:00Z", "result": "PASS", "resolved_sha": "b" * 40},
             {"repository": "owner/app", "history_key": "main", "requested_ref": "main", "recorded_at": "2026-01-03T00:00:00Z", "result": "PASS", "resolved_sha": "c" * 40},
+            {"repository": "owner/app", "history_key": "main", "requested_ref": "main", "recorded_at": "2026-01-04T00:00:00Z", "result": "FAIL", "resolved_sha": "d" * 40, "failure_intelligence": {"kind": "INFRA_ERROR", "retryable": True}},
+            {"repository": "owner/app", "history_key": "main", "requested_ref": "main", "recorded_at": "2026-01-05T00:00:00Z", "result": "FAIL", "resolved_sha": "e" * 40, "failure_intelligence": {"kind": "APP_RUNTIME_FAILURE", "retryable": False}},
         ]
         path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
         assert latest_history_sha(str(path), "owner/app", "main", "main") == "c" * 40
         assert latest_history_sha(str(path), "owner/app", "beta", "beta") == "b" * 40
         assert latest_history_sha(str(path), "owner/missing") == ""
+        assert latest_attempt_entry(str(path), "owner/app", "main", "main")["resolved_sha"] == "e" * 40
+        assert retry_attempt_count(str(path), "owner/app", "d" * 40, "main") == 1
 
 
 def entry_fingerprint(entry: dict[str, Any]) -> str:
@@ -273,6 +335,9 @@ def main() -> int:
             previous_result = latest_history_entry(
                 args.history_file, repository, str(entry["key"]), str(entry["ref"])
             )
+            latest_attempt = latest_attempt_entry(
+                args.history_file, repository, str(entry["key"]), str(entry["ref"])
+            )
             previous_verified_sha = str(previous_result.get("resolved_sha", "")).strip().lower()
             contract_fingerprint = adaptive_contract_fingerprint(root, previous_result)
             cache_key = (
@@ -282,7 +347,25 @@ def main() -> int:
             cached = False if args.force else cache_exists(
                 applab_repository, cache_key, token
             )
-            scheduled = args.force or not cached
+
+            same_sha_failure = (
+                str(latest_attempt.get("resolved_sha", "")).strip().lower() == sha
+                and str(latest_attempt.get("result", "")).upper() not in {"", "PASS"}
+            )
+            failure_intelligence = (
+                latest_attempt.get("failure_intelligence")
+                if isinstance(latest_attempt.get("failure_intelligence"), dict)
+                else {}
+            )
+            retryable = bool(failure_intelligence.get("retryable", True))
+            retry_count = retry_attempt_count(
+                args.history_file, repository, sha, str(entry["key"])
+            )
+            retry_exhausted = same_sha_failure and retryable and retry_count >= 3
+            non_retryable_failure = same_sha_failure and not retryable
+            blocked_by_failure_policy = non_retryable_failure or retry_exhausted
+            scheduled = args.force or (not cached and not blocked_by_failure_policy)
+
             item_status.update(
                 {
                     "resolved_sha": sha,
@@ -290,6 +373,12 @@ def main() -> int:
                     "cached": cached,
                     "scheduled": scheduled,
                     "previous_verified_sha": previous_verified_sha,
+                    "same_sha_failure": same_sha_failure,
+                    "failure_kind": failure_intelligence.get("kind", ""),
+                    "retryable": retryable if same_sha_failure else None,
+                    "retry_count": retry_count if same_sha_failure else 0,
+                    "retry_exhausted": retry_exhausted,
+                    "blocked_by_failure_policy": blocked_by_failure_policy,
                 }
             )
             if scheduled:
