@@ -1,3 +1,26 @@
+## v1.3.0 — Product, UX & Architecture Intelligence
+
+AppLab now adds a deterministic **App Intelligence** layer alongside its existing
+Autonomous Quality Platform. A target repository can be scanned once to produce
+three independent evidence sets:
+
+- **v1.1 Product Analysis Engine** — stack, product surface and capability signals;
+- **v1.2 UX & Product Lab** — state coverage, navigation, accessibility and lifecycle review signals;
+- **v1.3 Architecture & Data Intelligence** — structure, persistence/sync/offline evidence and architecture review targets.
+
+The analyzer produces `app-intelligence.json` and `app-intelligence.md`, requires
+no external AI service, never invents missing evidence and never changes a
+runtime FAIL into PASS. Product/UX/architecture findings remain advisory and
+production certification remains exclusively owned by CERTIFICATION.
+
+Run it through the **AppLab App Intelligence** workflow or locally with:
+
+```bash
+python scripts/app_intelligence.py --repo-root /path/to/project --output-dir applab-intelligence
+```
+
+See `integration/intelligence/APP_INTELLIGENCE.md`.
+
 ## v1.0.0 — Autonomous Quality Platform
 
 AppLab now learns conservatively from each project's verification history,
