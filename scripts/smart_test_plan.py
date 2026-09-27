@@ -17,7 +17,9 @@ LABS = (
 )
 SOURCE_SUFFIXES = {".kt", ".java", ".dart", ".xml", ".gradle", ".kts", ".toml", ".json", ".yaml", ".yml"}
 DOC_PREFIXES = ("docs/", "readme", "changelog", "license", ".github/issue", ".github/pull")
-STATIC_PREFIXES = ("test/", "tests/", "androidtest/", ".github/")
+STATIC_PREFIXES = ("test/", "tests/")
+WORKFLOW_PREFIX = ".github/workflows/"
+TEST_PATH_SEGMENTS = {"test", "tests", "androidtest"}
 
 ROOT_DOC_NAMES = {
     "readme", "readme.md", "readme.txt", "changelog", "changelog.md",
@@ -32,6 +34,20 @@ def is_documentation_path(path: str) -> bool:
         value.startswith(("docs/", "documentation/", ".github/issue", ".github/pull"))
         or ("/" not in value and name in ROOT_DOC_NAMES)
     )
+
+def is_test_path(path: str) -> bool:
+    value = path.replace("\\", "/").lower().lstrip("./")
+    parts = [part for part in value.split("/") if part]
+    return any(part in TEST_PATH_SEGMENTS for part in parts)
+
+def is_static_only_path(path: str) -> bool:
+    value = path.replace("\\", "/").lower().lstrip("./")
+    if is_documentation_path(value) or is_test_path(value):
+        return True
+    # GitHub metadata is static unless it can influence auto-discovered build
+    # identity/toolchain/commands. Workflow changes must not bypass APK/runtime.
+    return value.startswith(".github/") and not value.startswith(WORKFLOW_PREFIX)
+
 GLOBAL_RISK_PATTERNS = (
     r"pubspec\.ya?ml$", r"gradle\.properties$", r"settings\.gradle", r"build\.gradle",
     r"libs\.versions\.toml$", r"androidmanifest\.xml$", r"minSdk", r"targetSdk",
@@ -114,12 +130,25 @@ def git_diff_evidence(repo: Path, baseline_sha: str, max_files: int = 500) -> di
     for item in files:
         a, d = stats.get(item["path"], (0, 0))
         item["additions"], item["deletions"] = a, d
-    hunks = [line[:500] for line in patch.stdout.splitlines()
-             if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))][:200]
+    semantic_lines = [
+        line[:500]
+        for line in patch.stdout.splitlines()
+        if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))
+    ]
+    hunks = semantic_lines[:200]
     too_large = len(files) > max_files or additions + deletions > 20000
-    return {"trusted": True, "status": "ok", "files": files[:max_files],
-            "file_count": len(files), "too_large": too_large,
-            "additions": additions, "deletions": deletions, "hunks": hunks}
+    return {
+        "trusted": True,
+        "status": "ok",
+        "files": files[:max_files],
+        "file_count": len(files),
+        "too_large": too_large,
+        "additions": additions,
+        "deletions": deletions,
+        "hunks": hunks,
+        "diff_hunk_count": len(semantic_lines),
+        "semantic_diff_truncated": len(semantic_lines) > len(hunks),
+    }
 
 def tracked_files(repo: Path) -> list[str]:
     result = _run(repo, "ls-files", timeout=30)
@@ -139,24 +168,57 @@ def _imports_from_head(repo: Path, relative: str) -> list[str]:
         found.extend(re.findall(pattern, blob.stdout))
     return found[:100]
 
-def dependency_impacts(repo: Path, changed: list[str], tracked: list[str]) -> list[str]:
+def dependency_impacts_with_meta(
+    repo: Path,
+    changed: list[str],
+    tracked: list[str],
+) -> tuple[list[str], dict[str, Any]]:
     changed_set = set(changed)
-    stems = {Path(p).stem.lower() for p in changed if Path(p).suffix.lower() in {".dart", ".kt", ".java"}}
+    stems = {
+        Path(p).stem.lower()
+        for p in changed
+        if Path(p).suffix.lower() in {".dart", ".kt", ".java"}
+    }
     if not stems:
-        return []
+        return [], {
+            "dependency_candidate_count": 0,
+            "dependency_scanned_count": 0,
+            "dependency_scan_truncated": False,
+            "dependency_impact_cap_reached": False,
+        }
     impacted: set[str] = set()
-    candidates = [p for p in tracked if Path(p).suffix.lower() in {".dart", ".kt", ".java"}]
-    # Bounded reverse-import graph: deterministic and conservative.
-    for rel in candidates[:5000]:
+    candidates = [
+        p for p in tracked
+        if Path(p).suffix.lower() in {".dart", ".kt", ".java"}
+    ]
+    scan_limit = 5000
+    impact_limit = 200
+    scanned = 0
+    impact_cap_reached = False
+    # Bounded reverse-import graph: deterministic and conservative. When a
+    # bound is reached the planner records it and lowers confidence rather than
+    # silently treating partial evidence as complete.
+    for rel in candidates[:scan_limit]:
+        scanned += 1
         if rel in changed_set:
             continue
         imports = _imports_from_head(repo, rel)
         joined = " ".join(imports).lower()
         if any(stem and stem in joined for stem in stems):
             impacted.add(rel)
-            if len(impacted) >= 200:
+            if len(impacted) >= impact_limit:
+                impact_cap_reached = True
                 break
-    return sorted(impacted)
+    return sorted(impacted), {
+        "dependency_candidate_count": len(candidates),
+        "dependency_scanned_count": scanned,
+        "dependency_scan_truncated": len(candidates) > scan_limit,
+        "dependency_impact_cap_reached": impact_cap_reached,
+    }
+
+def dependency_impacts(repo: Path, changed: list[str], tracked: list[str]) -> list[str]:
+    impacted, _ = dependency_impacts_with_meta(repo, changed, tracked)
+    return impacted
 
 def historical_failure_boost(
     history_file: str,
@@ -225,11 +287,13 @@ def classify(files: list[str], mode: str, baseline_sha: str = "") -> dict[str, A
 def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "",
                       impacted: list[str] | None = None, history_file: str = "",
                       repository: str = "", head_sha: str = "", shadow_every: int = 10,
-                      history_key: str = "", source_ref: str = "") -> dict[str, Any]:
+                      history_key: str = "", source_ref: str = "",
+                      impact_meta: dict[str, Any] | None = None) -> dict[str, Any]:
     mode = mode.lower().strip()
     if mode not in {"fast", "full", "certification"}:
         raise ValueError("analysis mode must be fast, full or certification")
     impacted = impacted or []
+    impact_meta = impact_meta or {}
     changed = [str(x.get("path", "")) for x in evidence.get("files", []) if x.get("path")]
     previous_paths = [
         str(x.get("previous_path", ""))
@@ -260,10 +324,7 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
 
     lower_paths = [p.lower() for p in classification_paths]
     docs_only = all(is_documentation_path(p) for p in lower_paths)
-    static_only = all(
-        is_documentation_path(p) or p.startswith(STATIC_PREFIXES)
-        for p in lower_paths
-    )
+    static_only = all(is_static_only_path(p) for p in lower_paths)
     if docs_only:
         return _plan("fast", "fast", "NO_RUNTIME_CHANGE", baseline_sha, evidence,
                      {lab: False for lab in LABS}, reasons, 0, 0.99, impacted, False, False, repository)
@@ -273,6 +334,17 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
 
     risk = 20
     changed_hunks = [str(value) for value in evidence.get("hunks", [])]
+    workflow_profile_change = any(
+        path.replace("\\", "/").lower().lstrip("./").startswith(WORKFLOW_PREFIX)
+        for path in classification_paths
+    )
+    if workflow_profile_change:
+        # Auto-discovery reads target workflows for toolchain/build commands.
+        # Treat those changes as broad runtime/build identity changes.
+        risk += 55
+        for lab in ("configuration", "performance", "upgrade"):
+            selected[lab] = True
+            reasons[lab].append("target workflow may change auto-discovered build profile")
     changed_text = "\n".join(classification_paths + changed_hunks)
     for item in evidence.get("files", []):
         path = str(item.get("path", ""))
@@ -323,8 +395,32 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
         history_file, repository, selected, history_key, source_ref
     )
     risk += boost
+
+    truncation_penalty = 0.0
+    semantic_truncated = bool(evidence.get("semantic_diff_truncated"))
+    dependency_scan_truncated = bool(impact_meta.get("dependency_scan_truncated"))
+    dependency_cap = bool(impact_meta.get("dependency_impact_cap_reached"))
+    if semantic_truncated:
+        risk += 15
+        truncation_penalty += 0.12
+    if dependency_scan_truncated:
+        risk += 20
+        truncation_penalty += 0.18
+    if dependency_cap:
+        risk += 25
+        truncation_penalty += 0.24
+
     risk = max(0, min(100, risk))
-    confidence = max(0.35, min(0.99, 0.96 - min(len(changed), 100) * 0.002 - min(len(impacted), 100) * 0.001))
+    confidence = max(
+        0.35,
+        min(
+            0.99,
+            0.96
+            - min(len(changed), 100) * 0.002
+            - min(len(impacted), 100) * 0.001
+            - truncation_penalty,
+        ),
+    )
     if failures:
         confidence = max(0.35, confidence - 0.05)
 
@@ -336,7 +432,12 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
 
     lane = "FAST_RUNTIME"
     fallback = False
-    if risk >= 70 or confidence < 0.60:
+    if (
+        risk >= 70
+        or confidence < 0.60
+        or dependency_cap
+        or (semantic_truncated and dependency_scan_truncated)
+    ):
         lane = "FULL_RUNTIME"
         selected = {lab: True for lab in LABS}
         fallback = True
@@ -357,6 +458,13 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
                  evidence, selected, reasons, risk, confidence, impacted, fallback, shadow, repository)
     plan["predicted_selected_labs"] = predicted
     plan["historical_failures"] = failures
+    plan["diff_hunk_count"] = int(evidence.get("diff_hunk_count", len(changed_hunks)) or 0)
+    plan["semantic_diff_truncated"] = semantic_truncated
+    plan["dependency_analysis"] = impact_meta
+    plan["analysis_truncated"] = bool(
+        semantic_truncated or dependency_scan_truncated or dependency_cap
+    )
+    plan["workflow_profile_change"] = workflow_profile_change
     return plan
 
 def _plan(requested: str, effective: str, lane: str, baseline_sha: str, evidence: dict[str, Any],
@@ -386,7 +494,13 @@ def analyze_repository(repo_root: Path, mode: str, baseline_sha: str = "", histo
     head_sha = head.stdout.strip().lower() if head.returncode == 0 else ""
     evidence = git_diff_evidence(repo_root, baseline_sha)
     changed = [str(x.get("path", "")) for x in evidence.get("files", []) if x.get("path")]
-    impacted = dependency_impacts(repo_root, changed, tracked_files(repo_root)) if evidence.get("trusted") else []
+    impact_meta: dict[str, Any] = {}
+    if evidence.get("trusted"):
+        impacted, impact_meta = dependency_impacts_with_meta(
+            repo_root, changed, tracked_files(repo_root)
+        )
+    else:
+        impacted = []
     plan = classify_evidence(
         evidence,
         mode,
@@ -398,6 +512,7 @@ def analyze_repository(repo_root: Path, mode: str, baseline_sha: str = "", histo
         shadow_every,
         history_key,
         source_ref,
+        impact_meta,
     )
     plan["head_sha"] = head_sha
     plan["history_key"] = history_key
@@ -446,6 +561,12 @@ def self_test() -> None:
     assert db["selected_labs"]["storage"] and db["selected_labs"]["persistence"]
     static = classify(["test/foo_test.dart"], "fast", "a"*40)
     assert static["lane"] == "STATIC_ONLY"
+    nested_static = classify(["packages/mobile/test/features/home_test.dart"], "fast", "a"*40)
+    assert nested_static["lane"] == "STATIC_ONLY"
+    android_static = classify(["feature/src/androidTest/java/x/FlowTest.kt"], "fast", "a"*40)
+    assert android_static["lane"] == "STATIC_ONLY"
+    workflow_change = classify([".github/workflows/ci.yml"], "fast", "a"*40)
+    assert workflow_change["lane"] == "FULL_RUNTIME"
     asset = classify(["assets/content.md"], "fast", "a"*40)
     assert asset["lane"] not in {"NO_RUNTIME_CHANGE", "STATIC_ONLY"}
     rename = classify_evidence(
@@ -490,6 +611,30 @@ def self_test() -> None:
     assert semantic["selected_labs"]["network"]
     huge = classify([f"lib/f{i}.dart" for i in range(501)], "fast", "a"*40)
     assert huge["mode"] == "full" and huge["fallback_full"]
+    truncated = classify_evidence(
+        {
+            "trusted": True,
+            "status": "ok",
+            "files": [{"path": "lib/core/service.dart", "status": "M", "additions": 250, "deletions": 0}],
+            "file_count": 1,
+            "too_large": False,
+            "additions": 250,
+            "deletions": 0,
+            "hunks": ["+ change"] * 200,
+            "diff_hunk_count": 250,
+            "semantic_diff_truncated": True,
+        },
+        "fast",
+        "a"*40,
+        impact_meta={
+            "dependency_candidate_count": 6000,
+            "dependency_scanned_count": 5000,
+            "dependency_scan_truncated": True,
+            "dependency_impact_cap_reached": False,
+        },
+    )
+    assert truncated["lane"] == "FULL_RUNTIME"
+    assert truncated["analysis_truncated"]
     cert = classify(["README.md"], "certification", "a"*40)
     assert cert["lane"] == "CERTIFICATION" and all(cert["selected_labs"].values())
 
