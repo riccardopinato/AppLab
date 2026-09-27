@@ -223,6 +223,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: applab-native-${{ inputs.repository }}-${{ inputs.ref }}
@@ -564,8 +565,21 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Prepare analysis-only verification cache payload
+      - name: Evaluate analysis-only cache eligibility
+        id: analysis_cache
         if: steps.impact.outputs.run_runtime != 'true' && inputs.cache_verification
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          RESULT="$(python -c 'import json; print(str(json.load(open("applab-report/result.json")).get("result","FAIL")).upper())' 2>/dev/null || echo FAIL)"
+          if [[ "$RESULT" == "PASS" ]]; then
+            echo "cacheable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cacheable=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare analysis-only verification cache payload
+        if: steps.analysis_cache.outputs.cacheable == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -574,8 +588,8 @@ jobs:
           cp "$GITHUB_WORKSPACE/applab-report/result.json" "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
           cp "$GITHUB_WORKSPACE/applab-report/summary.md" "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
 
-      - name: Cache analysis-only resolved commit
-        if: steps.impact.outputs.run_runtime != 'true' && inputs.cache_verification
+      - name: Cache analysis-only PASS commit
+        if: steps.analysis_cache.outputs.cacheable == 'true'
         uses: actions/cache/save@v6
         with:
           path: .applab-watch-cache
@@ -647,19 +661,9 @@ jobs:
             --run-id "$GITHUB_RUN_ID" \
             --analysis-mode "${{ inputs.analysis_mode }}"
 
-      - name: Prepare failed verification cache payload
+      - name: Keep failed SHA retryable
         if: inputs.cache_verification && needs.build.outputs.resolved_sha != ''
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/.applab-watch-cache"
-          cp "$GITHUB_WORKSPACE/applab-report/result.json" "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
-          cp "$GITHUB_WORKSPACE/applab-report/summary.md" "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
-
-      - name: Cache failed resolved commit
-        if: inputs.cache_verification && needs.build.outputs.resolved_sha != ''
-        uses: actions/cache/save@v6
-        with:
-          path: .applab-watch-cache
-          key: applab-c${{ needs.build.outputs.contract_fingerprint || inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ needs.build.outputs.resolved_sha }}
+        run: echo "Build failure is recorded as evidence but is intentionally not cached as verified."
 
       - name: Upload failed build result
         uses: actions/upload-artifact@v7
