@@ -32,6 +32,9 @@ on:
         required: false
         default: "3500"
         type: string
+    secrets:
+      APPLAB_TARGET_TOKEN:
+        required: false
 
 permissions:
   contents: read
@@ -48,8 +51,8 @@ jobs:
       - name: Checkout trusted AppLab
         uses: actions/checkout@v7
         with:
-          repository: ${{ github.repository }}
-          ref: ${{ github.sha }}
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           path: .applab
           persist-credentials: false
 
