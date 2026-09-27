@@ -340,6 +340,38 @@ def build_snapshot(
 
 
 def self_test() -> None:
+    adaptive = adaptive_history_metrics(
+        [
+            {
+                "analysis_lane": "FAST_RUNTIME",
+                "pipeline_metrics": {
+                    "planner_ms": 100,
+                    "total_observed_seconds": 4.0,
+                    "wall_clock_seconds": 10.0,
+                    "runtime_seconds": 3.0,
+                    "quality_seconds": 0.9,
+                    "shadow_full": True,
+                    "shadow_false_negative_count": 0,
+                    "shadow_missed_warning_count": 1,
+                    "shadow_over_selection_count": 2,
+                },
+            },
+            {
+                "analysis_lane": "FAST_RUNTIME",
+                "pipeline_metrics": {
+                    "planner_ms": 120,
+                    "total_observed_seconds": 5.0,
+                    "wall_clock_seconds": 20.0,
+                    "runtime_seconds": 4.0,
+                    "quality_seconds": 0.88,
+                },
+            },
+        ]
+    )
+    assert adaptive["wall_clock_seconds"]["p50"] == 15.0
+    assert adaptive["lane_metrics"]["FAST_RUNTIME"]["sample_count"] == 2
+    assert adaptive["shadow_missed_warnings"] == 1
+
     watchlist = {
         "repositories": [
             {
