@@ -15,10 +15,12 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "analysis-plan-input",
         "--history-key",
         "--source-ref",
-        "Cache analysis-only resolved commit",
+        "Cache analysis-only PASS commit",
         "Restore target source before trusted packaging",
         "steps.trusted_target.outputs.apk_file",
         "--history-file",
+        "Keep failed SHA retryable",
+        "github_run_started_at.py",
     ),
     ".github/workflows/external-native-android-runner.yml": (
         "source_ref:",
@@ -29,10 +31,12 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "analysis-plan-input",
         "--history-key",
         "--source-ref",
-        "Cache analysis-only resolved commit",
+        "Cache analysis-only PASS commit",
         "Restore target source before trusted packaging",
         "steps.trusted_target.outputs.apk_file",
         "--history-file",
+        "Keep failed SHA retryable",
+        "github_run_started_at.py",
     ),
     ".github/workflows/universal-project-runner.yml": (
         "source_ref:",
@@ -57,6 +61,8 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "AppLab v0.9.1 Trusted APK Verification",
         "BASELINE_FALLBACK",
         "effective FULL fallback",
+        "Evaluate verification cache eligibility",
+        "github_run_started_at.py",
     ),
     ".github/workflows/production-certification.yml": (
         "analysis_mode: certification",
@@ -66,6 +72,12 @@ REQUIRED: dict[str, tuple[str, ...]] = {
 }
 
 FORBIDDEN: dict[str, tuple[str, ...]] = {
+    ".github/workflows/external-project-runner.yml": (
+        "Cache failed resolved commit",
+    ),
+    ".github/workflows/external-native-android-runner.yml": (
+        "Cache failed resolved commit",
+    ),
     ".github/workflows/trusted-apk-verifier.yml": (
         "AppLab v0.8.0 Trusted APK Verification",
         "needs.prepare_avd",
