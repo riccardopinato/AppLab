@@ -2,6 +2,8 @@
 from __future__ import annotations
 import argparse,json
 from pathlib import Path
+from verification_intelligence import enrich_result, write_sidecars
+
 LAB_FIELDS={"system":"system_lab","performance":"performance_lab","network":"network_lab","persistence":"persistence_lab","configuration":"configuration_lab","resource_pressure":"resource_pressure_lab","background":"background_lab","storage":"storage_lab","upgrade":"upgrade_lab"}
 def main()->int:
     ap=argparse.ArgumentParser(); ap.add_argument("--plan"); ap.add_argument("--report-dir")
@@ -18,14 +20,16 @@ def main()->int:
     if lane not in {"NO_RUNTIME_CHANGE","STATIC_ONLY"}: raise SystemExit("incremental_result only accepts non-runtime lanes")
     metrics_path=out/"pipeline-metrics.json"
     metrics=json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.is_file() else {}
-    result={"schema_version":1,"applab_version":"0.9.1","repository":a.repository,"ref":a.ref,"requested_ref":a.ref,"resolved_sha":a.resolved_sha,
+    result={"schema_version":1,"applab_version":"1.0.0","repository":a.repository,"ref":a.ref,"requested_ref":a.ref,"resolved_sha":a.resolved_sha,
       "history_key":a.history_key,"run_id":a.run_id,"result":"PASS","analysis_mode":"fast","analysis_lane":lane,
       "risk_score":plan.get("risk_score"),"confidence":plan.get("confidence"),"selected_labs":plan.get("selected_labs",{}),"predicted_selected_labs":plan.get("predicted_selected_labs",{}),"shadow_full":False,"pipeline_metrics":metrics,"runtime_reused_from":plan.get("baseline_sha",""),
       "runtime_executed":False,"certification_status":"NOT_REQUESTED","quality_evidence":quality,
       "maestro":"SKIPPED","visual_qa":"SKIPPED","visual_regression":"SKIPPED","visual_journey":"SKIPPED","interaction_crawl":"SKIPPED"}
     for _,field in LAB_FIELDS.items(): result[field]="SKIPPED"
+    result=enrich_result(result,plan)
+    write_sidecars(out,result)
     (out/"analysis-plan.json").write_text(json.dumps(plan,indent=2,sort_keys=True)+"\n",encoding="utf-8")
     (out/"result.json").write_text(json.dumps(result,indent=2,sort_keys=True)+"\n",encoding="utf-8")
-    (out/"summary.md").write_text(f"# AppLab v0.9 Incremental Verification\n\n- Result: **PASS**\n- Lane: **{lane}**\n- Runtime executed: **no**\n- Runtime evidence reused from: `{plan.get('baseline_sha','') or 'none'}`\n- Risk: {plan.get('risk_score')}\n- Confidence: {plan.get('confidence')}\n",encoding="utf-8")
+    (out/"summary.md").write_text(f"# AppLab v1.0 Incremental Verification\n\n- Result: **PASS**\n- Lane: **{lane}**\n- Runtime executed: **no**\n- Runtime evidence reused from: `{plan.get('baseline_sha','') or 'none'}`\n- Risk: {plan.get('risk_score')}\n- Confidence: {plan.get('confidence')}\n",encoding="utf-8")
     return 0
 if __name__=="__main__": raise SystemExit(main())
