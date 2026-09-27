@@ -1,0 +1,96 @@
+name: AppLab Cross-App Intelligence
+
+on:
+  workflow_dispatch:
+    inputs:
+      watchlist_path:
+        description: "AppLab watchlist used to build the source-only corpus."
+        required: false
+        default: "watchlist.json"
+        type: string
+      min_projects:
+        description: "Minimum recurrence required for a cross-app pattern."
+        required: false
+        default: "2"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-cross-app-intelligence
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Cross-App portfolio intelligence
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@v7
+        with:
+          path: .applab
+          persist-credentials: false
+
+      - name: Validate inputs
+        id: inputs
+        shell: bash
+        env:
+          WATCHLIST_PATH: ${{ inputs.watchlist_path }}
+          MIN_PROJECTS: ${{ inputs.min_projects }}
+        run: |
+          set -Eeuo pipefail
+          case "$WATCHLIST_PATH" in
+            /*|*../*|../*|*/..) echo "Unsafe watchlist_path" >&2; exit 1 ;;
+          esac
+          [[ -f "$GITHUB_WORKSPACE/.applab/$WATCHLIST_PATH" ]] || {
+            echo "Watchlist not found: $WATCHLIST_PATH" >&2
+            exit 1
+          }
+          [[ "$MIN_PROJECTS" =~ ^[0-9]+$ ]] || {
+            echo "min_projects must be an integer" >&2
+            exit 1
+          }
+          (( MIN_PROJECTS >= 2 )) || {
+            echo "min_projects must be >= 2" >&2
+            exit 1
+          }
+          echo "watchlist=$GITHUB_WORKSPACE/.applab/$WATCHLIST_PATH" >> "$GITHUB_OUTPUT"
+          echo "min_projects=$MIN_PROJECTS" >> "$GITHUB_OUTPUT"
+
+      - name: Build source-only project corpus
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/build_cross_app_corpus.py \
+            --watchlist "${{ steps.inputs.outputs.watchlist }}" \
+            --analyzer "$GITHUB_WORKSPACE/.applab/scripts/app_intelligence.py" \
+            --output-dir "$GITHUB_WORKSPACE/applab-cross-app-corpus"
+
+      - name: Run Cross-App Intelligence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/cross_app_intelligence.py \
+            --corpus-dir "$GITHUB_WORKSPACE/applab-cross-app-corpus" \
+            --min-projects "${{ steps.inputs.outputs.min_projects }}" \
+            --output-dir "$GITHUB_WORKSPACE/applab-cross-app"
+
+      - name: Publish portfolio report
+        shell: bash
+        run: |
+          {
+            echo "## AppLab Cross-App Intelligence"
+            echo
+            cat "$GITHUB_WORKSPACE/applab-cross-app/cross-app-intelligence.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Cross-App evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-cross-app-intelligence-${{ github.run_id }}
+          path: |
+            applab-cross-app-corpus/
+            applab-cross-app/
+          if-no-files-found: error
+          retention-days: 30
