@@ -27,8 +27,14 @@ ROOT_DOC_NAMES = {
     "code_of_conduct.md", "security.md",
 }
 
+def normalize_repo_path(path: str) -> str:
+    value = path.replace("\\", "/").lower()
+    while value.startswith("./"):
+        value = value[2:]
+    return value.lstrip("/")
+
 def is_documentation_path(path: str) -> bool:
-    value = path.replace("\\", "/").lower().lstrip("./")
+    value = normalize_repo_path(path)
     name = value.rsplit("/", 1)[-1]
     return (
         value.startswith(("docs/", "documentation/", ".github/issue", ".github/pull"))
@@ -36,12 +42,12 @@ def is_documentation_path(path: str) -> bool:
     )
 
 def is_test_path(path: str) -> bool:
-    value = path.replace("\\", "/").lower().lstrip("./")
+    value = normalize_repo_path(path)
     parts = [part for part in value.split("/") if part]
     return any(part in TEST_PATH_SEGMENTS for part in parts)
 
 def is_static_only_path(path: str) -> bool:
-    value = path.replace("\\", "/").lower().lstrip("./")
+    value = normalize_repo_path(path)
     if is_documentation_path(value) or is_test_path(value):
         return True
     # GitHub metadata is static unless it can influence auto-discovered build
@@ -335,7 +341,7 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
     risk = 20
     changed_hunks = [str(value) for value in evidence.get("hunks", [])]
     workflow_profile_change = any(
-        path.replace("\\", "/").lower().lstrip("./").startswith(WORKFLOW_PREFIX)
+        normalize_repo_path(path).startswith(WORKFLOW_PREFIX)
         for path in classification_paths
     )
     if workflow_profile_change:
@@ -567,6 +573,8 @@ def self_test() -> None:
     assert android_static["lane"] == "STATIC_ONLY"
     workflow_change = classify([".github/workflows/ci.yml"], "fast", "a"*40)
     assert workflow_change["lane"] == "FULL_RUNTIME"
+    github_docs = classify([".github/issue_template/bug.md"], "fast", "a"*40)
+    assert github_docs["lane"] == "NO_RUNTIME_CHANGE"
     asset = classify(["assets/content.md"], "fast", "a"*40)
     assert asset["lane"] not in {"NO_RUNTIME_CHANGE", "STATIC_ONLY"}
     rename = classify_evidence(
