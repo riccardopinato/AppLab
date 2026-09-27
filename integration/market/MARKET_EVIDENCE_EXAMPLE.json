@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "project": {
+    "name": "Example App",
+    "category": "utility"
+  },
+  "observed_at": "2026-09-27",
+  "competitors": [
+    {
+      "id": "competitor_a",
+      "name": "Competitor A",
+      "source_urls": [
+        "https://example.com/app"
+      ],
+      "observed_at": "2026-09-27",
+      "features": [
+        {
+          "key": "export_or_backup",
+          "label": "Export / backup",
+          "source_url": "https://example.com/app/features",
+          "evidence": "Export is documented on the product page."
+        }
+      ],
+      "pricing": {
+        "model": "subscription",
+        "currency": "EUR",
+        "monthly": 4.99,
+        "source_url": "https://example.com/app/pricing"
+      },
+      "rating": {
+        "value": 4.2,
+        "count": 1000,
+        "source_url": "https://example.com/app/store"
+      },
+      "review_themes": [
+        {
+          "key": "sync_reliability",
+          "theme": "Sync reliability",
+          "sentiment": "negative",
+          "count": 5,
+          "source_url": "https://example.com/app/reviews",
+          "evidence": "Curated, traceable review-theme evidence."
+        }
+      ]
+    }
+  ]
+}
