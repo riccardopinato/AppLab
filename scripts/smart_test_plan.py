@@ -204,6 +204,8 @@ def dependency_impacts_with_meta(
             "dependency_impact_cap_reached": False,
             "dependency_import_truncated": False,
             "dependency_import_truncated_file_count": 0,
+            "impact_graph_version": 2,
+            "dependency_edges": [],
         }
     impacted: set[str] = set()
     candidates = [
