@@ -11,6 +11,12 @@ import time
 from pathlib import Path
 from typing import Any
 
+from history_learning import (
+    apply_learning_profile,
+    build_learning_profile,
+    classify_change_playbook,
+)
+
 LABS = (
     "system", "performance", "network", "persistence", "configuration",
     "resource_pressure", "background", "storage", "upgrade",
@@ -162,17 +168,18 @@ def tracked_files(repo: Path) -> list[str]:
         return [x.strip().replace("\\", "/") for x in result.stdout.splitlines() if x.strip()]
     return []
 
-def _imports_from_head(repo: Path, relative: str) -> list[str]:
+def _imports_from_head(repo: Path, relative: str) -> tuple[list[str], bool]:
     blob = _run(repo, "show", f"HEAD:{relative}", timeout=15)
     if blob.returncode != 0:
-        return []
+        return [], False
     found: list[str] = []
     for pattern in (
         r"(?m)^\s*import\s+['\"]([^'\"]+)['\"]",
         r"(?m)^\s*import\s+([A-Za-z0-9_.*]+)",
     ):
         found.extend(re.findall(pattern, blob.stdout))
-    return found[:100]
+    limit = 100
+    return found[:limit], len(found) > limit
 
 def dependency_impacts_with_meta(
     repo: Path,
@@ -191,6 +198,8 @@ def dependency_impacts_with_meta(
             "dependency_scanned_count": 0,
             "dependency_scan_truncated": False,
             "dependency_impact_cap_reached": False,
+            "dependency_import_truncated": False,
+            "dependency_import_truncated_file_count": 0,
         }
     impacted: set[str] = set()
     candidates = [
@@ -201,6 +210,7 @@ def dependency_impacts_with_meta(
     impact_limit = 200
     scanned = 0
     impact_cap_reached = False
+    import_truncated_files = 0
     # Bounded reverse-import graph: deterministic and conservative. When a
     # bound is reached the planner records it and lowers confidence rather than
     # silently treating partial evidence as complete.
@@ -208,7 +218,9 @@ def dependency_impacts_with_meta(
         scanned += 1
         if rel in changed_set:
             continue
-        imports = _imports_from_head(repo, rel)
+        imports, imports_truncated = _imports_from_head(repo, rel)
+        if imports_truncated:
+            import_truncated_files += 1
         joined = " ".join(imports).lower()
         if any(stem and stem in joined for stem in stems):
             impacted.add(rel)
@@ -220,6 +232,8 @@ def dependency_impacts_with_meta(
         "dependency_scanned_count": scanned,
         "dependency_scan_truncated": len(candidates) > scan_limit,
         "dependency_impact_cap_reached": impact_cap_reached,
+        "dependency_import_truncated": import_truncated_files > 0,
+        "dependency_import_truncated_file_count": import_truncated_files,
     }
 
 def dependency_impacts(repo: Path, changed: list[str], tracked: list[str]) -> list[str]:
@@ -406,6 +420,10 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
     semantic_truncated = bool(evidence.get("semantic_diff_truncated"))
     dependency_scan_truncated = bool(impact_meta.get("dependency_scan_truncated"))
     dependency_cap = bool(impact_meta.get("dependency_impact_cap_reached"))
+    dependency_import_truncated = bool(impact_meta.get("dependency_import_truncated"))
+    dependency_import_truncated_count = int(
+        impact_meta.get("dependency_import_truncated_file_count", 0) or 0
+    )
     if semantic_truncated:
         risk += 15
         truncation_penalty += 0.12
@@ -415,6 +433,9 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
     if dependency_cap:
         risk += 25
         truncation_penalty += 0.24
+    if dependency_import_truncated:
+        risk += min(20, 10 + dependency_import_truncated_count)
+        truncation_penalty += min(0.20, 0.10 + dependency_import_truncated_count * 0.01)
 
     risk = max(0, min(100, risk))
     confidence = max(
@@ -442,6 +463,7 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
         risk >= 70
         or confidence < 0.60
         or dependency_cap
+        or dependency_import_truncated_count >= 3
         or (semantic_truncated and dependency_scan_truncated)
     ):
         lane = "FULL_RUNTIME"
@@ -468,7 +490,10 @@ def classify_evidence(evidence: dict[str, Any], mode: str, baseline_sha: str = "
     plan["semantic_diff_truncated"] = semantic_truncated
     plan["dependency_analysis"] = impact_meta
     plan["analysis_truncated"] = bool(
-        semantic_truncated or dependency_scan_truncated or dependency_cap
+        semantic_truncated
+        or dependency_scan_truncated
+        or dependency_cap
+        or dependency_import_truncated
     )
     plan["workflow_profile_change"] = workflow_profile_change
     return plan
@@ -479,7 +504,7 @@ def _plan(requested: str, effective: str, lane: str, baseline_sha: str, evidence
     changed = [str(x.get("path", "")) for x in evidence.get("files", []) if x.get("path")]
     targets = targeted_paths(changed, impacted)
     return {
-        "schema_version": 2, "planner_version": "0.9.1", "requested_mode": requested,
+        "schema_version": 2, "planner_version": "1.0.0", "requested_mode": requested,
         "mode": effective, "lane": lane, "repository": repository, "baseline_sha": baseline_sha,
         "diff_status": evidence.get("status", ""), "changed_files": changed,
         "changes": evidence.get("files", []), "additions": int(evidence.get("additions", 0)),
@@ -520,6 +545,14 @@ def analyze_repository(repo_root: Path, mode: str, baseline_sha: str = "", histo
         source_ref,
         impact_meta,
     )
+    profile = build_learning_profile(
+        history_file,
+        repository,
+        history_key,
+        source_ref,
+    )
+    plan = apply_learning_profile(plan, profile)
+    plan["playbook"] = classify_change_playbook(plan.get("changed_files", []))
     plan["head_sha"] = head_sha
     plan["history_key"] = history_key
     plan["source_ref"] = source_ref
@@ -643,6 +676,30 @@ def self_test() -> None:
     )
     assert truncated["lane"] == "FULL_RUNTIME"
     assert truncated["analysis_truncated"]
+    import_truncated = classify_evidence(
+        {
+            "trusted": True,
+            "status": "ok",
+            "files": [{"path": "lib/core/service.dart", "status": "M", "additions": 1, "deletions": 0}],
+            "file_count": 1,
+            "too_large": False,
+            "additions": 1,
+            "deletions": 0,
+            "hunks": ["+ change"],
+        },
+        "fast",
+        "a"*40,
+        impact_meta={
+            "dependency_candidate_count": 10,
+            "dependency_scanned_count": 10,
+            "dependency_scan_truncated": False,
+            "dependency_impact_cap_reached": False,
+            "dependency_import_truncated": True,
+            "dependency_import_truncated_file_count": 3,
+        },
+    )
+    assert import_truncated["lane"] == "FULL_RUNTIME"
+    assert import_truncated["analysis_truncated"]
     cert = classify(["README.md"], "certification", "a"*40)
     assert cert["lane"] == "CERTIFICATION" and all(cert["selected_labs"].values())
 
