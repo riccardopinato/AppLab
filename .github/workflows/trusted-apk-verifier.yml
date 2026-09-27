@@ -431,7 +431,10 @@ jobs:
       - name: Record adaptive pipeline metrics
         if: always()
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
+          RUN_STARTED_AT="$(python .applab/scripts/github_run_started_at.py)"
           python .applab/scripts/pipeline_metrics.py \
             --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
             --quality "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" \
@@ -439,6 +442,7 @@ jobs:
             --runtime-timing "$GITHUB_WORKSPACE/applab-report/runtime-timing.json" \
             --avd-cache-hit "${{ steps.avd_cache.outputs.cache-hit }}" \
             --maestro-cache-hit "${{ steps.maestro_cache.outputs.cache-hit }}" \
+            --workflow-started-at "$RUN_STARTED_AT" \
             --output "$GITHUB_WORKSPACE/applab-report/pipeline-metrics.json"
 
       - name: Finalize trusted result contract
