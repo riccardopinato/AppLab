@@ -18,7 +18,7 @@ def main()->int:
     if lane not in {"NO_RUNTIME_CHANGE","STATIC_ONLY"}: raise SystemExit("incremental_result only accepts non-runtime lanes")
     metrics_path=out/"pipeline-metrics.json"
     metrics=json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.is_file() else {}
-    result={"schema_version":1,"applab_version":"0.9.0","repository":a.repository,"ref":a.ref,"requested_ref":a.ref,"resolved_sha":a.resolved_sha,
+    result={"schema_version":1,"applab_version":"0.9.1","repository":a.repository,"ref":a.ref,"requested_ref":a.ref,"resolved_sha":a.resolved_sha,
       "history_key":a.history_key,"run_id":a.run_id,"result":"PASS","analysis_mode":"fast","analysis_lane":lane,
       "risk_score":plan.get("risk_score"),"confidence":plan.get("confidence"),"selected_labs":plan.get("selected_labs",{}),"predicted_selected_labs":plan.get("predicted_selected_labs",{}),"shadow_full":False,"pipeline_metrics":metrics,"runtime_reused_from":plan.get("baseline_sha",""),
       "runtime_executed":False,"certification_status":"NOT_REQUESTED","quality_evidence":quality,
