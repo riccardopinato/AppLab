@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v0.9.1 — Audit Hardening, Retry Safety & Measured FAST**
+Current production baseline: **v1.0.0 — Autonomous Quality Platform**
 
 ## Product rule
 
@@ -19,6 +19,38 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v1.0.0 — Autonomous Quality Platform
+
+- [x] Use failure intelligence in Repo Watcher scheduling.
+- [x] Suppress repeated non-retryable app failures for the same SHA.
+- [x] Retry transient/unknown failures with a bounded three-attempt policy.
+- [x] Surface autonomous-quality evidence in Control Center.
+- [x] Preserve all trust, certification and physical-device boundaries.
+
+### v0.12.0 — SHOS / AppLab Integration
+
+- [x] Classify changes into deterministic SHOS-oriented work categories.
+- [x] Add playbook-required specialist labs to FAST verification.
+- [x] Emit gate-based release-readiness evidence.
+- [x] Emit knowledge-feedback evidence after verification.
+
+### v0.11.0 — Project Intelligence
+
+- [x] Emit compact project-state snapshots for chat/development handoff.
+- [x] Track per-project learning state and learning-applied labs.
+- [x] Add controlled cross-project signals as advisory evidence only.
+- [x] Preserve project-specific evidence as authoritative.
+
+### v0.10.0 — Self-Optimizing Verification
+
+- [x] Learn recurrent specialist risk from watcher history after sufficient samples.
+- [x] Detect unstable/flaky specialist domains without overriding FAIL.
+- [x] Add impact graph v2 and explicit per-file import truncation evidence.
+- [x] Lower confidence / broaden coverage when impact evidence is truncated.
+- [x] Add lane verification budgets and budget-pressure telemetry.
+- [x] Add failure taxonomy for app, visual, infrastructure, build/quality and unknown failures.
+
 
 ### v0.9.1 — Audit Hardening, Retry Safety & Measured FAST
 
@@ -143,7 +175,7 @@ publish a certified release artifact.
 - [x] Repo Watcher and Control Center.
 - [x] Browser-controlled live emulator stack.
 
-## v0.9.1 evidence contract
+## v1.0 evidence contract
 
 Every adaptive plan records:
 
@@ -159,7 +191,12 @@ Every adaptive plan records:
 - targeted source/test/module scope;
 - FULL fallback reason;
 - shadow FULL decision;
-- workflow profile-change escalation state.
+- workflow profile-change escalation state;
+- impact graph v2 edges and per-file import truncation state;
+- per-project learning profile and learning-applied labs;
+- SHOS playbook classification and required labs;
+- verification budget, historical lane p95 and budget pressure;
+- failure intelligence, flaky detection, release readiness, project state and knowledge feedback.
 
 A reduced lane is never represented as a fake runtime PASS. NO_RUNTIME_CHANGE
 and STATIC_ONLY explicitly record `runtime_executed=false` and the SHA whose
