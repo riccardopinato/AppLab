@@ -1,3 +1,17 @@
+## v1.0.0 — Autonomous Quality Platform
+
+AppLab now learns conservatively from each project's verification history,
+classifies failures, detects unstable specialist domains, enforces lane budgets,
+emits a compact project-state snapshot, applies SHOS-aware verification policy,
+produces deterministic release-readiness and knowledge-feedback evidence, and
+uses bounded retry policy in Repo Watcher.
+
+The trust model is unchanged: learned evidence may only preserve or broaden
+coverage; it never turns a FAIL into PASS and never replaces production
+certification.
+
+See `integration/AUTONOMOUS_QUALITY_1_0.md`.
+
 ## v0.9.1 — Audit Hardening, Retry Safety & Measured FAST
 
 AppLab v0.9.1 closes the P1/P2/P3 findings from the post-v0.9 audit without
