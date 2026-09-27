@@ -6,6 +6,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from verification_intelligence import enrich_result, write_sidecars
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -36,7 +38,7 @@ def main() -> int:
     if not payload:
         payload = {
             "schema_version": 1,
-            "applab_version": "0.9.1",
+            "applab_version": "1.0.0",
             "result": "FAIL",
             "analysis_mode": args.analysis_mode,
             "reason": "Pipeline ended before the Android verifier produced a result.",
@@ -112,6 +114,9 @@ def main() -> int:
     if args.pipeline_status != "success" and payload.get("result") == "PASS":
         payload["result"] = "FAIL"
         payload["reason"] = "A project-gate step failed after the Android verifier."
+
+    payload = enrich_result(payload, plan)
+    write_sidecars(report_dir, payload)
 
     result_path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
