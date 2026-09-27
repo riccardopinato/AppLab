@@ -47,8 +47,17 @@ def summarize(plan:dict,quality:dict|None=None,shadow:dict|None=None,runtime:dic
             started=started.replace(tzinfo=timezone.utc)
         wall_clock_seconds=round(max(0.0,(now-started).total_seconds()),3)
         setup_overhead_seconds=round(max(0.0,wall_clock_seconds-observed),3)
+    budget_raw=plan.get("verification_budget_seconds")
+    budget_seconds=float(budget_raw) if isinstance(budget_raw,(int,float)) and budget_raw>0 else None
+    budget_exceeded=(
+        bool(wall_clock_seconds is not None and budget_seconds is not None and wall_clock_seconds>budget_seconds)
+    )
+    budget_ratio=(
+        round(wall_clock_seconds/budget_seconds,4)
+        if wall_clock_seconds is not None and budget_seconds is not None else None
+    )
     return {
-      "schema_version":2,
+      "schema_version":3,
       "planner_ms":plan.get("planner_ms",0),
       "lane":plan.get("lane"),
       "risk_score":plan.get("risk_score"),
@@ -69,6 +78,12 @@ def summarize(plan:dict,quality:dict|None=None,shadow:dict|None=None,runtime:dic
       "total_observed_seconds":observed,
       "wall_clock_seconds":wall_clock_seconds,
       "setup_overhead_seconds":setup_overhead_seconds,
+      "verification_budget_seconds":budget_seconds,
+      "budget_exceeded":budget_exceeded,
+      "budget_ratio":budget_ratio,
+      "historical_lane_p95_seconds":plan.get("historical_lane_p95_seconds"),
+      "budget_pressure":bool(plan.get("budget_pressure",False)),
+      "learning_applied_lab_count":len(plan.get("learning_applied_labs",[]) or []),
       "avd_cache_hit":avd_cache_hit,
       "maestro_cache_hit":maestro_cache_hit,
     }
@@ -84,6 +99,11 @@ def main()->int:
         x=summarize({"selected_labs":{},"changed_files":[],"planner_ms":1000},{"timings":{"build_seconds":2}},runtime={"runtime_seconds":3})
         assert x["selected_lab_count"]==0 and x["total_observed_seconds"]==6.0
         assert x["wall_clock_seconds"] is None
+        y=summarize(
+            {"selected_labs":{},"changed_files":[],"verification_budget_seconds":1},
+            workflow_started_at="2000-01-01T00:00:00Z",
+        )
+        assert y["budget_exceeded"] and y["budget_ratio"] is not None
         print("AppLab pipeline metrics self-test PASS"); return 0
     if not a.plan or not a.output: raise SystemExit("--plan and --output are required")
     p=read_json(a.plan); q=read_json(a.quality); s=read_json(a.shadow); r=read_json(a.runtime_timing)
