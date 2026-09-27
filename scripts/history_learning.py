@@ -29,6 +29,14 @@ LANE_BUDGETS = {
     "CERTIFICATION": 2400,
 }
 EXECUTED = {"PASS", "WARN", "FAIL", "ERROR"}
+PLAYBOOK_REQUIRED_LABS = {
+    "DATABASE_MIGRATION_PLAYBOOK": ("persistence", "storage", "upgrade"),
+    "UI_REDESIGN_PLAYBOOK": ("configuration", "performance"),
+    "RELEASE_PLAYBOOK": ("configuration", "performance", "upgrade"),
+    "QA_CYCLE_PLAYBOOK": (),
+    "DOCUMENTATION_PLAYBOOK": (),
+    "NEW_FEATURE_OR_BUG_FIX_PLAYBOOK": (),
+}
 
 
 def _percentile(values: list[float], percentile: float) -> float | None:
@@ -70,6 +78,37 @@ def history_rows(
             continue
         rows.append(item)
     return rows
+
+
+def _cross_project_signals(history_file: str) -> list[dict[str, Any]]:
+    rows = history_rows(history_file, limit=500)
+    signals: list[dict[str, Any]] = []
+    for lab in LABS:
+        by_repo: dict[str, list[str]] = {}
+        field = LAB_FIELDS[lab]
+        for item in rows:
+            repo = str(item.get("repository", "")).strip()
+            outcome = str(item.get(field, "")).upper()
+            if repo and outcome in EXECUTED:
+                by_repo.setdefault(repo, []).append(outcome)
+        affected = 0
+        executed = 0
+        issues = 0
+        for outcomes in by_repo.values():
+            local_issues = sum(value in {"WARN", "FAIL", "ERROR"} for value in outcomes)
+            executed += len(outcomes)
+            issues += local_issues
+            if len(outcomes) >= 3 and local_issues:
+                affected += 1
+        if affected >= 3 and executed >= 10:
+            signals.append({
+                "lab": lab,
+                "repositories": affected,
+                "executed": executed,
+                "issue_rate": round(issues / max(1, executed), 4),
+                "policy": "advisory-only; project evidence remains authoritative",
+            })
+    return signals
 
 
 def build_learning_profile(
@@ -155,6 +194,7 @@ def build_learning_profile(
         "unstable_labs": unstable_labs,
         "elevated_labs": elevated_labs,
         "lane_metrics": lane_metrics,
+        "cross_project_signals": _cross_project_signals(history_file),
         "learning_ready": len(rows) >= 5,
     }
 
@@ -188,6 +228,29 @@ def classify_change_playbook(changed_files: list[str]) -> dict[str, Any]:
         "recommended_playbook": playbook,
         "confidence": 0.95 if category not in {"unknown", "general_code_change"} else 0.70,
     }
+
+
+def apply_playbook_policy(plan: dict[str, Any], playbook: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(plan)
+    selected = dict(enriched.get("selected_labs", {}))
+    reasons = {lab: list(values) for lab, values in (enriched.get("reasons") or {}).items()}
+    required = PLAYBOOK_REQUIRED_LABS.get(str(playbook.get("recommended_playbook", "")), ())
+    if enriched.get("lane") == "FAST_RUNTIME":
+        for lab in required:
+            if not selected.get(lab):
+                selected[lab] = True
+            marker = f"SHOS playbook requires {lab} coverage"
+            if marker not in reasons.setdefault(lab, []):
+                reasons[lab].append(marker)
+        if required:
+            enriched["risk_score"] = min(100, int(enriched.get("risk_score", 0) or 0) + len(required) * 2)
+    enriched["selected_labs"] = selected
+    enriched["reasons"] = reasons
+    enriched["playbook"] = {
+        **playbook,
+        "required_labs": list(required),
+    }
+    return enriched
 
 
 def apply_learning_profile(plan: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
@@ -279,6 +342,10 @@ def self_test() -> None:
             "risk_score": 20,
             "confidence": 0.95,
         }
+        playbook = classify_change_playbook(["lib/ui/home_screen.dart"])
+        plan = apply_playbook_policy(plan, playbook)
+        assert plan["selected_labs"]["configuration"]
+        assert plan["selected_labs"]["performance"]
         enriched = apply_learning_profile(plan, profile)
         assert enriched["selected_labs"]["network"]
         assert enriched["verification_budget_seconds"] == 900
