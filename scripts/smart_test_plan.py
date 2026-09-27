@@ -13,6 +13,7 @@ from typing import Any
 
 from history_learning import (
     apply_learning_profile,
+    apply_playbook_policy,
     build_learning_profile,
     classify_change_playbook,
 )
@@ -187,11 +188,14 @@ def dependency_impacts_with_meta(
     tracked: list[str],
 ) -> tuple[list[str], dict[str, Any]]:
     changed_set = set(changed)
-    stems = {
-        Path(p).stem.lower()
-        for p in changed
-        if Path(p).suffix.lower() in {".dart", ".kt", ".java"}
-    }
+    stem_sources: dict[str, list[str]] = {}
+    for path in changed:
+        if Path(path).suffix.lower() not in {".dart", ".kt", ".java"}:
+            continue
+        stem = Path(path).stem.lower()
+        if stem:
+            stem_sources.setdefault(stem, []).append(path)
+    stems = set(stem_sources)
     if not stems:
         return [], {
             "dependency_candidate_count": 0,
@@ -211,6 +215,7 @@ def dependency_impacts_with_meta(
     scanned = 0
     impact_cap_reached = False
     import_truncated_files = 0
+    dependency_edges: list[dict[str, str]] = []
     # Bounded reverse-import graph: deterministic and conservative. When a
     # bound is reached the planner records it and lowers confidence rather than
     # silently treating partial evidence as complete.
@@ -222,8 +227,13 @@ def dependency_impacts_with_meta(
         if imports_truncated:
             import_truncated_files += 1
         joined = " ".join(imports).lower()
-        if any(stem and stem in joined for stem in stems):
+        matched = [stem for stem in stems if stem and stem in joined]
+        if matched:
             impacted.add(rel)
+            for stem in matched:
+                for source in stem_sources.get(stem, []):
+                    if len(dependency_edges) < impact_limit:
+                        dependency_edges.append({"source": source, "impacted": rel})
             if len(impacted) >= impact_limit:
                 impact_cap_reached = True
                 break
@@ -234,6 +244,8 @@ def dependency_impacts_with_meta(
         "dependency_impact_cap_reached": impact_cap_reached,
         "dependency_import_truncated": import_truncated_files > 0,
         "dependency_import_truncated_file_count": import_truncated_files,
+        "impact_graph_version": 2,
+        "dependency_edges": dependency_edges,
     }
 
 def dependency_impacts(repo: Path, changed: list[str], tracked: list[str]) -> list[str]:
@@ -551,8 +563,9 @@ def analyze_repository(repo_root: Path, mode: str, baseline_sha: str = "", histo
         history_key,
         source_ref,
     )
+    playbook = classify_change_playbook(plan.get("changed_files", []))
+    plan = apply_playbook_policy(plan, playbook)
     plan = apply_learning_profile(plan, profile)
-    plan["playbook"] = classify_change_playbook(plan.get("changed_files", []))
     plan["head_sha"] = head_sha
     plan["history_key"] = history_key
     plan["source_ref"] = source_ref
