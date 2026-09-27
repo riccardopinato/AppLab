@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v0.9.0 — Adaptive Impact Analysis & Incremental Verification Engine**
+Current production baseline: **v0.9.1 — Audit Hardening, Retry Safety & Measured FAST**
 
 ## Product rule
 
@@ -19,6 +19,32 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v0.9.1 — Audit Hardening, Retry Safety & Measured FAST
+
+- [x] Cache only successful PASS verification results; failed SHAs remain
+  retryable by Repo Watcher.
+- [x] Remove failed-build cache writes from Flutter/native runners.
+- [x] Prevent `.github/workflows/**` from being classified as STATIC_ONLY;
+  workflow changes that can affect auto-discovered build identity escalate to
+  FULL_RUNTIME.
+- [x] Record semantic-diff and dependency-scan truncation and lower confidence;
+  dependency caps or combined truncation force FULL.
+- [x] Detect nested/monorepo Flutter tests and Android `src/test` /
+  `src/androidTest` paths as static-only.
+- [x] Use targeted Dart analysis for safe STATIC_ONLY changes.
+- [x] Track true GitHub workflow wall-clock time plus orchestration/setup
+  overhead.
+- [x] Aggregate p50/p95 wall-clock metrics separately by execution lane.
+- [x] Track shadow FULL missed WARNs and missing-baseline evidence separately
+  from hard false negatives/over-selection.
+- [x] Collapse clean AVD preparation into Trusted Verify while saving the
+  pristine snapshot before the target APK is installed.
+- [x] Add lifecycle process-reclaim/fatal regression coverage and align
+  Configuration Lab version to 0.7.7.1.
+- [x] Align backend, frontend, runtime, certification and watcher identity to
+  v0.9.1.
+- [x] Update README, roadmap, adaptive engine docs and workflow contract tests.
 
 ### v0.9.0 — Adaptive Impact Analysis & Incremental Verification
 
