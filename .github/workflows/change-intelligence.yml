@@ -1,0 +1,149 @@
+name: AppLab Change Intelligence
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: "Target repository in owner/name form. Empty = this repository."
+        required: false
+        default: ""
+        type: string
+      baseline_ref:
+        description: "Baseline branch, tag or SHA."
+        required: true
+        default: "main"
+        type: string
+      current_ref:
+        description: "Current branch, tag or SHA."
+        required: true
+        default: "main"
+        type: string
+      max_files:
+        description: "Maximum tracked text files to scan per snapshot."
+        required: false
+        default: "3500"
+        type: string
+  workflow_call:
+    inputs:
+      target_repository:
+        required: false
+        default: ""
+        type: string
+      baseline_ref:
+        required: true
+        type: string
+      current_ref:
+        required: true
+        type: string
+      max_files:
+        required: false
+        default: "3500"
+        type: string
+    secrets:
+      APPLAB_TARGET_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-change-intelligence-${{ inputs.target_repository || github.repository }}-${{ inputs.current_ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    name: Product evidence delta
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .applab
+          persist-credentials: false
+
+      - name: Resolve target
+        id: target
+        shell: bash
+        env:
+          INPUT_REPOSITORY: ${{ inputs.target_repository }}
+          BASELINE_REF: ${{ inputs.baseline_ref }}
+          CURRENT_REF: ${{ inputs.current_ref }}
+        run: |
+          set -Eeuo pipefail
+          REPOSITORY="${INPUT_REPOSITORY:-}"
+          [[ -n "$REPOSITORY" ]] || REPOSITORY="${{ github.repository }}"
+          [[ -n "${BASELINE_REF:-}" ]] || { echo "baseline_ref is required" >&2; exit 2; }
+          [[ -n "${CURRENT_REF:-}" ]] || { echo "current_ref is required" >&2; exit 2; }
+          echo "repository=$REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "baseline_ref=$BASELINE_REF" >> "$GITHUB_OUTPUT"
+          echo "current_ref=$CURRENT_REF" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout baseline
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.target.outputs.repository }}
+          ref: ${{ steps.target.outputs.baseline_ref }}
+          path: target-baseline
+          fetch-depth: 1
+          persist-credentials: false
+          token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
+
+      - name: Checkout current
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.target.outputs.repository }}
+          ref: ${{ steps.target.outputs.current_ref }}
+          path: target-current
+          fetch-depth: 1
+          persist-credentials: false
+          token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
+
+      - name: Build baseline and current App Intelligence
+        shell: bash
+        env:
+          MAX_FILES: ${{ inputs.max_files }}
+        run: |
+          set -Eeuo pipefail
+          MAX="${MAX_FILES:-3500}"
+          python .applab/scripts/app_intelligence.py \
+            --repo-root "$GITHUB_WORKSPACE/target-baseline" \
+            --output-dir "$GITHUB_WORKSPACE/evidence/baseline" \
+            --max-files "$MAX"
+          python .applab/scripts/app_intelligence.py \
+            --repo-root "$GITHUB_WORKSPACE/target-current" \
+            --output-dir "$GITHUB_WORKSPACE/evidence/current" \
+            --max-files "$MAX"
+
+      - name: Build Change Intelligence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/change_intelligence.py \
+            --baseline "$GITHUB_WORKSPACE/evidence/baseline/app-intelligence.json" \
+            --current "$GITHUB_WORKSPACE/evidence/current/app-intelligence.json" \
+            --output-dir "$GITHUB_WORKSPACE/evidence/change"
+
+      - name: Publish report to workflow summary
+        shell: bash
+        run: |
+          {
+            echo "## AppLab Change Intelligence"
+            echo
+            echo "**Target:** `${{ steps.target.outputs.repository }}`"
+            echo
+            echo "**Baseline:** `${{ steps.target.outputs.baseline_ref }}`"
+            echo
+            echo "**Current:** `${{ steps.target.outputs.current_ref }}`"
+            echo
+            cat "$GITHUB_WORKSPACE/evidence/change/change-intelligence.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Change Intelligence evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-change-intelligence-${{ github.run_id }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7
