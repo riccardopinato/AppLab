@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v2.0.0 — AppLab Studio**
+Current production baseline: **v2.3.0 — Product Consistency Engine**
 
 ## Product rule
 
@@ -19,6 +19,17 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v2.3.0 — Product Consistency Engine
+
+- [x] Normalize review evidence across Product Truth, Lifecycle, Flow, UX, Architecture and Data.
+- [x] Preserve source paths, subject, confidence and severity for every finding.
+- [x] Distinguish HIGH_REVIEW, REVIEW and INFO without generating a synthetic score.
+- [x] Surface top consistency findings and domain counts in AppLab Studio.
+- [x] Keep dynamic-navigation uncertainty explicit instead of treating static gaps as defects.
+- [x] Preserve all FAST/FULL/CERTIFICATION authority boundaries.
+- [x] Correct the canonical roadmap baseline metadata to the current release.
+
 
 ### v2.2.0 — Product Flow & Feature Truth
 
