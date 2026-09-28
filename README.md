@@ -1,3 +1,15 @@
+## v2.4.0 — Change Intelligence
+
+AppLab can now compare two App Intelligence snapshots and report product-level
+evidence movement: Feature Truth transitions, capabilities added/removed, domain
+entities and product surfaces added/removed, plus new/resolved consistency
+findings.
+
+The resulting review state is advisory only and remains separate from runtime
+regression testing and production CERTIFICATION.
+
+See `integration/intelligence/CHANGE_INTELLIGENCE.md`.
+
 ## v2.3.0 — Product Consistency Engine
 
 AppLab now consolidates product truth, lifecycle, flow, UX, architecture and data
