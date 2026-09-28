@@ -23,7 +23,7 @@ TEXT_SUFFIXES = {
 DEFAULT_MAX_FILES = 3500
 DEFAULT_MAX_FILE_BYTES = 512_000
 SCHEMA_VERSION = 1
-LAB_VERSION = "2.1.0"
+LAB_VERSION = "2.2.0"
 
 
 @dataclass(frozen=True)
@@ -598,6 +598,179 @@ def deep_product_model(sources: list[SourceFile], product: dict) -> dict:
     }
 
 
+
+def classify_evidence_path(path: str) -> str:
+    lower = path.lower()
+    name = Path(lower).name
+    if re.search(r"(^|/)(test|tests|androidtest|integration_test|e2e)(/|_)", lower):
+        return "TEST"
+    if Path(lower).suffix in {".md", ".txt", ".rst"} or re.search(
+        r"(^|/)(docs?|documentation)(/|$)", lower
+    ):
+        return "DOCUMENTATION"
+    if (
+        name in {
+            "pubspec.yaml", "package.json", "androidmanifest.xml",
+            "settings.gradle", "settings.gradle.kts", "build.gradle",
+            "build.gradle.kts", "gradle.properties",
+        }
+        or Path(lower).suffix in {".yaml", ".yml", ".json", ".xml", ".properties", ".gradle"}
+    ):
+        return "CONFIGURATION"
+    return "CODE"
+
+
+def feature_truth(product: dict) -> dict:
+    rows = (
+        product.get("feature_signals")
+        if isinstance(product.get("feature_signals"), list)
+        else []
+    )
+    capabilities: list[dict] = []
+    summary = Counter()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        evidence = [
+            str(path) for path in row.get("evidence", [])
+            if isinstance(path, str) and path
+        ]
+        provenance: dict[str, list[str]] = {}
+        for path in evidence:
+            provenance.setdefault(classify_evidence_path(path), []).append(path)
+        if provenance.get("CODE"):
+            truth = "CODE_CONFIRMED"
+        elif provenance.get("CONFIGURATION"):
+            truth = "CONFIG_SIGNAL"
+        elif provenance.get("TEST"):
+            truth = "TEST_ONLY_SIGNAL"
+        elif provenance.get("DOCUMENTATION"):
+            truth = "DOC_ONLY_SIGNAL"
+        else:
+            truth = "NOT_DETECTED"
+        summary[truth] += 1
+        capabilities.append({
+            "capability": str(row.get("label", "")),
+            "truth": truth,
+            "provenance": provenance,
+            "evidence_count": len(evidence),
+        })
+    return {
+        "capabilities": capabilities,
+        "summary": dict(sorted(summary.items())),
+        "interpretation": (
+            "Feature Truth classifies the provenance of existing bounded source "
+            "signals. CODE_CONFIRMED is stronger evidence than configuration, "
+            "test or documentation-only signals; none proves behavioral correctness."
+        ),
+    }
+
+
+def product_flow_graph(sources: list[SourceFile], deep: dict) -> dict:
+    surfaces = (
+        deep.get("surfaces") if isinstance(deep.get("surfaces"), list) else []
+    )
+    source_by_path = {item.path: item for item in sources}
+    nodes: list[dict] = []
+    aliases: dict[str, set[str]] = {}
+    for row in surfaces[:80]:
+        if not isinstance(row, dict):
+            continue
+        path = str(row.get("path", ""))
+        if not path:
+            continue
+        stem = Path(path).stem
+        canonical = re.sub(
+            r"(screen|page|view|activity|fragment|route)$", "", stem,
+            flags=re.IGNORECASE,
+        ).strip("_-") or stem
+        tokens = {stem.lower(), canonical.lower()}
+        # Camel/Pascal class-like alias and filename alias.
+        tokens.add(re.sub(r"[^a-z0-9]", "", stem.lower()))
+        aliases[path] = {token for token in tokens if len(token) >= 3}
+        nodes.append({
+            "id": path,
+            "label": canonical,
+            "roles": row.get("roles", ["general"]),
+        })
+
+    edges: list[dict] = []
+    incoming = Counter()
+    outgoing = Counter()
+    for source in nodes:
+        item = source_by_path.get(source["id"])
+        if item is None:
+            continue
+        text_lower = item.text.lower()
+        compact = re.sub(r"[^a-z0-9]", "", text_lower)
+        for target in nodes:
+            if target["id"] == source["id"]:
+                continue
+            matched = False
+            for alias in aliases.get(target["id"], set()):
+                if alias in text_lower or alias in compact:
+                    matched = True
+                    break
+            if not matched:
+                continue
+            edges.append({
+                "from": source["id"],
+                "to": target["id"],
+                "evidence": source["id"],
+            })
+            incoming[target["id"]] += 1
+            outgoing[source["id"]] += 1
+            if len(edges) >= 300:
+                break
+        if len(edges) >= 300:
+            break
+
+    orphan_candidates: list[dict] = []
+    entry_terms = ("main", "home", "onboard", "launch", "root")
+    for node in nodes:
+        path_lower = node["id"].lower()
+        if incoming[node["id"]] == 0 and not any(term in path_lower for term in entry_terms):
+            orphan_candidates.append({
+                "surface": node["id"],
+                "reason": "No bounded incoming surface reference detected.",
+            })
+
+    route_literals: list[str] = []
+    route_rx = re.compile(
+        r"""(?:(?:route|path|navigate|pushNamed|go|replace)[A-Za-z0-9_]*\s*[:=(,]\s*)["']([^"']{1,80})["']""",
+        re.IGNORECASE,
+    )
+    for item in sources:
+        if not re.search(r"(route|router|nav|navigation|screen|page|app\.)", item.path, re.IGNORECASE):
+            continue
+        for match in route_rx.finditer(item.text):
+            token = match.group(1).strip()
+            if token and token not in route_literals:
+                route_literals.append(token)
+                if len(route_literals) >= 100:
+                    break
+        if len(route_literals) >= 100:
+            break
+
+    return {
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+        "nodes": nodes,
+        "edges": edges,
+        "route_literals": route_literals,
+        "orphan_surface_candidates": orphan_candidates[:30],
+        "summary": {
+            "orphan_surface_candidates": len(orphan_candidates),
+            "bounded": len(edges) >= 300 or len(nodes) >= 80,
+        },
+        "interpretation": (
+            "The flow graph uses bounded static references between detected product "
+            "surfaces. Missing edges or orphan candidates require review and do not "
+            "prove that a screen is unreachable at runtime."
+        ),
+    }
+
+
 def build_report(root: Path, max_files: int, max_file_bytes: int) -> dict:
     sources, scan = load_sources(
         root, max_files=max_files, max_file_bytes=max_file_bytes
@@ -608,13 +781,16 @@ def build_report(root: Path, max_files: int, max_file_bytes: int) -> dict:
     if scan["scanned_files"] < 3:
         confidence = "LOW"
     product = product_analysis(sources)
+    deep = deep_product_model(sources, product)
     return {
         "schema_version": SCHEMA_VERSION,
         "lab_version": LAB_VERSION,
         "root_name": root.name,
         "scan": {**scan, "confidence": confidence},
         "product": product,
-        "deep_product_model": deep_product_model(sources, product),
+        "feature_truth": feature_truth(product),
+        "deep_product_model": deep,
+        "product_flow_graph": product_flow_graph(sources, deep),
         "ux_product": ux_analysis(sources),
         "architecture_data": architecture_analysis(sources),
         "guardrails": {
@@ -653,6 +829,21 @@ def markdown(report: dict) -> str:
         lines.append(f"| {item['label']} | {item['status']} | {evidence} |")
 
     deep = report.get("deep_product_model", {})
+    truth = report.get("feature_truth", {})
+    flow = report.get("product_flow_graph", {})
+    lines.extend(["", "## Feature Truth", ""])
+    for key, value in sorted((truth.get("summary") or {}).items()):
+        lines.append(f"- {key}: **{value}**")
+    lines.extend(["", "## Product Flow Graph", ""])
+    lines.append(f"- Surface nodes: **{flow.get('node_count', 0)}**")
+    lines.append(f"- Bounded edges: **{flow.get('edge_count', 0)}**")
+    lines.append(
+        f"- Orphan surface candidates: **{(flow.get('summary') or {}).get('orphan_surface_candidates', 0)}**"
+    )
+    for item in flow.get("orphan_surface_candidates", [])[:12]:
+        if isinstance(item, dict):
+            lines.append(f"- **ORPHAN REVIEW** — {item.get('surface', '')}")
+
     lines.extend(["", "## Deep Product Model", ""])
     lines.append(f"- Detected entities: **{deep.get('entity_count', 0)}**")
     lines.append(f"- Detected surfaces: **{deep.get('surface_count', 0)}**")
@@ -752,6 +943,8 @@ def self_test() -> None:
         assert report["product"]["surface"]["screen_like_files"] >= 1
         assert report["architecture_data"]["data"]["local_persistence"]["status"] == "PRESENT"
         assert report["architecture_data"]["data"]["local_first_assessment"] == "SUPPORTED_BY_SIGNALS"
+        assert report["feature_truth"]["capabilities"]
+        assert report["product_flow_graph"]["node_count"] >= 1
         assert report["deep_product_model"]["entity_count"] >= 1
         assert any(
             item.get("kind") == "ENTITY_LIFECYCLE_DELETE_GAP"

@@ -20,6 +20,17 @@ publish a certified release artifact.
 
 ## Completed
 
+### v2.2.0 — Product Flow & Feature Truth
+
+- [x] Classify capability evidence as code, configuration, test or documentation provenance.
+- [x] Expose CODE_CONFIRMED and weaker evidence classes without generating an opaque score.
+- [x] Reconstruct a bounded static graph between detected product surfaces.
+- [x] Collect route/path literals from navigation-like sources.
+- [x] Flag candidate orphan surfaces as review targets only.
+- [x] Surface Feature Truth and flow evidence in AppLab Studio.
+- [x] Preserve schema compatibility and runtime/certification boundaries.
+
+
 ### v2.1.0 — Deep Product Model
 
 - [x] Reconstruct bounded domain-entity candidates from source evidence.

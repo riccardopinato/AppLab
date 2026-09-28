@@ -184,6 +184,11 @@ type StudioProject = {
     surface_count?: number;
     lifecycle_review_signals?: number;
     documentation_drift_signals?: number;
+    code_confirmed_capabilities?: number;
+    doc_only_capabilities?: number;
+    flow_nodes?: number;
+    flow_edges?: number;
+    orphan_surface_candidates?: number;
   } | null;
   ux?: { review_signals?: number } | null;
   architecture?: {
@@ -360,7 +365,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     <div>
                       <span>Product</span>
                       <strong>{project.product?.capabilities?.length ?? 0}</strong>
-                      <small>{project.product?.confidence ?? "UNKNOWN"} confidence · {project.product?.entity_count ?? 0} entities · {project.product?.lifecycle_review_signals ?? 0} lifecycle review · {project.product?.documentation_drift_signals ?? 0} doc drift</small>
+                      <small>{project.product?.confidence ?? "UNKNOWN"} confidence · {project.product?.code_confirmed_capabilities ?? 0} code-confirmed · {project.product?.doc_only_capabilities ?? 0} doc-only · {project.product?.entity_count ?? 0} entities · {project.product?.flow_nodes ?? 0}/{project.product?.flow_edges ?? 0} flow · {project.product?.orphan_surface_candidates ?? 0} orphan review · {project.product?.lifecycle_review_signals ?? 0} lifecycle review · {project.product?.documentation_drift_signals ?? 0} doc drift</small>
                     </div>
                     <div>
                       <span>UX</span>

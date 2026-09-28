@@ -1,3 +1,16 @@
+## v2.2.0 — Product Flow & Feature Truth
+
+AppLab now distinguishes implementation evidence from configuration, test and
+documentation-only signals, so capability detection no longer presents every
+source mention with the same evidentiary strength.
+
+The Product Flow Graph also reconstructs bounded static references between
+detected product surfaces and highlights candidate orphan screens for review.
+These signals remain advisory and cannot affect trusted runtime PASS/FAIL or
+CERTIFICATION.
+
+See `integration/intelligence/PRODUCT_FLOW_FEATURE_TRUTH.md`.
+
 ## v2.1.0 — Deep Product Model
 
 AppLab now goes beyond capability detection and reconstructs a bounded product
