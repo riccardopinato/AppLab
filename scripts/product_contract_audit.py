@@ -70,11 +70,18 @@ def line_mentions(line: str, label: str) -> bool:
 
 
 def excluded_line(line: str, label: str) -> bool:
+    if not line_mentions(line, label):
+        return False
     lower = line.lower()
-    for term in alias_terms(label):
-        escaped = re.escape(term.lower())
-        if any(re.search(pattern.replace("{term}", escaped), lower) for pattern in EXCLUDED_PATTERNS):
-            return True
+    negative_markers = (
+        "excluded", "exclude", "esclus", "without", "senza",
+        "removed", "rimos", "out of scope", "fuori scope",
+        "not supported", "non support", "do not", "non usare",
+    )
+    if any(marker in lower for marker in negative_markers):
+        return True
+    if re.search(r"\b(no|non)\b", lower):
+        return True
     return False
 
 
