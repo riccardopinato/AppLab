@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v2.6.0 — CI Concurrency Isolation**
+Current production baseline: **v3.0.0 — Autonomous App Review**
 
 ## Product rule
 
@@ -19,6 +19,52 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v3.0.0 — Autonomous App Review
+
+- [x] Orchestrate App Intelligence, Behavioral Product, State/Edge, Calibration, Contract and Decision Brief.
+- [x] Reuse the existing Autonomous Audit Plan for specialist-lab selection.
+- [x] Emit advisory review state without creating a release verdict.
+- [x] Return EVIDENCE_INCOMPLETE when trusted runtime evidence is absent.
+- [x] Publish a reusable/manual GitHub workflow.
+- [x] Surface autonomous review evidence in AppLab Studio.
+- [x] Preserve FAST/FULL/CERTIFICATION as independent authoritative gates.
+
+### v2.11.0 — Decision & Opportunity Brief
+
+- [x] Compress evidence into FIX_NOW, VERIFY_NEXT, IMPROVE and NO_ACTION.
+- [x] Preserve source, evidence basis and finding provenance for every action.
+- [x] Prevent automatic feature generation and opaque scoring.
+
+### v2.10.0 — Product Contract Audit
+
+- [x] Compare bounded product documentation with implementation provenance.
+- [x] Distinguish promised, implemented, runtime-reachable and runtime-verified capability states.
+- [x] Treat completed roadmap checkboxes as claims rather than automatic truth.
+- [x] Flag promised capabilities without bounded implementation evidence.
+- [x] Flag implemented capabilities lacking runtime verification.
+
+### v2.9.0 — Evidence Calibration Engine
+
+- [x] Reconcile Product Consistency with runtime Behavioral and Edge-State evidence.
+- [x] Distinguish runtime-confirmed, corroborated, static-only and contradicted findings.
+- [x] Suppress contradicted static findings for action without deleting their evidence.
+- [x] Preserve certification independence and avoid synthetic scores.
+
+### v2.8.0 — State & Edge-Case Lab
+
+- [x] Aggregate existing Network, Persistence, Configuration, Resource, Storage, Background and System evidence.
+- [x] Track normal/offline/restart/configuration/process-death/storage/background/permissions states.
+- [x] Detect bounded empty/loading/error/auth/permission-denied observations when evidence exists.
+- [x] Mark applicable-but-unobserved states as REVIEW, never PASS.
+
+### v2.7.0 — Behavioral Product Lab
+
+- [x] Compare static Product Flow surfaces with Safe Interaction Crawler evidence.
+- [x] Record runtime controls, state transitions and conservative interaction failures.
+- [x] Flag no-change interactions for review.
+- [x] Keep unobserved static surfaces informational because bounded crawling is incomplete by design.
+
 
 ### v2.6.0 — CI Concurrency Isolation
 

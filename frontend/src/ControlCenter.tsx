@@ -239,6 +239,17 @@ type StudioProject = {
     new_high_review?: number;
     new_review?: number;
   } | null;
+  autonomous_review?: {
+    review_state?: string;
+    runtime_evidence_state?: string;
+    observed_states?: number;
+    applicable_states?: number;
+    fix_now?: number;
+    verify_next?: number;
+    runtime_confirmed?: number;
+    runtime_contradicted?: number;
+    contract_review_signals?: number;
+  } | null;
 };
 
 type StudioSnapshot = {
@@ -251,6 +262,9 @@ type StudioSnapshot = {
     recurrent_patterns: number;
     with_change_intelligence?: number;
     change_attention?: number;
+    autonomous_reviews?: number;
+    autonomous_attention?: number;
+    runtime_observed?: number;
   };
   projects: StudioProject[];
   portfolio?: {
@@ -389,6 +403,9 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <div><span>Reusable patterns</span><strong>{studio.summary.recurrent_patterns}</strong></div>
               <div><span>Change evidence</span><strong>{studio.summary.with_change_intelligence ?? 0}</strong></div>
               <div><span>Change attention</span><strong>{studio.summary.change_attention ?? 0}</strong></div>
+              <div><span>Autonomous reviews</span><strong>{studio.summary.autonomous_reviews ?? 0}</strong></div>
+              <div><span>Review attention</span><strong>{studio.summary.autonomous_attention ?? 0}</strong></div>
+              <div><span>Runtime observed</span><strong>{studio.summary.runtime_observed ?? 0}</strong></div>
             </div>
 
             <div className="studio-projects">
@@ -431,6 +448,15 @@ export default function ControlCenter({ backend }: { backend: string }) {
                         {project.change
                           ? `${project.change.new_findings ?? 0} new · ${project.change.resolved_findings ?? 0} resolved · ${project.change.feature_truth_changes ?? 0} feature changes`
                           : "no baseline diff"}
+                      </small>
+                    </div>
+                    <div>
+                      <span>Autonomous Review</span>
+                      <strong>{project.autonomous_review?.review_state ?? "—"}</strong>
+                      <small>
+                        {project.autonomous_review
+                          ? `${project.autonomous_review.runtime_evidence_state ?? "NOT_OBSERVED"} · ${project.autonomous_review.observed_states ?? 0}/${project.autonomous_review.applicable_states ?? 0} states · ${project.autonomous_review.fix_now ?? 0} fix now · ${project.autonomous_review.verify_next ?? 0} verify`
+                          : "no v3 review evidence"}
                       </small>
                     </div>
                     <div>

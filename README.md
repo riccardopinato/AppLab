@@ -1,3 +1,68 @@
+## v3.0.0 — Autonomous App Review
+
+AppLab now orchestrates a complete product review from static product intelligence
+through bounded runtime evidence, edge-state coverage, evidence calibration,
+product-contract drift and a compact decision brief.
+
+The review emits advisory states only: `ATTENTION_REQUIRED`,
+`REVIEW_REQUIRED`, `EVIDENCE_INCOMPLETE` or
+`READY_FOR_HUMAN_REVIEW`. Missing runtime evidence is explicitly reported as
+incomplete and never becomes an implicit PASS.
+
+Run locally with:
+
+```bash
+python scripts/autonomous_app_review.py \
+  --repo-root /path/to/project \
+  --runtime-evidence-dir /path/to/applab-report \
+  --output-dir applab-autonomous-review
+```
+
+A reusable/manual **AppLab Autonomous App Review v3** workflow is also available.
+
+See `integration/intelligence/AUTONOMOUS_APP_REVIEW_V3.md`.
+
+## v2.11.0 — Decision & Opportunity Brief
+
+Calibrated evidence is compressed into four traceable buckets:
+`FIX_NOW`, `VERIFY_NEXT`, `IMPROVE` and `NO_ACTION`. No feature is
+invented and no overall product score is generated.
+
+See `integration/intelligence/DECISION_OPPORTUNITY_BRIEF.md`.
+
+## v2.10.0 — Product Contract Audit
+
+AppLab compares bounded product documentation with implementation, runtime
+reachability and runtime verification. Completed roadmap items remain claims until
+corroborated by evidence.
+
+See `integration/intelligence/PRODUCT_CONTRACT_AUDIT.md`.
+
+## v2.9.0 — Evidence Calibration Engine
+
+Static findings are reconciled with runtime evidence and classified as
+runtime-confirmed, runtime-corroborated, static-corroborated, static-heuristic or
+runtime-contradicted.
+
+See `integration/intelligence/EVIDENCE_CALIBRATION.md`.
+
+## v2.8.0 — State & Edge-Case Lab
+
+Existing AppLab runtime labs are unified into one state coverage view covering
+normal interaction, offline/recovery, restart, configuration, process death,
+storage, background and permissions, plus bounded observations for empty/loading/
+error/auth states.
+
+See `integration/intelligence/STATE_EDGE_CASE_LAB.md`.
+
+## v2.7.0 — Behavioral Product Lab
+
+The static Product Flow Graph is reconciled with Safe Interaction Crawler runtime
+evidence to distinguish modeled surfaces from those actually observed during
+bounded conservative exploration.
+
+See `integration/intelligence/BEHAVIORAL_PRODUCT_LAB.md`.
+
 ## v2.6.0 — CI Concurrency Isolation
 
 AppLab runtime workflows now isolate concurrency by Git ref instead of using one
