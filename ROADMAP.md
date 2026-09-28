@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v2.5.0 — Lifecycle Integrity**
+Current production baseline: **v2.6.0 — CI Concurrency Isolation**
 
 ## Product rule
 
@@ -19,6 +19,15 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v2.6.0 — CI Concurrency Isolation
+
+- [x] Isolate Emulator Self Test concurrency by Git ref.
+- [x] Isolate Live Emulator Browser E2E concurrency by Git ref.
+- [x] Preserve cancel-in-progress for stale runs on the same ref.
+- [x] Prevent unrelated PRs/main pushes from cancelling one another's runtime gates.
+- [x] Keep existing runtime verification coverage unchanged.
+
 
 ### v2.5.0 — Lifecycle Integrity
 
