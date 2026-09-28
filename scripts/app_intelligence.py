@@ -23,7 +23,7 @@ TEXT_SUFFIXES = {
 DEFAULT_MAX_FILES = 3500
 DEFAULT_MAX_FILE_BYTES = 512_000
 SCHEMA_VERSION = 1
-LAB_VERSION = "1.3.0"
+LAB_VERSION = "2.1.0"
 
 
 @dataclass(frozen=True)
@@ -425,6 +425,179 @@ def architecture_analysis(sources: list[SourceFile]) -> dict:
     }
 
 
+
+def deep_product_model(sources: list[SourceFile], product: dict) -> dict:
+    """Build a bounded, evidence-first model of product entities and surfaces."""
+    entity_candidates: dict[str, set[str]] = {}
+    declaration_rx = re.compile(
+        r"\b(?:data\s+class|class|struct|interface|enum)\s+([A-Z][A-Za-z0-9_]{2,48})\b"
+    )
+    entity_path_rx = re.compile(
+        r"(model|models|entity|entities|domain|database|db|schema|dto|data)",
+        re.IGNORECASE,
+    )
+    ignored_names = {
+        "State", "Event", "Result", "Response", "Request", "Error", "Theme",
+        "Color", "Route", "Screen", "Page", "View", "Widget", "Activity",
+        "Fragment", "Controller", "Service", "Repository", "Database",
+    }
+    for item in sources:
+        if not entity_path_rx.search(item.path):
+            continue
+        for match in declaration_rx.finditer(item.text):
+            name = match.group(1)
+            if name in ignored_names or name.endswith(
+                ("Screen", "Page", "View", "Widget", "Activity", "Fragment",
+                 "Controller", "Service", "Repository", "Database", "Dao", "DTO")
+            ):
+                continue
+            entity_candidates.setdefault(name, set()).add(item.path)
+            if len(entity_candidates) >= 40:
+                break
+        if len(entity_candidates) >= 40:
+            break
+
+    action_patterns = {
+        "create": ("create", "insert", "add", "save", "upsert"),
+        "update": ("update", "edit", "patch", "modify"),
+        "delete": ("delete", "remove", "erase"),
+        "archive": ("archive", "trash", "softdelete", "deletedat"),
+        "restore": ("restore", "recover", "undelete", "riprist"),
+        "share_or_owner": ("share", "owner", "member", "permission", "acl"),
+    }
+    entities: list[dict] = []
+    lifecycle_findings: list[dict] = []
+    for name in sorted(entity_candidates):
+        needle = re.escape(name)
+        evidence = sorted(entity_candidates[name])[:8]
+        lifecycle: dict[str, dict] = {}
+        for action, verbs in action_patterns.items():
+            patterns = [
+                rf"\b(?:{'|'.join(verbs)})[A-Za-z0-9_]*{needle}\b",
+                rf"\b{needle}[A-Za-z0-9_]*(?:{'|'.join(verbs)})\b",
+            ]
+            files = matching_files(sources, patterns, limit=8)
+            lifecycle[action] = {
+                "status": "PRESENT" if files else "NOT_DETECTED",
+                "evidence": files,
+            }
+        mutable = any(
+            lifecycle[key]["status"] == "PRESENT" for key in ("create", "update")
+        )
+        reversible_delete = any(
+            lifecycle[key]["status"] == "PRESENT" for key in ("archive", "restore")
+        )
+        if mutable and lifecycle["delete"]["status"] != "PRESENT" and not reversible_delete:
+            lifecycle_findings.append({
+                "kind": "ENTITY_LIFECYCLE_DELETE_GAP",
+                "severity": "REVIEW",
+                "entity": name,
+                "message": (
+                    f"{name} has create/update evidence but no bounded delete, "
+                    "archive or restore evidence."
+                ),
+                "evidence": evidence,
+            })
+        entities.append({
+            "name": name,
+            "declaration_evidence": evidence,
+            "lifecycle": lifecycle,
+        })
+
+    screen_rows = []
+    for item in sources:
+        if not re.search(
+            r"(screen|page|view|activity|fragment|route)\.(dart|kt|java|tsx|ts|swift)$",
+            item.path,
+            re.IGNORECASE,
+        ):
+            continue
+        lower = item.path.lower()
+        roles = [
+            role for role, token in (
+                ("onboarding", "onboard"),
+                ("home", "home"),
+                ("search", "search"),
+                ("settings", "setting"),
+                ("profile", "profile"),
+                ("detail", "detail"),
+                ("editor", "editor"),
+            )
+            if token in lower
+        ]
+        screen_rows.append({"path": item.path, "roles": roles or ["general"]})
+        if len(screen_rows) >= 80:
+            break
+
+    docs = [
+        item for item in sources
+        if re.search(r"(README|PRODUCT_BIBLE|ROADMAP|FEATURE|ARCHITECTURE)", item.path, re.IGNORECASE)
+    ][:80]
+    doc_text = "\n".join(item.text for item in docs)
+    drift: list[dict] = []
+    capability_terms = {
+        "authentication": r"\b(auth|login|sign[ -]?in|account)\b",
+        "local_persistence": r"\b(offline|local[- ]first|database|room|sqlite|drift)\b",
+        "network_api": r"\b(api|network|backend|server)\b",
+        "background_execution": r"\b(background|workmanager|foreground service)\b",
+        "notifications": r"\b(notification|push|reminder)\b",
+        "monetization": r"\b(premium|subscription|revenuecat|admob|billing|iap)\b",
+        "ai_or_ml": r"\b(ai|artificial intelligence|llm|machine learning|gemini|openai)\b",
+        "export_or_backup": r"\b(export|backup|restore)\b",
+        "maps_or_location": r"\b(map|maps|location|gps|geolocat)\b",
+        "cloud_or_sync": r"\b(sync|cloud|firebase|supabase)\b",
+    }
+    signal_map = {
+        str(row.get("label")): row
+        for row in product.get("feature_signals", [])
+        if isinstance(row, dict)
+    }
+    for key, pattern in capability_terms.items():
+        claimed = bool(re.search(pattern, doc_text, re.IGNORECASE))
+        detected = signal_map.get(key, {}).get("status") == "PRESENT"
+        if claimed and not detected:
+            drift.append({
+                "kind": "DOC_CLAIM_WITHOUT_SOURCE_SIGNAL",
+                "severity": "REVIEW",
+                "capability": key,
+                "message": (
+                    f"Documentation mentions {key}, but the bounded source scan "
+                    "did not detect matching implementation evidence."
+                ),
+                "evidence": [item.path for item in docs[:8]],
+            })
+        elif detected and docs and not claimed:
+            drift.append({
+                "kind": "SOURCE_SIGNAL_WITHOUT_DOC_CLAIM",
+                "severity": "INFO",
+                "capability": key,
+                "message": (
+                    f"Source evidence for {key} exists, but bounded product "
+                    "documentation does not mention it."
+                ),
+                "evidence": signal_map.get(key, {}).get("evidence", [])[:6],
+            })
+
+    return {
+        "entity_count": len(entities),
+        "entities": entities,
+        "surface_count": len(screen_rows),
+        "surfaces": screen_rows,
+        "lifecycle_findings": lifecycle_findings,
+        "documentation_drift": drift,
+        "summary": {
+            "lifecycle_review_signals": len(lifecycle_findings),
+            "documentation_drift_signals": sum(
+                1 for item in drift if item.get("severity") == "REVIEW"
+            ),
+        },
+        "interpretation": (
+            "The Deep Product Model is a bounded static reconstruction. Entity "
+            "and lifecycle gaps are review targets, not proof of missing behavior."
+        ),
+    }
+
+
 def build_report(root: Path, max_files: int, max_file_bytes: int) -> dict:
     sources, scan = load_sources(
         root, max_files=max_files, max_file_bytes=max_file_bytes
@@ -434,12 +607,14 @@ def build_report(root: Path, max_files: int, max_file_bytes: int) -> dict:
         confidence = "MEDIUM"
     if scan["scanned_files"] < 3:
         confidence = "LOW"
+    product = product_analysis(sources)
     return {
         "schema_version": SCHEMA_VERSION,
         "lab_version": LAB_VERSION,
         "root_name": root.name,
         "scan": {**scan, "confidence": confidence},
-        "product": product_analysis(sources),
+        "product": product,
+        "deep_product_model": deep_product_model(sources, product),
         "ux_product": ux_analysis(sources),
         "architecture_data": architecture_analysis(sources),
         "guardrails": {
@@ -476,6 +651,30 @@ def markdown(report: dict) -> str:
     for item in product["feature_signals"]:
         evidence = ", ".join(item["evidence"][:4]) or "—"
         lines.append(f"| {item['label']} | {item['status']} | {evidence} |")
+
+    deep = report.get("deep_product_model", {})
+    lines.extend(["", "## Deep Product Model", ""])
+    lines.append(f"- Detected entities: **{deep.get('entity_count', 0)}**")
+    lines.append(f"- Detected surfaces: **{deep.get('surface_count', 0)}**")
+    summary = deep.get("summary", {}) if isinstance(deep.get("summary"), dict) else {}
+    lines.append(
+        f"- Lifecycle review signals: **{summary.get('lifecycle_review_signals', 0)}**"
+    )
+    lines.append(
+        f"- Documentation drift review signals: **{summary.get('documentation_drift_signals', 0)}**"
+    )
+    for finding in deep.get("lifecycle_findings", [])[:12]:
+        if isinstance(finding, dict):
+            lines.append(
+                f"- **{finding.get('kind', 'REVIEW')}** · "
+                f"{finding.get('entity', 'entity')} — {finding.get('message', '')}"
+            )
+    for finding in deep.get("documentation_drift", [])[:12]:
+        if isinstance(finding, dict) and finding.get("severity") == "REVIEW":
+            lines.append(
+                f"- **{finding.get('kind', 'REVIEW')}** · "
+                f"{finding.get('capability', 'capability')} — {finding.get('message', '')}"
+            )
 
     lines.extend(["", "## UX & Product Lab", ""])
     for name, value in ux["state_coverage"].items():
@@ -538,11 +737,30 @@ def self_test() -> None:
             "// offline cache\n",
             encoding="utf-8",
         )
+        (root / "lib" / "data" / "task_entity.dart").write_text(
+            "class TaskEntity {}\n"
+            "void createTaskEntity() {}\n"
+            "void updateTaskEntity() {}\n",
+            encoding="utf-8",
+        )
+        (root / "README.md").write_text(
+            "Demo app with login, notifications and cloud sync.\n",
+            encoding="utf-8",
+        )
         report = build_report(root, 100, 100_000)
         assert report["product"]["stack"]["engine"] == "flutter"
         assert report["product"]["surface"]["screen_like_files"] >= 1
         assert report["architecture_data"]["data"]["local_persistence"]["status"] == "PRESENT"
         assert report["architecture_data"]["data"]["local_first_assessment"] == "SUPPORTED_BY_SIGNALS"
+        assert report["deep_product_model"]["entity_count"] >= 1
+        assert any(
+            item.get("kind") == "ENTITY_LIFECYCLE_DELETE_GAP"
+            for item in report["deep_product_model"]["lifecycle_findings"]
+        )
+        assert any(
+            item.get("kind") == "DOC_CLAIM_WITHOUT_SOURCE_SIGNAL"
+            for item in report["deep_product_model"]["documentation_drift"]
+        )
         with tempfile.TemporaryDirectory() as out:
             write_outputs(report, Path(out))
             assert (Path(out) / "app-intelligence.json").is_file()
