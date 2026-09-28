@@ -20,6 +20,45 @@ publish a certified release artifact.
 
 ## Completed
 
+### v2.1.0 — Deep Product Model
+
+- [x] Reconstruct bounded domain-entity candidates from source evidence.
+- [x] Map create/update/delete/archive/restore/ownership lifecycle signals.
+- [x] Emit entity lifecycle review targets without treating heuristics as defects.
+- [x] Inventory bounded product surfaces and lightweight semantic roles.
+- [x] Compare product documentation claims with detected source capabilities.
+- [x] Surface lifecycle and documentation-drift evidence in AppLab Studio.
+- [x] Preserve App Intelligence schema compatibility and certification boundaries.
+
+### v2.0.0 — AppLab Studio
+
+- [x] Unify quality/runtime and advisory product-intelligence presentation.
+- [x] Keep trusted and advisory evidence planes independent.
+- [x] Expose Product, UX, Architecture, Market, Cross-App and Audit evidence.
+
+### v1.6.0 — Autonomous Audit Orchestrator
+
+- [x] Build deterministic per-project audit plans from current evidence.
+- [x] Broaden review when confidence is weak.
+- [x] Preserve FAST/FULL/CERTIFICATION authority.
+
+### v1.5.0 — Cross-App Intelligence
+
+- [x] Aggregate project-scoped App Intelligence into portfolio evidence.
+- [x] Detect recurrent patterns without automatic feature/code transfer.
+
+### v1.4.0 — Competitor & Market Lab
+
+- [x] Consume source-traceable market evidence.
+- [x] Emit parity, differentiator, gap-review, pricing and pain signals.
+
+### v1.1.0 → v1.3.0 — Product, UX & Architecture Intelligence
+
+- [x] Product Analysis Engine.
+- [x] UX & Product Lab.
+- [x] Architecture & Data Intelligence.
+
+
 ### v2.0.0 — AppLab Studio
 
 - [x] Add a dedicated Studio snapshot contract for product-intelligence evidence.

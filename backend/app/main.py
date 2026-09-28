@@ -19,7 +19,7 @@ from .runtime import LiveRuntimeError, LiveRuntimeManager
 from .studio import load_studio_snapshot
 
 
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.1.0"
 MAX_APK_BYTES = int(os.getenv("APPLAB_MAX_APK_BYTES", str(512 * 1024 * 1024)))
 CORS_ORIGINS = [
     item.strip()
@@ -147,6 +147,7 @@ def health() -> dict:
             "cross-app-intelligence",
             "autonomous-audit-orchestrator",
             "applab-studio",
+            "deep-product-model",
         ],
     }
 

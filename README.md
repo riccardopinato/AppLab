@@ -1,3 +1,19 @@
+## v2.1.0 — Deep Product Model
+
+AppLab now goes beyond capability detection and reconstructs a bounded product
+model from source evidence: domain entities, product surfaces, entity lifecycle
+signals and documentation/source drift.
+
+The new layer identifies review targets such as mutable entities with no detected
+delete/archive/restore path and documented capabilities with no matching bounded
+source signal. Findings remain advisory and cannot alter runtime PASS/FAIL or
+production CERTIFICATION.
+
+AppLab Studio exposes entity counts, lifecycle review signals and documentation
+drift while preserving the existing evidence boundaries.
+
+See `integration/intelligence/DEEP_PRODUCT_MODEL.md`.
+
 ## v2.0.0 — AppLab Studio
 
 AppLab Studio unifies the platform's two evidence planes in one Control Center:
