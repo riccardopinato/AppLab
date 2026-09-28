@@ -493,3 +493,93 @@ pre {
   text-decoration: none;
 }
 .cc-release-link:hover { background: rgba(53, 197, 113, .17); }
+
+
+/* AppLab Studio v2 */
+.studio-shell {
+  margin: 4px 0 18px;
+  padding: 16px;
+  border: 1px solid #30395a;
+  border-radius: 16px;
+  background: linear-gradient(150deg, rgba(27, 33, 52, .94), rgba(12, 16, 23, .94));
+}
+.studio-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.studio-head h3 { margin: 2px 0 0; font-size: 17px; }
+.studio-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 12px;
+}
+.studio-summary > div,
+.studio-dimensions > div {
+  padding: 11px 12px;
+  border: 1px solid #293245;
+  border-radius: 12px;
+  background: rgba(6, 9, 14, .58);
+}
+.studio-summary span,
+.studio-dimensions span {
+  display: block;
+  color: #7d899c;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.studio-summary strong { display: block; margin-top: 4px; font-size: 20px; }
+.studio-projects { display: grid; gap: 10px; }
+.studio-project-card {
+  padding: 13px;
+  border: 1px solid #273142;
+  border-radius: 13px;
+  background: rgba(8, 11, 16, .62);
+}
+.studio-project-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.studio-dimensions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.studio-dimensions strong { display: block; margin: 4px 0 2px; font-size: 17px; }
+.studio-dimensions small { display: block; color: #778397; font-size: 10px; overflow-wrap: anywhere; }
+.studio-labs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+.studio-labs > span {
+  padding: 5px 8px;
+  border: 1px solid #33405a;
+  border-radius: 999px;
+  background: rgba(84, 101, 164, .12);
+  color: #abb7dc;
+  font-size: 10px;
+}
+.studio-portfolio {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #293245;
+}
+.studio-empty { margin-top: 0; }
+@media (max-width: 1050px) {
+  .studio-dimensions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .studio-head { align-items: flex-start; flex-direction: column; }
+  .studio-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-dimensions { grid-template-columns: 1fr; }
+}
