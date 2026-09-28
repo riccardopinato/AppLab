@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "2.2.0"
+STUDIO_VERSION = "2.3.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -129,6 +129,42 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         row["architecture"] = {
             "review_signals": count_findings(app, "architecture_data"),
             "local_first": str(data.get("local_first_assessment", "UNKNOWN")),
+        }
+        consistency = (
+            app.get("product_consistency")
+            if isinstance(app.get("product_consistency"), dict)
+            else {}
+        )
+        consistency_summary = (
+            consistency.get("summary")
+            if isinstance(consistency.get("summary"), dict)
+            else {}
+        )
+        consistency_findings = (
+            consistency.get("findings")
+            if isinstance(consistency.get("findings"), list)
+            else []
+        )
+        row["consistency"] = {
+            "total": int(consistency_summary.get("total", 0) or 0),
+            "high_review": int(consistency_summary.get("high_review", 0) or 0),
+            "review": int(consistency_summary.get("review", 0) or 0),
+            "info": int(consistency_summary.get("info", 0) or 0),
+            "by_domain": (
+                consistency_summary.get("by_domain", {})
+                if isinstance(consistency_summary.get("by_domain"), dict)
+                else {}
+            ),
+            "top_findings": [
+                {
+                    "domain": str(item.get("domain", "")),
+                    "kind": str(item.get("kind", "")),
+                    "severity": str(item.get("severity", "")),
+                    "subject": str(item.get("subject", "")),
+                }
+                for item in consistency_findings[:8]
+                if isinstance(item, dict)
+            ],
         }
 
     if market:
@@ -261,6 +297,22 @@ def self_test() -> None:
                         "edge_count": 6,
                         "summary": {"orphan_surface_candidates": 1},
                     },
+                    "product_consistency": {
+                        "summary": {
+                            "total": 3,
+                            "high_review": 1,
+                            "review": 2,
+                            "info": 0,
+                            "by_domain": {"architecture": 1, "ux": 2},
+                        },
+                        "findings": [
+                            {
+                                "domain": "architecture",
+                                "kind": "POSSIBLE_EMBEDDED_SECRET",
+                                "severity": "HIGH_REVIEW",
+                            }
+                        ],
+                    },
                     "ux_product": {"findings": [{"kind": "A"}]},
                     "architecture_data": {
                         "findings": [],
@@ -316,6 +368,8 @@ def self_test() -> None:
         assert snapshot["projects"][0]["product"]["lifecycle_review_signals"] == 1
         assert snapshot["projects"][0]["product"]["code_confirmed_capabilities"] == 4
         assert snapshot["projects"][0]["product"]["orphan_surface_candidates"] == 1
+        assert snapshot["projects"][0]["consistency"]["total"] == 3
+        assert snapshot["projects"][0]["consistency"]["high_review"] == 1
         assert snapshot["projects"][0]["market"]["competitors"] == 3
         assert snapshot["projects"][0]["audit"]["selected_lab_count"] == 4
         print("AppLab Studio snapshot self-test PASS")
