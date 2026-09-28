@@ -109,4 +109,4 @@ jobs:
           name: applab-app-intelligence-${{ github.run_id }}
           path: applab-intelligence/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
