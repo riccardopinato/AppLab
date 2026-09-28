@@ -23,7 +23,7 @@ TEXT_SUFFIXES = {
 DEFAULT_MAX_FILES = 3500
 DEFAULT_MAX_FILE_BYTES = 512_000
 SCHEMA_VERSION = 1
-LAB_VERSION = "2.3.0"
+LAB_VERSION = "2.5.0"
 
 
 @dataclass(frozen=True)
@@ -599,6 +599,207 @@ def deep_product_model(sources: list[SourceFile], product: dict) -> dict:
 
 
 
+
+def lifecycle_integrity(sources: list[SourceFile], deep: dict) -> dict:
+    """Inspect entity deletion semantics and bounded cleanup evidence."""
+    entities = deep.get("entities") if isinstance(deep.get("entities"), list) else []
+    entity_rows: list[dict] = []
+    findings: list[dict] = []
+
+    for entity in entities[:40]:
+        if not isinstance(entity, dict):
+            continue
+        name = str(entity.get("name", "")).strip()
+        if not name:
+            continue
+
+        rx = re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE)
+        related = [
+            item
+            for item in sources
+            if rx.search(item.path) or rx.search(item.text)
+        ][:120]
+
+        lifecycle = (
+            entity.get("lifecycle")
+            if isinstance(entity.get("lifecycle"), dict)
+            else {}
+        )
+        delete_present = (
+            isinstance(lifecycle.get("delete"), dict)
+            and lifecycle["delete"].get("status") == "PRESENT"
+        )
+        archive_present = (
+            isinstance(lifecycle.get("archive"), dict)
+            and lifecycle["archive"].get("status") == "PRESENT"
+        )
+        restore_present = (
+            isinstance(lifecycle.get("restore"), dict)
+            and lifecycle["restore"].get("status") == "PRESENT"
+        )
+        destructive_present = delete_present or archive_present
+
+        def evidence(patterns: Iterable[str], limit: int = 8) -> list[str]:
+            return matching_files(related, patterns, limit=limit)
+
+        associations = {
+            "media_or_attachment": evidence([
+                r"\battachment\b", r"\bimage\b", r"\bphoto\b", r"\baudio\b",
+                r"\bvideo\b", r"\bmedia\b", r"\bfile(uri|path)?\b",
+            ]),
+            "scheduled_side_effect": evidence([
+                r"\breminder\b", r"\bnotification\b", r"\balarm\b",
+                r"WorkManager", r"\bschedule(d|r)?\b",
+            ]),
+            "remote_or_sync": evidence([
+                r"Firestore", r"Firebase", r"Supabase", r"\bremote\b",
+                r"\bcloud\b", r"\bsync\b",
+            ]),
+            "shared_or_owned": evidence([
+                r"\bowner(ship)?\b", r"\bmember\b", r"\bworkspace\b",
+                r"\bshared\b", r"\bcollaborator\b", r"\bpermission\b", r"\bacl\b",
+            ]),
+        }
+        cleanup = {
+            "cascade": evidence([
+                r"\bCASCADE\b", r"onDelete", r"ForeignKey", r"cascade(Delete|Remove)?",
+            ]),
+            "media_cleanup": evidence([
+                r"delete(File|Attachment|Image|Photo|Audio|Video)",
+                r"remove(Attachment|Image|Photo|Audio|Video)",
+                r"\.unlink\(", r"File\([^)]*\)\.delete", r"storage.{0,40}delete",
+            ]),
+            "scheduler_cleanup": evidence([
+                r"cancelUniqueWork", r"WorkManager.{0,40}cancel",
+                r"AlarmManager.{0,40}cancel", r"notification.{0,40}cancel",
+                r"cancel.{0,40}notification", r"cancelAllWorkByTag",
+            ]),
+            "remote_delete": evidence([
+                r"(Firestore|Firebase|Supabase|remote|cloud|sync).{0,60}delete",
+                r"delete.{0,60}(Firestore|Firebase|Supabase|remote|cloud|sync)",
+            ]),
+            "ownership_resolution": evidence([
+                r"removeMember", r"leaveWorkspace", r"leaveGroup",
+                r"revoke(Access|Permission)?", r"deleteFor(All|Everyone)",
+                r"removeFromWorkspace", r"transferOwnership",
+            ]),
+        }
+
+        reversible = archive_present or restore_present
+        entity_findings: list[dict] = []
+
+        def add(kind: str, severity: str, message: str, evidence_rows: list[str]) -> None:
+            row = {
+                "kind": kind,
+                "severity": severity,
+                "confidence": "LOW" if kind.startswith("POSSIBLE_") else "MEDIUM",
+                "entity": name,
+                "message": message,
+                "evidence": evidence_rows[:10],
+            }
+            entity_findings.append(row)
+            findings.append(row)
+
+        if delete_present and not reversible:
+            add(
+                "HARD_DELETE_WITHOUT_REVERSIBLE_PATH",
+                "REVIEW",
+                (
+                    f"{name} has bounded delete evidence but no archive/trash/restore "
+                    "signal. Verify whether irreversible deletion matches the product contract."
+                ),
+                (
+                    lifecycle.get("delete", {}).get("evidence", [])
+                    if isinstance(lifecycle.get("delete"), dict)
+                    else []
+                ),
+            )
+
+        if destructive_present and associations["media_or_attachment"] and not cleanup["media_cleanup"]:
+            add(
+                "POSSIBLE_MEDIA_CLEANUP_GAP",
+                "REVIEW",
+                (
+                    f"{name} has delete/archive and media/attachment evidence, but no "
+                    "bounded media cleanup signal was detected."
+                ),
+                associations["media_or_attachment"],
+            )
+
+        if destructive_present and associations["scheduled_side_effect"] and not cleanup["scheduler_cleanup"]:
+            add(
+                "POSSIBLE_SCHEDULER_CLEANUP_GAP",
+                "REVIEW",
+                (
+                    f"{name} has delete/archive and reminder/notification scheduling "
+                    "evidence, but no bounded scheduler cancellation signal was detected."
+                ),
+                associations["scheduled_side_effect"],
+            )
+
+        if destructive_present and associations["remote_or_sync"] and not cleanup["remote_delete"]:
+            add(
+                "POSSIBLE_REMOTE_DELETE_GAP",
+                "REVIEW",
+                (
+                    f"{name} participates in remote/sync evidence and has a destructive "
+                    "path, but no bounded remote-delete propagation signal was detected."
+                ),
+                associations["remote_or_sync"],
+            )
+
+        if destructive_present and associations["shared_or_owned"] and not cleanup["ownership_resolution"]:
+            add(
+                "SHARED_DELETE_SEMANTICS_REVIEW",
+                "REVIEW",
+                (
+                    f"{name} has shared/ownership evidence and a destructive path. "
+                    "Verify delete-for-me, remove-member/leave and delete-for-all semantics."
+                ),
+                associations["shared_or_owned"],
+            )
+
+        entity_rows.append({
+            "entity": name,
+            "delete": "PRESENT" if delete_present else "NOT_DETECTED",
+            "archive": "PRESENT" if archive_present else "NOT_DETECTED",
+            "restore": "PRESENT" if restore_present else "NOT_DETECTED",
+            "associations": {
+                key: {"status": "PRESENT" if rows else "NOT_DETECTED", "evidence": rows}
+                for key, rows in associations.items()
+            },
+            "cleanup": {
+                key: {"status": "PRESENT" if rows else "NOT_DETECTED", "evidence": rows}
+                for key, rows in cleanup.items()
+            },
+            "findings": entity_findings,
+        })
+
+    by_kind = Counter(str(row.get("kind", "")) for row in findings)
+    return {
+        "entities": entity_rows,
+        "findings": findings,
+        "summary": {
+            "entities_checked": len(entity_rows),
+            "entities_with_review": sum(1 for row in entity_rows if row["findings"]),
+            "review_signals": len(findings),
+            "by_kind": dict(sorted(by_kind.items())),
+        },
+        "guardrails": {
+            "advisory_only": True,
+            "bounded_static_evidence": True,
+            "no_delete_policy_assumed": True,
+            "no_runtime_verdict_override": True,
+        },
+        "interpretation": (
+            "Lifecycle Integrity checks for bounded delete, reversibility, cleanup, "
+            "sync and ownership evidence. Missing static signals require review and "
+            "do not prove that runtime cleanup or policy is absent."
+        ),
+    }
+
+
+
 def classify_evidence_path(path: str) -> str:
     lower = path.lower()
     name = Path(lower).name
@@ -779,6 +980,7 @@ def product_consistency(
     flow: dict,
     ux: dict,
     architecture: dict,
+    lifecycle: dict,
 ) -> dict:
     """Normalize cross-plane product evidence into traceable review findings."""
     findings: list[dict] = []
@@ -918,6 +1120,19 @@ def product_consistency(
             evidence=item.get("evidence", []),
         )
 
+    for item in lifecycle.get("findings", []):
+        if not isinstance(item, dict):
+            continue
+        add(
+            domain="lifecycle_integrity",
+            kind=str(item.get("kind", "LIFECYCLE_INTEGRITY_REVIEW")),
+            severity=str(item.get("severity", "REVIEW")),
+            confidence=str(item.get("confidence", "LOW")),
+            subject=str(item.get("entity", "")),
+            message=str(item.get("message", "Lifecycle integrity requires review.")),
+            evidence=item.get("evidence", []),
+        )
+
     product_surface = (
         product.get("surface") if isinstance(product.get("surface"), dict) else {}
     )
@@ -1008,7 +1223,10 @@ def build_report(root: Path, max_files: int, max_file_bytes: int) -> dict:
     flow = product_flow_graph(sources, deep)
     ux = ux_analysis(sources)
     architecture = architecture_analysis(sources)
-    consistency = product_consistency(product, truth, deep, flow, ux, architecture)
+    lifecycle = lifecycle_integrity(sources, deep)
+    consistency = product_consistency(
+        product, truth, deep, flow, ux, architecture, lifecycle
+    )
     return {
         "schema_version": SCHEMA_VERSION,
         "lab_version": LAB_VERSION,
@@ -1020,6 +1238,7 @@ def build_report(root: Path, max_files: int, max_file_bytes: int) -> dict:
         "product_flow_graph": flow,
         "ux_product": ux,
         "architecture_data": architecture,
+        "lifecycle_integrity": lifecycle,
         "product_consistency": consistency,
         "guardrails": {
             "non_blocking": True,
@@ -1055,6 +1274,29 @@ def markdown(report: dict) -> str:
     for item in product["feature_signals"]:
         evidence = ", ".join(item["evidence"][:4]) or "—"
         lines.append(f"| {item['label']} | {item['status']} | {evidence} |")
+
+    lifecycle = report.get("lifecycle_integrity", {})
+    lifecycle_summary = (
+        lifecycle.get("summary")
+        if isinstance(lifecycle.get("summary"), dict)
+        else {}
+    )
+    lines.extend(["", "## Lifecycle Integrity", ""])
+    lines.append(
+        f"- Entities checked: **{lifecycle_summary.get('entities_checked', 0)}**"
+    )
+    lines.append(
+        f"- Entities with review: **{lifecycle_summary.get('entities_with_review', 0)}**"
+    )
+    lines.append(
+        f"- Review signals: **{lifecycle_summary.get('review_signals', 0)}**"
+    )
+    for finding in lifecycle.get("findings", [])[:20]:
+        if isinstance(finding, dict):
+            lines.append(
+                f"- **{finding.get('kind', 'REVIEW')}** · "
+                f"{finding.get('entity', 'entity')} — {finding.get('message', '')}"
+            )
 
     consistency = report.get("product_consistency", {})
     consistency_summary = (
@@ -1194,6 +1436,9 @@ def self_test() -> None:
         assert "product_consistency" in report
         assert report["product_consistency"]["guardrails"]["advisory_only"] is True
         assert report["product_consistency"]["summary"]["total"] >= 1
+        assert "lifecycle_integrity" in report
+        assert report["lifecycle_integrity"]["guardrails"]["advisory_only"] is True
+        assert report["lifecycle_integrity"]["summary"]["entities_checked"] >= 1
         assert report["deep_product_model"]["entity_count"] >= 1
         assert any(
             item.get("kind") == "ENTITY_LIFECYCLE_DELETE_GAP"

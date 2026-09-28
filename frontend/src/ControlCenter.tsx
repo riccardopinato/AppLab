@@ -208,6 +208,12 @@ type StudioProject = {
       subject?: string;
     }>;
   } | null;
+  lifecycle?: {
+    entities_checked?: number;
+    entities_with_review?: number;
+    review_signals?: number;
+    by_kind?: Record<string, number>;
+  } | null;
   market?: {
     competitors?: number;
     common_gap_reviews?: number;
@@ -219,6 +225,20 @@ type StudioProject = {
     manual_review_required?: boolean;
     top_labs?: Array<{ lab?: string; priority?: string }>;
   } | null;
+  change?: {
+    review_state?: string;
+    feature_truth_changes?: number;
+    capabilities_added?: number;
+    capabilities_removed?: number;
+    entities_added?: number;
+    entities_removed?: number;
+    surfaces_added?: number;
+    surfaces_removed?: number;
+    new_findings?: number;
+    resolved_findings?: number;
+    new_high_review?: number;
+    new_review?: number;
+  } | null;
 };
 
 type StudioSnapshot = {
@@ -229,6 +249,8 @@ type StudioSnapshot = {
     with_market: number;
     manual_review: number;
     recurrent_patterns: number;
+    with_change_intelligence?: number;
+    change_attention?: number;
   };
   projects: StudioProject[];
   portfolio?: {
@@ -365,6 +387,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <div><span>Market evidence</span><strong>{studio.summary.with_market}</strong></div>
               <div><span>Manual review</span><strong>{studio.summary.manual_review}</strong></div>
               <div><span>Reusable patterns</span><strong>{studio.summary.recurrent_patterns}</strong></div>
+              <div><span>Change evidence</span><strong>{studio.summary.with_change_intelligence ?? 0}</strong></div>
+              <div><span>Change attention</span><strong>{studio.summary.change_attention ?? 0}</strong></div>
             </div>
 
             <div className="studio-projects">
@@ -394,6 +418,20 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <span>Consistency</span>
                       <strong>{project.consistency?.total ?? 0}</strong>
                       <small>{project.consistency?.high_review ?? 0} high · {project.consistency?.review ?? 0} review</small>
+                    </div>
+                    <div>
+                      <span>Lifecycle</span>
+                      <strong>{project.lifecycle?.review_signals ?? 0}</strong>
+                      <small>{project.lifecycle?.entities_with_review ?? 0}/{project.lifecycle?.entities_checked ?? 0} entities with review</small>
+                    </div>
+                    <div>
+                      <span>Change</span>
+                      <strong>{project.change?.review_state ?? "—"}</strong>
+                      <small>
+                        {project.change
+                          ? `${project.change.new_findings ?? 0} new · ${project.change.resolved_findings ?? 0} resolved · ${project.change.feature_truth_changes ?? 0} feature changes`
+                          : "no baseline diff"}
+                      </small>
                     </div>
                     <div>
                       <span>Market</span>

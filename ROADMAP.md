@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v2.3.0 — Product Consistency Engine**
+Current production baseline: **v2.6.0 — CI Concurrency Isolation**
 
 ## Product rule
 
@@ -19,6 +19,38 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v2.6.0 — CI Concurrency Isolation
+
+- [x] Isolate Emulator Self Test concurrency by Git ref.
+- [x] Isolate Live Emulator Browser E2E concurrency by Git ref.
+- [x] Preserve cancel-in-progress for stale runs on the same ref.
+- [x] Prevent unrelated PRs/main pushes from cancelling one another's runtime gates.
+- [x] Keep existing runtime verification coverage unchanged.
+
+
+### v2.5.0 — Lifecycle Integrity
+
+- [x] Audit lifecycle semantics for each bounded domain entity.
+- [x] Distinguish delete, archive/trash and restore evidence.
+- [x] Inspect cascade and relation-cleanup signals.
+- [x] Inspect media/attachment cleanup around destructive paths.
+- [x] Inspect reminder/alarm/notification cancellation around destructive paths.
+- [x] Inspect remote/cloud/sync delete-propagation signals.
+- [x] Inspect shared ownership/member/workspace delete semantics.
+- [x] Normalize lifecycle findings into Product Consistency and expose them in Studio.
+
+
+### v2.4.0 — Change Intelligence
+
+- [x] Compare baseline/current App Intelligence snapshots deterministically.
+- [x] Track Feature Truth transitions and capability additions/removals.
+- [x] Track domain-entity and product-surface additions/removals.
+- [x] Separate new, resolved and persistent Product Consistency findings.
+- [x] Emit advisory HIGH_REVIEW / REVIEW / CHANGED / NO_MATERIAL_CHANGE state.
+- [x] Surface change evidence in AppLab Studio without creating a release verdict.
+- [x] Add CI self-test coverage for the Change Intelligence engine.
+
 
 ### v2.3.0 — Product Consistency Engine
 

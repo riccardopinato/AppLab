@@ -68,6 +68,7 @@ jobs:
             scripts/watch_discover.py \
             scripts/watch_aggregate.py \
             scripts/app_intelligence.py \
+            scripts/change_intelligence.py \
             scripts/market_intelligence.py \
             scripts/build_cross_app_corpus.py \
             scripts/cross_app_intelligence.py \
@@ -112,6 +113,7 @@ jobs:
             --watchlist watchlist.json \
             --validate-only
           python scripts/app_intelligence.py --self-test
+          python scripts/change_intelligence.py --self-test
           python scripts/market_intelligence.py --self-test
           python scripts/build_cross_app_corpus.py --self-test
           python scripts/cross_app_intelligence.py --self-test
@@ -133,7 +135,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"2.3.0"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"2.6.0"'; then
               healthy=true
               break
             fi

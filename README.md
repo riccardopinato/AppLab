@@ -1,3 +1,36 @@
+## v2.6.0 — CI Concurrency Isolation
+
+AppLab runtime workflows now isolate concurrency by Git ref instead of using one
+global cancellation group. New pushes to the same branch/PR still cancel stale
+runs, while unrelated PRs and the main branch no longer cancel each other's
+Emulator Self Test or Live Emulator Browser E2E jobs.
+
+This hardening was introduced after stacked AppLab development exposed
+cross-branch runtime cancellations despite otherwise valid code.
+
+## v2.5.0 — Lifecycle Integrity
+
+AppLab now performs an entity-level lifecycle integrity pass covering delete,
+archive/restore, cascade evidence, media cleanup, scheduled side-effect
+cancellation, remote-delete propagation and shared ownership semantics.
+
+The new findings remain bounded static review targets and are also normalized
+into Product Consistency. No universal delete policy is assumed.
+
+See `integration/intelligence/LIFECYCLE_INTEGRITY.md`.
+
+## v2.4.0 — Change Intelligence
+
+AppLab can now compare two App Intelligence snapshots and report product-level
+evidence movement: Feature Truth transitions, capabilities added/removed, domain
+entities and product surfaces added/removed, plus new/resolved consistency
+findings.
+
+The resulting review state is advisory only and remains separate from runtime
+regression testing and production CERTIFICATION.
+
+See `integration/intelligence/CHANGE_INTELLIGENCE.md`.
+
 ## v2.3.0 — Product Consistency Engine
 
 AppLab now consolidates product truth, lifecycle, flow, UX, architecture and data
