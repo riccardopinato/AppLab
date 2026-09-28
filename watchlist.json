@@ -80,7 +80,7 @@
       "build_command": "flutter build apk --debug",
       "run_flutter_tests": true,
       "run_maestro": true,
-      "maestro_flow": ".maestro/applab-home-audit.yaml",
+      "maestro_flow": ".maestro/applab-home-audit-v2.yaml",
       "engine": "flutter"
     }
   ]
