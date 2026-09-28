@@ -205,7 +205,7 @@ jobs:
           name: applab-watch-discovery-${{ github.run_id }}
           path: watch-discovery.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
 
   verify_flutter:
     name: Flutter ${{ matrix.repository }}
@@ -354,4 +354,4 @@ jobs:
             .applab-history/history.jsonl
             .applab-history/control-center.json
           if-no-files-found: warn
-          retention-days: 90
+          retention-days: 7
