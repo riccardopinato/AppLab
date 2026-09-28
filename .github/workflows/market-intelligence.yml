@@ -136,4 +136,4 @@ jobs:
             applab-intelligence/
             applab-market/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1

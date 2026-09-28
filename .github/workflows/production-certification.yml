@@ -241,7 +241,7 @@ jobs:
           name: ${{ steps.release.outputs.artifact_name }}
           path: applab-release/
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 7
 
       - name: Bind certified release metadata
         if: steps.release.outputs.publish == 'true'
@@ -258,7 +258,7 @@ jobs:
           name: applab-certification-final-${{ github.run_id }}
           path: primary-report/
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 7
 
       - name: Certification matrix summary
         if: always()
@@ -331,4 +331,4 @@ jobs:
             .applab-history/history.jsonl
             .applab-history/control-center.json
           if-no-files-found: warn
-          retention-days: 90
+          retention-days: 7

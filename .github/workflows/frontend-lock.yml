@@ -36,7 +36,7 @@ jobs:
           name: applab-frontend-package-lock
           path: frontend/package-lock.json
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
       - name: Commit lockfile when dependency graph changes
         run: |
           git add frontend/package-lock.json

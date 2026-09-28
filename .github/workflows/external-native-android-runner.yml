@@ -529,7 +529,7 @@ jobs:
           name: ${{ steps.contract.outputs.artifact_name }}
           path: applab-build-contract/
           if-no-files-found: error
-          retention-days: 2
+          retention-days: 1
           compression-level: 0
           include-hidden-files: true
 
@@ -567,7 +567,7 @@ jobs:
           name: applab-${{ inputs.history_key }}-${{ github.run_id }}
           path: applab-report/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
 
       - name: Evaluate analysis-only cache eligibility
         id: analysis_cache
@@ -606,7 +606,7 @@ jobs:
           name: applab-build-evidence-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: applab-report/
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 1
 
   verify:
     name: Trusted verify ${{ inputs.repository }}
@@ -675,4 +675,4 @@ jobs:
           name: applab-${{ inputs.history_key }}-${{ github.run_id }}
           path: applab-report/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
