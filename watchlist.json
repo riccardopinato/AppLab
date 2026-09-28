@@ -60,6 +60,28 @@
       "repository": "riccardopinato/Send-to-pc",
       "ref": "main",
       "run_maestro": true
+    },
+    {
+      "key": "watch-camperboss",
+      "enabled": true,
+      "repository": "riccardopinato/CamperBoss",
+      "ref": "step-16-release-core",
+      "working_directory": ".",
+      "flutter_channel": "stable",
+      "flutter_version": "3.47.5",
+      "java_version": "21",
+      "prepare_command": "",
+      "post_pub_get_command": "",
+      "android_prepare_command": "",
+      "api_level": "35",
+      "emulator_profile": "pixel_7_pro",
+      "apk_path": "build/app/outputs/flutter-apk/app-debug.apk",
+      "package_id": "com.camperboss.camperboss",
+      "build_command": "flutter build apk --debug",
+      "run_flutter_tests": true,
+      "run_maestro": true,
+      "maestro_flow": ".maestro/applab-home-audit.yaml",
+      "engine": "flutter"
     }
   ]
 }
