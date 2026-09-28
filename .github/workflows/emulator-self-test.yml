@@ -127,4 +127,4 @@ jobs:
             applab-report-fast/
             applab-report-certification/
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 1
