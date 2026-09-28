@@ -1,3 +1,16 @@
+## v1.6.0 — Autonomous Audit Orchestrator
+
+AppLab can now turn current Product/UX/Architecture evidence into an explicit
+per-project audit plan. The orchestrator selects specialist review domains from
+detected capabilities and findings, attaches a reason and priority to each
+selection, and broadens review when source confidence is weak.
+
+It does not replace FAST/FULL/CERTIFICATION, never reduces mandatory coverage
+because of uncertainty, and only includes Market Lab when traceable market
+evidence is explicitly supplied.
+
+See `integration/intelligence/AUTONOMOUS_AUDIT_ORCHESTRATOR.md`.
+
 ## v1.5.0 — Cross-App Intelligence
 
 AppLab can now aggregate deterministic App Intelligence reports across multiple
