@@ -98,12 +98,14 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # AVD cache schema is intentionally decoupled from the AppLab release.
+      # Bump `schema1` only when API/arch/profile/emulator configuration becomes incompatible.
       - name: Restore clean AVD snapshot
         id: avd_cache
         uses: actions/cache/restore@v6
         with:
           path: ~/.android/avd
-          key: applab-clean-avd-v1.0.0-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
+          key: applab-clean-avd-schema1-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
 
       - name: Create pristine AVD snapshot on cache miss
         if: steps.avd_cache.outputs.cache-hit != 'true'
@@ -126,7 +128,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: ~/.android/avd
-          key: applab-clean-avd-v1.0.0-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
+          key: applab-clean-avd-schema1-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
 
       - name: Download untrusted build contract
         uses: actions/download-artifact@v8
