@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "2.5.0"
+STUDIO_VERSION = "3.0.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -48,8 +48,17 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     market = read_json(project_dir / "market-intelligence.json")
     audit = read_json(project_dir / "audit-plan.json")
     change = read_json(project_dir / "change-intelligence.json")
+    behavioral = read_json(project_dir / "behavioral-product.json")
+    state_edge = read_json(project_dir / "state-edge-case.json")
+    calibration = read_json(project_dir / "evidence-calibration.json")
+    contract = read_json(project_dir / "product-contract-audit.json")
+    brief = read_json(project_dir / "decision-brief.json")
+    autonomous = read_json(project_dir / "autonomous-review.json")
 
-    if app is None and market is None and audit is None and change is None:
+    if all(
+        item is None
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, contract, brief, autonomous)
+    ):
         return None
 
     row: dict[str, Any] = {
@@ -60,6 +69,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "market": None,
         "audit": None,
         "change": None,
+        "autonomous_review": None,
     }
 
     if app:
@@ -248,6 +258,89 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
             "new_review": int(summary.get("new_review", 0) or 0),
         }
 
+    if autonomous or behavioral or state_edge or calibration or contract or brief:
+        review_summary = (
+            autonomous.get("summary")
+            if isinstance(autonomous, dict) and isinstance(autonomous.get("summary"), dict)
+            else {}
+        )
+        decision_summary = (
+            brief.get("summary")
+            if isinstance(brief, dict) and isinstance(brief.get("summary"), dict)
+            else {}
+        )
+        calibration_summary = (
+            calibration.get("summary")
+            if isinstance(calibration, dict) and isinstance(calibration.get("summary"), dict)
+            else {}
+        )
+        contract_summary = (
+            contract.get("summary")
+            if isinstance(contract, dict) and isinstance(contract.get("summary"), dict)
+            else {}
+        )
+        state_summary = (
+            state_edge.get("summary")
+            if isinstance(state_edge, dict) and isinstance(state_edge.get("summary"), dict)
+            else {}
+        )
+        row["autonomous_review"] = {
+            "review_state": str(
+                autonomous.get("review_state", "EVIDENCE_INCOMPLETE")
+                if isinstance(autonomous, dict)
+                else "EVIDENCE_INCOMPLETE"
+            ),
+            "runtime_evidence_state": str(
+                review_summary.get(
+                    "runtime_evidence_state",
+                    behavioral.get("runtime_evidence_state", "NOT_OBSERVED")
+                    if isinstance(behavioral, dict)
+                    else "NOT_OBSERVED",
+                )
+            ),
+            "observed_states": int(
+                review_summary.get(
+                    "observed_states",
+                    state_summary.get("observed", 0),
+                )
+                or 0
+            ),
+            "applicable_states": int(
+                review_summary.get(
+                    "applicable_states",
+                    state_summary.get("applicable", 0),
+                )
+                or 0
+            ),
+            "fix_now": int(
+                review_summary.get(
+                    "fix_now",
+                    decision_summary.get("fix_now", 0),
+                )
+                or 0
+            ),
+            "verify_next": int(
+                review_summary.get(
+                    "verify_next",
+                    decision_summary.get("verify_next", 0),
+                )
+                or 0
+            ),
+            "runtime_confirmed": int(
+                calibration_summary.get("runtime_confirmed", 0) or 0
+            ),
+            "runtime_contradicted": int(
+                calibration_summary.get("runtime_contradicted", 0) or 0
+            ),
+            "contract_review_signals": int(
+                review_summary.get(
+                    "contract_review_signals",
+                    contract_summary.get("review_signals", 0),
+                )
+                or 0
+            ),
+        }
+
     return row
 
 
@@ -303,6 +396,23 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
                 for row in projects
                 if isinstance(row.get("change"), dict)
                 and row["change"].get("review_state") in {"HIGH_REVIEW", "REVIEW"}
+            ),
+            "autonomous_reviews": sum(
+                1 for row in projects if row.get("autonomous_review") is not None
+            ),
+            "autonomous_attention": sum(
+                1
+                for row in projects
+                if isinstance(row.get("autonomous_review"), dict)
+                and row["autonomous_review"].get("review_state")
+                in {"ATTENTION_REQUIRED", "REVIEW_REQUIRED"}
+            ),
+            "runtime_observed": sum(
+                1
+                for row in projects
+                if isinstance(row.get("autonomous_review"), dict)
+                and str(row["autonomous_review"].get("runtime_evidence_state", ""))
+                .startswith("OBSERVED")
             ),
         },
         "projects": projects,
@@ -393,6 +503,34 @@ def self_test() -> None:
             ),
             encoding="utf-8",
         )
+        (project / "autonomous-review.json").write_text(
+            json.dumps(
+                {
+                    "platform_version": "3.0.0",
+                    "review_state": "REVIEW_REQUIRED",
+                    "summary": {
+                        "runtime_evidence_state": "OBSERVED_PASS",
+                        "observed_states": 5,
+                        "applicable_states": 8,
+                        "fix_now": 0,
+                        "verify_next": 3,
+                        "contract_review_signals": 2,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (project / "evidence-calibration.json").write_text(
+            json.dumps(
+                {
+                    "summary": {
+                        "runtime_confirmed": 1,
+                        "runtime_contradicted": 2,
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
         (project / "change-intelligence.json").write_text(
             json.dumps(
                 {
@@ -454,6 +592,10 @@ def self_test() -> None:
         assert snapshot["projects"][0]["change"]["review_state"] == "REVIEW"
         assert snapshot["projects"][0]["change"]["new_findings"] == 2
         assert snapshot["projects"][0]["change"]["resolved_findings"] == 1
+        assert snapshot["projects"][0]["autonomous_review"]["review_state"] == "REVIEW_REQUIRED"
+        assert snapshot["projects"][0]["autonomous_review"]["runtime_confirmed"] == 1
+        assert snapshot["summary"]["autonomous_reviews"] == 1
+        assert snapshot["summary"]["runtime_observed"] == 1
         assert snapshot["projects"][0]["market"]["competitors"] == 3
         assert snapshot["projects"][0]["audit"]["selected_lab_count"] == 4
         print("AppLab Studio snapshot self-test PASS")
