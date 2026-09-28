@@ -1,0 +1,198 @@
+name: AppLab True Autonomous App Review v3.1
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: "Target repository in owner/name form. Empty = this repository."
+        required: false
+        default: ""
+        type: string
+      target_ref:
+        description: "Branch, tag or SHA to resolve once and review immutably."
+        required: false
+        default: "main"
+        type: string
+      max_files:
+        description: "Maximum tracked text files for product analysis."
+        required: false
+        default: "3500"
+        type: string
+      run_maestro:
+        description: "Run Maestro during trusted verification."
+        required: false
+        default: true
+        type: boolean
+  workflow_call:
+    inputs:
+      target_repository:
+        required: false
+        default: ""
+        type: string
+      target_ref:
+        required: false
+        default: "main"
+        type: string
+      max_files:
+        required: false
+        default: "3500"
+        type: string
+      run_maestro:
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      APPLAB_TARGET_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: applab-true-autonomous-review-${{ inputs.target_repository || github.repository }}-${{ inputs.target_ref || 'main' }}
+  cancel-in-progress: true
+
+jobs:
+  resolve:
+    name: Resolve immutable target
+    runs-on: ubuntu-latest
+    outputs:
+      repository: ${{ steps.target.outputs.repository }}
+      source_ref: ${{ steps.target.outputs.source_ref }}
+      resolved_sha: ${{ steps.sha.outputs.resolved_sha }}
+    steps:
+      - name: Resolve coordinates
+        id: target
+        shell: bash
+        env:
+          INPUT_REPOSITORY: ${{ inputs.target_repository }}
+          INPUT_REF: ${{ inputs.target_ref }}
+        run: |
+          set -Eeuo pipefail
+          REPOSITORY="${INPUT_REPOSITORY:-}"
+          SOURCE_REF="${INPUT_REF:-main}"
+          [[ -n "$REPOSITORY" ]] || REPOSITORY="${{ github.repository }}"
+          echo "repository=$REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "source_ref=$SOURCE_REF" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout target once
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.target.outputs.repository }}
+          ref: ${{ steps.target.outputs.source_ref }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+          token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
+
+      - name: Pin resolved SHA
+        id: sha
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          SHA="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid resolved SHA" >&2; exit 2; }
+          echo "resolved_sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Resolved ${{ steps.target.outputs.repository }}@${{ steps.target.outputs.source_ref }} -> $SHA" >> "$GITHUB_STEP_SUMMARY"
+
+  verify:
+    name: Build and trusted runtime verification
+    needs: resolve
+    uses: ./.github/workflows/universal-project-runner.yml
+    with:
+      repository: ${{ needs.resolve.outputs.repository }}
+      ref: ${{ needs.resolve.outputs.resolved_sha }}
+      source_ref: ${{ needs.resolve.outputs.source_ref }}
+      run_maestro: ${{ inputs.run_maestro }}
+      history_key: autonomous-review-v31
+      cache_verification: false
+      contract_fingerprint: autonomous-review-v31
+      config_fingerprint: autonomous-review-v31
+      approve_visual_baseline: false
+      analysis_mode: full
+      baseline_sha: ""
+      force_release_build: false
+      publish_release_artifact: false
+
+  review:
+    name: Trusted evidence autonomous review
+    needs: [resolve, verify]
+    if: needs.verify.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .applab
+          persist-credentials: false
+
+      - name: Checkout exact reviewed target
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.resolve.outputs.repository }}
+          ref: ${{ needs.resolve.outputs.resolved_sha }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+          token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
+
+      - name: Verify exact target SHA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ACTUAL="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
+          test "$ACTUAL" = "${{ needs.resolve.outputs.resolved_sha }}"
+
+      - name: Download trusted verifier evidence
+        uses: actions/download-artifact@v8
+        with:
+          name: applab-autonomous-review-v31-${{ github.run_id }}
+          path: trusted-runtime
+
+      - name: Validate Trusted Evidence Manifest
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/trusted_evidence_manifest.py validate             --report-dir "$GITHUB_WORKSPACE/trusted-runtime"             --repository "${{ needs.resolve.outputs.repository }}"             --resolved-sha "${{ needs.resolve.outputs.resolved_sha }}"             --run-id "$GITHUB_RUN_ID"             --output "$GITHUB_WORKSPACE/trusted-runtime-validation.json"
+
+      - name: Run True Autonomous App Review
+        shell: bash
+        env:
+          MAX_FILES: ${{ inputs.max_files }}
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/autonomous_app_review.py             --repo-root "$GITHUB_WORKSPACE/target"             --runtime-evidence-dir "$GITHUB_WORKSPACE/trusted-runtime"             --expected-repository "${{ needs.resolve.outputs.repository }}"             --expected-sha "${{ needs.resolve.outputs.resolved_sha }}"             --expected-run-id "$GITHUB_RUN_ID"             --require-trusted-runtime             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"             --max-files "${MAX_FILES:-3500}"
+
+      - name: Publish v3.1 review
+        shell: bash
+        run: |
+          {
+            echo "## AppLab True Autonomous App Review v3.1"
+            echo
+            echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
+            echo
+            cat "$GITHUB_WORKSPACE/applab-autonomous-review/autonomous-review.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Package Studio-ready evidence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/studio-evidence"
+          cp "$GITHUB_WORKSPACE/applab-autonomous-review/"*.json "$GITHUB_WORKSPACE/studio-evidence/"
+          cp "$GITHUB_WORKSPACE/trusted-runtime/trusted-evidence-manifest.json" "$GITHUB_WORKSPACE/studio-evidence/"
+          cp "$GITHUB_WORKSPACE/trusted-runtime/result.json" "$GITHUB_WORKSPACE/studio-evidence/trusted-runtime-result.json"
+          cp "$GITHUB_WORKSPACE/trusted-runtime-validation.json" "$GITHUB_WORKSPACE/studio-evidence/"
+
+      - name: Upload Autonomous Review evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-autonomous-review-v31-result-${{ github.run_id }}
+          path: |
+            applab-autonomous-review/
+            studio-evidence/
+          if-no-files-found: error
+          retention-days: 30
