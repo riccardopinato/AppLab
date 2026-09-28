@@ -1,0 +1,39 @@
+name: CamperBoss More Runtime Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/camperboss-more-runtime-once.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  camperboss:
+    uses: ./.github/workflows/external-project-runner.yml
+    with:
+      repository: riccardopinato/CamperBoss
+      ref: step-16-release-core
+      source_ref: step-16-release-core
+      working_directory: "."
+      flutter_channel: stable
+      flutter_version: "3.47.5"
+      java_version: "21"
+      prepare_command: ""
+      post_pub_get_command: ""
+      android_prepare_command: ""
+      api_level: "35"
+      emulator_profile: pixel_7_pro
+      apk_path: build/app/outputs/flutter-apk/app-debug.apk
+      package_id: com.camperboss.camperboss
+      build_command: flutter build apk --debug
+      run_maestro: true
+      maestro_flow: .maestro/applab-more-audit.yaml
+      history_key: watch-camperboss-more
+      cache_verification: false
+      approve_visual_baseline: false
+      analysis_mode: full
+      baseline_sha: ""
+      publish_release_artifact: false
