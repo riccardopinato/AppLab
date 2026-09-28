@@ -1,3 +1,14 @@
+## v2.5.0 — Lifecycle Integrity
+
+AppLab now performs an entity-level lifecycle integrity pass covering delete,
+archive/restore, cascade evidence, media cleanup, scheduled side-effect
+cancellation, remote-delete propagation and shared ownership semantics.
+
+The new findings remain bounded static review targets and are also normalized
+into Product Consistency. No universal delete policy is assumed.
+
+See `integration/intelligence/LIFECYCLE_INTEGRITY.md`.
+
 ## v2.4.0 — Change Intelligence
 
 AppLab can now compare two App Intelligence snapshots and report product-level
