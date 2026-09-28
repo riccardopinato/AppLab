@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v1.4.0 — Competitor & Market Lab**
+Current production baseline: **v1.5.0 — Cross-App Intelligence**
 
 ## Product rule
 
@@ -19,6 +19,17 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v1.5.0 — Cross-App Intelligence
+
+- [x] Aggregate multiple project-scoped App Intelligence reports into a portfolio evidence view.
+- [x] Preserve per-project report SHA-256 provenance.
+- [x] Identify repeated capability patterns without automatically transferring features or code.
+- [x] Identify recurrent UX/Product and Architecture/Data review signals across projects.
+- [x] Keep one-project capabilities explicitly project-scoped.
+- [x] Build a fresh source-only corpus from enabled public watchlist repositories without executing target code.
+- [x] Emit descriptive engine/local-first/confidence distributions without a portfolio score.
+- [x] Preserve all runtime verification and certification boundaries.
 
 ### v1.4.0 — Competitor & Market Lab
 
@@ -259,7 +270,8 @@ These are explicit engineering boundaries, not hidden assumptions:
 - Integrate App Intelligence summaries into the Control Center after enough real-project reports exist.
 - Use real audits to refine heuristics and reduce false-positive review signals.
 - Calibrate the v1.4 capability taxonomy against real competitor evidence before broadening aliases or automating acquisition.
-- Design v1.5 Cross-App Intelligence using only project-scoped evidence plus explicitly bounded reusable patterns.
+- Calibrate Cross-App recurrence thresholds against real multi-project corpus runs.
+- Design v1.6 Autonomous Audit Orchestrator so audit selection follows project type, evidence and risk rather than a fixed checklist.
 
 - Accumulate enough real watcher samples for statistically meaningful p50/p95.
 - Measure shadow false-negative, missed-WARN and over-selection rates over a meaningful sample.

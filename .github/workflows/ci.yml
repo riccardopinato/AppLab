@@ -69,6 +69,8 @@ jobs:
             scripts/watch_aggregate.py \
             scripts/app_intelligence.py \
             scripts/market_intelligence.py \
+            scripts/build_cross_app_corpus.py \
+            scripts/cross_app_intelligence.py \
             scripts/control_center_snapshot.py
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/interaction_crawler.py --self-test
@@ -109,6 +111,8 @@ jobs:
             --validate-only
           python scripts/app_intelligence.py --self-test
           python scripts/market_intelligence.py --self-test
+          python scripts/build_cross_app_corpus.py --self-test
+          python scripts/cross_app_intelligence.py --self-test
           python scripts/control_center_snapshot.py --self-test
 
       - name: Frontend build
@@ -125,7 +129,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"1.4.0"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"1.5.0"'; then
               healthy=true
               break
             fi

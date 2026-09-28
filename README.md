@@ -1,3 +1,20 @@
+## v1.5.0 — Cross-App Intelligence
+
+AppLab can now aggregate deterministic App Intelligence reports across multiple
+projects while keeping each project's evidence authoritative.
+
+The new source-only corpus builder reads enabled public repositories from the
+AppLab watchlist, clones them without executing target code, runs the bounded
+Product/UX/Architecture analyzer, and feeds the resulting evidence into the
+Cross-App Intelligence engine.
+
+The portfolio report identifies repeated capability patterns, recurrent review
+signals and project-specific capabilities. Recurrence proposes review only: it
+never copies code, transfers features automatically or changes runtime
+PASS/FAIL/CERTIFICATION.
+
+See `integration/intelligence/CROSS_APP_INTELLIGENCE.md`.
+
 ## v1.4.0 — Competitor & Market Lab
 
 AppLab now adds a source-traceable external market layer. Competitor capabilities,
