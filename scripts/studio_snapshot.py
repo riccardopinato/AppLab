@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "2.1.0"
+STUDIO_VERSION = "2.2.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -70,6 +70,22 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
             else {}
         )
         data = architecture.get("data") if isinstance(architecture.get("data"), dict) else {}
+        truth = (
+            app.get("feature_truth")
+            if isinstance(app.get("feature_truth"), dict)
+            else {}
+        )
+        truth_summary = (
+            truth.get("summary") if isinstance(truth.get("summary"), dict) else {}
+        )
+        flow = (
+            app.get("product_flow_graph")
+            if isinstance(app.get("product_flow_graph"), dict)
+            else {}
+        )
+        flow_summary = (
+            flow.get("summary") if isinstance(flow.get("summary"), dict) else {}
+        )
         deep = (
             app.get("deep_product_model")
             if isinstance(app.get("deep_product_model"), dict)
@@ -94,6 +110,17 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
             ),
             "documentation_drift_signals": int(
                 deep_summary.get("documentation_drift_signals", 0) or 0
+            ),
+            "code_confirmed_capabilities": int(
+                truth_summary.get("CODE_CONFIRMED", 0) or 0
+            ),
+            "doc_only_capabilities": int(
+                truth_summary.get("DOC_ONLY_SIGNAL", 0) or 0
+            ),
+            "flow_nodes": int(flow.get("node_count", 0) or 0),
+            "flow_edges": int(flow.get("edge_count", 0) or 0),
+            "orphan_surface_candidates": int(
+                flow_summary.get("orphan_surface_candidates", 0) or 0
             ),
         }
         row["ux"] = {
@@ -223,6 +250,17 @@ def self_test() -> None:
                             "documentation_drift_signals": 2,
                         },
                     },
+                    "feature_truth": {
+                        "summary": {
+                            "CODE_CONFIRMED": 4,
+                            "DOC_ONLY_SIGNAL": 1,
+                        },
+                    },
+                    "product_flow_graph": {
+                        "node_count": 5,
+                        "edge_count": 6,
+                        "summary": {"orphan_surface_candidates": 1},
+                    },
                     "ux_product": {"findings": [{"kind": "A"}]},
                     "architecture_data": {
                         "findings": [],
@@ -276,6 +314,8 @@ def self_test() -> None:
         assert snapshot["projects"][0]["product"]["engine"] == "flutter"
         assert snapshot["projects"][0]["product"]["entity_count"] == 3
         assert snapshot["projects"][0]["product"]["lifecycle_review_signals"] == 1
+        assert snapshot["projects"][0]["product"]["code_confirmed_capabilities"] == 4
+        assert snapshot["projects"][0]["product"]["orphan_surface_candidates"] == 1
         assert snapshot["projects"][0]["market"]["competitors"] == 3
         assert snapshot["projects"][0]["audit"]["selected_lab_count"] == 4
         print("AppLab Studio snapshot self-test PASS")
