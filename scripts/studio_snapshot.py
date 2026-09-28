@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "2.0.0"
+STUDIO_VERSION = "2.1.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -70,6 +70,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
             else {}
         )
         data = architecture.get("data") if isinstance(architecture.get("data"), dict) else {}
+        deep = (
+            app.get("deep_product_model")
+            if isinstance(app.get("deep_product_model"), dict)
+            else {}
+        )
+        deep_summary = (
+            deep.get("summary") if isinstance(deep.get("summary"), dict) else {}
+        )
         row["product"] = {
             "engine": str(stack.get("engine", "unknown")),
             "confidence": str(scan.get("confidence", "UNKNOWN")),
@@ -78,6 +86,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
                 ((product.get("surface") or {}).get("screen_like_files", 0))
                 if isinstance(product.get("surface"), dict)
                 else 0
+            ),
+            "entity_count": int(deep.get("entity_count", 0) or 0),
+            "surface_count": int(deep.get("surface_count", 0) or 0),
+            "lifecycle_review_signals": int(
+                deep_summary.get("lifecycle_review_signals", 0) or 0
+            ),
+            "documentation_drift_signals": int(
+                deep_summary.get("documentation_drift_signals", 0) or 0
             ),
         }
         row["ux"] = {
@@ -199,6 +215,14 @@ def self_test() -> None:
                             {"label": "ai_or_ml", "status": "NOT_DETECTED"},
                         ],
                     },
+                    "deep_product_model": {
+                        "entity_count": 3,
+                        "surface_count": 5,
+                        "summary": {
+                            "lifecycle_review_signals": 1,
+                            "documentation_drift_signals": 2,
+                        },
+                    },
                     "ux_product": {"findings": [{"kind": "A"}]},
                     "architecture_data": {
                         "findings": [],
@@ -250,6 +274,8 @@ def self_test() -> None:
         assert snapshot["summary"]["manual_review"] == 1
         assert snapshot["summary"]["recurrent_patterns"] == 1
         assert snapshot["projects"][0]["product"]["engine"] == "flutter"
+        assert snapshot["projects"][0]["product"]["entity_count"] == 3
+        assert snapshot["projects"][0]["product"]["lifecycle_review_signals"] == 1
         assert snapshot["projects"][0]["market"]["competitors"] == 3
         assert snapshot["projects"][0]["audit"]["selected_lab_count"] == 4
         print("AppLab Studio snapshot self-test PASS")
