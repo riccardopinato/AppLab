@@ -1,3 +1,13 @@
+## v2.6.0 — CI Concurrency Isolation
+
+AppLab runtime workflows now isolate concurrency by Git ref instead of using one
+global cancellation group. New pushes to the same branch/PR still cancel stale
+runs, while unrelated PRs and the main branch no longer cancel each other's
+Emulator Self Test or Live Emulator Browser E2E jobs.
+
+This hardening was introduced after stacked AppLab development exposed
+cross-branch runtime cancellations despite otherwise valid code.
+
 ## v2.5.0 — Lifecycle Integrity
 
 AppLab now performs an entity-level lifecycle integrity pass covering delete,
