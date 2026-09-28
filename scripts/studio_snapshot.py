@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "2.4.0"
+STUDIO_VERSION = "2.5.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -167,6 +167,28 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
                 for item in consistency_findings[:8]
                 if isinstance(item, dict)
             ],
+        }
+        lifecycle = (
+            app.get("lifecycle_integrity")
+            if isinstance(app.get("lifecycle_integrity"), dict)
+            else {}
+        )
+        lifecycle_summary = (
+            lifecycle.get("summary")
+            if isinstance(lifecycle.get("summary"), dict)
+            else {}
+        )
+        row["lifecycle"] = {
+            "entities_checked": int(lifecycle_summary.get("entities_checked", 0) or 0),
+            "entities_with_review": int(
+                lifecycle_summary.get("entities_with_review", 0) or 0
+            ),
+            "review_signals": int(lifecycle_summary.get("review_signals", 0) or 0),
+            "by_kind": (
+                lifecycle_summary.get("by_kind", {})
+                if isinstance(lifecycle_summary.get("by_kind"), dict)
+                else {}
+            ),
         }
 
     if market:
@@ -341,6 +363,14 @@ def self_test() -> None:
                             }
                         ],
                     },
+                    "lifecycle_integrity": {
+                        "summary": {
+                            "entities_checked": 4,
+                            "entities_with_review": 2,
+                            "review_signals": 3,
+                            "by_kind": {"POSSIBLE_MEDIA_CLEANUP_GAP": 1},
+                        }
+                    },
                     "ux_product": {"findings": [{"kind": "A"}]},
                     "architecture_data": {
                         "findings": [],
@@ -419,6 +449,8 @@ def self_test() -> None:
         assert snapshot["projects"][0]["product"]["orphan_surface_candidates"] == 1
         assert snapshot["projects"][0]["consistency"]["total"] == 3
         assert snapshot["projects"][0]["consistency"]["high_review"] == 1
+        assert snapshot["projects"][0]["lifecycle"]["entities_checked"] == 4
+        assert snapshot["projects"][0]["lifecycle"]["review_signals"] == 3
         assert snapshot["projects"][0]["change"]["review_state"] == "REVIEW"
         assert snapshot["projects"][0]["change"]["new_findings"] == 2
         assert snapshot["projects"][0]["change"]["resolved_findings"] == 1
