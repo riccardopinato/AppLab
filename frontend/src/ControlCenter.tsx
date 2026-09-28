@@ -208,6 +208,12 @@ type StudioProject = {
       subject?: string;
     }>;
   } | null;
+  lifecycle?: {
+    entities_checked?: number;
+    entities_with_review?: number;
+    review_signals?: number;
+    by_kind?: Record<string, number>;
+  } | null;
   market?: {
     competitors?: number;
     common_gap_reviews?: number;
@@ -412,6 +418,11 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <span>Consistency</span>
                       <strong>{project.consistency?.total ?? 0}</strong>
                       <small>{project.consistency?.high_review ?? 0} high · {project.consistency?.review ?? 0} review</small>
+                    </div>
+                    <div>
+                      <span>Lifecycle</span>
+                      <strong>{project.lifecycle?.review_signals ?? 0}</strong>
+                      <small>{project.lifecycle?.entities_with_review ?? 0}/{project.lifecycle?.entities_checked ?? 0} entities with review</small>
                     </div>
                     <div>
                       <span>Change</span>
