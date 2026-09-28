@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v2.4.0 — Change Intelligence**
+Current production baseline: **v2.5.0 — Lifecycle Integrity**
 
 ## Product rule
 
@@ -19,6 +19,18 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v2.5.0 — Lifecycle Integrity
+
+- [x] Audit lifecycle semantics for each bounded domain entity.
+- [x] Distinguish delete, archive/trash and restore evidence.
+- [x] Inspect cascade and relation-cleanup signals.
+- [x] Inspect media/attachment cleanup around destructive paths.
+- [x] Inspect reminder/alarm/notification cancellation around destructive paths.
+- [x] Inspect remote/cloud/sync delete-propagation signals.
+- [x] Inspect shared ownership/member/workspace delete semantics.
+- [x] Normalize lifecycle findings into Product Consistency and expose them in Studio.
+
 
 ### v2.4.0 — Change Intelligence
 
