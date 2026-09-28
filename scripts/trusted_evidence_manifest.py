@@ -286,9 +286,9 @@ def self_test() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("command", nargs="?", choices=("create", "validate"))
-    parser.add_argument("--report-dir", required=True)
-    parser.add_argument("--repository", required=True)
-    parser.add_argument("--resolved-sha", required=True)
+    parser.add_argument("--report-dir")
+    parser.add_argument("--repository")
+    parser.add_argument("--resolved-sha")
     parser.add_argument("--run-id")
     parser.add_argument("--package-id")
     parser.add_argument("--analysis-mode", default="full")
@@ -304,6 +304,8 @@ def main() -> int:
         return 0
     if not args.command:
         raise SystemExit("create or validate command is required")
+    if not args.report_dir or not args.repository or not args.resolved_sha:
+        raise SystemExit("--report-dir, --repository and --resolved-sha are required")
 
     root = Path(args.report_dir)
     if args.command == "create":
