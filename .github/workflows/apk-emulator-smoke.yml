@@ -73,3 +73,4 @@ jobs:
           name: applab-report
           path: applab-report/
           if-no-files-found: warn
+          retention-days: 1
