@@ -1,0 +1,127 @@
+name: AppLab Autonomous App Review v3
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: "Target repository in owner/name form. Empty = this repository."
+        required: false
+        default: ""
+        type: string
+      target_ref:
+        description: "Branch, tag or SHA to review."
+        required: false
+        default: "main"
+        type: string
+      runtime_evidence_path:
+        description: "Optional repository-relative directory containing trusted AppLab runtime evidence."
+        required: false
+        default: ""
+        type: string
+      max_files:
+        description: "Maximum tracked text files for static product analysis."
+        required: false
+        default: "3500"
+        type: string
+  workflow_call:
+    inputs:
+      target_repository:
+        required: false
+        default: ""
+        type: string
+      target_ref:
+        required: false
+        default: "main"
+        type: string
+      runtime_evidence_path:
+        required: false
+        default: ""
+        type: string
+      max_files:
+        required: false
+        default: "3500"
+        type: string
+    secrets:
+      APPLAB_TARGET_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-autonomous-review-${{ inputs.target_repository || github.repository }}-${{ inputs.target_ref || 'main' }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Autonomous product review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .applab
+          persist-credentials: false
+
+      - name: Resolve target
+        id: target
+        shell: bash
+        env:
+          INPUT_REPOSITORY: ${{ inputs.target_repository }}
+          INPUT_REF: ${{ inputs.target_ref }}
+          RUNTIME_PATH: ${{ inputs.runtime_evidence_path }}
+        run: |
+          set -Eeuo pipefail
+          REPOSITORY="${INPUT_REPOSITORY:-}"
+          REF="${INPUT_REF:-main}"
+          [[ -n "$REPOSITORY" ]] || REPOSITORY="${{ github.repository }}"
+          case "${RUNTIME_PATH:-}" in
+            /*|*../*|../*|*/..) echo "Unsafe runtime_evidence_path" >&2; exit 2 ;;
+          esac
+          echo "repository=$REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout target repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.target.outputs.repository }}
+          ref: ${{ steps.target.outputs.ref }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+          token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
+
+      - name: Run Autonomous App Review
+        shell: bash
+        env:
+          MAX_FILES: ${{ inputs.max_files }}
+          RUNTIME_PATH: ${{ inputs.runtime_evidence_path }}
+        run: |
+          set -Eeuo pipefail
+          ARGS=(
+            --repo-root "$GITHUB_WORKSPACE/target"
+            --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
+            --max-files "${MAX_FILES:-3500}"
+          )
+          if [[ -n "${RUNTIME_PATH:-}" ]]; then
+            if [[ ! -d "$GITHUB_WORKSPACE/target/$RUNTIME_PATH" ]]; then
+              echo "Runtime evidence directory not found: $RUNTIME_PATH" >&2
+              exit 2
+            fi
+            ARGS+=(--runtime-evidence-dir "$GITHUB_WORKSPACE/target/$RUNTIME_PATH")
+          fi
+          python .applab/scripts/autonomous_app_review.py "${ARGS[@]}"
+
+      - name: Publish decision brief
+        shell: bash
+        run: cat "$GITHUB_WORKSPACE/applab-autonomous-review/autonomous-review.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Autonomous Review evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-autonomous-review-${{ github.run_id }}
+          path: applab-autonomous-review/
+          if-no-files-found: error
+          retention-days: 30
