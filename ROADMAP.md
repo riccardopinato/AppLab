@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v1.6.0 — Autonomous Audit Orchestrator**
+Current production baseline: **v2.0.0 — AppLab Studio**
 
 ## Product rule
 
@@ -19,6 +19,17 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v2.0.0 — AppLab Studio
+
+- [x] Add a dedicated Studio snapshot contract for product-intelligence evidence.
+- [x] Keep runtime/certification truth and product intelligence as separate source domains.
+- [x] Expose Studio evidence through a dedicated backend API.
+- [x] Surface Product, UX, Architecture, Market and Audit Plan dimensions in Control Center.
+- [x] Surface Cross-App reusable pattern candidates at portfolio level.
+- [x] Keep Control Center functional when no Studio snapshot is mounted.
+- [x] Add Studio snapshot self-tests and backend loader tests.
+- [x] Preserve all certification and evidence-authority boundaries.
 
 ### v1.6.0 — Autonomous Audit Orchestrator
 
