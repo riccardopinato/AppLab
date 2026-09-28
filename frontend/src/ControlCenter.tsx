@@ -195,6 +195,19 @@ type StudioProject = {
     review_signals?: number;
     local_first?: string;
   } | null;
+  consistency?: {
+    total?: number;
+    high_review?: number;
+    review?: number;
+    info?: number;
+    by_domain?: Record<string, number>;
+    top_findings?: Array<{
+      domain?: string;
+      kind?: string;
+      severity?: string;
+      subject?: string;
+    }>;
+  } | null;
   market?: {
     competitors?: number;
     common_gap_reviews?: number;
@@ -378,6 +391,11 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <small>{project.architecture?.local_first ?? "UNKNOWN"}</small>
                     </div>
                     <div>
+                      <span>Consistency</span>
+                      <strong>{project.consistency?.total ?? 0}</strong>
+                      <small>{project.consistency?.high_review ?? 0} high · {project.consistency?.review ?? 0} review</small>
+                    </div>
+                    <div>
                       <span>Market</span>
                       <strong>{project.market?.competitors ?? 0}</strong>
                       <small>
@@ -392,6 +410,15 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <small>{project.audit?.manual_review_required ? "manual review required" : "automated evidence only"}</small>
                     </div>
                   </div>
+                  {project.consistency?.top_findings?.length ? (
+                    <div className="studio-labs">
+                      {project.consistency.top_findings.slice(0, 5).map((finding, index) => (
+                        <span key={`${finding.domain}-${finding.kind}-${finding.subject}-${index}`}>
+                          {finding.severity} · {finding.domain} · {finding.kind}{finding.subject ? ` · ${finding.subject}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {project.audit?.top_labs?.length ? (
                     <div className="studio-labs">
                       {project.audit.top_labs.slice(0, 5).map((lab) => (

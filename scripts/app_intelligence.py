@@ -23,7 +23,7 @@ TEXT_SUFFIXES = {
 DEFAULT_MAX_FILES = 3500
 DEFAULT_MAX_FILE_BYTES = 512_000
 SCHEMA_VERSION = 1
-LAB_VERSION = "2.2.0"
+LAB_VERSION = "2.3.0"
 
 
 @dataclass(frozen=True)
@@ -771,6 +771,228 @@ def product_flow_graph(sources: list[SourceFile], deep: dict) -> dict:
     }
 
 
+
+def product_consistency(
+    product: dict,
+    truth: dict,
+    deep: dict,
+    flow: dict,
+    ux: dict,
+    architecture: dict,
+) -> dict:
+    """Normalize cross-plane product evidence into traceable review findings."""
+    findings: list[dict] = []
+    seen: set[str] = set()
+
+    def add(
+        *,
+        domain: str,
+        kind: str,
+        severity: str,
+        message: str,
+        evidence: Iterable[str] = (),
+        subject: str = "",
+        confidence: str = "MEDIUM",
+    ) -> None:
+        evidence_rows = []
+        for item in evidence:
+            value = str(item).strip()
+            if value and value not in evidence_rows:
+                evidence_rows.append(value)
+            if len(evidence_rows) >= 10:
+                break
+        key = "|".join([domain, kind, subject, message])
+        if key in seen:
+            return
+        seen.add(key)
+        findings.append({
+            "id": re.sub(r"[^a-z0-9]+", "-", key.lower()).strip("-")[:120],
+            "domain": domain,
+            "kind": kind,
+            "severity": severity,
+            "confidence": confidence,
+            "subject": subject,
+            "message": message,
+            "evidence": evidence_rows,
+        })
+
+    for item in deep.get("lifecycle_findings", []):
+        if not isinstance(item, dict):
+            continue
+        add(
+            domain="lifecycle",
+            kind=str(item.get("kind", "ENTITY_LIFECYCLE_REVIEW")),
+            severity="REVIEW",
+            confidence="MEDIUM",
+            subject=str(item.get("entity", "")),
+            message=str(item.get("message", "Entity lifecycle requires review.")),
+            evidence=item.get("evidence", []),
+        )
+
+    for item in deep.get("documentation_drift", []):
+        if not isinstance(item, dict):
+            continue
+        severity = str(item.get("severity", "INFO")).upper()
+        if severity == "REVIEW":
+            add(
+                domain="product_truth",
+                kind=str(item.get("kind", "DOCUMENTATION_DRIFT")),
+                severity="REVIEW",
+                confidence="MEDIUM",
+                subject=str(item.get("capability", "")),
+                message=str(item.get("message", "Documentation/source drift requires review.")),
+                evidence=item.get("evidence", []),
+            )
+
+    truth_rows = (
+        truth.get("capabilities")
+        if isinstance(truth.get("capabilities"), list)
+        else []
+    )
+    for item in truth_rows:
+        if not isinstance(item, dict):
+            continue
+        value = str(item.get("truth", "NOT_DETECTED"))
+        if value not in {"DOC_ONLY_SIGNAL", "TEST_ONLY_SIGNAL"}:
+            continue
+        provenance = item.get("provenance") if isinstance(item.get("provenance"), dict) else {}
+        evidence: list[str] = []
+        for rows in provenance.values():
+            if isinstance(rows, list):
+                evidence.extend(str(row) for row in rows)
+        add(
+            domain="product_truth",
+            kind="WEAK_CAPABILITY_EVIDENCE",
+            severity="REVIEW",
+            confidence="HIGH",
+            subject=str(item.get("capability", "")),
+            message=(
+                f"Capability {item.get('capability', '')} is currently supported by "
+                f"{value.lower().replace('_', ' ')} rather than implementation-code evidence."
+            ),
+            evidence=evidence,
+        )
+
+    for item in flow.get("orphan_surface_candidates", []):
+        if not isinstance(item, dict):
+            continue
+        surface = str(item.get("surface", ""))
+        add(
+            domain="product_flow",
+            kind="ORPHAN_SURFACE_CANDIDATE",
+            severity="REVIEW",
+            confidence="LOW",
+            subject=surface,
+            message=str(
+                item.get(
+                    "reason",
+                    "No bounded incoming surface reference was detected.",
+                )
+            ),
+            evidence=[surface] if surface else [],
+        )
+
+    for item in ux.get("findings", []):
+        if not isinstance(item, dict):
+            continue
+        add(
+            domain="ux",
+            kind=str(item.get("kind", "UX_REVIEW")),
+            severity="REVIEW",
+            confidence="MEDIUM",
+            message=str(item.get("message", "UX evidence requires review.")),
+            evidence=item.get("evidence", []),
+        )
+
+    for item in architecture.get("findings", []):
+        if not isinstance(item, dict):
+            continue
+        source_severity = str(item.get("severity", "REVIEW")).upper()
+        severity = "HIGH_REVIEW" if source_severity == "HIGH_REVIEW" else "REVIEW"
+        add(
+            domain="architecture",
+            kind=str(item.get("kind", "ARCHITECTURE_REVIEW")),
+            severity=severity,
+            confidence="MEDIUM",
+            message=str(item.get("message", "Architecture evidence requires review.")),
+            evidence=item.get("evidence", []),
+        )
+
+    product_surface = (
+        product.get("surface") if isinstance(product.get("surface"), dict) else {}
+    )
+    screen_like = int(product_surface.get("screen_like_files", 0) or 0)
+    flow_nodes = int(flow.get("node_count", 0) or 0)
+    if screen_like >= 3 and flow_nodes == 0:
+        add(
+            domain="coverage",
+            kind="FLOW_MODEL_COVERAGE_GAP",
+            severity="REVIEW",
+            confidence="HIGH",
+            message=(
+                "Multiple screen-like files were detected but the bounded product "
+                "flow model produced no surface nodes."
+            ),
+            evidence=product_surface.get("screen_examples", []),
+        )
+
+    data = (
+        architecture.get("data")
+        if isinstance(architecture.get("data"), dict)
+        else {}
+    )
+    local_first = str(data.get("local_first_assessment", "UNKNOWN"))
+    if local_first == "REMOTE_SIGNALS_WITHOUT_LOCAL_STORE_EVIDENCE":
+        add(
+            domain="data",
+            kind="REMOTE_WITHOUT_LOCAL_STORE_EVIDENCE",
+            severity="INFO",
+            confidence="MEDIUM",
+            message=(
+                "Remote/sync signals exist without bounded local persistence evidence. "
+                "This is informational unless the product contract requires local-first behavior."
+            ),
+            evidence=(
+                (data.get("sync_or_remote") or {}).get("evidence", [])
+                if isinstance(data.get("sync_or_remote"), dict)
+                else []
+            ),
+        )
+
+    order = {"HIGH_REVIEW": 0, "REVIEW": 1, "INFO": 2}
+    findings.sort(
+        key=lambda row: (
+            order.get(str(row.get("severity", "INFO")), 9),
+            str(row.get("domain", "")),
+            str(row.get("kind", "")),
+            str(row.get("subject", "")),
+        )
+    )
+    by_domain = Counter(str(row.get("domain", "unknown")) for row in findings)
+    by_severity = Counter(str(row.get("severity", "INFO")) for row in findings)
+    return {
+        "findings": findings,
+        "summary": {
+            "total": len(findings),
+            "high_review": by_severity.get("HIGH_REVIEW", 0),
+            "review": by_severity.get("REVIEW", 0),
+            "info": by_severity.get("INFO", 0),
+            "by_domain": dict(sorted(by_domain.items())),
+        },
+        "guardrails": {
+            "advisory_only": True,
+            "no_generated_score": True,
+            "no_automatic_feature_requests": True,
+            "no_runtime_verdict_override": True,
+        },
+        "interpretation": (
+            "Product Consistency consolidates deterministic review signals across "
+            "product truth, lifecycle, flow, UX and architecture. A finding is a "
+            "traceable review target, not an automatic defect verdict."
+        ),
+    }
+
+
 def build_report(root: Path, max_files: int, max_file_bytes: int) -> dict:
     sources, scan = load_sources(
         root, max_files=max_files, max_file_bytes=max_file_bytes
@@ -781,18 +1003,24 @@ def build_report(root: Path, max_files: int, max_file_bytes: int) -> dict:
     if scan["scanned_files"] < 3:
         confidence = "LOW"
     product = product_analysis(sources)
+    truth = feature_truth(product)
     deep = deep_product_model(sources, product)
+    flow = product_flow_graph(sources, deep)
+    ux = ux_analysis(sources)
+    architecture = architecture_analysis(sources)
+    consistency = product_consistency(product, truth, deep, flow, ux, architecture)
     return {
         "schema_version": SCHEMA_VERSION,
         "lab_version": LAB_VERSION,
         "root_name": root.name,
         "scan": {**scan, "confidence": confidence},
         "product": product,
-        "feature_truth": feature_truth(product),
+        "feature_truth": truth,
         "deep_product_model": deep,
-        "product_flow_graph": product_flow_graph(sources, deep),
-        "ux_product": ux_analysis(sources),
-        "architecture_data": architecture_analysis(sources),
+        "product_flow_graph": flow,
+        "ux_product": ux,
+        "architecture_data": architecture,
+        "product_consistency": consistency,
         "guardrails": {
             "non_blocking": True,
             "no_generated_score": True,
@@ -827,6 +1055,24 @@ def markdown(report: dict) -> str:
     for item in product["feature_signals"]:
         evidence = ", ".join(item["evidence"][:4]) or "—"
         lines.append(f"| {item['label']} | {item['status']} | {evidence} |")
+
+    consistency = report.get("product_consistency", {})
+    consistency_summary = (
+        consistency.get("summary")
+        if isinstance(consistency.get("summary"), dict)
+        else {}
+    )
+    lines.extend(["", "## Product Consistency", ""])
+    lines.append(f"- Total review evidence: **{consistency_summary.get('total', 0)}**")
+    lines.append(f"- High review: **{consistency_summary.get('high_review', 0)}**")
+    lines.append(f"- Review: **{consistency_summary.get('review', 0)}**")
+    for finding in consistency.get("findings", [])[:20]:
+        if isinstance(finding, dict):
+            subject = f" · {finding.get('subject')}" if finding.get("subject") else ""
+            lines.append(
+                f"- **{finding.get('severity', 'INFO')} / {finding.get('domain', 'unknown')} / "
+                f"{finding.get('kind', 'REVIEW')}**{subject} — {finding.get('message', '')}"
+            )
 
     deep = report.get("deep_product_model", {})
     truth = report.get("feature_truth", {})
@@ -945,6 +1191,9 @@ def self_test() -> None:
         assert report["architecture_data"]["data"]["local_first_assessment"] == "SUPPORTED_BY_SIGNALS"
         assert report["feature_truth"]["capabilities"]
         assert report["product_flow_graph"]["node_count"] >= 1
+        assert "product_consistency" in report
+        assert report["product_consistency"]["guardrails"]["advisory_only"] is True
+        assert report["product_consistency"]["summary"]["total"] >= 1
         assert report["deep_product_model"]["entity_count"] >= 1
         assert any(
             item.get("kind") == "ENTITY_LIFECYCLE_DELETE_GAP"

@@ -1,3 +1,15 @@
+## v2.3.0 — Product Consistency Engine
+
+AppLab now consolidates product truth, lifecycle, flow, UX, architecture and data
+signals into one traceable consistency layer. Each finding keeps its domain,
+severity, confidence, subject and bounded evidence paths.
+
+The engine deliberately emits no synthetic quality score. Findings remain
+advisory review targets and cannot override trusted runtime PASS/FAIL or
+production CERTIFICATION.
+
+See `integration/intelligence/PRODUCT_CONSISTENCY_ENGINE.md`.
+
 ## v2.2.0 — Product Flow & Feature Truth
 
 AppLab now distinguishes implementation evidence from configuration, test and
