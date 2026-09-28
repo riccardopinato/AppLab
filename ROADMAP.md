@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v2.3.0 — Product Consistency Engine**
+Current production baseline: **v2.4.0 — Change Intelligence**
 
 ## Product rule
 
@@ -19,6 +19,17 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v2.4.0 — Change Intelligence
+
+- [x] Compare baseline/current App Intelligence snapshots deterministically.
+- [x] Track Feature Truth transitions and capability additions/removals.
+- [x] Track domain-entity and product-surface additions/removals.
+- [x] Separate new, resolved and persistent Product Consistency findings.
+- [x] Emit advisory HIGH_REVIEW / REVIEW / CHANGED / NO_MATERIAL_CHANGE state.
+- [x] Surface change evidence in AppLab Studio without creating a release verdict.
+- [x] Add CI self-test coverage for the Change Intelligence engine.
+
 
 ### v2.3.0 — Product Consistency Engine
 
