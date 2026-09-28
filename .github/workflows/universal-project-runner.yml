@@ -133,11 +133,13 @@ jobs:
       profile: ${{ steps.detect.outputs.profile }}
 
     steps:
-      - name: Checkout AppLab
+      - name: Checkout trusted AppLab
         uses: actions/checkout@v7
         with:
-          repository: riccardopinato/AppLab
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           path: .applab
+          persist-credentials: false
 
       - name: Checkout target project
         uses: actions/checkout@v7
