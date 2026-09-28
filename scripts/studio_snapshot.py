@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "2.3.0"
+STUDIO_VERSION = "2.4.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -47,8 +47,9 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     app = read_json(project_dir / "app-intelligence.json")
     market = read_json(project_dir / "market-intelligence.json")
     audit = read_json(project_dir / "audit-plan.json")
+    change = read_json(project_dir / "change-intelligence.json")
 
-    if app is None and market is None and audit is None:
+    if app is None and market is None and audit is None and change is None:
         return None
 
     row: dict[str, Any] = {
@@ -58,6 +59,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "architecture": None,
         "market": None,
         "audit": None,
+        "change": None,
     }
 
     if app:
@@ -207,6 +209,23 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
             ],
         }
 
+    if change:
+        summary = change.get("summary") if isinstance(change.get("summary"), dict) else {}
+        row["change"] = {
+            "review_state": str(change.get("review_state", "UNKNOWN")),
+            "feature_truth_changes": int(summary.get("feature_truth_changes", 0) or 0),
+            "capabilities_added": int(summary.get("capabilities_added", 0) or 0),
+            "capabilities_removed": int(summary.get("capabilities_removed", 0) or 0),
+            "entities_added": int(summary.get("entities_added", 0) or 0),
+            "entities_removed": int(summary.get("entities_removed", 0) or 0),
+            "surfaces_added": int(summary.get("surfaces_added", 0) or 0),
+            "surfaces_removed": int(summary.get("surfaces_removed", 0) or 0),
+            "new_findings": int(summary.get("new_findings", 0) or 0),
+            "resolved_findings": int(summary.get("resolved_findings", 0) or 0),
+            "new_high_review": int(summary.get("new_high_review", 0) or 0),
+            "new_review": int(summary.get("new_review", 0) or 0),
+        }
+
     return row
 
 
@@ -254,6 +273,15 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
                 and row["audit"].get("manual_review_required")
             ),
             "recurrent_patterns": len(portfolio["reusable_pattern_candidates"]),
+            "with_change_intelligence": sum(
+                1 for row in projects if row.get("change") is not None
+            ),
+            "change_attention": sum(
+                1
+                for row in projects
+                if isinstance(row.get("change"), dict)
+                and row["change"].get("review_state") in {"HIGH_REVIEW", "REVIEW"}
+            ),
         },
         "projects": projects,
         "portfolio": portfolio,
@@ -335,6 +363,27 @@ def self_test() -> None:
             ),
             encoding="utf-8",
         )
+        (project / "change-intelligence.json").write_text(
+            json.dumps(
+                {
+                    "review_state": "REVIEW",
+                    "summary": {
+                        "feature_truth_changes": 2,
+                        "capabilities_added": 1,
+                        "capabilities_removed": 0,
+                        "entities_added": 1,
+                        "entities_removed": 0,
+                        "surfaces_added": 1,
+                        "surfaces_removed": 0,
+                        "new_findings": 2,
+                        "resolved_findings": 1,
+                        "new_high_review": 0,
+                        "new_review": 2,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
         (project / "audit-plan.json").write_text(
             json.dumps(
                 {
@@ -370,6 +419,9 @@ def self_test() -> None:
         assert snapshot["projects"][0]["product"]["orphan_surface_candidates"] == 1
         assert snapshot["projects"][0]["consistency"]["total"] == 3
         assert snapshot["projects"][0]["consistency"]["high_review"] == 1
+        assert snapshot["projects"][0]["change"]["review_state"] == "REVIEW"
+        assert snapshot["projects"][0]["change"]["new_findings"] == 2
+        assert snapshot["projects"][0]["change"]["resolved_findings"] == 1
         assert snapshot["projects"][0]["market"]["competitors"] == 3
         assert snapshot["projects"][0]["audit"]["selected_lab_count"] == 4
         print("AppLab Studio snapshot self-test PASS")
