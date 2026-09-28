@@ -73,7 +73,7 @@ def excluded_line(line: str, label: str) -> bool:
     lower = line.lower()
     for term in alias_terms(label):
         escaped = re.escape(term.lower())
-        if any(re.search(pattern.format(term=escaped), lower) for pattern in EXCLUDED_PATTERNS):
+        if any(re.search(pattern.replace("{term}", escaped), lower) for pattern in EXCLUDED_PATTERNS):
             return True
     return False
 
