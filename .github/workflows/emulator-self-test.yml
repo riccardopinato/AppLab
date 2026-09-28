@@ -19,7 +19,7 @@ on:
       - ".github/workflows/emulator-self-test.yml"
 
 concurrency:
-  group: applab-emulator-self-test
+  group: applab-emulator-self-test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
