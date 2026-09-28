@@ -249,6 +249,20 @@ type StudioProject = {
     runtime_confirmed?: number;
     runtime_contradicted?: number;
     contract_review_signals?: number;
+    runtime_trust_state?: string;
+    runtime_trusted?: boolean;
+    trusted_repository?: string;
+    trusted_sha?: string;
+    trusted_package_id?: string;
+    trusted_run_id?: string;
+    manifest_sha256?: string;
+    top_actions?: Array<{
+      bucket?: string;
+      kind?: string;
+      subject?: string;
+      basis?: string;
+      evidence?: string[];
+    }>;
   } | null;
 };
 
@@ -265,6 +279,7 @@ type StudioSnapshot = {
     autonomous_reviews?: number;
     autonomous_attention?: number;
     runtime_observed?: number;
+    trusted_runtime_reviews?: number;
   };
   projects: StudioProject[];
   portfolio?: {
@@ -406,6 +421,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <div><span>Autonomous reviews</span><strong>{studio.summary.autonomous_reviews ?? 0}</strong></div>
               <div><span>Review attention</span><strong>{studio.summary.autonomous_attention ?? 0}</strong></div>
               <div><span>Runtime observed</span><strong>{studio.summary.runtime_observed ?? 0}</strong></div>
+              <div><span>Trusted runtime</span><strong>{studio.summary.trusted_runtime_reviews ?? 0}</strong></div>
             </div>
 
             <div className="studio-projects">
@@ -455,9 +471,14 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <strong>{project.autonomous_review?.review_state ?? "—"}</strong>
                       <small>
                         {project.autonomous_review
-                          ? `${project.autonomous_review.runtime_evidence_state ?? "NOT_OBSERVED"} · ${project.autonomous_review.observed_states ?? 0}/${project.autonomous_review.applicable_states ?? 0} states · ${project.autonomous_review.fix_now ?? 0} fix now · ${project.autonomous_review.verify_next ?? 0} verify`
+                          ? `${project.autonomous_review.runtime_trust_state ?? "NOT_PROVIDED"} · ${project.autonomous_review.runtime_evidence_state ?? "NOT_OBSERVED"} · ${project.autonomous_review.observed_states ?? 0}/${project.autonomous_review.applicable_states ?? 0} states · ${project.autonomous_review.fix_now ?? 0} fix now · ${project.autonomous_review.verify_next ?? 0} verify`
                           : "no v3 review evidence"}
                       </small>
+                      {project.autonomous_review?.runtime_trusted ? (
+                        <small>
+                          {project.autonomous_review.trusted_package_id || "package"} · {shortSha(project.autonomous_review.trusted_sha ?? "")} · run {project.autonomous_review.trusted_run_id || "—"}
+                        </small>
+                      ) : null}
                     </div>
                     <div>
                       <span>Market</span>
@@ -474,6 +495,16 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <small>{project.audit?.manual_review_required ? "manual review required" : "automated evidence only"}</small>
                     </div>
                   </div>
+                  {project.autonomous_review?.top_actions?.length ? (
+                    <div className="studio-labs">
+                      {project.autonomous_review.top_actions.slice(0, 6).map((action, index) => (
+                        <span key={`${action.bucket}-${action.kind}-${action.subject}-${index}`}>
+                          {action.bucket} · {action.kind}{action.subject ? ` · ${action.subject}` : ""}
+                          {action.evidence?.length ? ` · evidence: ${action.evidence[0]}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {project.consistency?.top_findings?.length ? (
                     <div className="studio-labs">
                       {project.consistency.top_findings.slice(0, 5).map((finding, index) => (
