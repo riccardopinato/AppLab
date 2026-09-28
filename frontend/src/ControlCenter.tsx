@@ -173,6 +173,58 @@ type Snapshot = {
   recent: RecentRow[];
 };
 
+type StudioProject = {
+  project_id: string;
+  product?: {
+    engine?: string;
+    confidence?: string;
+    capabilities?: string[];
+    screen_like_files?: number;
+  } | null;
+  ux?: { review_signals?: number } | null;
+  architecture?: {
+    review_signals?: number;
+    local_first?: string;
+  } | null;
+  market?: {
+    competitors?: number;
+    common_gap_reviews?: number;
+    differentiator_signals?: number;
+    recurring_pain_signals?: number;
+  } | null;
+  audit?: {
+    selected_lab_count?: number;
+    manual_review_required?: boolean;
+    top_labs?: Array<{ lab?: string; priority?: string }>;
+  } | null;
+};
+
+type StudioSnapshot = {
+  available: boolean;
+  generated_at: string;
+  summary: {
+    projects: number;
+    with_market: number;
+    manual_review: number;
+    recurrent_patterns: number;
+  };
+  projects: StudioProject[];
+  portfolio?: {
+    project_count?: number;
+    reusable_pattern_candidates?: Array<{
+      key?: string;
+      project_count?: number;
+      projects?: string[];
+    }>;
+    recurrent_review_signals?: Array<{
+      domain?: string;
+      key?: string;
+      project_count?: number;
+      projects?: string[];
+    }>;
+  };
+};
+
 function badgeClass(value: string) {
   if (value === "PASS" || value === "CERTIFIED" || value === "CERTIFIED_CURRENT") return "cc-badge good";
   if (value === "CERTIFIED_STALE") return "cc-badge warn";
@@ -192,7 +244,9 @@ function gate(value: string) {
 
 export default function ControlCenter({ backend }: { backend: string }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [studio, setStudio] = useState<StudioSnapshot | null>(null);
   const [error, setError] = useState("");
+  const [studioError, setStudioError] = useState("");
   const [expanded, setExpanded] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -212,11 +266,32 @@ export default function ControlCenter({ backend }: { backend: string }) {
     }
   }, [backend]);
 
+  const refreshStudio = useCallback(async () => {
+    try {
+      const response = await fetch(`${backend}/api/studio`, {
+        cache: "no-store",
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.detail || `HTTP ${response.status}`);
+      }
+      setStudio(body as StudioSnapshot);
+      setStudioError("");
+    } catch (err) {
+      setStudio(null);
+      setStudioError(err instanceof Error ? err.message : String(err));
+    }
+  }, [backend]);
+
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 15000);
+    void refreshStudio();
+    const timer = window.setInterval(() => {
+      void refresh();
+      void refreshStudio();
+    }, 15000);
     return () => window.clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, refreshStudio]);
 
   const recent = useMemo(
     () => snapshot?.recent.slice(0, expanded ? 20 : 6) || [],
@@ -245,6 +320,98 @@ export default function ControlCenter({ backend }: { backend: string }) {
       {error ? (
         <p className="runtime-error">Control Center unavailable: {error}</p>
       ) : null}
+
+      {studioError ? (
+        <p className="runtime-error">Studio unavailable: {studioError}</p>
+      ) : null}
+
+      <div className="studio-shell">
+        <div className="studio-head">
+          <div>
+            <span className="panel-kicker">APP LAB STUDIO · PRODUCT INTELLIGENCE</span>
+            <h3>Product · UX · Architecture · Market · Portfolio</h3>
+          </div>
+          <span className={studio?.available ? "cc-badge good" : "cc-badge neutral"}>
+            {studio?.available ? "EVIDENCE READY" : "NO STUDIO SNAPSHOT"}
+          </span>
+        </div>
+
+        {studio?.available ? (
+          <>
+            <div className="studio-summary">
+              <div><span>Analyzed projects</span><strong>{studio.summary.projects}</strong></div>
+              <div><span>Market evidence</span><strong>{studio.summary.with_market}</strong></div>
+              <div><span>Manual review</span><strong>{studio.summary.manual_review}</strong></div>
+              <div><span>Reusable patterns</span><strong>{studio.summary.recurrent_patterns}</strong></div>
+            </div>
+
+            <div className="studio-projects">
+              {studio.projects.map((project) => (
+                <article className="studio-project-card" key={project.project_id}>
+                  <div className="studio-project-title">
+                    <strong>{project.project_id}</strong>
+                    <span className="cc-badge neutral">{project.product?.engine ?? "unknown"}</span>
+                  </div>
+                  <div className="studio-dimensions">
+                    <div>
+                      <span>Product</span>
+                      <strong>{project.product?.capabilities?.length ?? 0}</strong>
+                      <small>{project.product?.confidence ?? "UNKNOWN"} confidence</small>
+                    </div>
+                    <div>
+                      <span>UX</span>
+                      <strong>{project.ux?.review_signals ?? 0}</strong>
+                      <small>review signals</small>
+                    </div>
+                    <div>
+                      <span>Architecture</span>
+                      <strong>{project.architecture?.review_signals ?? 0}</strong>
+                      <small>{project.architecture?.local_first ?? "UNKNOWN"}</small>
+                    </div>
+                    <div>
+                      <span>Market</span>
+                      <strong>{project.market?.competitors ?? 0}</strong>
+                      <small>
+                        {project.market
+                          ? `${project.market.common_gap_reviews ?? 0} gap review · ${project.market.differentiator_signals ?? 0} differentiators`
+                          : "no external evidence"}
+                      </small>
+                    </div>
+                    <div>
+                      <span>Audit plan</span>
+                      <strong>{project.audit?.selected_lab_count ?? 0}</strong>
+                      <small>{project.audit?.manual_review_required ? "manual review required" : "automated evidence only"}</small>
+                    </div>
+                  </div>
+                  {project.audit?.top_labs?.length ? (
+                    <div className="studio-labs">
+                      {project.audit.top_labs.slice(0, 5).map((lab) => (
+                        <span key={lab.lab}>{lab.priority} · {lab.lab}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+
+            {(studio.portfolio?.reusable_pattern_candidates?.length ?? 0) > 0 ? (
+              <div className="studio-portfolio">
+                <strong>Cross-App reusable pattern candidates</strong>
+                <div className="studio-labs">
+                  {studio.portfolio?.reusable_pattern_candidates?.slice(0, 8).map((item) => (
+                    <span key={item.key}>{item.key} · {item.project_count ?? 0} projects</span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="cc-empty studio-empty">
+            <strong>Studio evidence is optional and separate from runtime certification.</strong>
+            <span>Mount a generated <code>studio.json</code> to expose Product, UX, Architecture, Market and Cross-App evidence here.</span>
+          </div>
+        )}
+      </div>
 
       {!snapshot?.available ? (
         <div className="cc-empty">
