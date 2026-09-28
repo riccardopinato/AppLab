@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v1.5.0 — Cross-App Intelligence**
+Current production baseline: **v1.6.0 — Autonomous Audit Orchestrator**
 
 ## Product rule
 
@@ -19,6 +19,17 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v1.6.0 — Autonomous Audit Orchestrator
+
+- [x] Convert current App Intelligence evidence into an explicit per-project audit plan.
+- [x] Keep Product, UX/Product and Architecture/Data analysis mandatory for every audit.
+- [x] Select storage, persistence, upgrade, network, background, system, interaction, monetization, AI and data-lifecycle review from detected capabilities.
+- [x] Broaden review when source confidence is low or specialist findings already exist.
+- [x] Preserve core mobile runtime/visual/lifecycle/performance coverage for Flutter and native Android.
+- [x] Run Market Lab only when explicit traceable market evidence is supplied.
+- [x] Emit reasoned priorities for every selected lab.
+- [x] Preserve FAST/FULL/CERTIFICATION authority and prevent uncertainty from reducing coverage.
 
 ### v1.5.0 — Cross-App Intelligence
 
