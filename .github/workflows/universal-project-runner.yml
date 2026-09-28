@@ -177,7 +177,7 @@ jobs:
           name: applab-autodiscovery-${{ github.run_id }}
           path: applab-autodiscovery/profile.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
 
   verify_flutter:
     name: Auto Flutter verification
