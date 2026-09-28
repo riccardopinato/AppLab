@@ -180,6 +180,10 @@ type StudioProject = {
     confidence?: string;
     capabilities?: string[];
     screen_like_files?: number;
+    entity_count?: number;
+    surface_count?: number;
+    lifecycle_review_signals?: number;
+    documentation_drift_signals?: number;
   } | null;
   ux?: { review_signals?: number } | null;
   architecture?: {
@@ -356,7 +360,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                     <div>
                       <span>Product</span>
                       <strong>{project.product?.capabilities?.length ?? 0}</strong>
-                      <small>{project.product?.confidence ?? "UNKNOWN"} confidence</small>
+                      <small>{project.product?.confidence ?? "UNKNOWN"} confidence · {project.product?.entity_count ?? 0} entities · {project.product?.lifecycle_review_signals ?? 0} lifecycle review · {project.product?.documentation_drift_signals ?? 0} doc drift</small>
                     </div>
                     <div>
                       <span>UX</span>
