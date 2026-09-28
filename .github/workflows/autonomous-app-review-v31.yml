@@ -1,6 +1,18 @@
 name: AppLab True Autonomous App Review v3.1
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/autonomous-app-review-v31.yml"
+      - ".github/workflows/trusted-apk-verifier.yml"
+      - ".github/workflows/universal-project-runner.yml"
+      - "scripts/trusted_evidence_manifest.py"
+      - "scripts/autonomous_app_review.py"
+      - "scripts/behavioral_product_lab.py"
+      - "scripts/state_edge_case_lab.py"
+      - "scripts/evidence_calibration.py"
+      - "scripts/product_contract_audit.py"
+      - "scripts/decision_brief.py"
   workflow_dispatch:
     inputs:
       target_repository:
@@ -50,7 +62,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: applab-true-autonomous-review-${{ inputs.target_repository || github.repository }}-${{ inputs.target_ref || 'main' }}
+  group: applab-true-autonomous-review-${{ github.event.pull_request.head.repo.full_name || inputs.target_repository || github.repository }}-${{ github.event.pull_request.head.sha || inputs.target_ref || 'main' }}
   cancel-in-progress: true
 
 jobs:
@@ -66,13 +78,25 @@ jobs:
         id: target
         shell: bash
         env:
+          EVENT_NAME: ${{ github.event_name }}
           INPUT_REPOSITORY: ${{ inputs.target_repository }}
           INPUT_REF: ${{ inputs.target_ref }}
+          PR_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -Eeuo pipefail
-          REPOSITORY="${INPUT_REPOSITORY:-}"
-          SOURCE_REF="${INPUT_REF:-main}"
-          [[ -n "$REPOSITORY" ]] || REPOSITORY="${{ github.repository }}"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            REPOSITORY="$PR_REPOSITORY"
+            SOURCE_REF="$PR_SHA"
+          else
+            REPOSITORY="${INPUT_REPOSITORY:-}"
+            SOURCE_REF="${INPUT_REF:-main}"
+            [[ -n "$REPOSITORY" ]] || REPOSITORY="${{ github.repository }}"
+          fi
+          [[ -n "$REPOSITORY" && -n "$SOURCE_REF" ]] || {
+            echo "Unable to resolve autonomous review target." >&2
+            exit 2
+          }
           echo "repository=$REPOSITORY" >> "$GITHUB_OUTPUT"
           echo "source_ref=$SOURCE_REF" >> "$GITHUB_OUTPUT"
 
@@ -161,7 +185,7 @@ jobs:
       - name: Run True Autonomous App Review
         shell: bash
         env:
-          MAX_FILES: ${{ inputs.max_files }}
+          MAX_FILES: ${{ inputs.max_files || '3500' }}
         run: |
           set -Eeuo pipefail
           python .applab/scripts/autonomous_app_review.py             --repo-root "$GITHUB_WORKSPACE/target"             --runtime-evidence-dir "$GITHUB_WORKSPACE/trusted-runtime"             --expected-repository "${{ needs.resolve.outputs.repository }}"             --expected-sha "${{ needs.resolve.outputs.resolved_sha }}"             --expected-run-id "$GITHUB_RUN_ID"             --require-trusted-runtime             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"             --max-files "${MAX_FILES:-3500}"
