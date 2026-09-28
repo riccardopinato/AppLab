@@ -1,0 +1,137 @@
+name: AppLab Autonomous Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: "Target repository in owner/name form. Empty = this repository."
+        required: false
+        default: ""
+        type: string
+      target_ref:
+        description: "Branch, tag or SHA to analyze."
+        required: false
+        default: "main"
+        type: string
+      market_evidence_path:
+        description: "Optional market evidence path from AppLab or target checkout."
+        required: false
+        default: ""
+        type: string
+  workflow_call:
+    inputs:
+      target_repository:
+        required: false
+        default: ""
+        type: string
+      target_ref:
+        required: false
+        default: "main"
+        type: string
+      market_evidence_path:
+        required: false
+        default: ""
+        type: string
+    secrets:
+      APPLAB_TARGET_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Autonomous audit planning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .applab
+          persist-credentials: false
+
+      - name: Resolve target
+        id: target
+        shell: bash
+        env:
+          INPUT_REPOSITORY: ${{ inputs.target_repository }}
+          INPUT_REF: ${{ inputs.target_ref }}
+        run: |
+          set -Eeuo pipefail
+          REPOSITORY="${INPUT_REPOSITORY:-}"
+          REF="${INPUT_REF:-main}"
+          [[ -n "$REPOSITORY" ]] || REPOSITORY="${{ github.repository }}"
+          echo "repository=$REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout target repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.target.outputs.repository }}
+          ref: ${{ steps.target.outputs.ref }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+          token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
+
+      - name: Build App Intelligence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/app_intelligence.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --output-dir "$GITHUB_WORKSPACE/applab-intelligence"
+
+      - name: Resolve optional market evidence
+        id: market
+        shell: bash
+        env:
+          MARKET_PATH: ${{ inputs.market_evidence_path }}
+        run: |
+          set -Eeuo pipefail
+          FILE=""
+          if [[ -n "$MARKET_PATH" ]]; then
+            case "$MARKET_PATH" in
+              /*|*../*|../*|*/..) echo "Unsafe market_evidence_path" >&2; exit 1 ;;
+            esac
+            if [[ -f "$GITHUB_WORKSPACE/.applab/$MARKET_PATH" ]]; then
+              FILE="$GITHUB_WORKSPACE/.applab/$MARKET_PATH"
+            elif [[ -f "$GITHUB_WORKSPACE/target/$MARKET_PATH" ]]; then
+              FILE="$GITHUB_WORKSPACE/target/$MARKET_PATH"
+            else
+              echo "Market evidence not found: $MARKET_PATH" >&2
+              exit 1
+            fi
+          fi
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Build autonomous audit plan
+        shell: bash
+        env:
+          MARKET_FILE: ${{ steps.market.outputs.file }}
+        run: |
+          set -Eeuo pipefail
+          ARGS=(
+            --app-intelligence "$GITHUB_WORKSPACE/applab-intelligence/app-intelligence.json"
+            --output-dir "$GITHUB_WORKSPACE/applab-audit-plan"
+          )
+          if [[ -n "$MARKET_FILE" ]]; then
+            ARGS+=(--market-evidence "$MARKET_FILE")
+          fi
+          python .applab/scripts/audit_orchestrator.py "${ARGS[@]}"
+
+      - name: Publish audit plan
+        shell: bash
+        run: cat "$GITHUB_WORKSPACE/applab-audit-plan/audit-plan.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit plan evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: applab-autonomous-audit-${{ github.run_id }}
+          path: |
+            applab-intelligence/
+            applab-audit-plan/
+          if-no-files-found: error
+          retention-days: 30
