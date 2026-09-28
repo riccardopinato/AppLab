@@ -1,3 +1,20 @@
+## v2.0.0 — AppLab Studio
+
+AppLab Studio unifies the platform's two evidence planes in one Control Center:
+trusted build/runtime/certification state and advisory product intelligence.
+
+A separate Studio snapshot exposes Product, UX, Architecture, Market, Cross-App
+and Autonomous Audit evidence without contaminating technical PASS/FAIL. Missing
+Studio evidence is non-fatal: the existing quality dashboard remains available.
+
+Build a Studio snapshot with:
+
+```bash
+python scripts/studio_snapshot.py --evidence-root evidence --output studio.json
+```
+
+See `integration/intelligence/APPLAB_STUDIO.md`.
+
 ## v1.6.0 — Autonomous Audit Orchestrator
 
 AppLab can now turn current Product/UX/Architecture evidence into an explicit
