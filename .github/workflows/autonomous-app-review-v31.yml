@@ -13,6 +13,9 @@ on:
       - "scripts/state_edge_case_lab.py"
       - "scripts/evidence_calibration.py"
       - "scripts/evidence_confidence_engine.py"
+      - "scripts/journey_crawler.py"
+      - "scripts/user_journey_intelligence.py"
+      - "scripts/verify_apk.sh"
       - "scripts/product_contract_audit.py"
       - "scripts/decision_brief.py"
   workflow_dispatch:
