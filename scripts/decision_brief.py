@@ -218,10 +218,10 @@ def self_test() -> None:
     ux = {
         "findings": [
             {
-                "kind": "ACTION_WITHOUT_OBSERVED_FEEDBACK",
+                "kind": "STABLE_SIGNATURE_AFTER_ACTION_CANDIDATE",
                 "severity": "REVIEW",
                 "subject": "Search",
-                "message": "no feedback",
+                "message": "stable reduced signature",
                 "evidence": ["journey/after.xml"],
             }
         ]
