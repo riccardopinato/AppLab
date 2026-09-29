@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v3.6.0 — Autonomous Experiment Planner**
+Current production baseline: **v4.0.0 — AppLab Analyst**
 
 ## Product rule
 
@@ -19,6 +19,19 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v4.0.0 — AppLab Analyst
+
+- [x] Synthesize product, runtime, evidence, longitudinal and experiment evidence into one deterministic report.
+- [x] Preserve source-report provenance rather than replacing underlying evidence.
+- [x] Expose descriptive Analyst states without creating a release verdict or numeric score.
+- [x] Build evidence-backed observations only from existing AppLab evidence.
+- [x] Derive next actions only from FIX_NOW, Experiment Planner and IMPROVE evidence.
+- [x] Distinguish product context, evidence posture, change context and experiment context.
+- [x] Include market context only when traceable Market Intelligence already exists.
+- [x] Add explicit "do not conclude" boundaries to prevent overclaiming.
+- [x] Surface Analyst state, headline, observations and actions in AppLab Studio.
+- [x] Keep LLM usage optional: v4.0 core analysis is deterministic and local to AppLab evidence.
 
 ### v3.6.0 — Autonomous Experiment Planner
 
