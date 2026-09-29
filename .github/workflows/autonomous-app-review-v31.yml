@@ -7,6 +7,7 @@ on:
       - ".github/workflows/trusted-apk-verifier.yml"
       - ".github/workflows/universal-project-runner.yml"
       - "scripts/trusted_evidence_manifest.py"
+      - "scripts/project_autodiscover.py"
       - "scripts/autonomous_app_review.py"
       - "scripts/behavioral_product_lab.py"
       - "scripts/state_edge_case_lab.py"
