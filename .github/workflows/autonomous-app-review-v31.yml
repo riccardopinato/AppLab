@@ -128,7 +128,7 @@ jobs:
       repository: ${{ needs.resolve.outputs.repository }}
       ref: ${{ needs.resolve.outputs.resolved_sha }}
       source_ref: ${{ needs.resolve.outputs.source_ref }}
-      run_maestro: ${{ inputs.run_maestro }}
+      run_maestro: ${{ github.event_name == 'pull_request' || inputs.run_maestro }}
       history_key: autonomous-review-v31
       cache_verification: false
       contract_fingerprint: autonomous-review-v31
