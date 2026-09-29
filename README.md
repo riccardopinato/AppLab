@@ -1,3 +1,15 @@
+## v3.4.0 — UX Friction & Discoverability Lab
+
+AppLab now turns trusted user-journey evidence into traceable UX review signals:
+actions without observed feedback, navigation-loop candidates, high clickable
+density, deep-path candidates, ambiguous runtime labels, core-surface
+discoverability gaps and unverified edge states.
+
+The lab produces diagnostics rather than an overall UX score. UX findings enter
+VERIFY_NEXT/IMPROVE and can never automatically become FIX_NOW.
+
+See `integration/intelligence/UX_FRICTION_DISCOVERABILITY_LAB.md`.
+
 ## v3.3.0 — User Journey Intelligence
 
 AppLab now performs bounded safe multi-step runtime exploration during non-FAST

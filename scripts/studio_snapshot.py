@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "3.3.0"
+STUDIO_VERSION = "3.4.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -53,13 +53,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     calibration = read_json(project_dir / "evidence-calibration.json")
     evidence_confidence = read_json(project_dir / "evidence-confidence.json")
     user_journey = read_json(project_dir / "user-journey.json")
+    ux_friction = read_json(project_dir / "ux-friction.json")
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, contract, brief, autonomous)
     ):
         return None
 
@@ -73,6 +74,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "change": None,
         "evidence_confidence": None,
         "user_journey": None,
+        "ux_friction": None,
         "autonomous_review": None,
     }
 
@@ -260,6 +262,40 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
             "resolved_findings": int(summary.get("resolved_findings", 0) or 0),
             "new_high_review": int(summary.get("new_high_review", 0) or 0),
             "new_review": int(summary.get("new_review", 0) or 0),
+        }
+
+    if ux_friction:
+        ux_summary = (
+            ux_friction.get("summary")
+            if isinstance(ux_friction.get("summary"), dict)
+            else {}
+        )
+        ux_findings = (
+            ux_friction.get("findings")
+            if isinstance(ux_friction.get("findings"), list)
+            else []
+        )
+        row["ux_friction"] = {
+            "runtime_transitions": int(ux_summary.get("runtime_transitions", 0) or 0),
+            "no_change_actions": int(ux_summary.get("no_change_actions", 0) or 0),
+            "no_change_share": float(ux_summary.get("no_change_share", 0.0) or 0.0),
+            "review_signals": int(ux_summary.get("review_signals", 0) or 0),
+            "info_signals": int(ux_summary.get("info_signals", 0) or 0),
+            "by_category": (
+                ux_summary.get("by_category", {})
+                if isinstance(ux_summary.get("by_category"), dict)
+                else {}
+            ),
+            "top_findings": [
+                {
+                    "category": str(item.get("category", "")),
+                    "kind": str(item.get("kind", "")),
+                    "severity": str(item.get("severity", "")),
+                    "subject": str(item.get("subject", "")),
+                }
+                for item in ux_findings[:8]
+                if isinstance(item, dict)
+            ],
         }
 
     if user_journey:
@@ -578,6 +614,16 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
                 for row in projects
                 if isinstance(row.get("user_journey"), dict)
             ),
+            "ux_review_signals": sum(
+                int((row.get("ux_friction") or {}).get("review_signals", 0) or 0)
+                for row in projects
+                if isinstance(row.get("ux_friction"), dict)
+            ),
+            "ux_no_change_actions": sum(
+                int((row.get("ux_friction") or {}).get("no_change_actions", 0) or 0)
+                for row in projects
+                if isinstance(row.get("ux_friction"), dict)
+            ),
         },
         "projects": projects,
         "portfolio": portfolio,
@@ -691,6 +737,29 @@ def self_test() -> None:
                         "verify_next": 3,
                         "contract_review_signals": 2,
                     },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (project / "ux-friction.json").write_text(
+            json.dumps(
+                {
+                    "summary": {
+                        "runtime_transitions": 4,
+                        "no_change_actions": 1,
+                        "no_change_share": 0.25,
+                        "review_signals": 2,
+                        "info_signals": 1,
+                        "by_category": {"feedback": 1, "discoverability": 2},
+                    },
+                    "findings": [
+                        {
+                            "category": "feedback",
+                            "kind": "STABLE_SIGNATURE_AFTER_ACTION_CANDIDATE",
+                            "severity": "REVIEW",
+                            "subject": "Search",
+                        }
+                    ],
                 }
             ),
             encoding="utf-8",
@@ -834,6 +903,10 @@ def self_test() -> None:
         assert snapshot["projects"][0]["user_journey"]["max_observed_depth"] == 2
         assert snapshot["summary"]["journeys_observed"] == 2
         assert snapshot["summary"]["journey_review_signals"] == 1
+        assert snapshot["projects"][0]["ux_friction"]["review_signals"] == 2
+        assert snapshot["projects"][0]["ux_friction"]["no_change_share"] == 0.25
+        assert snapshot["summary"]["ux_review_signals"] == 2
+        assert snapshot["summary"]["ux_no_change_actions"] == 1
         assert snapshot["projects"][0]["market"]["competitors"] == 3
         assert snapshot["projects"][0]["audit"]["selected_lab_count"] == 4
         print("AppLab Studio snapshot self-test PASS")

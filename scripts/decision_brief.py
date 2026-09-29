@@ -9,17 +9,19 @@ from typing import Any
 from product_review_common import load_json, write_report
 
 SCHEMA_VERSION = 1
-LAB_VERSION = "3.1.0"
+LAB_VERSION = "3.4.0"
 
 
 def build_report(
     calibration: dict[str, Any] | None,
     contract: dict[str, Any] | None,
     app: dict[str, Any] | None,
+    ux_friction: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     calibration = calibration or {}
     contract = contract or {}
     app = app or {}
+    ux_friction = ux_friction or {}
     buckets = {"FIX_NOW": [], "VERIFY_NEXT": [], "IMPROVE": [], "NO_ACTION": []}
     seen: set[tuple[str, str, str, str]] = set()
 
@@ -99,6 +101,22 @@ def build_report(
             "PRODUCT_CONTRACT",
         )
 
+    for row in ux_friction.get("findings", []):
+        if not isinstance(row, dict):
+            continue
+        severity = str(row.get("severity", "INFO")).upper()
+        bucket = "VERIFY_NEXT" if severity in {"HIGH_REVIEW", "REVIEW"} else "IMPROVE"
+        evidence = row.get("evidence", []) if isinstance(row.get("evidence"), list) else []
+        add(
+            bucket,
+            "ux-friction",
+            str(row.get("kind", "")),
+            str(row.get("subject", "")),
+            str(row.get("message", "")),
+            evidence,
+            "RUNTIME_UX_REVIEW" if evidence else "UX_REVIEW_CANDIDATE",
+        )
+
     lifecycle = app.get("lifecycle_integrity") if isinstance(app.get("lifecycle_integrity"), dict) else {}
     lifecycle_findings = (
         lifecycle.get("findings") if isinstance(lifecycle.get("findings"), list) else []
@@ -129,6 +147,7 @@ def build_report(
         "guardrails": {
             "fix_now_requires_high_confidence_runtime_evidence": True,
             "product_contract_findings_never_auto_fix": True,
+            "ux_friction_findings_never_auto_fix": True,
             "no_feature_generation": True,
             "no_numeric_score": True,
             "no_action_items_without_evidence_basis": True,
@@ -196,9 +215,25 @@ def self_test() -> None:
             }
         ]
     }
-    r = build_report(calibration, contract, {"lifecycle_integrity": {"findings": []}})
+    ux = {
+        "findings": [
+            {
+                "kind": "STABLE_SIGNATURE_AFTER_ACTION_CANDIDATE",
+                "severity": "REVIEW",
+                "subject": "Search",
+                "message": "stable reduced signature",
+                "evidence": ["journey/after.xml"],
+            }
+        ]
+    }
+    r = build_report(
+        calibration,
+        contract,
+        {"lifecycle_integrity": {"findings": []}},
+        ux,
+    )
     assert len(r["buckets"]["FIX_NOW"]) == 1
-    assert len(r["buckets"]["VERIFY_NEXT"]) == 2
+    assert len(r["buckets"]["VERIFY_NEXT"]) == 3
     assert len(r["buckets"]["NO_ACTION"]) == 1
     print("AppLab Decision & Opportunity Brief self-test PASS")
 
@@ -208,6 +243,7 @@ def main() -> int:
     p.add_argument("--calibration")
     p.add_argument("--product-contract")
     p.add_argument("--app-intelligence")
+    p.add_argument("--ux-friction")
     p.add_argument("--output-dir", default="applab-decision-brief")
     p.add_argument("--self-test", action="store_true")
     a = p.parse_args()
@@ -218,6 +254,7 @@ def main() -> int:
         load_json(Path(a.calibration)) if a.calibration else None,
         load_json(Path(a.product_contract)) if a.product_contract else None,
         load_json(Path(a.app_intelligence)) if a.app_intelligence else None,
+        load_json(Path(a.ux_friction)) if a.ux_friction else None,
     )
     write_report(Path(a.output_dir), "decision-brief", r, markdown(r))
     print(json.dumps({"lab_version": LAB_VERSION, **r["summary"]}))

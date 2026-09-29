@@ -17,10 +17,11 @@ import product_contract_audit
 import state_edge_case_lab
 import trusted_evidence_manifest
 import user_journey_intelligence
+import ux_friction_lab
 from product_review_common import find_json, write_report
 
 SCHEMA_VERSION = 2
-PLATFORM_VERSION = "3.3.0"
+PLATFORM_VERSION = "3.4.0"
 
 
 def build_review(
@@ -52,7 +53,8 @@ def build_review(
     user_journey = user_journey_intelligence.build_report(
         app, behavioral, journey_crawl
     )
-    brief = decision_brief.build_report(calibration, contract, app)
+    ux_friction = ux_friction_lab.build_report(app, user_journey, states)
+    brief = decision_brief.build_report(calibration, contract, app, ux_friction)
     audit = audit_orchestrator.build_plan(app, has_market_evidence=False)
 
     runtime_state = str(behavioral.get("runtime_evidence_state", "NOT_OBSERVED"))
@@ -67,6 +69,9 @@ def build_review(
     journey_review_signals = int(
         (user_journey.get("summary") or {}).get("review_signals", 0) or 0
     )
+    ux_review_signals = int(
+        (ux_friction.get("summary") or {}).get("review_signals", 0) or 0
+    )
 
     if not runtime_trusted:
         review_state = "EVIDENCE_INCOMPLETE"
@@ -74,7 +79,7 @@ def build_review(
         review_state = "ATTENTION_REQUIRED"
     elif runtime_state == "NOT_OBSERVED":
         review_state = "EVIDENCE_INCOMPLETE"
-    elif contradiction_count or journey_review_signals or verify_next:
+    elif contradiction_count or journey_review_signals or ux_review_signals or verify_next:
         review_state = "REVIEW_REQUIRED"
     else:
         review_state = "READY_FOR_HUMAN_REVIEW"
@@ -97,6 +102,7 @@ def build_review(
         "evidence_calibration": calibration,
         "evidence_confidence": evidence_confidence,
         "user_journey": user_journey,
+        "ux_friction": ux_friction,
         "product_contract": contract,
         "decision_brief": brief,
         "audit_plan": audit,
@@ -125,6 +131,10 @@ def build_review(
             "journey_transitions_observed": int((user_journey.get("summary") or {}).get("transitions_observed", 0) or 0),
             "journey_max_depth": int((user_journey.get("summary") or {}).get("max_observed_depth", 0) or 0),
             "journey_review_signals": journey_review_signals,
+            "ux_review_signals": ux_review_signals,
+            "ux_info_signals": int((ux_friction.get("summary") or {}).get("info_signals", 0) or 0),
+            "ux_no_change_actions": int((ux_friction.get("summary") or {}).get("no_change_actions", 0) or 0),
+            "ux_no_change_share": float((ux_friction.get("summary") or {}).get("no_change_share", 0.0) or 0.0),
             "contract_review_signals": int((contract.get("summary") or {}).get("review_signals", 0) or 0),
         },
         "guardrails": {
@@ -148,6 +158,7 @@ def write_full(review: dict[str, Any], output_dir: Path) -> None:
         ("evidence-calibration", review["evidence_calibration"], evidence_calibration.markdown(review["evidence_calibration"])),
         ("evidence-confidence", review["evidence_confidence"], evidence_confidence_engine.markdown(review["evidence_confidence"])),
         ("user-journey", review["user_journey"], user_journey_intelligence.markdown(review["user_journey"])),
+        ("ux-friction", review["ux_friction"], ux_friction_lab.markdown(review["ux_friction"])),
         ("product-contract-audit", review["product_contract"], product_contract_audit.markdown(review["product_contract"])),
         ("decision-brief", review["decision_brief"], decision_brief.markdown(review["decision_brief"])),
     ]
@@ -162,7 +173,7 @@ def write_full(review: dict[str, Any], output_dir: Path) -> None:
     summary = review["summary"]
     trust = review["runtime_evidence_trust"]
     lines = [
-        "# AppLab v3.3 — Journey-Aware Autonomous App Review",
+        "# AppLab v3.4 — UX-Aware Autonomous App Review",
         "",
         f"- Review state: **{review['review_state']}**",
         f"- Runtime trust: **{trust['state']}**",
@@ -176,6 +187,8 @@ def write_full(review: dict[str, Any], output_dir: Path) -> None:
         f"- Runtime journeys observed: **{summary['journeys_observed']}**",
         f"- Journey states/transitions: **{summary['journey_states_observed']}/{summary['journey_transitions_observed']}**",
         f"- Max observed journey depth: **{summary['journey_max_depth']}**",
+        f"- UX review signals: **{summary['ux_review_signals']}**",
+        f"- UX no-change actions: **{summary['ux_no_change_actions']}**",
         f"- Fix now: **{summary['fix_now']}**",
         f"- Verify next: **{summary['verify_next']}**",
         f"- Selected specialist labs: **{summary['selected_labs']}**",
@@ -205,6 +218,7 @@ def write_full(review: dict[str, Any], output_dir: Path) -> None:
                 "evidence_calibration",
                 "evidence_confidence",
                 "user_journey",
+                "ux_friction",
                 "product_contract",
                 "decision_brief",
                 "audit_plan",
@@ -343,12 +357,14 @@ def self_test() -> None:
             require_trusted=True,
         )
         review = build_review(root, runtime_root, 100, trust)
-        assert review["platform_version"] == "3.3.0"
+        assert review["platform_version"] == "3.4.0"
         assert review["summary"]["runtime_evidence_trusted"] is True
         assert review["summary"]["evidence_claims"] >= 1
         assert "evidence_confidence" in review
         assert "user_journey" in review
         assert review["summary"]["journeys_observed"] >= 0
+        assert "ux_friction" in review
+        assert review["summary"]["ux_review_signals"] >= 0
         assert review["runtime_evidence_trust"]["state"] == "TRUSTED"
 
         untrusted = build_review(root, evidence, 100, {"trusted": False, "state": "REJECTED"})

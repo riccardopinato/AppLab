@@ -568,7 +568,7 @@ if [[ "$ANALYSIS_MODE" != "fast" ]]; then
   python3 "$(dirname "$0")/journey_crawler.py" \
     --package-id "$PACKAGE_ID" \
     --report-dir "$REPORT_DIR" \
-    --max-depth 2 \
+    --max-depth 3 \
     --max-states 8 \
     --max-transitions 12 \
     --max-actions-per-state 3 \

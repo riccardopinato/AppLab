@@ -264,6 +264,7 @@ def build_report(
             "edge_count": len(static_edges),
             "runtime_matched_surface_count": len(matched_surfaces),
             "runtime_unmatched_surface_count": len(unobserved_static),
+            "runtime_unmatched_surfaces": unobserved_static,
             "shortest_distances": static_distances,
         },
         "journeys": journeys,

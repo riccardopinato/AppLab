@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v3.3.0 — User Journey Intelligence**
+Current production baseline: **v3.4.0 — UX Friction & Discoverability Lab**
 
 ## Product rule
 
@@ -19,6 +19,20 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v3.4.0 — UX Friction & Discoverability Lab
+
+- [x] Detect safe runtime actions whose reduced crawler signature remains stable, without claiming visual feedback is absent.
+- [x] Detect repeated stable-signature patterns without treating them as automatic defects.
+- [x] Surface navigation-loop candidates from trusted journeys.
+- [x] Surface deep-journey candidates while excluding obvious settings/help-style paths.
+- [x] Detect high clickable-density states as inspectable heuristics.
+- [x] Detect ambiguous runtime labels from one state to multiple targets.
+- [x] Review discoverability of unmatched core-role static surfaces.
+- [x] Surface unverified empty/error/permission-denied UX states.
+- [x] Route UX findings into VERIFY_NEXT/IMPROVE, never automatic FIX_NOW.
+- [x] Expose UX friction metrics and findings in AppLab Studio.
+
 
 ### v3.3.0 — User Journey Intelligence
 
