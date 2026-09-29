@@ -239,6 +239,25 @@ type StudioProject = {
     new_high_review?: number;
     new_review?: number;
   } | null;
+  longitudinal?: {
+    state?: string;
+    history_snapshots?: number;
+    baseline_available?: boolean;
+    baseline_sha?: string;
+    new_findings?: number;
+    returned_findings?: number;
+    persistent_findings?: number;
+    resolved_findings?: number;
+    severity_escalations?: number;
+    claim_status_changes?: number;
+    regression_candidates?: number;
+    top_regressions?: Array<{
+      source?: string;
+      kind?: string;
+      subject?: string;
+      reason?: string;
+    }>;
+  } | null;
   ux_friction?: {
     runtime_transitions?: number;
     no_change_actions?: number;
@@ -324,6 +343,8 @@ type StudioSnapshot = {
     recurrent_patterns: number;
     with_change_intelligence?: number;
     change_attention?: number;
+    with_longitudinal_intelligence?: number;
+    longitudinal_attention?: number;
     autonomous_reviews?: number;
     autonomous_attention?: number;
     runtime_observed?: number;
@@ -527,6 +548,15 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       </small>
                     </div>
                     <div>
+                      <span>Longitudinal</span>
+                      <strong>{project.longitudinal?.state ?? "—"}</strong>
+                      <small>
+                        {project.longitudinal
+                          ? `${project.longitudinal.history_snapshots ?? 0} history · ${project.longitudinal.new_findings ?? 0} new · ${project.longitudinal.returned_findings ?? 0} returned · ${project.longitudinal.resolved_findings ?? 0} resolved · ${project.longitudinal.regression_candidates ?? 0} regression candidates`
+                          : "no longitudinal baseline"}
+                      </small>
+                    </div>
+                    <div>
                       <span>Evidence</span>
                       <strong>{project.evidence_confidence?.contradiction_count ?? 0}</strong>
                       <small>
@@ -582,6 +612,15 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <small>{project.audit?.manual_review_required ? "manual review required" : "automated evidence only"}</small>
                     </div>
                   </div>
+                  {project.longitudinal?.top_regressions?.length ? (
+                    <div className="studio-labs">
+                      {project.longitudinal.top_regressions.slice(0, 6).map((item, index) => (
+                        <span key={`longitudinal-${item.source}-${item.kind}-${item.subject}-${index}`}>
+                          REGRESSION REVIEW · {item.source} · {item.kind}{item.subject ? ` · ${item.subject}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {project.ux_friction?.top_findings?.length ? (
                     <div className="studio-labs">
                       {project.ux_friction.top_findings.slice(0, 6).map((item, index) => (
