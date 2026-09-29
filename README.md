@@ -1,3 +1,16 @@
+## v3.5.0 — Longitudinal Product Intelligence
+
+AppLab now compares successive trusted Autonomous Review snapshots for the same
+repository and tracks finding lifecycle over time: new, returned, persistent and
+resolved findings, severity transitions, evidence-claim status changes and
+product-level deltas.
+
+Regression candidates remain advisory and never alter runtime PASS/FAIL or
+CERTIFICATION. Trusted review history is repository-scoped, bounded to 20
+snapshots and surfaced in AppLab Studio.
+
+See `integration/intelligence/LONGITUDINAL_PRODUCT_INTELLIGENCE.md`.
+
 ## v3.4.0 — UX Friction & Discoverability Lab
 
 AppLab now turns trusted user-journey evidence into traceable UX review signals:
