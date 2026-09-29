@@ -19,6 +19,26 @@ NON_CORE_DEEP_LABELS = {
 }
 
 
+def graph_has_path(adjacency: dict[str, set[str]], start: str, goal: str) -> bool:
+    if not start or not goal:
+        return False
+    pending = [start]
+    seen: set[str] = set()
+    while pending:
+        current = pending.pop()
+        if current == goal:
+            return True
+        if current in seen:
+            continue
+        seen.add(current)
+        pending.extend(
+            target
+            for target in adjacency.get(current, set())
+            if target not in seen
+        )
+    return False
+
+
 def finding(
     *,
     kind: str,
@@ -76,14 +96,15 @@ def build_report(
         ]
         findings.append(
             finding(
-                kind="ACTION_WITHOUT_OBSERVED_FEEDBACK",
+                kind="STABLE_SIGNATURE_AFTER_ACTION_CANDIDATE",
                 category="feedback",
                 severity="REVIEW",
                 confidence="MEDIUM",
                 subject=str(action.get("label", "")),
                 message=(
-                    "A safe trusted-runtime action produced no observable UI-state change. "
-                    "Verify whether the action has sufficient visible feedback or an intentional invisible side effect."
+                    "A safe trusted-runtime action left the crawler's reduced stable signature unchanged. "
+                    "The signature normalizes digits and omits some visual/accessibility state, so verify "
+                    "actual feedback before treating this as UX friction."
                 ),
                 evidence=evidence,
                 state_id=str(row.get("from", "")),
@@ -93,14 +114,14 @@ def build_report(
     if len(no_change) >= 2:
         findings.append(
             finding(
-                kind="REPEATED_NO_FEEDBACK_PATTERN",
+                kind="REPEATED_STABLE_SIGNATURE_PATTERN",
                 category="feedback",
                 severity="REVIEW",
                 confidence="MEDIUM",
                 subject="runtime-journeys",
                 message=(
-                    "Multiple safe runtime actions produced no observable UI-state change "
-                    "during bounded journey exploration."
+                    "Multiple safe runtime actions left the crawler's reduced stable signature unchanged "
+                    "during bounded journey exploration. Verify visual/accessibility feedback before drawing conclusions."
                 ),
             )
         )
@@ -136,10 +157,17 @@ def build_report(
     transition_evidence: dict[tuple[str, str], list[str]] = defaultdict(list)
     for row in transitions:
         action = row.get("action") if isinstance(row.get("action"), dict) else {}
-        source = str(row.get("from", ""))
+        source = str(row.get("from", "")).strip()
         label = str(action.get("label", "")).strip()
-        target = str(row.get("to", ""))
-        if not source or not label or not target:
+        raw_target = row.get("to")
+        target = raw_target.strip() if isinstance(raw_target, str) else ""
+        if (
+            str(row.get("status", "")) != "CHANGED"
+            or not bool(row.get("state_changed"))
+            or not source
+            or not label
+            or not target
+        ):
             continue
         key = (source, label.lower())
         by_source_label[key].add(target)
@@ -169,8 +197,29 @@ def build_report(
             )
         )
 
+    changed_adjacency: dict[str, set[str]] = defaultdict(set)
     for row in transitions:
-        if not bool(row.get("target_seen_before")) or row.get("to") == row.get("from"):
+        if str(row.get("status", "")) != "CHANGED" or not bool(row.get("state_changed")):
+            continue
+        source = row.get("from")
+        target = row.get("to")
+        if isinstance(source, str) and isinstance(target, str) and source and target and source != target:
+            changed_adjacency[source].add(target)
+
+    for row in transitions:
+        source = row.get("from")
+        target = row.get("to")
+        if (
+            not bool(row.get("target_seen_before"))
+            or not isinstance(source, str)
+            or not isinstance(target, str)
+            or not source
+            or not target
+            or source == target
+            or str(row.get("status", "")) != "CHANGED"
+            or not bool(row.get("state_changed"))
+            or not graph_has_path(changed_adjacency, target, source)
+        ):
             continue
         action = row.get("action") if isinstance(row.get("action"), dict) else {}
         findings.append(
@@ -237,12 +286,25 @@ def build_report(
         if isinstance(user_journey.get("findings"), list)
         else []
     )
-    unverified = {
-        str(row.get("subject", ""))
-        for row in journey_findings
-        if isinstance(row, dict)
-        and str(row.get("kind", "")) == "STATIC_SURFACE_JOURNEY_UNVERIFIED"
-    }
+    static_journey_graph = (
+        user_journey.get("static_graph")
+        if isinstance(user_journey.get("static_graph"), dict)
+        else {}
+    )
+    raw_unverified = static_journey_graph.get("runtime_unmatched_surfaces")
+    if isinstance(raw_unverified, list):
+        unverified = {
+            str(value)
+            for value in raw_unverified
+            if isinstance(value, str) and value
+        }
+    else:
+        unverified = {
+            str(row.get("subject", ""))
+            for row in journey_findings
+            if isinstance(row, dict)
+            and str(row.get("kind", "")) == "STATIC_SURFACE_JOURNEY_UNVERIFIED"
+        }
     for node in nodes:
         if not isinstance(node, dict):
             continue
@@ -388,6 +450,22 @@ def self_test() -> None:
                     "target_seen_before": False,
                     "action": {"label": "Open"},
                 },
+                {
+                    "from": "root",
+                    "to": None,
+                    "status": "OBSERVATION_WARN",
+                    "state_changed": False,
+                    "target_seen_before": False,
+                    "action": {"label": "Open"},
+                },
+                {
+                    "from": "other",
+                    "to": "settings",
+                    "status": "CHANGED",
+                    "state_changed": True,
+                    "target_seen_before": True,
+                    "action": {"label": "Converge"},
+                },
             ],
         },
         "journeys": [
@@ -397,12 +475,10 @@ def self_test() -> None:
                 "steps": ["Open", "Browse", "Item"],
             }
         ],
-        "findings": [
-            {
-                "kind": "STATIC_SURFACE_JOURNEY_UNVERIFIED",
-                "subject": "search.dart",
-            }
-        ],
+        "findings": [],
+        "static_graph": {
+            "runtime_unmatched_surfaces": ["search.dart"],
+        },
     }
     state_edge = {
         "states": {
@@ -418,11 +494,13 @@ def self_test() -> None:
     }
     report = build_report(app, user_journey, state_edge)
     kinds = {row["kind"] for row in report["findings"]}
-    assert "ACTION_WITHOUT_OBSERVED_FEEDBACK" in kinds
+    assert "STABLE_SIGNATURE_AFTER_ACTION_CANDIDATE" in kinds
     assert "HIGH_CLICKABLE_DENSITY_CANDIDATE" in kinds
     assert "CORE_SURFACE_DISCOVERABILITY_UNVERIFIED" in kinds
     assert "DEEP_JOURNEY_CANDIDATE" in kinds
     assert "UX_EDGE_STATE_UNVERIFIED" in kinds
+    assert "AMBIGUOUS_RUNTIME_ACTION_LABEL" not in kinds
+    assert "NAVIGATION_LOOP_CANDIDATE" not in kinds
     print("AppLab UX Friction & Discoverability Lab self-test PASS")
 
 
