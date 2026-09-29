@@ -189,7 +189,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: .applab-longitudinal
-          key: applab-longitudinal-${{ steps.longitudinal_scope.outputs.scope }}-${{ github.run_id }}
+          key: applab-longitudinal-${{ steps.longitudinal_scope.outputs.scope }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             applab-longitudinal-${{ steps.longitudinal_scope.outputs.scope }}-
 
@@ -232,7 +232,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: .applab-longitudinal
-          key: applab-longitudinal-${{ steps.longitudinal_scope.outputs.scope }}-${{ github.run_id }}
+          key: applab-longitudinal-${{ steps.longitudinal_scope.outputs.scope }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Publish v3.5 review
         shell: bash
