@@ -16,6 +16,7 @@ on:
       - "scripts/journey_crawler.py"
       - "scripts/user_journey_intelligence.py"
       - "scripts/ux_friction_lab.py"
+      - "scripts/longitudinal_product_intelligence.py"
       - "scripts/verify_apk.sh"
       - "scripts/product_contract_audit.py"
       - "scripts/decision_brief.py"
@@ -176,6 +177,22 @@ jobs:
           ACTUAL="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
           test "$ACTUAL" = "${{ needs.resolve.outputs.resolved_sha }}"
 
+      - name: Resolve longitudinal history scope
+        id: longitudinal_scope
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          SCOPE="$(printf '%s' "${{ needs.resolve.outputs.repository }}" | sha256sum | cut -c1-20)"
+          echo "scope=$SCOPE" >> "$GITHUB_OUTPUT"
+
+      - name: Restore longitudinal product history
+        uses: actions/cache/restore@v6
+        with:
+          path: .applab-longitudinal
+          key: applab-longitudinal-${{ steps.longitudinal_scope.outputs.scope }}-${{ github.run_id }}
+          restore-keys: |
+            applab-longitudinal-${{ steps.longitudinal_scope.outputs.scope }}-
+
       - name: Download trusted verifier evidence
         uses: actions/download-artifact@v8
         with:
@@ -196,15 +213,38 @@ jobs:
           set -Eeuo pipefail
           python .applab/scripts/autonomous_app_review.py             --repo-root "$GITHUB_WORKSPACE/target"             --runtime-evidence-dir "$GITHUB_WORKSPACE/trusted-runtime"             --expected-repository "${{ needs.resolve.outputs.repository }}"             --expected-sha "${{ needs.resolve.outputs.resolved_sha }}"             --expected-run-id "$GITHUB_RUN_ID"             --require-trusted-runtime             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"             --max-files "${MAX_FILES:-3500}"
 
-      - name: Publish v3.1 review
+      - name: Build longitudinal product intelligence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/.applab-longitudinal"
+          python .applab/scripts/longitudinal_product_intelligence.py \
+            --current "$GITHUB_WORKSPACE/applab-autonomous-review/autonomous-review.json" \
+            --history-dir "$GITHUB_WORKSPACE/.applab-longitudinal" \
+            --repository "${{ needs.resolve.outputs.repository }}" \
+            --resolved-sha "${{ needs.resolve.outputs.resolved_sha }}" \
+            --run-id "$GITHUB_RUN_ID" \
+            --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review" \
+            --snapshot-output "$GITHUB_WORKSPACE/.applab-longitudinal/${{ needs.resolve.outputs.resolved_sha }}-$GITHUB_RUN_ID.json" \
+            --history-limit 20
+
+      - name: Save longitudinal product history
+        uses: actions/cache/save@v6
+        with:
+          path: .applab-longitudinal
+          key: applab-longitudinal-${{ steps.longitudinal_scope.outputs.scope }}-${{ github.run_id }}
+
+      - name: Publish v3.5 review
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v3.1"
+            echo "## AppLab True Autonomous App Review v3.5"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/autonomous-review.md"
+            echo
+            cat "$GITHUB_WORKSPACE/applab-autonomous-review/longitudinal-intelligence.md"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Package Studio-ready evidence
