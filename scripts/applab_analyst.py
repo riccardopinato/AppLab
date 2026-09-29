@@ -365,13 +365,29 @@ def market_context(market: dict[str, Any]) -> dict[str, Any] | None:
     if not market:
         return None
     competitors = market.get("competitors") if isinstance(market.get("competitors"), list) else []
-    summary = market.get("summary") if isinstance(market.get("summary"), dict) else {}
+    capabilities = market.get("capabilities") if isinstance(market.get("capabilities"), list) else []
+    reviews = market.get("reviews") if isinstance(market.get("reviews"), dict) else {}
+    recurring = (
+        reviews.get("recurring_pain_signals")
+        if isinstance(reviews.get("recurring_pain_signals"), list)
+        else []
+    )
     return {
         "available": True,
-        "competitors": len(competitors) or int(summary.get("competitors", 0) or 0),
-        "common_gap_reviews": int(summary.get("common_gap_reviews", 0) or 0),
-        "differentiator_signals": int(summary.get("differentiator_signals", 0) or 0),
-        "recurring_pain_signals": int(summary.get("recurring_pain_signals", 0) or 0),
+        "competitors": int(market.get("competitor_count", len(competitors)) or 0),
+        "common_gap_reviews": sum(
+            1
+            for item in capabilities
+            if isinstance(item, dict)
+            and item.get("classification") == "COMMON_MARKET_GAP_REVIEW"
+        ),
+        "differentiator_signals": sum(
+            1
+            for item in capabilities
+            if isinstance(item, dict)
+            and item.get("classification") == "PROJECT_DIFFERENTIATOR_SIGNAL"
+        ),
+        "recurring_pain_signals": len(recurring),
         "interpretation": "Descriptive market evidence only; no competitor ranking or feature invention.",
     }
 
@@ -746,6 +762,31 @@ def self_test() -> None:
     assert report["guardrails"]["no_numeric_quality_score"] is True
     assert all(row["basis"] for row in report["observations"])
     assert "score" not in report["summary"]
+
+    market_report = build_report(
+        {
+            "autonomous": {
+                "review_state": "READY_FOR_HUMAN_REVIEW",
+                "runtime_evidence_trust": {"trusted": True, "state": "TRUSTED"},
+            },
+            "decision": {"buckets": {}},
+            "market": {
+                "competitor_count": 3,
+                "competitors": [{"id": "a"}, {"id": "b"}, {"id": "c"}],
+                "capabilities": [
+                    {"classification": "COMMON_MARKET_GAP_REVIEW"},
+                    {"classification": "PROJECT_DIFFERENTIATOR_SIGNAL"},
+                ],
+                "reviews": {
+                    "recurring_pain_signals": [{"key": "sync"}, {"key": "offline"}],
+                },
+            },
+        }
+    )
+    assert market_report["market"]["competitors"] == 3
+    assert market_report["market"]["common_gap_reviews"] == 1
+    assert market_report["market"]["differentiator_signals"] == 1
+    assert market_report["market"]["recurring_pain_signals"] == 2
 
     incomplete = build_report(
         {
