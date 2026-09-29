@@ -343,7 +343,7 @@ def self_test() -> None:
             require_trusted=True,
         )
         review = build_review(root, runtime_root, 100, trust)
-        assert review["platform_version"] == "3.2.0"
+        assert review["platform_version"] == "3.3.0"
         assert review["summary"]["runtime_evidence_trusted"] is True
         assert review["summary"]["evidence_claims"] >= 1
         assert "evidence_confidence" in review
