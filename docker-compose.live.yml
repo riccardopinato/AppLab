@@ -15,6 +15,7 @@ services:
       APPLAB_EMULATOR_PARAMS: ${APPLAB_EMULATOR_PARAMS:--no-window -no-audio -no-boot-anim -gpu swiftshader_indirect}
       APPLAB_BOOT_TIMEOUT: ${APPLAB_BOOT_TIMEOUT:-240}
       APPLAB_DOCKER_TIMEOUT: ${APPLAB_DOCKER_TIMEOUT:-1200}
+      APPLAB_BIND_HOST: ${APPLAB_BIND_HOST:-127.0.0.1}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - applab-live-data:/data
