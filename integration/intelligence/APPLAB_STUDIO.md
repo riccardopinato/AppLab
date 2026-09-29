@@ -52,6 +52,7 @@ Studio shows per project:
 - architecture review signals and local-first assessment;
 - competitor count, market-gap review signals and differentiator signals;
 - autonomous audit lab count and manual-review requirement;
+- longitudinal history depth, finding lifecycle and regression-review candidates;
 - top selected labs;
 - cross-app reusable pattern candidates.
 
