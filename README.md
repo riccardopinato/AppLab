@@ -14,9 +14,9 @@ See `integration/intelligence/LONGITUDINAL_PRODUCT_INTELLIGENCE.md`.
 ## v3.4.0 — UX Friction & Discoverability Lab
 
 AppLab now turns trusted user-journey evidence into traceable UX review signals:
-actions without observed feedback, navigation-loop candidates, high clickable
-density, deep-path candidates, ambiguous runtime labels, core-surface
-discoverability gaps and unverified edge states.
+actions whose reduced crawler signature remains stable, navigation-loop candidates,
+high clickable density, deep-path candidates, ambiguous runtime labels,
+core-surface discoverability gaps and unverified edge states.
 
 The lab produces diagnostics rather than an overall UX score. UX findings enter
 VERIFY_NEXT/IMPROVE and can never automatically become FIX_NOW.
