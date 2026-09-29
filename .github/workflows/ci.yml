@@ -80,6 +80,7 @@ jobs:
             scripts/ux_friction_lab.py \
             scripts/longitudinal_product_intelligence.py \
             scripts/autonomous_experiment_planner.py \
+            scripts/applab_analyst.py \
             scripts/product_contract_audit.py \
             scripts/decision_brief.py \
             scripts/autonomous_app_review.py \
@@ -138,6 +139,7 @@ jobs:
           python scripts/ux_friction_lab.py --self-test
           python scripts/longitudinal_product_intelligence.py --self-test
           python scripts/autonomous_experiment_planner.py --self-test
+          python scripts/applab_analyst.py --self-test
           python scripts/product_contract_audit.py --self-test
           python scripts/decision_brief.py --self-test
           python scripts/autonomous_app_review.py --self-test

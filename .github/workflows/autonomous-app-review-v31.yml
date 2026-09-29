@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v3.1
+name: AppLab True Autonomous App Review v4.0
 
 on:
   pull_request:
@@ -18,6 +18,7 @@ on:
       - "scripts/ux_friction_lab.py"
       - "scripts/longitudinal_product_intelligence.py"
       - "scripts/autonomous_experiment_planner.py"
+      - "scripts/applab_analyst.py"
       - "scripts/verify_apk.sh"
       - "scripts/product_contract_audit.py"
       - "scripts/decision_brief.py"
@@ -249,6 +250,14 @@ jobs:
             --evidence-dir "$GITHUB_WORKSPACE/applab-autonomous-review" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
 
+      - name: Build AppLab Analyst report
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/applab_analyst.py \
+            --evidence-dir "$GITHUB_WORKSPACE/applab-autonomous-review" \
+            --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
+
       - name: Upload repository-wide longitudinal history
         uses: actions/upload-artifact@v7
         with:
@@ -258,11 +267,11 @@ jobs:
           include-hidden-files: true
           retention-days: 90
 
-      - name: Publish v3.6 review
+      - name: Publish v4.0 review
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v3.6"
+            echo "## AppLab True Autonomous App Review v4.0"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
@@ -271,6 +280,8 @@ jobs:
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/longitudinal-intelligence.md"
             echo
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/experiment-plan.md"
+            echo
+            cat "$GITHUB_WORKSPACE/applab-autonomous-review/analyst-report.md"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Package Studio-ready evidence
