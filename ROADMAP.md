@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v3.0.0 — Autonomous App Review**
+Current production baseline: **v3.1.0 — True Autonomous App Review**
 
 ## Product rule
 
@@ -158,50 +158,6 @@ publish a certified release artifact.
 - [x] UX & Product Lab.
 - [x] Architecture & Data Intelligence.
 
-
-### v2.0.0 — AppLab Studio
-
-- [x] Add a dedicated Studio snapshot contract for product-intelligence evidence.
-- [x] Keep runtime/certification truth and product intelligence as separate source domains.
-- [x] Expose Studio evidence through a dedicated backend API.
-- [x] Surface Product, UX, Architecture, Market and Audit Plan dimensions in Control Center.
-- [x] Surface Cross-App reusable pattern candidates at portfolio level.
-- [x] Keep Control Center functional when no Studio snapshot is mounted.
-- [x] Add Studio snapshot self-tests and backend loader tests.
-- [x] Preserve all certification and evidence-authority boundaries.
-
-### v1.6.0 — Autonomous Audit Orchestrator
-
-- [x] Convert current App Intelligence evidence into an explicit per-project audit plan.
-- [x] Keep Product, UX/Product and Architecture/Data analysis mandatory for every audit.
-- [x] Select storage, persistence, upgrade, network, background, system, interaction, monetization, AI and data-lifecycle review from detected capabilities.
-- [x] Broaden review when source confidence is low or specialist findings already exist.
-- [x] Preserve core mobile runtime/visual/lifecycle/performance coverage for Flutter and native Android.
-- [x] Run Market Lab only when explicit traceable market evidence is supplied.
-- [x] Emit reasoned priorities for every selected lab.
-- [x] Preserve FAST/FULL/CERTIFICATION authority and prevent uncertainty from reducing coverage.
-
-### v1.5.0 — Cross-App Intelligence
-
-- [x] Aggregate multiple project-scoped App Intelligence reports into a portfolio evidence view.
-- [x] Preserve per-project report SHA-256 provenance.
-- [x] Identify repeated capability patterns without automatically transferring features or code.
-- [x] Identify recurrent UX/Product and Architecture/Data review signals across projects.
-- [x] Keep one-project capabilities explicitly project-scoped.
-- [x] Build a fresh source-only corpus from enabled public watchlist repositories without executing target code.
-- [x] Emit descriptive engine/local-first/confidence distributions without a portfolio score.
-- [x] Preserve all runtime verification and certification boundaries.
-
-### v1.4.0 — Competitor & Market Lab
-
-- [x] Add an external-evidence market layer isolated from trusted runtime verification.
-- [x] Require traceable source URLs for competitor capabilities, pricing, ratings and review themes.
-- [x] Compare project source signals with competitor capability frequency without treating NOT_DETECTED as proven absence.
-- [x] Classify parity, project differentiator signals and market-gap review targets.
-- [x] Aggregate recurring negative review themes only across multiple competitors.
-- [x] Report pricing-model and same-currency ranges without currency conversion or automatic price recommendations.
-- [x] Add reusable/manual workflow plus JSON/Markdown evidence outputs.
-- [x] Preserve PASS/FAIL, FAST/FULL and CERTIFICATION boundaries.
 
 ### v1.3.0 — Architecture & Data Intelligence
 

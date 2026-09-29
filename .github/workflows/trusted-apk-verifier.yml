@@ -463,6 +463,21 @@ jobs:
             --run-id "$GITHUB_RUN_ID" \
             --analysis-mode "${{ steps.analysis.outputs.effective_mode }}"
 
+      - name: Bind trusted runtime evidence
+        if: steps.verify.outcome == 'success'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/trusted_evidence_manifest.py create \
+            --report-dir "$GITHUB_WORKSPACE/applab-report" \
+            --repository "${{ inputs.repository }}" \
+            --resolved-sha "${{ inputs.resolved_sha }}" \
+            --run-id "$GITHUB_RUN_ID" \
+            --analysis-mode "${{ steps.analysis.outputs.effective_mode }}" \
+            --contract-fingerprint "${{ inputs.contract_fingerprint }}" \
+            --config-fingerprint "${{ inputs.config_fingerprint }}" \
+            --trusted-applab-sha "${{ job.workflow_sha }}"
+
       - name: Evaluate verification cache eligibility
         id: verification_cache
         if: always() && inputs.cache_verification

@@ -1,4 +1,4 @@
-# AppLab v3.0 — Autonomous App Review
+> **Legacy note (v3.0.1+):** this v3.0 contract remains valid for static/advisory review, but target-authored runtime evidence is no longer trusted. Use **True Autonomous App Review v3.1** for end-to-end runtime-backed review.\n\n# AppLab v3.0 — Autonomous App Review
 
 Autonomous App Review orchestrates the complete product-intelligence chain:
 

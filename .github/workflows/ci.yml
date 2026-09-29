@@ -69,6 +69,7 @@ jobs:
             scripts/watch_aggregate.py \
             scripts/app_intelligence.py \
             scripts/change_intelligence.py \
+            scripts/trusted_evidence_manifest.py \
             scripts/product_review_common.py \
             scripts/behavioral_product_lab.py \
             scripts/state_edge_case_lab.py \
@@ -121,6 +122,7 @@ jobs:
             --validate-only
           python scripts/app_intelligence.py --self-test
           python scripts/change_intelligence.py --self-test
+          python scripts/trusted_evidence_manifest.py --self-test
           python scripts/behavioral_product_lab.py --self-test
           python scripts/state_edge_case_lab.py --self-test
           python scripts/evidence_calibration.py --self-test
@@ -148,7 +150,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"3.0.0"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"3.1.0"'; then
               healthy=true
               break
             fi

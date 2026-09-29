@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import tempfile
 import subprocess
 from pathlib import Path
@@ -263,15 +264,53 @@ def gradle_lines(workflows: str) -> list[str]:
     return result
 
 
+def gradle_task_tokens(command: str) -> list[str]:
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+    if not tokens:
+        return []
+    result: list[str] = []
+    skip_next = False
+    options_with_values = {"-p", "--project-dir", "-b", "--build-file", "-c", "--settings-file"}
+    for token in tokens[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if token in options_with_values:
+            skip_next = True
+            continue
+        if token.startswith("-"):
+            continue
+        task = token.rsplit(":", 1)[-1]
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]*", task):
+            result.append(task)
+    return result
+
+
 def pick_gradle_command(lines: list[str], token: str) -> str:
     token_lower = token.lower()
     for line in lines:
-        lowered = line.lower()
-        if token_lower in lowered:
+        tasks = gradle_task_tokens(line)
+        if any(token_lower in task.lower() for task in tasks):
             command = line.split("|", 1)[0].strip()
             command = re.sub(r"\s+#.*$", "", command).strip()
             return command
     return ""
+
+
+def normalize_project_command(command: str, root: Path, project: Path) -> str:
+    if not command or project == root:
+        return command
+    rel_project = rel(project, root)
+    escaped = re.escape(rel_project)
+    command = re.sub(
+        rf"(?<!\S)(?:-p|--project-dir)\s+[\"']?{escaped}[\"']?(?=\s|$)",
+        "",
+        command,
+    )
+    return re.sub(r"\s{2,}", " ", command).strip()
 
 
 def release_gradle_command(build_command: str, prefix: str) -> str:
@@ -373,15 +412,21 @@ def native_profile(root: Path, project: Path, workflows: str) -> dict[str, Any]:
     wrapper_exists = (project / "gradlew").is_file()
     prefix = "./gradlew" if wrapper_exists else "gradle"
 
-    build_command = pick_gradle_command(lines, "assemble")
+    build_command = normalize_project_command(
+        pick_gradle_command(lines, "assemble"), root, project
+    )
     if not build_command:
         build_command = f"{prefix} assembleDebug --stacktrace"
 
-    test_command = pick_gradle_command(lines, "test")
+    test_command = normalize_project_command(
+        pick_gradle_command(lines, "test"), root, project
+    )
     if not test_command:
         test_command = f"{prefix} testDebugUnitTest --stacktrace"
 
-    lint_command = pick_gradle_command(lines, "lint")
+    lint_command = normalize_project_command(
+        pick_gradle_command(lines, "lint"), root, project
+    )
     if not lint_command:
         lint_command = f"{prefix} lintDebug --stacktrace"
 
@@ -492,6 +537,29 @@ def self_test() -> None:
         assert profile["apk_path"] == "app/build/outputs/apk/slim/app-slim.apk"
         assert "assembleRelease" in profile["certification_build_command"]
         assert profile["certification_apk_path"].endswith("app-release.apk")
+
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw)
+        project = root / "selftest"
+        (project / "app").mkdir(parents=True)
+        (project / "settings.gradle.kts").write_text('rootProject.name = "SelfTest"\n')
+        (project / "app" / "build.gradle.kts").write_text(
+            'plugins { id("com.android.application") }\n'
+            'android { compileSdk = 35\n'
+            ' defaultConfig { applicationId = "com.example.selftest" } }\n'
+        )
+        workflows_dir = root / ".github" / "workflows"
+        workflows_dir.mkdir(parents=True)
+        (workflows_dir / "runtime.yml").write_text(
+            "steps:\n"
+            "  - run: gradle -p selftest :app:assembleDebug --stacktrace\n"
+        )
+        profile = discover(root)
+        assert profile["working_directory"] == "selftest"
+        assert profile["build_command"] == "gradle :app:assembleDebug --stacktrace"
+        assert "assemble" not in profile["test_command"].lower()
+        assert profile["test_command"] == "gradle testDebugUnitTest --stacktrace"
+        assert profile["apk_path"] == "app/build/outputs/apk/debug/app-debug.apk"
 
     print("AppLab universal project auto-discovery self-test PASS")
 

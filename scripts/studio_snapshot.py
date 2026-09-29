@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "3.0.0"
+STUDIO_VERSION = "3.1.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -284,6 +284,50 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
             if isinstance(state_edge, dict) and isinstance(state_edge.get("summary"), dict)
             else {}
         )
+        trust = (
+            autonomous.get("runtime_evidence_trust")
+            if isinstance(autonomous, dict)
+            and isinstance(autonomous.get("runtime_evidence_trust"), dict)
+            else {}
+        )
+        trust_binding = (
+            trust.get("binding")
+            if isinstance(trust.get("binding"), dict)
+            else {}
+        )
+        brief_buckets = (
+            brief.get("buckets")
+            if isinstance(brief, dict) and isinstance(brief.get("buckets"), dict)
+            else {}
+        )
+        top_actions: list[dict[str, Any]] = []
+        for bucket_name in ("FIX_NOW", "VERIFY_NEXT", "IMPROVE"):
+            bucket_rows = (
+                brief_buckets.get(bucket_name)
+                if isinstance(brief_buckets.get(bucket_name), list)
+                else []
+            )
+            for item in bucket_rows:
+                if not isinstance(item, dict):
+                    continue
+                top_actions.append(
+                    {
+                        "bucket": bucket_name,
+                        "kind": str(item.get("kind", "")),
+                        "subject": str(item.get("subject", "")),
+                        "basis": str(item.get("basis", "")),
+                        "evidence": (
+                            [str(value) for value in item.get("evidence", [])[:3]]
+                            if isinstance(item.get("evidence"), list)
+                            else []
+                        ),
+                    }
+                )
+                if len(top_actions) >= 6:
+                    break
+            if len(top_actions) >= 6:
+                break
+
         row["autonomous_review"] = {
             "review_state": str(
                 autonomous.get("review_state", "EVIDENCE_INCOMPLETE")
@@ -339,6 +383,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
                 )
                 or 0
             ),
+            "runtime_trust_state": str(trust.get("state", "NOT_PROVIDED")),
+            "runtime_trusted": bool(trust.get("trusted", False)),
+            "trusted_repository": str(trust_binding.get("repository", "")),
+            "trusted_sha": str(trust_binding.get("resolved_sha", "")),
+            "trusted_package_id": str(trust_binding.get("package_id", "")),
+            "trusted_run_id": str(trust_binding.get("workflow_run_id", "")),
+            "manifest_sha256": str(trust.get("manifest_sha256", "")),
+            "top_actions": top_actions,
         }
 
     return row
@@ -413,6 +465,12 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
                 if isinstance(row.get("autonomous_review"), dict)
                 and str(row["autonomous_review"].get("runtime_evidence_state", ""))
                 .startswith("OBSERVED")
+            ),
+            "trusted_runtime_reviews": sum(
+                1
+                for row in projects
+                if isinstance(row.get("autonomous_review"), dict)
+                and bool(row["autonomous_review"].get("runtime_trusted", False))
             ),
         },
         "projects": projects,
@@ -506,8 +564,19 @@ def self_test() -> None:
         (project / "autonomous-review.json").write_text(
             json.dumps(
                 {
-                    "platform_version": "3.0.0",
+                    "platform_version": "3.1.0",
                     "review_state": "REVIEW_REQUIRED",
+                    "runtime_evidence_trust": {
+                        "state": "TRUSTED",
+                        "trusted": True,
+                        "manifest_sha256": "abc123",
+                        "binding": {
+                            "repository": "owner/demo",
+                            "resolved_sha": "a" * 40,
+                            "package_id": "com.example.demo",
+                            "workflow_run_id": "123",
+                        },
+                    },
                     "summary": {
                         "runtime_evidence_state": "OBSERVED_PASS",
                         "observed_states": 5,
@@ -596,6 +665,9 @@ def self_test() -> None:
         assert snapshot["projects"][0]["autonomous_review"]["runtime_confirmed"] == 1
         assert snapshot["summary"]["autonomous_reviews"] == 1
         assert snapshot["summary"]["runtime_observed"] == 1
+        assert snapshot["projects"][0]["autonomous_review"]["runtime_trust_state"] == "TRUSTED"
+        assert snapshot["projects"][0]["autonomous_review"]["trusted_package_id"] == "com.example.demo"
+        assert snapshot["summary"]["trusted_runtime_reviews"] == 1
         assert snapshot["projects"][0]["market"]["competitors"] == 3
         assert snapshot["projects"][0]["audit"]["selected_lab_count"] == 4
         print("AppLab Studio snapshot self-test PASS")

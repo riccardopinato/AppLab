@@ -1,3 +1,28 @@
+## v3.1.0 — True Autonomous App Review
+
+AppLab can now execute the complete product-review chain from one target ref:
+immutable SHA resolution, universal build discovery, build, Trusted APK verification,
+bound evidence download, product/runtime reconciliation, calibration, Product
+Contract audit and the final Decision Brief.
+
+Runtime evidence is accepted only when the Trusted Evidence Manifest validates
+repository, SHA, package id, workflow run and SHA-256 coverage.
+
+v3.1 also hardens Behavioral Product, State/Edge, Product Contract, Evidence
+Calibration and Decision Brief to reduce false positives.
+
+See `integration/intelligence/TRUE_AUTONOMOUS_REVIEW_V31.md`.
+
+## v3.0.1 — Trusted Evidence Chain
+
+The Trusted APK Verifier now emits a deterministic evidence manifest covering
+repository, resolved SHA, package id, run id, fingerprints, trusted AppLab SHA and
+the SHA-256 of every evidence file.
+
+Target-authored runtime paths are no longer accepted by the legacy v3 workflow.
+
+See `integration/intelligence/TRUSTED_EVIDENCE_CHAIN.md`.
+
 ## v3.0.0 — Autonomous App Review
 
 AppLab now orchestrates a complete product review from static product intelligence

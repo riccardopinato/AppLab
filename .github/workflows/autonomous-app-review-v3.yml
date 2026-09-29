@@ -1,4 +1,4 @@
-name: AppLab Autonomous App Review v3
+name: AppLab Autonomous App Review v3 (Legacy Static)
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ on:
         default: "main"
         type: string
       runtime_evidence_path:
-        description: "Optional repository-relative directory containing trusted AppLab runtime evidence."
+        description: "Deprecated. Target-authored runtime evidence is no longer accepted."
         required: false
         default: ""
         type: string
@@ -49,14 +49,26 @@ permissions:
   contents: read
 
 concurrency:
-  group: applab-autonomous-review-${{ inputs.target_repository || github.repository }}-${{ inputs.target_ref || 'main' }}
+  group: applab-autonomous-review-v3-legacy-${{ inputs.target_repository || github.repository }}-${{ inputs.target_ref || 'main' }}
   cancel-in-progress: true
 
 jobs:
   review:
-    name: Autonomous product review
+    name: Legacy static product review
     runs-on: ubuntu-latest
     steps:
+      - name: Reject untrusted runtime path
+        shell: bash
+        env:
+          RUNTIME_PATH: ${{ inputs.runtime_evidence_path }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -n "${RUNTIME_PATH:-}" ]]; then
+            echo "runtime_evidence_path is deprecated because target-authored evidence is not trusted." >&2
+            echo "Use AppLab Autonomous App Review v3.1 for bound Trusted Verifier evidence." >&2
+            exit 2
+          fi
+
       - name: Checkout trusted AppLab
         uses: actions/checkout@v7
         with:
@@ -71,15 +83,11 @@ jobs:
         env:
           INPUT_REPOSITORY: ${{ inputs.target_repository }}
           INPUT_REF: ${{ inputs.target_ref }}
-          RUNTIME_PATH: ${{ inputs.runtime_evidence_path }}
         run: |
           set -Eeuo pipefail
           REPOSITORY="${INPUT_REPOSITORY:-}"
           REF="${INPUT_REF:-main}"
           [[ -n "$REPOSITORY" ]] || REPOSITORY="${{ github.repository }}"
-          case "${RUNTIME_PATH:-}" in
-            /*|*../*|../*|*/..) echo "Unsafe runtime_evidence_path" >&2; exit 2 ;;
-          esac
           echo "repository=$REPOSITORY" >> "$GITHUB_OUTPUT"
           echo "ref=$REF" >> "$GITHUB_OUTPUT"
 
@@ -93,35 +101,22 @@ jobs:
           persist-credentials: false
           token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
 
-      - name: Run Autonomous App Review
+      - name: Run static-only Autonomous Review
         shell: bash
         env:
           MAX_FILES: ${{ inputs.max_files }}
-          RUNTIME_PATH: ${{ inputs.runtime_evidence_path }}
         run: |
           set -Eeuo pipefail
-          ARGS=(
-            --repo-root "$GITHUB_WORKSPACE/target"
-            --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
-            --max-files "${MAX_FILES:-3500}"
-          )
-          if [[ -n "${RUNTIME_PATH:-}" ]]; then
-            if [[ ! -d "$GITHUB_WORKSPACE/target/$RUNTIME_PATH" ]]; then
-              echo "Runtime evidence directory not found: $RUNTIME_PATH" >&2
-              exit 2
-            fi
-            ARGS+=(--runtime-evidence-dir "$GITHUB_WORKSPACE/target/$RUNTIME_PATH")
-          fi
-          python .applab/scripts/autonomous_app_review.py "${ARGS[@]}"
+          python .applab/scripts/autonomous_app_review.py             --repo-root "$GITHUB_WORKSPACE/target"             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"             --max-files "${MAX_FILES:-3500}"
 
-      - name: Publish decision brief
+      - name: Publish review
         shell: bash
         run: cat "$GITHUB_WORKSPACE/applab-autonomous-review/autonomous-review.md" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload Autonomous Review evidence
+      - name: Upload review evidence
         uses: actions/upload-artifact@v7
         with:
-          name: applab-autonomous-review-${{ github.run_id }}
+          name: applab-autonomous-review-legacy-${{ github.run_id }}
           path: applab-autonomous-review/
           if-no-files-found: error
           retention-days: 30
