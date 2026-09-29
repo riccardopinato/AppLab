@@ -83,6 +83,23 @@ def select_targets(
 ) -> tuple[str, list[str], str]:
     text = _tokens(source, kind, subject, message)
 
+    if source == "FIX_NOW":
+        if any(token in text for token in ("network", "offline", "connectiv", "http", "api", "sync", "cloud")):
+            labs = ["network"]
+        elif any(token in text for token in ("migration", "upgrade", "schema", "version")):
+            labs = ["upgrade", "persistence", "storage"]
+        elif any(token in text for token in ("persistence", "restart", "database", "room", "dao", "save", "restore")):
+            labs = ["persistence", "storage"]
+        elif any(token in text for token in ("background", "doze", "worker", "service", "process death", "process_death")):
+            labs = ["background", "resource_pressure"]
+        elif any(token in text for token in ("permission", "notification", "camera", "location", "system ui", "system_ui")):
+            labs = ["system"]
+        elif any(token in text for token in ("performance", "startup", "jank", "slow", "latency")):
+            labs = ["performance"]
+        else:
+            labs = ["core-runtime", "visual-regression"]
+        return "POST_FIX_VERIFICATION", labs, "Reproduce the trusted failure path and repeat it after the fix without delaying the fix itself."
+
     if any(token in text for token in ("network", "offline", "connectiv", "http", "api", "sync", "cloud")):
         return "SPECIALIST_RUNTIME", ["network"], "Exercise network-dependent behavior under bounded offline/recovery conditions."
 
@@ -116,9 +133,6 @@ def select_targets(
 
     if source == "EVIDENCE_CONTRADICTION" or "contradict" in text:
         return "EVIDENCE_RECONCILIATION", ["product-analysis", "full-source-review"], "Reconcile the contradictory bounded evidence without choosing a source by assumption."
-
-    if source == "FIX_NOW":
-        return "POST_FIX_VERIFICATION", ["core-runtime", "visual-regression"], "Reproduce the confirmed issue, then repeat the same evidence path after the fix."
 
     if any(token in text for token in ("contract", "capability", "documentation", "doc_only", "promised", "excluded")):
         return "STATIC_EVIDENCE_REVIEW", ["product-analysis", "full-source-review"], "Reconcile product contract, implementation and bounded runtime evidence."
@@ -406,6 +420,7 @@ def build_plan(evidence: dict[str, dict[str, Any]]) -> dict[str, Any]:
             _safe(row.get("subject")),
         )
     )
+    experiments = experiments[:24]
 
     ready = sum(1 for row in experiments if (row.get("execution") or {}).get("mode") == "EXISTING_TRUSTED_LABS")
     review_only = len(experiments) - ready
@@ -416,11 +431,11 @@ def build_plan(evidence: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "engine_version": ENGINE_VERSION,
         "state": "EXPERIMENTS_READY" if experiments else "NO_EXPERIMENTS_REQUIRED",
         "next_experiment_id": next_experiment,
-        "experiments": experiments[:24],
+        "experiments": experiments,
         "summary": {
-            "experiments": min(len(experiments), 24),
-            "high_priority": sum(1 for row in experiments[:24] if row["priority"] == "HIGH"),
-            "normal_priority": sum(1 for row in experiments[:24] if row["priority"] == "NORMAL"),
+            "experiments": len(experiments),
+            "high_priority": sum(1 for row in experiments if row["priority"] == "HIGH"),
+            "normal_priority": sum(1 for row in experiments if row["priority"] == "NORMAL"),
             "existing_lab_ready": ready,
             "bounded_review_only": review_only,
             "longitudinal_regression_inputs": len(regressions),
@@ -538,6 +553,9 @@ def self_test() -> None:
     assert report["state"] == "EXPERIMENTS_READY"
     assert report["summary"]["high_priority"] >= 3
     assert report["summary"]["existing_lab_ready"] >= 3
+    fix = next(row for row in report["experiments"] if row["source"] == "FIX_NOW")
+    assert fix["experiment_type"] == "POST_FIX_VERIFICATION"
+    assert fix["labs"] == ["persistence", "storage"]
     loop = next(row for row in report["experiments"] if row["kind"] == "NAVIGATION_LOOP_CANDIDATE")
     assert loop["priority"] == "HIGH"
     assert "LONGITUDINAL_REGRESSION" in loop["triggers"]
