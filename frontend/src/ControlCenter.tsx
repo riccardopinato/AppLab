@@ -549,7 +549,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <strong>{project.ux_friction?.review_signals ?? 0}</strong>
                       <small>
                         {project.ux_friction
-                          ? `${project.ux_friction.no_change_actions ?? 0} no-feedback · ${project.ux_friction.info_signals ?? 0} info · share ${project.ux_friction.no_change_share ?? 0}`
+                          ? `${project.ux_friction.no_change_actions ?? 0} stable-signature · ${project.ux_friction.info_signals ?? 0} info · share ${project.ux_friction.no_change_share ?? 0}`
                           : "no UX friction evidence"}
                       </small>
                     </div>
