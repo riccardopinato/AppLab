@@ -53,6 +53,7 @@ Studio shows per project:
 - competitor count, market-gap review signals and differentiator signals;
 - autonomous audit lab count and manual-review requirement;
 - longitudinal history depth, finding lifecycle and regression-review candidates;
+- autonomous experiment count, next experiment, priority and target labs;
 - top selected labs;
 - cross-app reusable pattern candidates.
 
