@@ -275,6 +275,35 @@ type StudioProject = {
       labs?: string[];
     }>;
   } | null;
+  analyst?: {
+    state?: string;
+    headline?: string;
+    engine?: string;
+    runtime_trust_state?: string;
+    observations?: number;
+    high_priority_observations?: number;
+    next_actions?: number;
+    high_priority_actions?: number;
+    fix_now?: number;
+    verify_next?: number;
+    experiments?: number;
+    contradictions?: number;
+    regression_candidates?: number;
+    top_observations?: Array<{
+      priority?: string;
+      category?: string;
+      kind?: string;
+      subject?: string;
+      statement?: string;
+    }>;
+    top_actions?: Array<{
+      priority?: string;
+      action?: string;
+      kind?: string;
+      subject?: string;
+      source_id?: string;
+    }>;
+  } | null;
   ux_friction?: {
     runtime_transitions?: number;
     no_change_actions?: number;
@@ -365,6 +394,8 @@ type StudioSnapshot = {
     with_experiment_plans?: number;
     planned_experiments?: number;
     high_priority_experiments?: number;
+    with_analyst_reports?: number;
+    analyst_attention?: number;
     autonomous_reviews?: number;
     autonomous_attention?: number;
     runtime_observed?: number;
@@ -516,6 +547,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <div><span>Experiment plans</span><strong>{studio.summary.with_experiment_plans ?? 0}</strong></div>
               <div><span>Planned experiments</span><strong>{studio.summary.planned_experiments ?? 0}</strong></div>
               <div><span>High-priority experiments</span><strong>{studio.summary.high_priority_experiments ?? 0}</strong></div>
+              <div><span>Analyst reports</span><strong>{studio.summary.with_analyst_reports ?? 0}</strong></div>
+              <div><span>Analyst attention</span><strong>{studio.summary.analyst_attention ?? 0}</strong></div>
               <div><span>Autonomous reviews</span><strong>{studio.summary.autonomous_reviews ?? 0}</strong></div>
               <div><span>Review attention</span><strong>{studio.summary.autonomous_attention ?? 0}</strong></div>
               <div><span>Runtime observed</span><strong>{studio.summary.runtime_observed ?? 0}</strong></div>
@@ -597,6 +630,16 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       ) : null}
                     </div>
                     <div>
+                      <span>AppLab Analyst</span>
+                      <strong>{project.analyst?.state ?? "—"}</strong>
+                      <small>
+                        {project.analyst
+                          ? `${project.analyst.fix_now ?? 0} fix · ${project.analyst.verify_next ?? 0} verify · ${project.analyst.experiments ?? 0} experiments · ${project.analyst.contradictions ?? 0} contradictions`
+                          : "no analyst report"}
+                      </small>
+                      {project.analyst?.headline ? <small>{project.analyst.headline}</small> : null}
+                    </div>
+                    <div>
                       <span>Evidence</span>
                       <strong>{project.evidence_confidence?.contradiction_count ?? 0}</strong>
                       <small>
@@ -652,6 +695,27 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <small>{project.audit?.manual_review_required ? "manual review required" : "automated evidence only"}</small>
                     </div>
                   </div>
+                  {project.analyst?.top_actions?.length ? (
+                    <div className="studio-labs">
+                      {project.analyst.top_actions.slice(0, 6).map((item, index) => (
+                        <span key={`analyst-action-${item.action}-${item.kind}-${item.subject}-${index}`}>
+                          {item.priority} · {item.action} · {item.kind}
+                          {item.subject ? ` · ${item.subject}` : ""}
+                          {item.source_id ? ` · ${item.source_id}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {project.analyst?.top_observations?.length ? (
+                    <div className="studio-labs">
+                      {project.analyst.top_observations.slice(0, 6).map((item, index) => (
+                        <span key={`analyst-observation-${item.category}-${item.kind}-${item.subject}-${index}`}>
+                          {item.priority} · {item.category} · {item.kind}
+                          {item.subject ? ` · ${item.subject}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {project.experiment_plan?.top_experiments?.length ? (
                     <div className="studio-labs">
                       {project.experiment_plan.top_experiments.slice(0, 6).map((item, index) => (
