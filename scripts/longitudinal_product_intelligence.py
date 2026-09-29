@@ -31,6 +31,12 @@ FINDING_SOURCES = (
     ("evidence_contradiction", ("evidence_confidence", "contradictions")),
 )
 
+SCAN_SENSITIVE_SOURCES = {
+    "product_consistency",
+    "product_contract",
+    "evidence_contradiction",
+}
+
 DETAILED_REPORTS = {
     "app_intelligence": "app-intelligence.json",
     "behavioral_product": "behavioral-product.json",
@@ -382,6 +388,15 @@ def build_report(
     previous_findings = findings_index(previous_review) if previous_review else {}
     previous_claims = claims_index(previous_review) if previous_review else {}
 
+    comparison_compatible = True
+    comparison_suppressed_reason = ""
+    before_app = previous_review.get("app_intelligence") if previous_review else None
+    after_app = current_review.get("app_intelligence")
+    if isinstance(before_app, dict) and isinstance(after_app, dict):
+        comparison_compatible, comparison_suppressed_reason = _scan_comparable(
+            before_app, after_app
+        )
+
     current_keys = set(current_findings)
     previous_keys = set(previous_findings)
     older_keys = (
@@ -392,7 +407,17 @@ def build_report(
 
     new_keys = sorted(current_keys - previous_keys)
     persistent_keys = sorted(current_keys & previous_keys)
-    resolved_keys = sorted(previous_keys - current_keys)
+    raw_resolved_keys = sorted(previous_keys - current_keys)
+    if comparison_compatible:
+        resolved_keys = raw_resolved_keys
+        suppressed_resolved_keys: list[str] = []
+    else:
+        resolved_keys = [
+            key
+            for key in raw_resolved_keys
+            if key.split("|", 1)[0] not in SCAN_SENSITIVE_SOURCES
+        ]
+        suppressed_resolved_keys = sorted(set(raw_resolved_keys) - set(resolved_keys))
     returned_keys = sorted(key for key in new_keys if key in older_keys)
     first_seen_keys = sorted(key for key in new_keys if key not in older_keys)
 
@@ -421,15 +446,13 @@ def build_report(
     ]
 
     product_change: dict[str, Any] | None = None
-    comparison_compatible = True
-    comparison_suppressed_reason = ""
-    if previous_review:
-        before_app = previous_review.get("app_intelligence")
-        after_app = current_review.get("app_intelligence")
-        if isinstance(before_app, dict) and isinstance(after_app, dict):
-            comparison_compatible, comparison_suppressed_reason = _scan_comparable(before_app, after_app)
-            if comparison_compatible:
-                product_change = change_intelligence.build_diff(before_app, after_app)
+    if (
+        previous_review
+        and comparison_compatible
+        and isinstance(before_app, dict)
+        and isinstance(after_app, dict)
+    ):
+        product_change = change_intelligence.build_diff(before_app, after_app)
 
     capability_removed = (
         list((product_change.get("feature_truth") or {}).get("removed", []))
@@ -509,6 +532,7 @@ def build_report(
             "returned_findings": len(returned_keys),
             "persistent_findings": len(persistent_keys),
             "resolved_findings": len(resolved_keys),
+            "suppressed_resolved_findings": len(suppressed_resolved_keys),
             "severity_changes": len(severity_changes),
             "severity_escalations": len(severity_escalations),
             "severity_deescalations": len(severity_deescalations),
@@ -527,6 +551,7 @@ def build_report(
             "returned": [current_findings[key] for key in returned_keys],
             "persistent": [current_findings[key] for key in persistent_keys],
             "resolved": [previous_findings[key] for key in resolved_keys],
+            "suppressed_resolved": [previous_findings[key] for key in suppressed_resolved_keys],
             "severity_changes": severity_changes,
             "severity_escalations": severity_escalations,
             "severity_deescalations": severity_deescalations,
