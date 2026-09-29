@@ -44,6 +44,7 @@ VISUAL_QA_RESULT="SKIPPED"
 VISUAL_REGRESSION_RESULT="NO_BASELINE"
 VISUAL_JOURNEY_RESULT="SKIPPED"
 INTERACTION_CRAWL_RESULT="SKIPPED"
+JOURNEY_CRAWL_RESULT="SKIPPED"
 SYSTEM_LAB_RESULT="SKIPPED"
 NETWORK_LAB_RESULT="SKIPPED"
 PERSISTENCE_LAB_RESULT="SKIPPED"
@@ -110,6 +111,8 @@ payload = {
         "visual_journey_summary": "visual-journey.md",
         "interaction_crawl_json": "interaction-crawl.json",
         "interaction_crawl_summary": "interaction-crawl.md",
+        "journey_crawl_json": "journey-crawl.json",
+        "journey_crawl_summary": "journey-crawl.md",
         "system_lab_json": "system-lab.json",
         "system_lab_summary": "system-lab.md",
         "network_lab_json": "network-lab.json",
@@ -190,6 +193,8 @@ rm -f   "$REPORT_DIR/launch.png"   "$REPORT_DIR/post-maestro.png"   "$REPORT_DIR
   "$REPORT_DIR/visual-journey.md" \
   "$REPORT_DIR/interaction-crawl.json" \
   "$REPORT_DIR/interaction-crawl.md" \
+  "$REPORT_DIR/journey-crawl.json" \
+  "$REPORT_DIR/journey-crawl.md" \
   "$REPORT_DIR/system-lab.json" \
   "$REPORT_DIR/system-lab.md" \
   "$REPORT_DIR/network-lab.json" \
@@ -224,7 +229,7 @@ rm -f   "$REPORT_DIR/launch.png"   "$REPORT_DIR/post-maestro.png"   "$REPORT_DIR
   "$REPORT_DIR/upgrade-after.xml" \
   "$REPORT_DIR/performance-lab.json" \
   "$REPORT_DIR/performance-lab.md"
-rm -rf "$REPORT_DIR/visual-journey" "$REPORT_DIR/interaction-crawl"
+rm -rf "$REPORT_DIR/visual-journey" "$REPORT_DIR/interaction-crawl" "$REPORT_DIR/journey-crawl"
 mkdir -p "$REPORT_DIR/visual-journey/current"
 
 detect_package() {
@@ -556,6 +561,43 @@ if [[ "$CRAWL_STATUS" -ne 0 || "$INTERACTION_CRAWL_RESULT" == "FAIL" || "$INTERA
 fi
 PID_AFTER="$(assert_runtime_healthy "interaction-crawl")"
 log "Safe Interaction Crawler: $INTERACTION_CRAWL_RESULT"
+
+if [[ "$ANALYSIS_MODE" != "fast" ]]; then
+  JOURNEY_CRAWL_STATUS=0
+  set +e
+  python3 "$(dirname "$0")/journey_crawler.py" \
+    --package-id "$PACKAGE_ID" \
+    --report-dir "$REPORT_DIR" \
+    --max-depth 2 \
+    --max-states 8 \
+    --max-transitions 12 \
+    --max-actions-per-state 3 \
+    --settle-seconds 1.0
+  JOURNEY_CRAWL_STATUS="$?"
+  set -e
+
+  if [[ -s "$REPORT_DIR/journey-crawl.json" ]]; then
+    JOURNEY_CRAWL_RESULT="$(
+      python3 - "$REPORT_DIR/journey-crawl.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(payload.get("result", "ERROR"))
+PY
+    )"
+  else
+    JOURNEY_CRAWL_RESULT="ERROR"
+  fi
+
+  if [[ "$JOURNEY_CRAWL_STATUS" -ne 0 || "$JOURNEY_CRAWL_RESULT" == "FAIL" || "$JOURNEY_CRAWL_RESULT" == "ERROR" ]]; then
+    fail "Safe Journey Crawler detected an application runtime failure."
+  fi
+  PID_AFTER="$(assert_runtime_healthy "journey-crawl")"
+  log "Safe Journey Crawler: $JOURNEY_CRAWL_RESULT"
+else
+  log "Safe Journey Crawler: SKIPPED in FAST mode"
+fi
 
 JOURNEY_STATUS=0
 set +e
@@ -994,6 +1036,7 @@ fi
   echo "- Visual Regression: $VISUAL_REGRESSION_RESULT"
   echo "- Multi-Screen Visual Journey: $VISUAL_JOURNEY_RESULT"
   echo "- Safe Interaction Crawler: $INTERACTION_CRAWL_RESULT"
+  echo "- Safe Journey Crawler: $JOURNEY_CRAWL_RESULT"
   echo "- System UI Lab: $SYSTEM_LAB_RESULT"
   echo "- Network & Offline Lab: $NETWORK_LAB_RESULT"
   echo "- Persistence & Restart Lab: $PERSISTENCE_LAB_RESULT"
@@ -1021,6 +1064,10 @@ fi
   printf -- '- Visual Journey summary: visual-journey.md\n'
   printf -- '- Interaction Crawler JSON: interaction-crawl.json\n'
   printf -- '- Interaction Crawler summary: interaction-crawl.md\n'
+  if [[ "$JOURNEY_CRAWL_RESULT" != "SKIPPED" ]]; then
+    printf -- '- Journey Crawler JSON: journey-crawl.json\n'
+    printf -- '- Journey Crawler summary: journey-crawl.md\n'
+  fi
   printf -- '- System UI Lab JSON: system-lab.json\n'
   printf -- '- System UI Lab summary: system-lab.md\n'
   printf -- '- Network Lab JSON: network-lab.json\n'

@@ -1,3 +1,16 @@
+## v3.3.0 — User Journey Intelligence
+
+AppLab now performs bounded safe multi-step runtime exploration during non-FAST
+trusted verification and reconstructs observed user journeys from real UI states
+and transitions.
+
+Journey Intelligence compares those runtime paths with the static Product Flow
+Graph and surfaces no-change actions, loop candidates, safe dead-end candidates
+and journey coverage gaps without treating bounded exploration as proof of
+unreachability.
+
+See `integration/intelligence/USER_JOURNEY_INTELLIGENCE.md`.
+
 ## v3.2.0 — Evidence Confidence & Contradiction Engine
 
 AppLab now maintains a deterministic evidence graph across product-contract,

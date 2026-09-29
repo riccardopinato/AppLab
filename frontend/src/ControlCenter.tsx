@@ -239,6 +239,25 @@ type StudioProject = {
     new_high_review?: number;
     new_review?: number;
   } | null;
+  user_journey?: {
+    journeys_observed?: number;
+    states_observed?: number;
+    transitions_observed?: number;
+    max_observed_depth?: number;
+    no_change_actions?: number;
+    loop_candidates?: number;
+    safe_dead_end_candidates?: number;
+    review_signals?: number;
+    sample_journeys?: Array<{
+      depth?: number;
+      steps?: string[];
+    }>;
+    top_findings?: Array<{
+      kind?: string;
+      severity?: string;
+      subject?: string;
+    }>;
+  } | null;
   evidence_confidence?: {
     total_claims?: number;
     confirmed?: number;
@@ -297,6 +316,8 @@ type StudioSnapshot = {
     trusted_runtime_reviews?: number;
     evidence_contradictions?: number;
     evidence_unverified?: number;
+    journeys_observed?: number;
+    journey_review_signals?: number;
   };
   projects: StudioProject[];
   portfolio?: {
@@ -441,6 +462,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <div><span>Trusted runtime</span><strong>{studio.summary.trusted_runtime_reviews ?? 0}</strong></div>
               <div><span>Evidence contradictions</span><strong>{studio.summary.evidence_contradictions ?? 0}</strong></div>
               <div><span>Unverified evidence</span><strong>{studio.summary.evidence_unverified ?? 0}</strong></div>
+              <div><span>Runtime journeys</span><strong>{studio.summary.journeys_observed ?? 0}</strong></div>
+              <div><span>Journey review</span><strong>{studio.summary.journey_review_signals ?? 0}</strong></div>
             </div>
 
             <div className="studio-projects">
@@ -495,6 +518,15 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       </small>
                     </div>
                     <div>
+                      <span>User journeys</span>
+                      <strong>{project.user_journey?.journeys_observed ?? 0}</strong>
+                      <small>
+                        {project.user_journey
+                          ? `${project.user_journey.states_observed ?? 0} states · ${project.user_journey.transitions_observed ?? 0} transitions · depth ${project.user_journey.max_observed_depth ?? 0} · ${project.user_journey.review_signals ?? 0} review`
+                          : "no trusted journey evidence"}
+                      </small>
+                    </div>
+                    <div>
                       <span>Autonomous Review</span>
                       <strong>{project.autonomous_review?.review_state ?? "—"}</strong>
                       <small>
@@ -523,6 +555,15 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <small>{project.audit?.manual_review_required ? "manual review required" : "automated evidence only"}</small>
                     </div>
                   </div>
+                  {project.user_journey?.sample_journeys?.length ? (
+                    <div className="studio-labs">
+                      {project.user_journey.sample_journeys.slice(0, 5).map((journey, index) => (
+                        <span key={`journey-${index}-${journey.depth}`}>
+                          depth {journey.depth ?? 0} · {journey.steps?.join(" → ") || "observed state"}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {project.evidence_confidence?.top_contradictions?.length ? (
                     <div className="studio-labs">
                       {project.evidence_confidence.top_contradictions.slice(0, 6).map((item, index) => (
