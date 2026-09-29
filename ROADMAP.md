@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v3.2.0 — Evidence Confidence & Contradiction Engine**
+Current production baseline: **v3.3.0 — User Journey Intelligence**
 
 ## Product rule
 
@@ -19,6 +19,19 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v3.3.0 — User Journey Intelligence
+
+- [x] Add bounded multi-step Safe Journey Crawler to trusted non-FAST verification.
+- [x] Reuse the existing safe-action allow/deny policy.
+- [x] Reconstruct runtime states and transitions from UI hierarchy evidence.
+- [x] Replay safe paths deterministically before deeper exploration.
+- [x] Bound journey depth, state count and transition count.
+- [x] Compare runtime journeys with the static Product Flow Graph.
+- [x] Surface no-change actions, loops and safe dead-end candidates conservatively.
+- [x] Expose observed journeys and review signals in AppLab Studio.
+- [x] Preserve Trusted Evidence Manifest and release-verdict boundaries.
+
 
 ### v3.2.0 — Evidence Confidence & Contradiction Engine
 
