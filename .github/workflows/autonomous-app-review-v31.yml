@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v3.1
+name: AppLab True Autonomous App Review v4.0
 
 on:
   pull_request:
