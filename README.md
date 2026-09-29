@@ -1,3 +1,15 @@
+## v4.0.0 — AppLab Analyst
+
+AppLab now has a deterministic analysis layer that synthesizes product context,
+trusted runtime evidence, contradictions, longitudinal change and the v3.6
+experiment plan into one provenance-aware report.
+
+The Analyst produces evidence-backed observations and ordered next actions without
+inventing features, requiring an LLM, generating a numeric quality score or
+changing FAST/FULL/CERTIFICATION authority.
+
+See `integration/intelligence/APPLAB_ANALYST_V4.md`.
+
 ## v3.6.0 — Autonomous Experiment Planner
 
 AppLab now converts unresolved trusted evidence into an ordered verification plan.
