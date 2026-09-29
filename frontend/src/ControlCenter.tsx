@@ -552,9 +552,14 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <strong>{project.longitudinal?.state ?? "—"}</strong>
                       <small>
                         {project.longitudinal
-                          ? `${project.longitudinal.history_snapshots ?? 0} history · ${project.longitudinal.new_findings ?? 0} new · ${project.longitudinal.returned_findings ?? 0} returned · ${project.longitudinal.resolved_findings ?? 0} resolved · ${project.longitudinal.regression_candidates ?? 0} regression candidates`
+                          ? `${project.longitudinal.history_snapshots ?? 0} history · base ${shortSha(project.longitudinal.baseline_sha ?? "")} · ${project.longitudinal.new_findings ?? 0} new · ${project.longitudinal.returned_findings ?? 0} returned · ${project.longitudinal.persistent_findings ?? 0} persistent · ${project.longitudinal.resolved_findings ?? 0} resolved`
                           : "no longitudinal baseline"}
                       </small>
+                      {project.longitudinal ? (
+                        <small>
+                          {project.longitudinal.severity_escalations ?? 0} escalations · {project.longitudinal.claim_status_changes ?? 0} claim changes · {project.longitudinal.regression_candidates ?? 0} regression candidates
+                        </small>
+                      ) : null}
                     </div>
                     <div>
                       <span>Evidence</span>
