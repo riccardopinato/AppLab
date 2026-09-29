@@ -78,6 +78,7 @@ jobs:
             scripts/evidence_confidence_engine.py \
             scripts/user_journey_intelligence.py \
             scripts/ux_friction_lab.py \
+            scripts/longitudinal_product_intelligence.py \
             scripts/product_contract_audit.py \
             scripts/decision_brief.py \
             scripts/autonomous_app_review.py \
@@ -134,6 +135,7 @@ jobs:
           python scripts/evidence_confidence_engine.py --self-test
           python scripts/user_journey_intelligence.py --self-test
           python scripts/ux_friction_lab.py --self-test
+          python scripts/longitudinal_product_intelligence.py --self-test
           python scripts/product_contract_audit.py --self-test
           python scripts/decision_brief.py --self-test
           python scripts/autonomous_app_review.py --self-test
