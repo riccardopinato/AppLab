@@ -100,6 +100,19 @@ def select_targets(
             labs = ["core-runtime", "visual-regression"]
         return "POST_FIX_VERIFICATION", labs, "Reproduce the trusted failure path and repeat it after the fix without delaying the fix itself."
 
+    if source == "EVIDENCE_CONTRADICTION":
+        if any(token in text for token in ("network", "offline", "connectiv", "http", "api", "sync", "cloud")):
+            labs = ["product-analysis", "network"]
+        elif any(token in text for token in ("migration", "upgrade", "schema", "persistence", "database", "storage", "save")):
+            labs = ["product-analysis", "persistence", "storage"]
+        elif any(token in text for token in ("journey", "navigation", "loop", "interaction", "reachab")):
+            labs = ["product-analysis", "safe-interaction-crawler"]
+        elif any(token in text for token in ("permission", "notification", "camera", "location", "system ui", "system_ui")):
+            labs = ["product-analysis", "system"]
+        else:
+            labs = ["product-analysis", "full-source-review"]
+        return "EVIDENCE_RECONCILIATION", labs, "Reconcile contradictory bounded evidence and, where useful, collect direct specialist evidence for the same subject."
+
     if any(token in text for token in ("network", "offline", "connectiv", "http", "api", "sync", "cloud")):
         return "SPECIALIST_RUNTIME", ["network"], "Exercise network-dependent behavior under bounded offline/recovery conditions."
 
@@ -131,7 +144,7 @@ def select_targets(
     )):
         return "TARGETED_JOURNEY", ["safe-interaction-crawler", "visual-journey"], "Replay the bounded user path and compare observed UI-state transitions."
 
-    if source == "EVIDENCE_CONTRADICTION" or "contradict" in text:
+    if "contradict" in text:
         return "EVIDENCE_RECONCILIATION", ["product-analysis", "full-source-review"], "Reconcile the contradictory bounded evidence without choosing a source by assumption."
 
     if any(token in text for token in ("contract", "capability", "documentation", "doc_only", "promised", "excluded")):
@@ -247,8 +260,8 @@ def procedure_for(experiment_type: str, subject: str, labs: list[str]) -> dict[s
     }
 
 
-def experiment_id(source: str, kind: str, subject: str, labs: list[str]) -> str:
-    payload = "|".join((source, kind, subject, ",".join(labs))).encode("utf-8")
+def experiment_id(kind: str, subject: str, labs: list[str]) -> str:
+    payload = "|".join((kind, subject, ",".join(labs))).encode("utf-8")
     return "EXP-" + hashlib.sha256(payload).hexdigest()[:12].upper()
 
 
@@ -274,7 +287,7 @@ def build_experiment(
         else "BOUNDED_REVIEW"
     )
     return {
-        "id": experiment_id(source, kind, subject, labs),
+        "id": experiment_id(kind, subject, labs),
         "priority": priority,
         "source": source,
         "kind": kind,
@@ -564,6 +577,18 @@ def self_test() -> None:
     assert offline["labs"] == ["network"]
     contradiction = next(row for row in report["experiments"] if row["source"] == "EVIDENCE_CONTRADICTION")
     assert contradiction["experiment_type"] == "EVIDENCE_RECONCILIATION"
+    network_contradiction = build_experiment(
+        source="EVIDENCE_CONTRADICTION",
+        priority="HIGH",
+        kind="NETWORK_EVIDENCE_CONTRADICTION",
+        subject="sync",
+        message="Static and runtime network evidence disagree.",
+        evidence=[],
+        basis="EVIDENCE_CONFIDENCE",
+    )
+    assert network_contradiction["experiment_type"] == "EVIDENCE_RECONCILIATION"
+    assert "network" in network_contradiction["labs"]
+    assert experiment_id("A", "subject", ["network"]) == experiment_id("A", "subject", ["network"])
     assert build_plan({"decision": {"buckets": {}}})["state"] == "NO_EXPERIMENTS_REQUIRED"
     print("AppLab Autonomous Experiment Planner self-test PASS")
 
