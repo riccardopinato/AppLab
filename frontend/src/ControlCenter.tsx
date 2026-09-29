@@ -258,6 +258,23 @@ type StudioProject = {
       reason?: string;
     }>;
   } | null;
+  experiment_plan?: {
+    state?: string;
+    next_experiment_id?: string;
+    experiments?: number;
+    high_priority?: number;
+    normal_priority?: number;
+    existing_lab_ready?: number;
+    bounded_review_only?: number;
+    top_experiments?: Array<{
+      id?: string;
+      priority?: string;
+      kind?: string;
+      subject?: string;
+      experiment_type?: string;
+      labs?: string[];
+    }>;
+  } | null;
   ux_friction?: {
     runtime_transitions?: number;
     no_change_actions?: number;
@@ -345,6 +362,9 @@ type StudioSnapshot = {
     change_attention?: number;
     with_longitudinal_intelligence?: number;
     longitudinal_attention?: number;
+    with_experiment_plans?: number;
+    planned_experiments?: number;
+    high_priority_experiments?: number;
     autonomous_reviews?: number;
     autonomous_attention?: number;
     runtime_observed?: number;
@@ -493,6 +513,9 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <div><span>Reusable patterns</span><strong>{studio.summary.recurrent_patterns}</strong></div>
               <div><span>Change evidence</span><strong>{studio.summary.with_change_intelligence ?? 0}</strong></div>
               <div><span>Change attention</span><strong>{studio.summary.change_attention ?? 0}</strong></div>
+              <div><span>Experiment plans</span><strong>{studio.summary.with_experiment_plans ?? 0}</strong></div>
+              <div><span>Planned experiments</span><strong>{studio.summary.planned_experiments ?? 0}</strong></div>
+              <div><span>High-priority experiments</span><strong>{studio.summary.high_priority_experiments ?? 0}</strong></div>
               <div><span>Autonomous reviews</span><strong>{studio.summary.autonomous_reviews ?? 0}</strong></div>
               <div><span>Review attention</span><strong>{studio.summary.autonomous_attention ?? 0}</strong></div>
               <div><span>Runtime observed</span><strong>{studio.summary.runtime_observed ?? 0}</strong></div>
@@ -562,6 +585,18 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       ) : null}
                     </div>
                     <div>
+                      <span>Experiment Planner</span>
+                      <strong>{project.experiment_plan?.state ?? "—"}</strong>
+                      <small>
+                        {project.experiment_plan
+                          ? `${project.experiment_plan.experiments ?? 0} experiments · ${project.experiment_plan.high_priority ?? 0} high · ${project.experiment_plan.existing_lab_ready ?? 0} lab-ready · ${project.experiment_plan.bounded_review_only ?? 0} review-only`
+                          : "no experiment plan"}
+                      </small>
+                      {project.experiment_plan?.next_experiment_id ? (
+                        <small>next · {project.experiment_plan.next_experiment_id}</small>
+                      ) : null}
+                    </div>
+                    <div>
                       <span>Evidence</span>
                       <strong>{project.evidence_confidence?.contradiction_count ?? 0}</strong>
                       <small>
@@ -617,6 +652,17 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <small>{project.audit?.manual_review_required ? "manual review required" : "automated evidence only"}</small>
                     </div>
                   </div>
+                  {project.experiment_plan?.top_experiments?.length ? (
+                    <div className="studio-labs">
+                      {project.experiment_plan.top_experiments.slice(0, 6).map((item, index) => (
+                        <span key={`experiment-${item.id}-${index}`}>
+                          {item.priority} · {item.experiment_type} · {item.kind}
+                          {item.subject ? ` · ${item.subject}` : ""}
+                          {item.labs?.length ? ` · ${item.labs.join(", ")}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {project.longitudinal?.top_regressions?.length ? (
                     <div className="studio-labs">
                       {project.longitudinal.top_regressions.slice(0, 6).map((item, index) => (

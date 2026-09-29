@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "3.5.0"
+STUDIO_VERSION = "3.6.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -55,13 +55,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     user_journey = read_json(project_dir / "user-journey.json")
     ux_friction = read_json(project_dir / "ux-friction.json")
     longitudinal = read_json(project_dir / "longitudinal-intelligence.json")
+    experiment = read_json(project_dir / "experiment-plan.json")
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, contract, brief, autonomous)
     ):
         return None
 
@@ -77,6 +78,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "user_journey": None,
         "ux_friction": None,
         "longitudinal": None,
+        "experiment_plan": None,
         "autonomous_review": None,
     }
 
@@ -336,6 +338,43 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
                     "reason": str(item.get("reason", "")),
                 }
                 for item in regression_rows[:8]
+                if isinstance(item, dict)
+            ],
+        }
+
+    if experiment:
+        experiment_summary = (
+            experiment.get("summary")
+            if isinstance(experiment.get("summary"), dict)
+            else {}
+        )
+        experiment_rows = (
+            experiment.get("experiments")
+            if isinstance(experiment.get("experiments"), list)
+            else []
+        )
+        row["experiment_plan"] = {
+            "state": str(experiment.get("state", "UNKNOWN")),
+            "next_experiment_id": str(experiment.get("next_experiment_id", "") or ""),
+            "experiments": int(experiment_summary.get("experiments", 0) or 0),
+            "high_priority": int(experiment_summary.get("high_priority", 0) or 0),
+            "normal_priority": int(experiment_summary.get("normal_priority", 0) or 0),
+            "existing_lab_ready": int(experiment_summary.get("existing_lab_ready", 0) or 0),
+            "bounded_review_only": int(experiment_summary.get("bounded_review_only", 0) or 0),
+            "top_experiments": [
+                {
+                    "id": str(item.get("id", "")),
+                    "priority": str(item.get("priority", "")),
+                    "kind": str(item.get("kind", "")),
+                    "subject": str(item.get("subject", "")),
+                    "experiment_type": str(item.get("experiment_type", "")),
+                    "labs": (
+                        [str(value) for value in item.get("labs", [])[:4]]
+                        if isinstance(item.get("labs"), list)
+                        else []
+                    ),
+                }
+                for item in experiment_rows[:8]
                 if isinstance(item, dict)
             ],
         }
@@ -609,6 +648,19 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
             ),
             "with_longitudinal_intelligence": sum(
                 1 for row in projects if row.get("longitudinal") is not None
+            ),
+            "with_experiment_plans": sum(
+                1 for row in projects if row.get("experiment_plan") is not None
+            ),
+            "planned_experiments": sum(
+                int((row.get("experiment_plan") or {}).get("experiments", 0) or 0)
+                for row in projects
+                if isinstance(row.get("experiment_plan"), dict)
+            ),
+            "high_priority_experiments": sum(
+                int((row.get("experiment_plan") or {}).get("high_priority", 0) or 0)
+                for row in projects
+                if isinstance(row.get("experiment_plan"), dict)
             ),
             "longitudinal_attention": sum(
                 1
@@ -927,6 +979,32 @@ def self_test() -> None:
             ),
             encoding="utf-8",
         )
+        (project / "experiment-plan.json").write_text(
+            json.dumps(
+                {
+                    "state": "EXPERIMENTS_READY",
+                    "next_experiment_id": "EXP-DEMO",
+                    "summary": {
+                        "experiments": 3,
+                        "high_priority": 2,
+                        "normal_priority": 1,
+                        "existing_lab_ready": 2,
+                        "bounded_review_only": 1,
+                    },
+                    "experiments": [
+                        {
+                            "id": "EXP-DEMO",
+                            "priority": "HIGH",
+                            "kind": "NAVIGATION_LOOP_CANDIDATE",
+                            "subject": "Open",
+                            "experiment_type": "TARGETED_JOURNEY",
+                            "labs": ["safe-interaction-crawler", "visual-journey"],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (project / "audit-plan.json").write_text(
             json.dumps(
                 {
@@ -972,6 +1050,12 @@ def self_test() -> None:
         assert snapshot["projects"][0]["longitudinal"]["regression_candidates"] == 2
         assert snapshot["summary"]["with_longitudinal_intelligence"] == 1
         assert snapshot["summary"]["longitudinal_attention"] == 1
+        assert snapshot["projects"][0]["experiment_plan"]["state"] == "EXPERIMENTS_READY"
+        assert snapshot["projects"][0]["experiment_plan"]["experiments"] == 3
+        assert snapshot["projects"][0]["experiment_plan"]["next_experiment_id"] == "EXP-DEMO"
+        assert snapshot["summary"]["with_experiment_plans"] == 1
+        assert snapshot["summary"]["planned_experiments"] == 3
+        assert snapshot["summary"]["high_priority_experiments"] == 2
         assert snapshot["projects"][0]["autonomous_review"]["review_state"] == "REVIEW_REQUIRED"
         assert snapshot["projects"][0]["autonomous_review"]["runtime_confirmed"] == 1
         assert snapshot["summary"]["autonomous_reviews"] == 1

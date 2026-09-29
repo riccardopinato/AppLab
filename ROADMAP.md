@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v3.5.0 — Longitudinal Product Intelligence**
+Current production baseline: **v3.6.0 — Autonomous Experiment Planner**
 
 ## Product rule
 
@@ -19,6 +19,18 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v3.6.0 — Autonomous Experiment Planner
+
+- [x] Convert Decision Brief VERIFY_NEXT/FIX_NOW signals into deterministic experiments.
+- [x] Promote longitudinal regression candidates into high-priority verification hypotheses.
+- [x] Convert Evidence Confidence contradictions into explicit reconciliation experiments.
+- [x] Reuse existing specialist runtime labs and safe journey tooling before adding new machinery.
+- [x] Define preconditions, actions, observations and sufficient-evidence criteria for every experiment.
+- [x] Preserve SUPPORTED / CONTRADICTED / UNVERIFIED semantics without numeric scoring.
+- [x] Deduplicate equivalent experiments while preserving every trigger source.
+- [x] Surface next experiment, priorities and target labs in AppLab Studio.
+- [x] Keep planner output advisory and independent from FAST/FULL/CERTIFICATION.
 
 ### v3.5.0 — Longitudinal Product Intelligence
 
