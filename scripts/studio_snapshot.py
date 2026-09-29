@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "3.6.0"
+STUDIO_VERSION = "4.0.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -56,13 +56,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     ux_friction = read_json(project_dir / "ux-friction.json")
     longitudinal = read_json(project_dir / "longitudinal-intelligence.json")
     experiment = read_json(project_dir / "experiment-plan.json")
+    analyst = read_json(project_dir / "analyst-report.json")
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, contract, brief, autonomous)
     ):
         return None
 
@@ -79,6 +80,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "ux_friction": None,
         "longitudinal": None,
         "experiment_plan": None,
+        "analyst": None,
         "autonomous_review": None,
     }
 
@@ -379,6 +381,70 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
             ],
         }
 
+    if analyst:
+        analyst_summary = (
+            analyst.get("summary")
+            if isinstance(analyst.get("summary"), dict)
+            else {}
+        )
+        analyst_product = (
+            analyst.get("product")
+            if isinstance(analyst.get("product"), dict)
+            else {}
+        )
+        analyst_evidence = (
+            analyst.get("evidence_posture")
+            if isinstance(analyst.get("evidence_posture"), dict)
+            else {}
+        )
+        analyst_actions = (
+            analyst.get("next_actions")
+            if isinstance(analyst.get("next_actions"), list)
+            else []
+        )
+        analyst_observations = (
+            analyst.get("observations")
+            if isinstance(analyst.get("observations"), list)
+            else []
+        )
+        row["analyst"] = {
+            "state": str(analyst.get("state", "UNKNOWN")),
+            "headline": str(analyst.get("headline", "")),
+            "engine": str(analyst_product.get("engine", "unknown")),
+            "runtime_trust_state": str(analyst_evidence.get("runtime_trust_state", "NOT_PROVIDED")),
+            "observations": int(analyst_summary.get("observations", 0) or 0),
+            "high_priority_observations": int(analyst_summary.get("high_priority_observations", 0) or 0),
+            "next_actions": int(analyst_summary.get("next_actions", 0) or 0),
+            "high_priority_actions": int(analyst_summary.get("high_priority_actions", 0) or 0),
+            "fix_now": int(analyst_summary.get("fix_now", 0) or 0),
+            "verify_next": int(analyst_summary.get("verify_next", 0) or 0),
+            "experiments": int(analyst_summary.get("experiments", 0) or 0),
+            "contradictions": int(analyst_summary.get("contradictions", 0) or 0),
+            "regression_candidates": int(analyst_summary.get("regression_candidates", 0) or 0),
+            "top_observations": [
+                {
+                    "priority": str(item.get("priority", "")),
+                    "category": str(item.get("category", "")),
+                    "kind": str(item.get("kind", "")),
+                    "subject": str(item.get("subject", "")),
+                    "statement": str(item.get("statement", "")),
+                }
+                for item in analyst_observations[:8]
+                if isinstance(item, dict)
+            ],
+            "top_actions": [
+                {
+                    "priority": str(item.get("priority", "")),
+                    "action": str(item.get("action", "")),
+                    "kind": str(item.get("kind", "")),
+                    "subject": str(item.get("subject", "")),
+                    "source_id": str(item.get("source_id", "") or ""),
+                }
+                for item in analyst_actions[:8]
+                if isinstance(item, dict)
+            ],
+        }
+
     if user_journey:
         journey_summary = (
             user_journey.get("summary")
@@ -651,6 +717,16 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
             ),
             "with_experiment_plans": sum(
                 1 for row in projects if row.get("experiment_plan") is not None
+            ),
+            "with_analyst_reports": sum(
+                1 for row in projects if row.get("analyst") is not None
+            ),
+            "analyst_attention": sum(
+                1
+                for row in projects
+                if isinstance(row.get("analyst"), dict)
+                and row["analyst"].get("state")
+                in {"CONFIRMED_ACTION", "VERIFICATION_REQUIRED", "EVIDENCE_INCOMPLETE"}
             ),
             "planned_experiments": sum(
                 int((row.get("experiment_plan") or {}).get("experiments", 0) or 0)
@@ -1005,6 +1081,46 @@ def self_test() -> None:
             ),
             encoding="utf-8",
         )
+        (project / "analyst-report.json").write_text(
+            json.dumps(
+                {
+                    "state": "VERIFICATION_REQUIRED",
+                    "headline": "Bounded verification required.",
+                    "product": {"engine": "flutter"},
+                    "evidence_posture": {"runtime_trust_state": "TRUSTED"},
+                    "summary": {
+                        "observations": 4,
+                        "high_priority_observations": 2,
+                        "next_actions": 3,
+                        "high_priority_actions": 1,
+                        "fix_now": 0,
+                        "verify_next": 2,
+                        "experiments": 3,
+                        "contradictions": 1,
+                        "regression_candidates": 1,
+                    },
+                    "observations": [
+                        {
+                            "priority": "HIGH",
+                            "category": "REGRESSION_REVIEW",
+                            "kind": "NAVIGATION_LOOP_CANDIDATE",
+                            "subject": "Open",
+                            "statement": "finding returned",
+                        }
+                    ],
+                    "next_actions": [
+                        {
+                            "priority": "HIGH",
+                            "action": "RUN_BOUNDED_EXPERIMENT",
+                            "kind": "NAVIGATION_LOOP_CANDIDATE",
+                            "subject": "Open",
+                            "source_id": "EXP-DEMO",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (project / "audit-plan.json").write_text(
             json.dumps(
                 {
@@ -1056,6 +1172,11 @@ def self_test() -> None:
         assert snapshot["summary"]["with_experiment_plans"] == 1
         assert snapshot["summary"]["planned_experiments"] == 3
         assert snapshot["summary"]["high_priority_experiments"] == 2
+        assert snapshot["projects"][0]["analyst"]["state"] == "VERIFICATION_REQUIRED"
+        assert snapshot["projects"][0]["analyst"]["observations"] == 4
+        assert snapshot["projects"][0]["analyst"]["next_actions"] == 3
+        assert snapshot["summary"]["with_analyst_reports"] == 1
+        assert snapshot["summary"]["analyst_attention"] == 1
         assert snapshot["projects"][0]["autonomous_review"]["review_state"] == "REVIEW_REQUIRED"
         assert snapshot["projects"][0]["autonomous_review"]["runtime_confirmed"] == 1
         assert snapshot["summary"]["autonomous_reviews"] == 1
