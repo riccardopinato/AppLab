@@ -12,13 +12,14 @@ import audit_orchestrator
 import behavioral_product_lab
 import decision_brief
 import evidence_calibration
+import evidence_confidence_engine
 import product_contract_audit
 import state_edge_case_lab
 import trusted_evidence_manifest
 from product_review_common import find_json, write_report
 
 SCHEMA_VERSION = 2
-PLATFORM_VERSION = "3.1.0"
+PLATFORM_VERSION = "3.2.0"
 
 
 def build_review(
@@ -43,6 +44,9 @@ def build_review(
     states = state_edge_case_lab.build_report(app, effective_runtime_root)
     calibration = evidence_calibration.build_report(app, behavioral, states)
     contract = product_contract_audit.build_report(repo_root, app, behavioral, states)
+    evidence_confidence = evidence_confidence_engine.build_report(
+        app, behavioral, states, calibration, contract, trust
+    )
     brief = decision_brief.build_report(calibration, contract, app)
     audit = audit_orchestrator.build_plan(app, has_market_evidence=False)
 
@@ -52,13 +56,17 @@ def build_review(
     fix_now = len((brief.get("buckets") or {}).get("FIX_NOW", []))
     verify_next = len((brief.get("buckets") or {}).get("VERIFY_NEXT", []))
 
+    contradiction_count = int(
+        (evidence_confidence.get("summary") or {}).get("contradiction_count", 0) or 0
+    )
+
     if not runtime_trusted:
         review_state = "EVIDENCE_INCOMPLETE"
     elif fix_now:
         review_state = "ATTENTION_REQUIRED"
     elif runtime_state == "NOT_OBSERVED":
         review_state = "EVIDENCE_INCOMPLETE"
-    elif verify_next:
+    elif contradiction_count or verify_next:
         review_state = "REVIEW_REQUIRED"
     else:
         review_state = "READY_FOR_HUMAN_REVIEW"
@@ -79,6 +87,7 @@ def build_review(
         "behavioral_product": behavioral,
         "state_edge_case": states,
         "evidence_calibration": calibration,
+        "evidence_confidence": evidence_confidence,
         "product_contract": contract,
         "decision_brief": brief,
         "audit_plan": audit,
@@ -95,6 +104,13 @@ def build_review(
             "calibrated_findings": int((calibration.get("summary") or {}).get("total", 0) or 0),
             "runtime_confirmed_findings": int((calibration.get("summary") or {}).get("runtime_confirmed", 0) or 0),
             "runtime_contradicted_findings": int((calibration.get("summary") or {}).get("runtime_contradicted", 0) or 0),
+            "evidence_claims": int((evidence_confidence.get("summary") or {}).get("total_claims", 0) or 0),
+            "evidence_confirmed": int((evidence_confidence.get("summary") or {}).get("confirmed", 0) or 0),
+            "evidence_corroborated": int((evidence_confidence.get("summary") or {}).get("corroborated", 0) or 0),
+            "evidence_contradicted": int((evidence_confidence.get("summary") or {}).get("contradicted", 0) or 0),
+            "evidence_unverified": int((evidence_confidence.get("summary") or {}).get("unverified", 0) or 0),
+            "evidence_stale": int((evidence_confidence.get("summary") or {}).get("stale", 0) or 0),
+            "evidence_contradictions": contradiction_count,
             "contract_review_signals": int((contract.get("summary") or {}).get("review_signals", 0) or 0),
         },
         "guardrails": {
@@ -116,6 +132,7 @@ def write_full(review: dict[str, Any], output_dir: Path) -> None:
         ("behavioral-product", review["behavioral_product"], behavioral_product_lab.markdown(review["behavioral_product"])),
         ("state-edge-case", review["state_edge_case"], state_edge_case_lab.markdown(review["state_edge_case"])),
         ("evidence-calibration", review["evidence_calibration"], evidence_calibration.markdown(review["evidence_calibration"])),
+        ("evidence-confidence", review["evidence_confidence"], evidence_confidence_engine.markdown(review["evidence_confidence"])),
         ("product-contract-audit", review["product_contract"], product_contract_audit.markdown(review["product_contract"])),
         ("decision-brief", review["decision_brief"], decision_brief.markdown(review["decision_brief"])),
     ]
@@ -130,7 +147,7 @@ def write_full(review: dict[str, Any], output_dir: Path) -> None:
     summary = review["summary"]
     trust = review["runtime_evidence_trust"]
     lines = [
-        "# AppLab v3.1 — True Autonomous App Review",
+        "# AppLab v3.2 — Evidence-Aware Autonomous App Review",
         "",
         f"- Review state: **{review['review_state']}**",
         f"- Runtime trust: **{trust['state']}**",
@@ -138,6 +155,9 @@ def write_full(review: dict[str, Any], output_dir: Path) -> None:
         f"- Edge states observed: **{summary['observed_states']}/{summary['applicable_states']}**",
         f"- Runtime-confirmed findings: **{summary['runtime_confirmed_findings']}**",
         f"- Runtime-contradicted findings: **{summary['runtime_contradicted_findings']}**",
+        f"- Evidence claims: **{summary['evidence_claims']}**",
+        f"- Evidence contradictions: **{summary['evidence_contradictions']}**",
+        f"- Unverified evidence claims: **{summary['evidence_unverified']}**",
         f"- Fix now: **{summary['fix_now']}**",
         f"- Verify next: **{summary['verify_next']}**",
         f"- Selected specialist labs: **{summary['selected_labs']}**",
@@ -165,6 +185,7 @@ def write_full(review: dict[str, Any], output_dir: Path) -> None:
                 "behavioral_product",
                 "state_edge_case",
                 "evidence_calibration",
+                "evidence_confidence",
                 "product_contract",
                 "decision_brief",
                 "audit_plan",
@@ -303,8 +324,10 @@ def self_test() -> None:
             require_trusted=True,
         )
         review = build_review(root, runtime_root, 100, trust)
-        assert review["platform_version"] == "3.1.0"
+        assert review["platform_version"] == "3.2.0"
         assert review["summary"]["runtime_evidence_trusted"] is True
+        assert review["summary"]["evidence_claims"] >= 1
+        assert "evidence_confidence" in review
         assert review["runtime_evidence_trust"]["state"] == "TRUSTED"
 
         untrusted = build_review(root, evidence, 100, {"trusted": False, "state": "REJECTED"})

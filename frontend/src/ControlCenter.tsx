@@ -239,6 +239,21 @@ type StudioProject = {
     new_high_review?: number;
     new_review?: number;
   } | null;
+  evidence_confidence?: {
+    total_claims?: number;
+    confirmed?: number;
+    corroborated?: number;
+    contradicted?: number;
+    unverified?: number;
+    stale?: number;
+    contradiction_count?: number;
+    top_contradictions?: Array<{
+      domain?: string;
+      kind?: string;
+      subject?: string;
+      message?: string;
+    }>;
+  } | null;
   autonomous_review?: {
     review_state?: string;
     runtime_evidence_state?: string;
@@ -280,6 +295,8 @@ type StudioSnapshot = {
     autonomous_attention?: number;
     runtime_observed?: number;
     trusted_runtime_reviews?: number;
+    evidence_contradictions?: number;
+    evidence_unverified?: number;
   };
   projects: StudioProject[];
   portfolio?: {
@@ -422,6 +439,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <div><span>Review attention</span><strong>{studio.summary.autonomous_attention ?? 0}</strong></div>
               <div><span>Runtime observed</span><strong>{studio.summary.runtime_observed ?? 0}</strong></div>
               <div><span>Trusted runtime</span><strong>{studio.summary.trusted_runtime_reviews ?? 0}</strong></div>
+              <div><span>Evidence contradictions</span><strong>{studio.summary.evidence_contradictions ?? 0}</strong></div>
+              <div><span>Unverified evidence</span><strong>{studio.summary.evidence_unverified ?? 0}</strong></div>
             </div>
 
             <div className="studio-projects">
@@ -467,6 +486,15 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       </small>
                     </div>
                     <div>
+                      <span>Evidence</span>
+                      <strong>{project.evidence_confidence?.contradiction_count ?? 0}</strong>
+                      <small>
+                        {project.evidence_confidence
+                          ? `${project.evidence_confidence.confirmed ?? 0} confirmed · ${project.evidence_confidence.corroborated ?? 0} corroborated · ${project.evidence_confidence.unverified ?? 0} unverified · ${project.evidence_confidence.stale ?? 0} stale`
+                          : "no evidence graph"}
+                      </small>
+                    </div>
+                    <div>
                       <span>Autonomous Review</span>
                       <strong>{project.autonomous_review?.review_state ?? "—"}</strong>
                       <small>
@@ -495,6 +523,15 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <small>{project.audit?.manual_review_required ? "manual review required" : "automated evidence only"}</small>
                     </div>
                   </div>
+                  {project.evidence_confidence?.top_contradictions?.length ? (
+                    <div className="studio-labs">
+                      {project.evidence_confidence.top_contradictions.slice(0, 6).map((item, index) => (
+                        <span key={`${item.domain}-${item.kind}-${item.subject}-${index}`}>
+                          CONTRADICTED · {item.domain} · {item.kind}{item.subject ? ` · ${item.subject}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {project.autonomous_review?.top_actions?.length ? (
                     <div className="studio-labs">
                       {project.autonomous_review.top_actions.slice(0, 6).map((action, index) => (

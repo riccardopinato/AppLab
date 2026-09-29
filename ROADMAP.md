@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v3.1.0 — True Autonomous App Review**
+Current production baseline: **v3.2.0 — Evidence Confidence & Contradiction Engine**
 
 ## Product rule
 
@@ -19,6 +19,37 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v3.2.0 — Evidence Confidence & Contradiction Engine
+
+- [x] Normalize product evidence into one deterministic claim graph.
+- [x] Classify claims as CONFIRMED / CORROBORATED / CONTRADICTED / UNVERIFIED / STALE.
+- [x] Reconcile Product Contract, Feature Truth, Product Flow, trusted UI hierarchy and runtime states.
+- [x] Detect explicit contract/implementation and static/runtime contradictions.
+- [x] Preserve contradictory sources rather than deleting losing evidence.
+- [x] Surface evidence-state counts and top contradictions in AppLab Studio.
+- [x] Make contradictions influence Autonomous Review without becoming release failures.
+- [x] Preserve non-numeric confidence semantics and certification authority.
+
+
+### v3.1.0 — True Autonomous App Review
+
+- [x] Resolve the target once to an immutable SHA.
+- [x] Auto-discover and build through Universal Project Runner.
+- [x] Execute Trusted APK Verifier and consume same-run evidence.
+- [x] Validate repository/SHA/package/run binding before product review.
+- [x] Use UI hierarchy for runtime product/state observations.
+- [x] Classify Product Contract claims semantically.
+- [x] Require strong static/runtime evidence relations.
+- [x] Validate the complete autonomous chain end-to-end.
+
+### v3.0.1 — Trusted Evidence Chain
+
+- [x] Generate Trusted Evidence Manifest inside the isolated verifier.
+- [x] Bind runtime evidence to repository, SHA, package id and workflow run.
+- [x] Hash all runtime evidence files with SHA-256.
+- [x] Reject altered, missing, extra or mismatched evidence.
+- [x] Reject target-authored runtime evidence in the legacy v3 workflow.
 
 ### v3.0.0 — Autonomous App Review
 
