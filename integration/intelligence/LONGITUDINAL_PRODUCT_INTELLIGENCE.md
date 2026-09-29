@@ -18,9 +18,10 @@ Each run consumes:
 - up to 20 prior review snapshots for the same repository;
 - repository, resolved SHA and workflow run metadata.
 
-The v3.1 trusted autonomous-review workflow restores the latest repository-scoped
-history from GitHub Actions cache, runs the v3.5 engine, then saves the new
-snapshot only after the trusted product review succeeds.
+The trusted autonomous-review workflow restores the latest repository-wide
+history artifact, runs the v3.5 engine, then uploads an updated history artifact
+only after the trusted product review succeeds. This avoids pull-request cache
+scope isolation and lets later PRs reuse the same repository history.
 
 ## Finding identity
 
@@ -88,8 +89,8 @@ The autonomous review artifact adds:
 - `longitudinal-intelligence.json`
 - `longitudinal-intelligence.md`
 
-The rolling cache stores review snapshots separately from the artifact and keeps
-at most 20 per repository.
+The repository-wide history artifact stores review snapshots separately from the
+review result artifact and keeps at most 20 distinct resolved SHAs per repository.
 
 AppLab Studio surfaces history depth, baseline SHA, new/returned/persistent/
 resolved counts, severity escalations and top regression candidates.
@@ -101,5 +102,6 @@ resolved counts, severity escalations and top regression candidates.
 3. Regression candidates require review; they are not automatic defects.
 4. Resolved findings are not proof of a runtime fix.
 5. Capability removal is not automatically a regression.
-6. History is repository-scoped and bounded.
-7. Release verdicts and production certification remain independent.
+6. History is repository-scoped, deduplicated by resolved SHA and bounded.
+7. Pairwise product-removal conclusions are suppressed when the current bounded scan is less complete than the baseline.
+8. Release verdicts and production certification remain independent.
