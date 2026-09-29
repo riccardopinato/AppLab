@@ -111,6 +111,7 @@ jobs:
           python scripts/history_learning.py --self-test
           python scripts/verification_intelligence.py --self-test
           python scripts/workflow_contract_test.py
+          python scripts/audit_contract_test.py
           python scripts/upgrade_lab.py --self-test
           python scripts/prepare_upgrade_baseline.py --self-test
           python scripts/prepare_performance_baseline.py --self-test
