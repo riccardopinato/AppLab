@@ -255,7 +255,7 @@ def load_history(
     if history_dir is None or not history_dir.is_dir():
         return []
     rows: list[dict[str, Any]] = []
-    for path in history_dir.glob("*.json"):
+    for path in history_dir.rglob("*.json"):
         row = _read_snapshot(path)
         if row is None:
             continue
@@ -628,7 +628,7 @@ def prune_history(history_dir: Path, limit: int = MAX_HISTORY) -> None:
     if not history_dir.is_dir():
         return
     rows: list[tuple[str, str, Path]] = []
-    for path in history_dir.glob("*.json"):
+    for path in history_dir.rglob("*.json"):
         snapshot = _read_snapshot(path)
         if snapshot is None:
             continue
@@ -798,6 +798,38 @@ def self_test() -> None:
             row.get("kind") == "CAPABILITY_EVIDENCE_REMOVED"
             for row in incompatible["regression_candidates"]
         )
+
+        baseline_static = review([])
+        baseline_static["app_intelligence"]["product_consistency"]["findings"] = [
+            {
+                "id": "static-gap",
+                "kind": "STATIC_GAP",
+                "subject": "settings",
+                "severity": "REVIEW",
+            }
+        ]
+        weaker_static = review([])
+        weaker_static["app_intelligence"]["scan"] = {
+            "max_files": 100,
+            "scanned_files": 100,
+            "truncated": True,
+            "confidence": "MEDIUM",
+        }
+        static_suppressed = build_report(
+            weaker_static,
+            [
+                make_snapshot(
+                    baseline_static,
+                    repository="owner/app",
+                    resolved_sha="8" * 40,
+                    recorded_at="2026-01-06T00:00:00+00:00",
+                )
+            ],
+            repository="owner/app",
+            resolved_sha="9" * 40,
+        )
+        assert static_suppressed["summary"]["resolved_findings"] == 0
+        assert static_suppressed["summary"]["suppressed_resolved_findings"] == 1
 
         evidence_dir = root / "composed"
         evidence_dir.mkdir()
