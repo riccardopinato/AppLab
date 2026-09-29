@@ -15,19 +15,21 @@ The lab consumes:
 
 ### Feedback
 
-`ACTION_WITHOUT_OBSERVED_FEEDBACK` is emitted when a safe trusted-runtime
-interaction produces no observable UI-state change.
+`STABLE_SIGNATURE_AFTER_ACTION_CANDIDATE` is emitted when a safe trusted-runtime
+interaction leaves the crawler's reduced stable signature unchanged.
 
-This remains REVIEW rather than an automatic defect because the action could
-trigger an intentional non-visual side effect.
+The signature normalizes digits and does not encode every visual/accessibility
+state (for example selected/checked state), so this remains a REVIEW candidate
+and never means that user-visible feedback is proven absent.
 
 Repeated no-change actions can produce
-`REPEATED_NO_FEEDBACK_PATTERN`.
+`REPEATED_STABLE_SIGNATURE_PATTERN`.
 
 ### Navigation
 
-Observed transitions that return to a previously seen state are exposed as
-`NAVIGATION_LOOP_CANDIDATE`.
+A repeated target is exposed as `NAVIGATION_LOOP_CANDIDATE` only when the
+observed successful-transition graph contains a path from that target back to
+the source, establishing an actual observed cycle rather than mere convergence.
 
 Observed journeys of depth three or greater may produce
 `DEEP_JOURNEY_CANDIDATE`, except obvious settings/profile/help-style paths.
