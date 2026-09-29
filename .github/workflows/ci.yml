@@ -34,6 +34,7 @@ jobs:
             scripts/finalize_external_result.py \
             scripts/release_artifact.py \
             scripts/interaction_crawler.py \
+            scripts/journey_crawler.py \
             scripts/system_lab.py \
             scripts/performance_lab.py \
             scripts/network_lab.py \
@@ -75,6 +76,7 @@ jobs:
             scripts/state_edge_case_lab.py \
             scripts/evidence_calibration.py \
             scripts/evidence_confidence_engine.py \
+            scripts/user_journey_intelligence.py \
             scripts/product_contract_audit.py \
             scripts/decision_brief.py \
             scripts/autonomous_app_review.py \
@@ -86,6 +88,7 @@ jobs:
             scripts/control_center_snapshot.py
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/interaction_crawler.py --self-test
+          python scripts/journey_crawler.py --self-test
           python scripts/system_lab.py --self-test
           python scripts/performance_lab.py --self-test
           python scripts/network_lab.py --self-test
@@ -128,6 +131,7 @@ jobs:
           python scripts/state_edge_case_lab.py --self-test
           python scripts/evidence_calibration.py --self-test
           python scripts/evidence_confidence_engine.py --self-test
+          python scripts/user_journey_intelligence.py --self-test
           python scripts/product_contract_audit.py --self-test
           python scripts/decision_brief.py --self-test
           python scripts/autonomous_app_review.py --self-test
@@ -152,7 +156,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"3.2.0"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"3.3.0"'; then
               healthy=true
               break
             fi
