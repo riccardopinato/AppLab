@@ -642,12 +642,20 @@ def self_test() -> None:
         return {
             "review_state": "REVIEW_REQUIRED",
             "app_intelligence": {
+                "scan": {
+                    "max_files": 3500,
+                    "scanned_files": 10,
+                    "truncated": False,
+                    "confidence": "HIGH",
+                },
                 "feature_truth": {"capabilities": []},
                 "product_consistency": {"findings": []},
                 "deep_product_model": {"entities": []},
                 "product_flow_graph": {"nodes": []},
             },
             "product_contract": {"findings": []},
+            "behavioral_product": {"findings": []},
+            "state_edge_case": {"findings": []},
             "user_journey": {"findings": []},
             "ux_friction": {"findings": findings},
             "evidence_confidence": {"claims": claims or [], "contradictions": []},
@@ -707,6 +715,115 @@ def self_test() -> None:
             resolved_sha="3" * 40,
         )
         assert baseline_only["state"] == "INSUFFICIENT_HISTORY"
+
+        contract = review([])
+        contract["product_contract"]["findings"] = [
+            {
+                "kind": "PROMISED_WITHOUT_IMPLEMENTATION_EVIDENCE",
+                "severity": "REVIEW",
+                "capability": "authentication",
+            },
+            {
+                "kind": "PROMISED_WITHOUT_IMPLEMENTATION_EVIDENCE",
+                "severity": "REVIEW",
+                "capability": "backup",
+            },
+        ]
+        contract_findings = findings_index(contract)
+        assert len(contract_findings) == 2
+        assert {row["subject"] for row in contract_findings.values()} == {"authentication", "backup"}
+
+        runtime_review = review([])
+        runtime_review["behavioral_product"]["findings"] = [
+            {"kind": "RUNTIME_INTERACTION_FAILURE", "subject": "save", "severity": "HIGH_REVIEW"}
+        ]
+        runtime_review["state_edge_case"]["findings"] = [
+            {"kind": "EDGE_STATE_RUNTIME_FAILURE", "subject": "offline", "severity": "HIGH_REVIEW"}
+        ]
+        runtime_sources = {row["source"] for row in findings_index(runtime_review).values()}
+        assert {"behavioral_product", "state_edge_case"} <= runtime_sources
+
+        baseline_scan = review([])
+        baseline_scan["app_intelligence"]["feature_truth"]["capabilities"] = [
+            {"capability": "authentication", "truth": "CODE_CONFIRMED"}
+        ]
+        lower_scan = review([])
+        lower_scan["app_intelligence"]["scan"] = {
+            "max_files": 100,
+            "scanned_files": 100,
+            "truncated": True,
+            "confidence": "MEDIUM",
+        }
+        incompatible = build_report(
+            lower_scan,
+            [
+                make_snapshot(
+                    baseline_scan,
+                    repository="owner/app",
+                    resolved_sha="4" * 40,
+                    recorded_at="2026-01-03T00:00:00+00:00",
+                )
+            ],
+            repository="owner/app",
+            resolved_sha="5" * 40,
+        )
+        assert incompatible["summary"]["comparison_compatible"] is False
+        assert incompatible["summary"]["product_change_state"] == "SUPPRESSED_INCOMPATIBLE_SCAN"
+        assert not any(
+            row.get("kind") == "CAPABILITY_EVIDENCE_REMOVED"
+            for row in incompatible["regression_candidates"]
+        )
+
+        evidence_dir = root / "composed"
+        evidence_dir.mkdir()
+        (evidence_dir / "autonomous-review.json").write_text(
+            json.dumps({"review_state": "READY_FOR_HUMAN_REVIEW"}),
+            encoding="utf-8",
+        )
+        (evidence_dir / "app-intelligence.json").write_text(
+            json.dumps({"scan": {"max_files": 3500}, "feature_truth": {"capabilities": []}}),
+            encoding="utf-8",
+        )
+        composed = load_composed_review(None, evidence_dir)
+        assert composed["review_state"] == "READY_FOR_HUMAN_REVIEW"
+        assert composed["app_intelligence"]["scan"]["max_files"] == 3500
+
+        prune_root = root / "prune"
+        prune_root.mkdir()
+        duplicate_old = make_snapshot(
+            review([]),
+            repository="owner/app",
+            resolved_sha="6" * 40,
+            recorded_at="2026-01-01T00:00:00+00:00",
+        )
+        duplicate_new = make_snapshot(
+            review([]),
+            repository="owner/app",
+            resolved_sha="6" * 40,
+            recorded_at="2026-01-04T00:00:00+00:00",
+        )
+        distinct = make_snapshot(
+            review([]),
+            repository="owner/app",
+            resolved_sha="7" * 40,
+            recorded_at="2026-01-05T00:00:00+00:00",
+        )
+        (prune_root / "dup-old.json").write_text(json.dumps(duplicate_old), encoding="utf-8")
+        (prune_root / "dup-new.json").write_text(json.dumps(duplicate_new), encoding="utf-8")
+        (prune_root / "distinct.json").write_text(json.dumps(distinct), encoding="utf-8")
+        prune_history(prune_root, 2)
+        remaining = [
+            _read_snapshot(path)
+            for path in prune_root.glob("*.json")
+        ]
+        remaining_shas = [
+            _safe_text(row.get("resolved_sha"))
+            for row in remaining
+            if isinstance(row, dict)
+        ]
+        assert remaining_shas.count("6" * 40) == 1
+        assert set(remaining_shas) == {"6" * 40, "7" * 40}
+
         print("AppLab Longitudinal Product Intelligence self-test PASS")
 
 
