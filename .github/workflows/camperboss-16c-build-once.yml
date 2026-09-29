@@ -1,5 +1,5 @@
 name: CamperBoss 16C Build Once
-# rerun after analysis fixes
+# rerun after search cleanup
 
 on:
   push:
