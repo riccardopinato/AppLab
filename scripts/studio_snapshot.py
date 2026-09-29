@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "3.4.0"
+STUDIO_VERSION = "3.5.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -54,13 +54,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     evidence_confidence = read_json(project_dir / "evidence-confidence.json")
     user_journey = read_json(project_dir / "user-journey.json")
     ux_friction = read_json(project_dir / "ux-friction.json")
+    longitudinal = read_json(project_dir / "longitudinal-intelligence.json")
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, contract, brief, autonomous)
     ):
         return None
 
@@ -75,6 +76,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "evidence_confidence": None,
         "user_journey": None,
         "ux_friction": None,
+        "longitudinal": None,
         "autonomous_review": None,
     }
 
@@ -294,6 +296,46 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
                     "subject": str(item.get("subject", "")),
                 }
                 for item in ux_findings[:8]
+                if isinstance(item, dict)
+            ],
+        }
+
+    if longitudinal:
+        longitudinal_summary = (
+            longitudinal.get("summary")
+            if isinstance(longitudinal.get("summary"), dict)
+            else {}
+        )
+        longitudinal_baseline = (
+            longitudinal.get("baseline")
+            if isinstance(longitudinal.get("baseline"), dict)
+            else {}
+        )
+        regression_rows = (
+            longitudinal.get("regression_candidates")
+            if isinstance(longitudinal.get("regression_candidates"), list)
+            else []
+        )
+        row["longitudinal"] = {
+            "state": str(longitudinal.get("state", "UNKNOWN")),
+            "history_snapshots": int(longitudinal_summary.get("history_snapshots", 0) or 0),
+            "baseline_available": bool(longitudinal_summary.get("baseline_available", False)),
+            "baseline_sha": str(longitudinal_baseline.get("resolved_sha", "")),
+            "new_findings": int(longitudinal_summary.get("new_findings", 0) or 0),
+            "returned_findings": int(longitudinal_summary.get("returned_findings", 0) or 0),
+            "persistent_findings": int(longitudinal_summary.get("persistent_findings", 0) or 0),
+            "resolved_findings": int(longitudinal_summary.get("resolved_findings", 0) or 0),
+            "severity_escalations": int(longitudinal_summary.get("severity_escalations", 0) or 0),
+            "claim_status_changes": int(longitudinal_summary.get("claim_status_changes", 0) or 0),
+            "regression_candidates": int(longitudinal_summary.get("regression_candidates", 0) or 0),
+            "top_regressions": [
+                {
+                    "source": str(item.get("source", "")),
+                    "kind": str(item.get("kind", "")),
+                    "subject": str(item.get("subject", "")),
+                    "reason": str(item.get("reason", "")),
+                }
+                for item in regression_rows[:8]
                 if isinstance(item, dict)
             ],
         }
@@ -564,6 +606,15 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
             "recurrent_patterns": len(portfolio["reusable_pattern_candidates"]),
             "with_change_intelligence": sum(
                 1 for row in projects if row.get("change") is not None
+            ),
+            "with_longitudinal_intelligence": sum(
+                1 for row in projects if row.get("longitudinal") is not None
+            ),
+            "longitudinal_attention": sum(
+                1
+                for row in projects
+                if isinstance(row.get("longitudinal"), dict)
+                and row["longitudinal"].get("state") == "REGRESSION_REVIEW"
             ),
             "change_attention": sum(
                 1
@@ -848,6 +899,34 @@ def self_test() -> None:
             ),
             encoding="utf-8",
         )
+        (project / "longitudinal-intelligence.json").write_text(
+            json.dumps(
+                {
+                    "state": "REGRESSION_REVIEW",
+                    "baseline": {"resolved_sha": "a" * 40},
+                    "summary": {
+                        "history_snapshots": 3,
+                        "baseline_available": True,
+                        "new_findings": 1,
+                        "returned_findings": 1,
+                        "persistent_findings": 2,
+                        "resolved_findings": 1,
+                        "severity_escalations": 1,
+                        "claim_status_changes": 2,
+                        "regression_candidates": 2,
+                    },
+                    "regression_candidates": [
+                        {
+                            "source": "ux_friction",
+                            "kind": "NAVIGATION_LOOP_CANDIDATE",
+                            "subject": "Open",
+                            "reason": "finding returned",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (project / "audit-plan.json").write_text(
             json.dumps(
                 {
@@ -888,6 +967,11 @@ def self_test() -> None:
         assert snapshot["projects"][0]["change"]["review_state"] == "REVIEW"
         assert snapshot["projects"][0]["change"]["new_findings"] == 2
         assert snapshot["projects"][0]["change"]["resolved_findings"] == 1
+        assert snapshot["projects"][0]["longitudinal"]["state"] == "REGRESSION_REVIEW"
+        assert snapshot["projects"][0]["longitudinal"]["history_snapshots"] == 3
+        assert snapshot["projects"][0]["longitudinal"]["regression_candidates"] == 2
+        assert snapshot["summary"]["with_longitudinal_intelligence"] == 1
+        assert snapshot["summary"]["longitudinal_attention"] == 1
         assert snapshot["projects"][0]["autonomous_review"]["review_state"] == "REVIEW_REQUIRED"
         assert snapshot["projects"][0]["autonomous_review"]["runtime_confirmed"] == 1
         assert snapshot["summary"]["autonomous_reviews"] == 1
