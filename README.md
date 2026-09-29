@@ -1,3 +1,18 @@
+## v3.2.0 — Evidence Confidence & Contradiction Engine
+
+AppLab now maintains a deterministic evidence graph across product-contract,
+implementation, trusted runtime, UI hierarchy, state coverage and calibrated
+findings.
+
+Every normalized claim is classified as `CONFIRMED`, `CORROBORATED`,
+`CONTRADICTED`, `UNVERIFIED` or `STALE`. No synthetic numeric quality score
+is generated.
+
+Autonomous Review consumes the graph and escalates explicit contradictions to
+review while preserving FAST/FULL/CERTIFICATION authority.
+
+See `integration/intelligence/EVIDENCE_CONFIDENCE_CONTRADICTION_ENGINE.md`.
+
 ## v3.1.0 — True Autonomous App Review
 
 AppLab can now execute the complete product-review chain from one target ref:
