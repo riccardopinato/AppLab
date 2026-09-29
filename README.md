@@ -1,3 +1,16 @@
+## v3.6.0 — Autonomous Experiment Planner
+
+AppLab now converts unresolved trusted evidence into an ordered verification plan.
+Regression candidates, contradictions, VERIFY_NEXT signals and confirmed FIX_NOW
+items are mapped to existing specialist labs, targeted journeys or bounded evidence
+reviews without inventing a new test framework.
+
+Each experiment carries an explicit hypothesis, evidence basis, procedure and
+SUPPORTED / CONTRADICTED / UNVERIFIED outcome semantics. The planner is advisory
+and never alters FAST/FULL/CERTIFICATION verdicts.
+
+See `integration/intelligence/AUTONOMOUS_EXPERIMENT_PLANNER.md`.
+
 ## v3.5.0 — Longitudinal Product Intelligence
 
 AppLab now compares successive trusted Autonomous Review snapshots for the same
