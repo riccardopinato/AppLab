@@ -6,8 +6,8 @@ resolved findings, severity transitions, evidence-claim status changes and
 product-level deltas.
 
 Regression candidates remain advisory and never alter runtime PASS/FAIL or
-CERTIFICATION. Trusted review history is repository-scoped, bounded to 20
-snapshots and surfaced in AppLab Studio.
+CERTIFICATION. Trusted review history is repository-scoped, persisted through repository-wide
+GitHub Actions artifacts, bounded to 20 distinct revisions and surfaced in AppLab Studio.
 
 See `integration/intelligence/LONGITUDINAL_PRODUCT_INTELLIGENCE.md`.
 
