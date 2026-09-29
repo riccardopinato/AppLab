@@ -50,15 +50,20 @@ def load_snapshot(path: Path | None = None) -> dict[str, Any]:
     if not isinstance(summary, dict):
         summary = {}
 
-    return {
-        "schema_version": 1,
-        "generated_at": str(payload.get("generated_at", "")),
-        "summary": {
+    normalized_summary = dict(summary)
+    normalized_summary.update(
+        {
             "projects": int(summary.get("projects", len(projects)) or 0),
             "pass": int(summary.get("pass", 0) or 0),
             "fail": int(summary.get("fail", 0) or 0),
             "not_run": int(summary.get("not_run", 0) or 0),
-        },
+        }
+    )
+
+    return {
+        "schema_version": 1,
+        "generated_at": str(payload.get("generated_at", "")),
+        "summary": normalized_summary,
         "projects": projects[:100],
         "recent": recent[:100],
         "available": True,
