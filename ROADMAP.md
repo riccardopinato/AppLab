@@ -22,8 +22,8 @@ publish a certified release artifact.
 
 ### v3.4.0 — UX Friction & Discoverability Lab
 
-- [x] Detect safe runtime actions with no observed UI feedback.
-- [x] Detect repeated no-feedback patterns without treating them as automatic defects.
+- [x] Detect safe runtime actions whose reduced crawler signature remains stable, without claiming visual feedback is absent.
+- [x] Detect repeated stable-signature patterns without treating them as automatic defects.
 - [x] Surface navigation-loop candidates from trusted journeys.
 - [x] Surface deep-journey candidates while excluding obvious settings/help-style paths.
 - [x] Detect high clickable-density states as inspectable heuristics.
