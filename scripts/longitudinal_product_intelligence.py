@@ -24,10 +24,24 @@ SEVERITY_RANK = {
 FINDING_SOURCES = (
     ("product_consistency", ("app_intelligence", "product_consistency", "findings")),
     ("product_contract", ("product_contract", "findings")),
+    ("behavioral_product", ("behavioral_product", "findings")),
+    ("state_edge_case", ("state_edge_case", "findings")),
     ("user_journey", ("user_journey", "findings")),
     ("ux_friction", ("ux_friction", "findings")),
     ("evidence_contradiction", ("evidence_confidence", "contradictions")),
 )
+
+DETAILED_REPORTS = {
+    "app_intelligence": "app-intelligence.json",
+    "behavioral_product": "behavioral-product.json",
+    "state_edge_case": "state-edge-case.json",
+    "evidence_calibration": "evidence-calibration.json",
+    "evidence_confidence": "evidence-confidence.json",
+    "user_journey": "user-journey.json",
+    "ux_friction": "ux-friction.json",
+    "product_contract": "product-contract-audit.json",
+    "decision_brief": "decision-brief.json",
+}
 
 
 def _nested(value: dict[str, Any], path: tuple[str, ...]) -> Any:
@@ -43,6 +57,10 @@ def _safe_text(value: Any) -> str:
     return str(value).strip() if value is not None else ""
 
 
+def _finding_subject(row: dict[str, Any]) -> str:
+    return _safe_text(row.get("subject")) or _safe_text(row.get("capability"))
+
+
 def finding_key(source: str, row: dict[str, Any]) -> str:
     explicit = _safe_text(row.get("id"))
     if explicit:
@@ -52,7 +70,7 @@ def finding_key(source: str, row: dict[str, Any]) -> str:
         _safe_text(row.get("domain")).lower(),
         _safe_text(row.get("category")).lower(),
         _safe_text(row.get("kind")).lower(),
-        _safe_text(row.get("subject")).lower(),
+        _finding_subject(row).lower(),
     )
     return "|".join(parts)
 
@@ -66,7 +84,7 @@ def finding_view(source: str, row: dict[str, Any]) -> dict[str, Any]:
         "kind": _safe_text(row.get("kind")),
         "severity": _safe_text(row.get("severity")),
         "confidence": _safe_text(row.get("confidence")),
-        "subject": _safe_text(row.get("subject")),
+        "subject": _finding_subject(row),
         "message": _safe_text(row.get("message")),
         "evidence": (
             [str(value) for value in row.get("evidence", [])[:6]]
@@ -163,6 +181,45 @@ def make_snapshot(
         "run_id": run_id or inferred["run_id"],
         "review": review,
     }
+
+
+def load_composed_review(current_path: Path | None, current_dir: Path | None) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    if current_path is not None:
+        try:
+            raw = json.loads(current_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Unable to read current autonomous review: {current_path}") from exc
+        if not isinstance(raw, dict):
+            raise ValueError("current autonomous review must be a JSON object")
+        payload.update(raw)
+
+    if current_dir is not None:
+        if not current_dir.is_dir():
+            raise ValueError(f"current evidence directory does not exist: {current_dir}")
+        if not payload:
+            slim = current_dir / "autonomous-review.json"
+            if slim.is_file():
+                try:
+                    raw = json.loads(slim.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    raise ValueError(f"Unable to read current autonomous review: {slim}") from exc
+                if isinstance(raw, dict):
+                    payload.update(raw)
+        for key, filename in DETAILED_REPORTS.items():
+            file_path = current_dir / filename
+            if not file_path.is_file():
+                continue
+            try:
+                detail = json.loads(file_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(detail, dict):
+                payload[key] = detail
+
+    if not payload:
+        raise ValueError("no current autonomous review evidence was loaded")
+    return payload
 
 
 def _read_snapshot(path: Path) -> dict[str, Any] | None:
@@ -273,6 +330,25 @@ def _history_presence(
     }
 
 
+def _scan_comparable(before_app: dict[str, Any], after_app: dict[str, Any]) -> tuple[bool, str]:
+    before = before_app.get("scan") if isinstance(before_app.get("scan"), dict) else {}
+    after = after_app.get("scan") if isinstance(after_app.get("scan"), dict) else {}
+    before_max = int(before.get("max_files", 0) or 0)
+    after_max = int(after.get("max_files", 0) or 0)
+    before_scanned = int(before.get("scanned_files", 0) or 0)
+    after_scanned = int(after.get("scanned_files", 0) or 0)
+    before_truncated = bool(before.get("truncated", False))
+    after_truncated = bool(after.get("truncated", False))
+
+    if after_truncated and not before_truncated:
+        return False, "current scan is truncated while baseline scan was complete"
+    if before_max and after_max and after_max < before_max and after_truncated:
+        return False, "current max_files bound is lower than baseline and current scan is truncated"
+    if before_scanned and after_scanned < before_scanned and after_truncated:
+        return False, "current scan covers fewer files than baseline and is truncated"
+    return True, ""
+
+
 def build_report(
     current_review: dict[str, Any],
     history: list[dict[str, Any]],
@@ -345,11 +421,15 @@ def build_report(
     ]
 
     product_change: dict[str, Any] | None = None
+    comparison_compatible = True
+    comparison_suppressed_reason = ""
     if previous_review:
         before_app = previous_review.get("app_intelligence")
         after_app = current_review.get("app_intelligence")
         if isinstance(before_app, dict) and isinstance(after_app, dict):
-            product_change = change_intelligence.build_diff(before_app, after_app)
+            comparison_compatible, comparison_suppressed_reason = _scan_comparable(before_app, after_app)
+            if comparison_compatible:
+                product_change = change_intelligence.build_diff(before_app, after_app)
 
     capability_removed = (
         list((product_change.get("feature_truth") or {}).get("removed", []))
@@ -437,8 +517,10 @@ def build_report(
             "product_change_state": (
                 _safe_text(product_change.get("review_state"))
                 if isinstance(product_change, dict)
-                else "NO_BASELINE"
+                else ("SUPPRESSED_INCOMPATIBLE_SCAN" if previous_review and not comparison_compatible else "NO_BASELINE")
             ),
+            "comparison_compatible": comparison_compatible,
+            "comparison_suppressed_reason": comparison_suppressed_reason,
         },
         "findings": {
             "new": [current_findings[key] for key in first_seen_keys],
@@ -520,13 +602,33 @@ def write_outputs(report: dict[str, Any], output_dir: Path) -> None:
 def prune_history(history_dir: Path, limit: int = MAX_HISTORY) -> None:
     if not history_dir.is_dir():
         return
-    rows = []
+    rows: list[tuple[str, str, Path]] = []
     for path in history_dir.glob("*.json"):
         snapshot = _read_snapshot(path)
-        if snapshot is not None:
-            rows.append((snapshot.get("recorded_at", ""), path))
-    rows.sort(key=lambda item: (str(item[0]), item[1].name))
-    for _, path in rows[:-max(1, limit)]:
+        if snapshot is None:
+            continue
+        rows.append((
+            _safe_text(snapshot.get("recorded_at")),
+            _safe_text(snapshot.get("resolved_sha")),
+            path,
+        ))
+    rows.sort(key=lambda item: (item[0], item[2].name))
+
+    latest_by_sha: dict[str, tuple[str, str, Path]] = {}
+    anonymous: list[tuple[str, str, Path]] = []
+    for row in rows:
+        sha = row[1]
+        if sha:
+            previous = latest_by_sha.get(sha)
+            if previous is not None:
+                previous[2].unlink(missing_ok=True)
+            latest_by_sha[sha] = row
+        else:
+            anonymous.append(row)
+
+    distinct = anonymous + list(latest_by_sha.values())
+    distinct.sort(key=lambda item: (item[0], item[2].name))
+    for _, _, path in distinct[:-max(1, limit)]:
         path.unlink(missing_ok=True)
 
 
@@ -611,6 +713,7 @@ def self_test() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--current")
+    parser.add_argument("--current-dir", default="")
     parser.add_argument("--history-dir", default="")
     parser.add_argument("--repository", default="")
     parser.add_argument("--resolved-sha", default="")
@@ -624,15 +727,16 @@ def main() -> int:
     if args.self_test:
         self_test()
         return 0
-    if not args.current:
-        raise SystemExit("--current is required")
+    if not args.current and not args.current_dir:
+        raise SystemExit("--current or --current-dir is required")
 
     try:
-        current = json.loads(Path(args.current).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"Unable to read current autonomous review: {exc}") from exc
-    if not isinstance(current, dict):
-        raise SystemExit("current autonomous review must be a JSON object")
+        current = load_composed_review(
+            Path(args.current) if args.current else None,
+            Path(args.current_dir) if args.current_dir else None,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
     history_dir = Path(args.history_dir) if args.history_dir else None
     history = load_history(
