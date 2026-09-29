@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "3.1.0"
+STUDIO_VERSION = "3.2.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -51,13 +51,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     behavioral = read_json(project_dir / "behavioral-product.json")
     state_edge = read_json(project_dir / "state-edge-case.json")
     calibration = read_json(project_dir / "evidence-calibration.json")
+    evidence_confidence = read_json(project_dir / "evidence-confidence.json")
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, contract, brief, autonomous)
     ):
         return None
 
@@ -69,6 +70,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "market": None,
         "audit": None,
         "change": None,
+        "evidence_confidence": None,
         "autonomous_review": None,
     }
 
@@ -256,6 +258,39 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
             "resolved_findings": int(summary.get("resolved_findings", 0) or 0),
             "new_high_review": int(summary.get("new_high_review", 0) or 0),
             "new_review": int(summary.get("new_review", 0) or 0),
+        }
+
+    if evidence_confidence:
+        confidence_summary = (
+            evidence_confidence.get("summary")
+            if isinstance(evidence_confidence.get("summary"), dict)
+            else {}
+        )
+        confidence_contradictions = (
+            evidence_confidence.get("contradictions")
+            if isinstance(evidence_confidence.get("contradictions"), list)
+            else []
+        )
+        row["evidence_confidence"] = {
+            "total_claims": int(confidence_summary.get("total_claims", 0) or 0),
+            "confirmed": int(confidence_summary.get("confirmed", 0) or 0),
+            "corroborated": int(confidence_summary.get("corroborated", 0) or 0),
+            "contradicted": int(confidence_summary.get("contradicted", 0) or 0),
+            "unverified": int(confidence_summary.get("unverified", 0) or 0),
+            "stale": int(confidence_summary.get("stale", 0) or 0),
+            "contradiction_count": int(
+                confidence_summary.get("contradiction_count", 0) or 0
+            ),
+            "top_contradictions": [
+                {
+                    "domain": str(item.get("domain", "")),
+                    "kind": str(item.get("kind", "")),
+                    "subject": str(item.get("subject", "")),
+                    "message": str(item.get("message", "")),
+                }
+                for item in confidence_contradictions[:8]
+                if isinstance(item, dict)
+            ],
         }
 
     if autonomous or behavioral or state_edge or calibration or contract or brief:
@@ -472,6 +507,16 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
                 if isinstance(row.get("autonomous_review"), dict)
                 and bool(row["autonomous_review"].get("runtime_trusted", False))
             ),
+            "evidence_contradictions": sum(
+                int((row.get("evidence_confidence") or {}).get("contradiction_count", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_confidence"), dict)
+            ),
+            "evidence_unverified": sum(
+                int((row.get("evidence_confidence") or {}).get("unverified", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_confidence"), dict)
+            ),
         },
         "projects": projects,
         "portfolio": portfolio,
@@ -589,6 +634,30 @@ def self_test() -> None:
             ),
             encoding="utf-8",
         )
+        (project / "evidence-confidence.json").write_text(
+            json.dumps(
+                {
+                    "summary": {
+                        "total_claims": 12,
+                        "confirmed": 5,
+                        "corroborated": 3,
+                        "contradicted": 1,
+                        "unverified": 3,
+                        "stale": 0,
+                        "contradiction_count": 2,
+                    },
+                    "contradictions": [
+                        {
+                            "domain": "capability",
+                            "kind": "CONTRACT_IMPLEMENTATION_CONTRADICTION",
+                            "subject": "cloud_or_sync",
+                            "message": "Contract and implementation disagree.",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (project / "evidence-calibration.json").write_text(
             json.dumps(
                 {
@@ -668,6 +737,10 @@ def self_test() -> None:
         assert snapshot["projects"][0]["autonomous_review"]["runtime_trust_state"] == "TRUSTED"
         assert snapshot["projects"][0]["autonomous_review"]["trusted_package_id"] == "com.example.demo"
         assert snapshot["summary"]["trusted_runtime_reviews"] == 1
+        assert snapshot["projects"][0]["evidence_confidence"]["confirmed"] == 5
+        assert snapshot["projects"][0]["evidence_confidence"]["contradiction_count"] == 2
+        assert snapshot["summary"]["evidence_contradictions"] == 2
+        assert snapshot["summary"]["evidence_unverified"] == 3
         assert snapshot["projects"][0]["market"]["competitors"] == 3
         assert snapshot["projects"][0]["audit"]["selected_lab_count"] == 4
         print("AppLab Studio snapshot self-test PASS")
