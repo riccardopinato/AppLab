@@ -239,6 +239,20 @@ type StudioProject = {
     new_high_review?: number;
     new_review?: number;
   } | null;
+  ux_friction?: {
+    runtime_transitions?: number;
+    no_change_actions?: number;
+    no_change_share?: number;
+    review_signals?: number;
+    info_signals?: number;
+    by_category?: Record<string, number>;
+    top_findings?: Array<{
+      category?: string;
+      kind?: string;
+      severity?: string;
+      subject?: string;
+    }>;
+  } | null;
   user_journey?: {
     journeys_observed?: number;
     states_observed?: number;
@@ -318,6 +332,8 @@ type StudioSnapshot = {
     evidence_unverified?: number;
     journeys_observed?: number;
     journey_review_signals?: number;
+    ux_review_signals?: number;
+    ux_no_change_actions?: number;
   };
   projects: StudioProject[];
   portfolio?: {
@@ -464,6 +480,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
               <div><span>Unverified evidence</span><strong>{studio.summary.evidence_unverified ?? 0}</strong></div>
               <div><span>Runtime journeys</span><strong>{studio.summary.journeys_observed ?? 0}</strong></div>
               <div><span>Journey review</span><strong>{studio.summary.journey_review_signals ?? 0}</strong></div>
+              <div><span>UX review</span><strong>{studio.summary.ux_review_signals ?? 0}</strong></div>
+              <div><span>No-feedback actions</span><strong>{studio.summary.ux_no_change_actions ?? 0}</strong></div>
             </div>
 
             <div className="studio-projects">
@@ -527,6 +545,15 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       </small>
                     </div>
                     <div>
+                      <span>UX friction</span>
+                      <strong>{project.ux_friction?.review_signals ?? 0}</strong>
+                      <small>
+                        {project.ux_friction
+                          ? `${project.ux_friction.no_change_actions ?? 0} no-feedback · ${project.ux_friction.info_signals ?? 0} info · share ${project.ux_friction.no_change_share ?? 0}`
+                          : "no UX friction evidence"}
+                      </small>
+                    </div>
+                    <div>
                       <span>Autonomous Review</span>
                       <strong>{project.autonomous_review?.review_state ?? "—"}</strong>
                       <small>
@@ -555,6 +582,15 @@ export default function ControlCenter({ backend }: { backend: string }) {
                       <small>{project.audit?.manual_review_required ? "manual review required" : "automated evidence only"}</small>
                     </div>
                   </div>
+                  {project.ux_friction?.top_findings?.length ? (
+                    <div className="studio-labs">
+                      {project.ux_friction.top_findings.slice(0, 6).map((item, index) => (
+                        <span key={`ux-${item.category}-${item.kind}-${item.subject}-${index}`}>
+                          {item.severity} · {item.category} · {item.kind}{item.subject ? ` · ${item.subject}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {project.user_journey?.sample_journeys?.length ? (
                     <div className="studio-labs">
                       {project.user_journey.sample_journeys.slice(0, 5).map((journey, index) => (
