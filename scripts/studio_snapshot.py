@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "3.2.0"
+STUDIO_VERSION = "3.3.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -52,13 +52,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     state_edge = read_json(project_dir / "state-edge-case.json")
     calibration = read_json(project_dir / "evidence-calibration.json")
     evidence_confidence = read_json(project_dir / "evidence-confidence.json")
+    user_journey = read_json(project_dir / "user-journey.json")
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, contract, brief, autonomous)
     ):
         return None
 
@@ -71,6 +72,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "audit": None,
         "change": None,
         "evidence_confidence": None,
+        "user_journey": None,
         "autonomous_review": None,
     }
 
@@ -258,6 +260,55 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
             "resolved_findings": int(summary.get("resolved_findings", 0) or 0),
             "new_high_review": int(summary.get("new_high_review", 0) or 0),
             "new_review": int(summary.get("new_review", 0) or 0),
+        }
+
+    if user_journey:
+        journey_summary = (
+            user_journey.get("summary")
+            if isinstance(user_journey.get("summary"), dict)
+            else {}
+        )
+        journey_rows = (
+            user_journey.get("journeys")
+            if isinstance(user_journey.get("journeys"), list)
+            else []
+        )
+        journey_findings = (
+            user_journey.get("findings")
+            if isinstance(user_journey.get("findings"), list)
+            else []
+        )
+        row["user_journey"] = {
+            "journeys_observed": int(journey_summary.get("journeys_observed", 0) or 0),
+            "states_observed": int(journey_summary.get("states_observed", 0) or 0),
+            "transitions_observed": int(journey_summary.get("transitions_observed", 0) or 0),
+            "max_observed_depth": int(journey_summary.get("max_observed_depth", 0) or 0),
+            "no_change_actions": int(journey_summary.get("no_change_actions", 0) or 0),
+            "loop_candidates": int(journey_summary.get("loop_candidates", 0) or 0),
+            "safe_dead_end_candidates": int(
+                journey_summary.get("safe_dead_end_candidates", 0) or 0
+            ),
+            "review_signals": int(journey_summary.get("review_signals", 0) or 0),
+            "sample_journeys": [
+                {
+                    "depth": int(item.get("depth", 0) or 0),
+                    "steps": [
+                        str(value)
+                        for value in item.get("steps", [])[:5]
+                    ] if isinstance(item.get("steps"), list) else [],
+                }
+                for item in journey_rows[:5]
+                if isinstance(item, dict)
+            ],
+            "top_findings": [
+                {
+                    "kind": str(item.get("kind", "")),
+                    "severity": str(item.get("severity", "")),
+                    "subject": str(item.get("subject", "")),
+                }
+                for item in journey_findings[:6]
+                if isinstance(item, dict)
+            ],
         }
 
     if evidence_confidence:
@@ -517,6 +568,16 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
                 for row in projects
                 if isinstance(row.get("evidence_confidence"), dict)
             ),
+            "journeys_observed": sum(
+                int((row.get("user_journey") or {}).get("journeys_observed", 0) or 0)
+                for row in projects
+                if isinstance(row.get("user_journey"), dict)
+            ),
+            "journey_review_signals": sum(
+                int((row.get("user_journey") or {}).get("review_signals", 0) or 0)
+                for row in projects
+                if isinstance(row.get("user_journey"), dict)
+            ),
         },
         "projects": projects,
         "portfolio": portfolio,
@@ -634,6 +695,34 @@ def self_test() -> None:
             ),
             encoding="utf-8",
         )
+        (project / "user-journey.json").write_text(
+            json.dumps(
+                {
+                    "summary": {
+                        "journeys_observed": 2,
+                        "states_observed": 3,
+                        "transitions_observed": 2,
+                        "max_observed_depth": 2,
+                        "no_change_actions": 0,
+                        "loop_candidates": 0,
+                        "safe_dead_end_candidates": 1,
+                        "review_signals": 1,
+                    },
+                    "journeys": [
+                        {"depth": 1, "steps": ["Settings"]},
+                        {"depth": 2, "steps": ["Settings", "Profile"]},
+                    ],
+                    "findings": [
+                        {
+                            "kind": "SAFE_JOURNEY_DEAD_END_CANDIDATE",
+                            "severity": "INFO",
+                            "subject": "profile",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         (project / "evidence-confidence.json").write_text(
             json.dumps(
                 {
@@ -741,6 +830,10 @@ def self_test() -> None:
         assert snapshot["projects"][0]["evidence_confidence"]["contradiction_count"] == 2
         assert snapshot["summary"]["evidence_contradictions"] == 2
         assert snapshot["summary"]["evidence_unverified"] == 3
+        assert snapshot["projects"][0]["user_journey"]["journeys_observed"] == 2
+        assert snapshot["projects"][0]["user_journey"]["max_observed_depth"] == 2
+        assert snapshot["summary"]["journeys_observed"] == 2
+        assert snapshot["summary"]["journey_review_signals"] == 1
         assert snapshot["projects"][0]["market"]["competitors"] == 3
         assert snapshot["projects"][0]["audit"]["selected_lab_count"] == 4
         print("AppLab Studio snapshot self-test PASS")
