@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v3.4.0 — UX Friction & Discoverability Lab**
+Current production baseline: **v3.5.0 — Longitudinal Product Intelligence**
 
 ## Product rule
 
@@ -19,6 +19,18 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v3.5.0 — Longitudinal Product Intelligence
+
+- [x] Persist a bounded repository-scoped history of trusted Autonomous Review snapshots.
+- [x] Classify findings as new, returned, persistent and resolved across revisions.
+- [x] Track severity escalation/de-escalation for persistent findings.
+- [x] Track Evidence Confidence claim-status transitions across revisions.
+- [x] Reuse Change Intelligence for pairwise capability/entity/surface deltas.
+- [x] Surface regression candidates without turning them into automatic defects.
+- [x] Preserve current trusted evidence as authoritative over historical evidence.
+- [x] Expose longitudinal state, counts and top regression candidates in AppLab Studio.
+- [x] Keep FAST/FULL/CERTIFICATION outcomes independent from longitudinal analysis.
 
 ### v3.4.0 — UX Friction & Discoverability Lab
 
