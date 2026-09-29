@@ -296,11 +296,11 @@ jobs:
           include-hidden-files: true
           retention-days: 90
 
-      - name: Publish v3.5 review
+      - name: Publish v3.6 review
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v3.5"
+            echo "## AppLab True Autonomous App Review v3.6"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
