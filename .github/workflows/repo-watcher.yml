@@ -85,10 +85,10 @@ jobs:
       scheduled_count: ${{ steps.matrix.outputs.scheduled_count }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Restore central history for FAST diff baseline
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-history
           key: applab-watch-history-discovery-${{ github.run_id }}
@@ -200,7 +200,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload discovery evidence
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-watch-discovery-${{ github.run_id }}
           path: watch-discovery.json
@@ -302,11 +302,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Restore central history
         id: history
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-history
           key: applab-watch-history-${{ github.run_id }}
@@ -314,7 +314,7 @@ jobs:
             applab-watch-history-
 
       - name: Download current watcher reports
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           pattern: applab-watch-*
           path: watch-results
@@ -339,14 +339,14 @@ jobs:
 
       - name: Save central history
         if: always()
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-history
           key: applab-watch-history-${{ github.run_id }}
 
       - name: Upload central history
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-watch-history-${{ github.run_id }}
           path: |

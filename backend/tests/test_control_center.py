@@ -16,6 +16,9 @@ def test_control_center_snapshot(tmp_path: Path) -> None:
                     "pass": 1,
                     "fail": 0,
                     "not_run": 0,
+                    "certified_current": 1,
+                    "lanes": {"FULL_RUNTIME": 1},
+                    "shadow_false_negatives": 0,
                 },
                 "projects": [
                     {
@@ -40,6 +43,9 @@ def test_control_center_snapshot(tmp_path: Path) -> None:
     assert payload["available"] is True
     assert payload["summary"]["projects"] == 1
     assert payload["summary"]["pass"] == 1
+    assert payload["summary"]["certified_current"] == 1
+    assert payload["summary"]["lanes"]["FULL_RUNTIME"] == 1
+    assert payload["summary"]["shadow_false_negatives"] == 0
     assert payload["projects"][0]["repository"] == "owner/repo"
 
 

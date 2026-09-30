@@ -302,7 +302,7 @@ jobs:
           PY
 
       - name: Checkout AppLab
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
@@ -310,7 +310,7 @@ jobs:
           persist-credentials: false
 
       - name: Checkout target project
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
@@ -335,7 +335,7 @@ jobs:
 
       - name: Restore central history for adaptive risk
         if: inputs.analysis_mode == 'fast'
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-history
           key: applab-watch-history-fast-${{ github.run_id }}-${{ inputs.history_key }}
@@ -393,21 +393,21 @@ jobs:
 
       - name: Setup Java
         if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
           distribution: temurin
           java-version: ${{ inputs.java_version }}
 
       - name: Setup Flutter channel
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && inputs.flutter_version == ''
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: ${{ inputs.flutter_channel }}
           cache: true
 
       - name: Setup exact Flutter version
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && inputs.flutter_version != ''
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           flutter-version: ${{ inputs.flutter_version }}
           channel: stable
@@ -540,7 +540,7 @@ jobs:
 
       - name: Upload isolated APK contract
         if: steps.impact.outputs.run_build == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ steps.contract.outputs.artifact_name }}
           path: applab-build-contract/
@@ -578,7 +578,7 @@ jobs:
 
       - name: Upload analysis-only watcher result
         if: steps.impact.outputs.run_runtime != 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-${{ inputs.history_key }}-${{ github.run_id }}
           path: applab-report/
@@ -610,14 +610,14 @@ jobs:
 
       - name: Cache analysis-only PASS commit
         if: steps.analysis_cache.outputs.cacheable == 'true'
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-watch-cache
           key: applab-c${{ steps.adaptive_contract.outputs.fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ steps.target.outputs.resolved_sha }}
 
       - name: Upload build-phase evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-build-evidence-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: applab-report/
@@ -656,7 +656,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout trusted AppLab
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
@@ -688,7 +688,7 @@ jobs:
         run: echo "Build failure is recorded as evidence but is intentionally not cached as verified."
 
       - name: Upload failed build result
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-${{ inputs.history_key }}-${{ github.run_id }}
           path: applab-report/

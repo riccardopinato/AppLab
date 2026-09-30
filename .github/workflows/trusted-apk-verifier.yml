@@ -82,7 +82,7 @@ jobs:
 
     steps:
       - name: Checkout trusted AppLab
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
@@ -102,14 +102,14 @@ jobs:
       # Bump `schema1` only when API/arch/profile/emulator configuration becomes incompatible.
       - name: Restore clean AVD snapshot
         id: avd_cache
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.android/avd
           key: applab-clean-avd-schema1-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
 
       - name: Create pristine AVD snapshot on cache miss
         if: steps.avd_cache.outputs.cache-hit != 'true'
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
           api-level: ${{ inputs.api_level }}
           target: google_apis
@@ -125,13 +125,13 @@ jobs:
 
       - name: Save pristine AVD snapshot before target execution
         if: steps.avd_cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.android/avd
           key: applab-clean-avd-schema1-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
 
       - name: Download untrusted build contract
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: ${{ inputs.build_artifact_name }}
           path: .applab-build
@@ -158,7 +158,7 @@ jobs:
       - name: Cache pinned Maestro
         id: maestro_cache
         if: inputs.run_maestro
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
         with:
           path: ~/.maestro
           key: applab-maestro-${{ runner.os }}-2.10.0
@@ -171,7 +171,7 @@ jobs:
 
       - name: Restore previous passing visual baseline
         id: visual_baseline
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-visual-baseline
           key: applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
@@ -180,7 +180,7 @@ jobs:
 
       - name: Restore previous passing performance baseline
         id: performance_baseline
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-performance-baseline
           key: applab-performance-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
@@ -189,7 +189,7 @@ jobs:
 
       - name: Restore previous passing upgrade baseline
         id: upgrade_baseline
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-upgrade-baseline
           key: applab-upgrade-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
@@ -255,7 +255,7 @@ jobs:
 
       - name: Verify APK inside trusted Android runtime
         id: verify
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         env:
           APPLAB_APK_FILE: ${{ steps.contract.outputs.apk_file }}
           APPLAB_RUN_MAESTRO: ${{ inputs.run_maestro }}
@@ -338,7 +338,7 @@ jobs:
 
       - name: Save PASS-only visual baseline
         if: steps.baseline.outputs.promote == 'true'
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-visual-baseline
           key: applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}-${{ github.run_id }}
@@ -359,7 +359,7 @@ jobs:
 
       - name: Save PASS-only performance baseline
         if: steps.performance_baseline_prepare.outputs.promote == 'true' && (steps.analysis.outputs.effective_mode == 'full' || steps.certification.outputs.status == 'CERTIFIED')
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-performance-baseline
           key: applab-performance-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}-${{ github.run_id }}
@@ -379,7 +379,7 @@ jobs:
 
       - name: Save PASS-only upgrade baseline
         if: steps.verify.outcome == 'success' && (steps.analysis.outputs.effective_mode == 'full' || steps.certification.outputs.status == 'CERTIFIED')
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-upgrade-baseline
           key: applab-upgrade-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}-${{ github.run_id }}
@@ -403,7 +403,7 @@ jobs:
       - name: Upload verified installable APK
         id: release_upload
         if: steps.release.outputs.publish == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ steps.release.outputs.artifact_name }}
           path: applab-release/
@@ -506,7 +506,7 @@ jobs:
 
       - name: Mark resolved PASS commit as checked
         if: steps.verification_cache.outputs.cacheable == 'true'
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-watch-cache
           key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
@@ -536,7 +536,7 @@ jobs:
 
       - name: Upload trusted AppLab evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-${{ inputs.history_key }}-${{ github.run_id }}
           path: applab-report/

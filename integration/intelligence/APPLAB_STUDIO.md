@@ -65,3 +65,12 @@ Studio shows per project:
 4. Missing Studio evidence leaves the runtime Control Center usable.
 5. No opaque overall app score is generated.
 6. Certification remains owned exclusively by the trusted certification pipeline.
+
+
+## Trusted review integration
+
+True Autonomous Review now packages each target's trusted evidence under a
+project directory and runs `studio_snapshot.py` in the same workflow. The review
+artifact therefore includes both the source evidence and a ready-to-consume
+`studio.json` snapshot. Backend adapters preserve unknown/new summary fields so
+producer metrics added by later AppLab versions are not silently discarded.

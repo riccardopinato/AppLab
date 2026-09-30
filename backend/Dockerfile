@@ -3,6 +3,7 @@ FROM python:3.12-slim
 ARG EMULATOR_SCRIPTS_REF=0654f694b46794fae4b178f1e1a17cb60c5d2d34
 ARG AEMU_REF=b556b00ac5fffde13c5cbad1b659c528832f9da6
 ARG MAESTRO_VERSION=2.10.0
+ARG MAESTRO_SHA256=29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -17,9 +18,16 @@ RUN apt-get update \
        adb bash ca-certificates curl default-jre-headless git unzip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN export MAESTRO_VERSION="$MAESTRO_VERSION" MAESTRO_CLI_NO_ANALYTICS=1 \
-    && curl -fsSL "https://get.maestro.mobile.dev" | bash \
-    && maestro --version | grep -F "$MAESTRO_VERSION"
+RUN mkdir -p /root/.maestro/tmp \
+    && curl -fsSL --retry 3 \
+       "https://github.com/mobile-dev-inc/Maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip" \
+       -o /root/.maestro/tmp/maestro.zip \
+    && echo "$MAESTRO_SHA256  /root/.maestro/tmp/maestro.zip" | sha256sum -c - \
+    && unzip -qt /root/.maestro/tmp/maestro.zip | grep -F "No errors detected in compressed data" \
+    && unzip -qo /root/.maestro/tmp/maestro.zip -d /root/.maestro/tmp \
+    && cp -rf /root/.maestro/tmp/maestro/* /root/.maestro \
+    && rm -rf /root/.maestro/tmp \
+    && MAESTRO_CLI_NO_ANALYTICS=1 maestro --version | grep -F "$MAESTRO_VERSION"
 
 # Install Google's current Python WebRTC signaling gateway. The gateway build
 # generates its protobuf stubs from the Android Emulator AEMU proto sources.
@@ -72,4 +80,4 @@ COPY app ./app
 COPY flows ./flows
 
 EXPOSE 8000 8080
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host ${APPLAB_BIND_HOST:-0.0.0.0} --port 8000"]

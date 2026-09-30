@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "4.0.0"
+STUDIO_VERSION = "4.0.1"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:

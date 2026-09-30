@@ -1,3 +1,24 @@
+## v4.0.1 — Heavy Audit Hardening
+
+AppLab v4.0.1 closes the post-v4.0 heavy-audit findings without adding a second
+verification architecture. The Live Controller is loopback-only by default,
+Maestro release bytes are SHA-256 verified, external GitHub Actions are pinned
+to immutable commits, and reusable workflows no longer float on `@main`.
+
+Longitudinal Product Intelligence is now branch-lineage aware, so sibling PR
+branches cannot become each other's baseline. True Autonomous Review also builds
+a Studio snapshot automatically, while the backend preserves all forward-compatible
+Studio and Control Center summary metrics.
+
+A CI audit contract prevents version drift, unpinned Actions, weakened local
+runtime boundaries, missing lineage metadata and producer/backend schema loss
+from silently returning.
+
+GitHub branch protection remains a repository-setting requirement and is reported
+as a governance blocker until enabled.
+
+See `integration/intelligence/HEAVY_AUDIT_HARDENING_V401.md`.
+
 ## v4.0.0 — AppLab Analyst
 
 AppLab now has a deterministic analysis layer that synthesizes product context,

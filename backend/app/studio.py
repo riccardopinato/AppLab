@@ -49,15 +49,20 @@ def load_studio_snapshot(path: Path | None = None) -> dict[str, Any]:
     if not isinstance(summary, dict):
         summary = {}
 
-    return {
-        "schema_version": 1,
-        "generated_at": str(payload.get("generated_at", "")),
-        "summary": {
+    normalized_summary = dict(summary)
+    normalized_summary.update(
+        {
             "projects": int(summary.get("projects", len(projects)) or 0),
             "with_market": int(summary.get("with_market", 0) or 0),
             "manual_review": int(summary.get("manual_review", 0) or 0),
             "recurrent_patterns": int(summary.get("recurrent_patterns", 0) or 0),
-        },
+        }
+    )
+
+    return {
+        "schema_version": 1,
+        "generated_at": str(payload.get("generated_at", "")),
+        "summary": normalized_summary,
         "projects": projects[:100],
         "portfolio": portfolio,
         "available": True,

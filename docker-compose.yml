@@ -6,6 +6,7 @@ services:
       ADB_SERIAL: ${ADB_SERIAL:-}
       APPLAB_HISTORY_PATH: /data/history.jsonl
       APPLAB_FLOW_DIR: /app/flows
+      APPLAB_BIND_HOST: 0.0.0.0
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

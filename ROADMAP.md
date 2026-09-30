@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v4.0.0 — AppLab Analyst**
+Current production baseline: **v4.0.1 — Heavy Audit Hardening**
 
 ## Product rule
 
@@ -19,6 +19,21 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v4.0.1 — Heavy Audit Hardening
+
+- [x] Bind the privileged Live Controller to loopback by default.
+- [x] Replace remote Maestro installer execution with versioned SHA-256-verified release bytes.
+- [x] Pin external GitHub Actions to immutable commit SHAs.
+- [x] Bind reusable Flutter verification to the same AppLab revision instead of `@main`.
+- [x] Make Longitudinal Product Intelligence branch-lineage aware and exclude sibling-branch history.
+- [x] Preserve lineage independently while keeping immutable reviewed SHA binding.
+- [x] Generate `studio.json` automatically from trusted review evidence.
+- [x] Preserve forward-compatible Control Center and Studio summary metrics through backend adapters.
+- [x] Align backend/frontend/Studio/CI version contracts to 4.0.1.
+- [x] Add CI audit-contract enforcement for hardening invariants.
+- [x] Add Dependabot governance for Python, npm and GitHub Actions.
+- [ ] Enable GitHub branch protection/ruleset for `main` (repository setting; connector cannot mutate it).
 
 ### v4.0.0 — AppLab Analyst
 

@@ -22,6 +22,10 @@ def test_load_studio_snapshot(tmp_path: Path) -> None:
                     "with_market": 1,
                     "manual_review": 1,
                     "recurrent_patterns": 3,
+                    "with_analyst_reports": 2,
+                    "analyst_attention": 1,
+                    "planned_experiments": 4,
+                    "trusted_runtime_reviews": 2,
                 },
                 "projects": [{"project_id": "one"}, {"project_id": "two"}],
                 "portfolio": {"project_count": 2},
@@ -33,5 +37,9 @@ def test_load_studio_snapshot(tmp_path: Path) -> None:
     assert payload["available"] is True
     assert payload["summary"]["projects"] == 2
     assert payload["summary"]["recurrent_patterns"] == 3
+    assert payload["summary"]["with_analyst_reports"] == 2
+    assert payload["summary"]["analyst_attention"] == 1
+    assert payload["summary"]["planned_experiments"] == 4
+    assert payload["summary"]["trusted_runtime_reviews"] == 2
     assert len(payload["projects"]) == 2
     assert payload["portfolio"]["project_count"] == 2
