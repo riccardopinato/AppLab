@@ -81,6 +81,8 @@ jobs:
     outputs:
       repository: ${{ steps.target.outputs.repository }}
       source_ref: ${{ steps.target.outputs.source_ref }}
+      lineage_ref: ${{ steps.target.outputs.lineage_ref }}
+      base_sha: ${{ steps.target.outputs.base_sha }}
       resolved_sha: ${{ steps.sha.outputs.resolved_sha }}
     steps:
       - name: Resolve coordinates
@@ -92,14 +94,20 @@ jobs:
           INPUT_REF: ${{ inputs.target_ref }}
           PR_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           PR_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -Eeuo pipefail
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             REPOSITORY="$PR_REPOSITORY"
             SOURCE_REF="$PR_SHA"
+            LINEAGE_REF="$PR_HEAD_REF"
+            BASE_SHA="$PR_BASE_SHA"
           else
             REPOSITORY="${INPUT_REPOSITORY:-}"
             SOURCE_REF="${INPUT_REF:-main}"
+            LINEAGE_REF="$SOURCE_REF"
+            BASE_SHA=""
             [[ -n "$REPOSITORY" ]] || REPOSITORY="${{ github.repository }}"
           fi
           [[ -n "$REPOSITORY" && -n "$SOURCE_REF" ]] || {
@@ -108,6 +116,8 @@ jobs:
           }
           echo "repository=$REPOSITORY" >> "$GITHUB_OUTPUT"
           echo "source_ref=$SOURCE_REF" >> "$GITHUB_OUTPUT"
+          echo "lineage_ref=$LINEAGE_REF" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Checkout target once
         uses: actions/checkout@v7
