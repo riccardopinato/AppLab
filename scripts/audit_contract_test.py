@@ -34,6 +34,11 @@ def check_version_alignment() -> None:
         f'STUDIO_VERSION = "{EXPECTED_VERSION}"' in studio,
         "Studio snapshot version drift",
     )
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    require(
+        f'"version":"{EXPECTED_VERSION}"' in ci,
+        "CI backend health assertion version drift",
+    )
 
 
 def check_local_controller_boundary() -> None:
