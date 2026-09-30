@@ -70,7 +70,7 @@ permissions:
 jobs:
   verify:
     name: AppLab v0.6.3 Unified Flutter Gate
-    uses: riccardopinato/AppLab/.github/workflows/external-project-runner.yml@main
+    uses: ./.github/workflows/external-project-runner.yml
     with:
       repository: ${{ github.repository }}
       ref: ${{ github.sha }}
