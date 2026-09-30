@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v4.0
+name: AppLab True Autonomous App Review v4.0.1
 
 on:
   pull_request:
@@ -271,7 +271,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v4.0"
+            echo "## AppLab True Autonomous App Review v4.0.1"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
