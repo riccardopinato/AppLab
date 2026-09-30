@@ -11,7 +11,7 @@ def test_health() -> None:
     payload = response.json()
     assert payload["ok"] is True
     assert payload["service"] == "applab-controller"
-    assert payload["version"] == "3.4.0"
+    assert payload["version"] == "4.0.1"
     assert "diagnostics" in payload["features"]
     assert "webrtc-live-runtime" in payload["features"]
     assert "emulator-lifecycle" in payload["features"]
@@ -66,3 +66,7 @@ def test_health() -> None:
     assert "safe-journey-crawler" in payload["features"]
     assert "user-journey-intelligence" in payload["features"]
     assert "ux-friction-discoverability-lab" in payload["features"]
+    assert "longitudinal-product-intelligence" in payload["features"]
+    assert "autonomous-experiment-planner" in payload["features"]
+    assert "applab-analyst" in payload["features"]
+    assert "audit-hardening-v4.0.1" in payload["features"]
