@@ -248,6 +248,8 @@ jobs:
             --repository "${{ needs.resolve.outputs.repository }}" \
             --resolved-sha "${{ needs.resolve.outputs.resolved_sha }}" \
             --run-id "$GITHUB_RUN_ID" \
+            --lineage-ref "${{ needs.resolve.outputs.lineage_ref }}" \
+            --base-sha "${{ needs.resolve.outputs.base_sha }}" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review" \
             --snapshot-output "$GITHUB_WORKSPACE/.applab-longitudinal/${{ needs.resolve.outputs.resolved_sha }}.json" \
             --history-limit 20
