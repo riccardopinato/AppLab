@@ -1,4 +1,4 @@
-# AppLab v3.5 — Longitudinal Product Intelligence
+# AppLab v3.5.1 — Longitudinal Product Intelligence
 
 Longitudinal Product Intelligence compares successive trusted Autonomous Review
 snapshots for the same repository and explains how product evidence evolves over
@@ -19,9 +19,11 @@ Each run consumes:
 - repository, resolved SHA and workflow run metadata.
 
 The trusted autonomous-review workflow restores the latest repository-wide
-history artifact, runs the v3.5 engine, then uploads an updated history artifact
-only after the trusted product review succeeds. This avoids pull-request cache
-scope isolation and lets later PRs reuse the same repository history.
+history artifact, then filters snapshots by branch lineage before selecting a
+baseline. Repeated reviews on the same branch may compare with that branch's
+previous trusted snapshots; a PR may also use an exact trusted snapshot of its
+base SHA. Sibling branches are never allowed to become each other's baseline.
+The updated snapshot is uploaded only after trusted product review succeeds.
 
 ## Finding identity
 
@@ -105,3 +107,12 @@ resolved counts, severity escalations and top regression candidates.
 6. History is repository-scoped, deduplicated by resolved SHA and bounded.
 7. Pairwise product-removal conclusions are suppressed when the current bounded scan is less complete than the baseline.
 8. Release verdicts and production certification remain independent.
+
+
+## Cross-branch isolation
+
+Each new snapshot records `lineage_ref` and, for pull requests, `base_sha`.
+History selection accepts only the same lineage or the exact PR base SHA. Legacy
+snapshots without lineage metadata are not used as an implicit branch baseline.
+Pruning is performed per lineage, so activity on one branch does not evict the
+entire bounded history of another branch.
