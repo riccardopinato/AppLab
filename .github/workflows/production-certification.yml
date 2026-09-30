@@ -46,10 +46,10 @@ jobs:
       resolved_sha: ${{ steps.target.outputs.resolved_sha }}
     steps:
       - name: Checkout AppLab
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Checkout target project
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
@@ -171,24 +171,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout AppLab
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Download primary build contract
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: applab-build-${{ needs.resolve.outputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: primary-contract
         continue-on-error: true
 
       - name: Download primary certification evidence
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: applab-${{ needs.resolve.outputs.history_key }}-${{ github.run_id }}
           path: primary-report
         continue-on-error: true
 
       - name: Download compatibility evidence
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: applab-${{ needs.resolve.outputs.history_key }}-compat-${{ github.run_id }}
           path: compatibility-report
@@ -236,7 +236,7 @@ jobs:
       - name: Upload certified release bundle
         id: release_upload
         if: steps.release.outputs.publish == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ steps.release.outputs.artifact_name }}
           path: applab-release/
@@ -253,7 +253,7 @@ jobs:
 
       - name: Upload final certification evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-certification-final-${{ github.run_id }}
           path: primary-report/
@@ -280,10 +280,10 @@ jobs:
     needs: [resolve, finalize]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Restore central history
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-history
           key: applab-watch-history-${{ github.run_id }}
@@ -291,7 +291,7 @@ jobs:
             applab-watch-history-
 
       - name: Download final certification evidence
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: applab-certification-final-${{ github.run_id }}
           path: certification-results/final
@@ -316,14 +316,14 @@ jobs:
 
       - name: Save central history
         if: always()
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-history
           key: applab-watch-history-${{ github.run_id }}
 
       - name: Upload certification history
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-certification-history-${{ github.run_id }}
           path: |
