@@ -11,7 +11,7 @@ import change_intelligence
 from product_review_common import write_report
 
 SCHEMA_VERSION = 1
-ENGINE_VERSION = "3.5.0"
+ENGINE_VERSION = "3.5.1"
 MAX_HISTORY = 20
 
 SEVERITY_RANK = {
@@ -176,6 +176,8 @@ def make_snapshot(
     resolved_sha: str = "",
     run_id: str = "",
     recorded_at: str = "",
+    lineage_ref: str = "",
+    base_sha: str = "",
 ) -> dict[str, Any]:
     inferred = _metadata_from_review(review)
     return {
@@ -185,6 +187,8 @@ def make_snapshot(
         "repository": repository or inferred["repository"],
         "resolved_sha": resolved_sha or inferred["resolved_sha"],
         "run_id": run_id or inferred["run_id"],
+        "lineage_ref": _safe_text(lineage_ref),
+        "base_sha": _safe_text(base_sha),
         "review": review,
     }
 
@@ -250,6 +254,8 @@ def load_history(
     *,
     repository: str = "",
     current_sha: str = "",
+    lineage_ref: str = "",
+    base_sha: str = "",
     limit: int = MAX_HISTORY,
 ) -> list[dict[str, Any]]:
     if history_dir is None or not history_dir.is_dir():
@@ -265,6 +271,12 @@ def load_history(
             continue
         if current_sha and row_sha and row_sha == current_sha:
             continue
+        row_lineage = _safe_text(row.get("lineage_ref"))
+        if lineage_ref:
+            same_lineage = bool(row_lineage and row_lineage == lineage_ref)
+            exact_base = bool(base_sha and row_sha and row_sha == base_sha)
+            if not same_lineage and not exact_base:
+                continue
         rows.append(row)
 
     rows.sort(key=lambda row: (_safe_text(row.get("recorded_at")), _safe_text(row.get("_path"))))
@@ -362,12 +374,16 @@ def build_report(
     repository: str = "",
     resolved_sha: str = "",
     run_id: str = "",
+    lineage_ref: str = "",
+    base_sha: str = "",
 ) -> dict[str, Any]:
     current_snapshot = make_snapshot(
         current_review,
         repository=repository,
         resolved_sha=resolved_sha,
         run_id=run_id,
+        lineage_ref=lineage_ref,
+        base_sha=base_sha,
     )
     current_findings = findings_index(current_review)
     current_claims = claims_index(current_review)
@@ -511,6 +527,8 @@ def build_report(
         "resolved_sha": _safe_text(previous_snapshot.get("resolved_sha")) if previous_snapshot else "",
         "run_id": _safe_text(previous_snapshot.get("run_id")) if previous_snapshot else "",
         "recorded_at": _safe_text(previous_snapshot.get("recorded_at")) if previous_snapshot else "",
+        "lineage_ref": _safe_text(previous_snapshot.get("lineage_ref")) if previous_snapshot else "",
+        "base_sha": _safe_text(previous_snapshot.get("base_sha")) if previous_snapshot else "",
     }
 
     return {
@@ -522,11 +540,15 @@ def build_report(
             "resolved_sha": current_snapshot["resolved_sha"],
             "run_id": current_snapshot["run_id"],
             "review_state": _safe_text(current_review.get("review_state")),
+            "lineage_ref": current_snapshot.get("lineage_ref", ""),
+            "base_sha": current_snapshot.get("base_sha", ""),
         },
         "baseline": baseline,
         "summary": {
             "history_snapshots": len(history),
             "baseline_available": bool(previous_review),
+            "lineage_ref": _safe_text(lineage_ref),
+            "base_sha": _safe_text(base_sha),
             "current_findings": len(current_findings),
             "new_findings": len(first_seen_keys),
             "returned_findings": len(returned_keys),
@@ -569,6 +591,7 @@ def build_report(
             "resolved_finding_is_not_proof_of_runtime_fix": True,
             "capability_removal_is_not_automatically_a_defect": True,
             "historical_evidence_never_overrides_current_trusted_evidence": True,
+            "cross_branch_history_is_suppressed": True,
             "release_verdict_unchanged": True,
             "certification_unchanged": True,
         },
@@ -627,7 +650,7 @@ def write_outputs(report: dict[str, Any], output_dir: Path) -> None:
 def prune_history(history_dir: Path, limit: int = MAX_HISTORY) -> None:
     if not history_dir.is_dir():
         return
-    rows: list[tuple[str, str, Path]] = []
+    rows: list[tuple[str, str, str, Path]] = []
     for path in history_dir.rglob("*.json"):
         snapshot = _read_snapshot(path)
         if snapshot is None:
@@ -635,26 +658,32 @@ def prune_history(history_dir: Path, limit: int = MAX_HISTORY) -> None:
         rows.append((
             _safe_text(snapshot.get("recorded_at")),
             _safe_text(snapshot.get("resolved_sha")),
+            _safe_text(snapshot.get("lineage_ref")) or "__legacy__",
             path,
         ))
-    rows.sort(key=lambda item: (item[0], item[2].name))
 
-    latest_by_sha: dict[str, tuple[str, str, Path]] = {}
-    anonymous: list[tuple[str, str, Path]] = []
+    groups: dict[str, list[tuple[str, str, str, Path]]] = {}
     for row in rows:
-        sha = row[1]
-        if sha:
-            previous = latest_by_sha.get(sha)
-            if previous is not None:
-                previous[2].unlink(missing_ok=True)
-            latest_by_sha[sha] = row
-        else:
-            anonymous.append(row)
+        groups.setdefault(row[2], []).append(row)
 
-    distinct = anonymous + list(latest_by_sha.values())
-    distinct.sort(key=lambda item: (item[0], item[2].name))
-    for _, _, path in distinct[:-max(1, limit)]:
-        path.unlink(missing_ok=True)
+    for group_rows in groups.values():
+        group_rows.sort(key=lambda item: (item[0], item[3].name))
+        latest_by_sha: dict[str, tuple[str, str, str, Path]] = {}
+        anonymous: list[tuple[str, str, str, Path]] = []
+        for row in group_rows:
+            sha = row[1]
+            if sha:
+                previous = latest_by_sha.get(sha)
+                if previous is not None:
+                    previous[3].unlink(missing_ok=True)
+                latest_by_sha[sha] = row
+            else:
+                anonymous.append(row)
+
+        distinct = anonymous + list(latest_by_sha.values())
+        distinct.sort(key=lambda item: (item[0], item[3].name))
+        for _, _, _, path in distinct[:-max(1, limit)]:
+            path.unlink(missing_ok=True)
 
 
 def self_test() -> None:
@@ -881,6 +910,62 @@ def self_test() -> None:
         assert remaining_shas.count("6" * 40) == 1
         assert set(remaining_shas) == {"6" * 40, "7" * 40}
 
+        lineage_root = root / "lineage"
+        lineage_root.mkdir()
+        main_sha = "a" * 40
+        sibling_sha = "b" * 40
+        same_branch_sha = "c" * 40
+        (lineage_root / "main.json").write_text(
+            json.dumps(
+                make_snapshot(
+                    review([]),
+                    repository="owner/app",
+                    resolved_sha=main_sha,
+                    recorded_at="2026-01-07T00:00:00+00:00",
+                    lineage_ref="main",
+                )
+            ),
+            encoding="utf-8",
+        )
+        (lineage_root / "sibling.json").write_text(
+            json.dumps(
+                make_snapshot(
+                    review([{"kind": "SIBLING_ONLY", "subject": "x", "severity": "REVIEW"}]),
+                    repository="owner/app",
+                    resolved_sha=sibling_sha,
+                    recorded_at="2026-01-08T00:00:00+00:00",
+                    lineage_ref="feature-x",
+                    base_sha=main_sha,
+                )
+            ),
+            encoding="utf-8",
+        )
+        (lineage_root / "same-branch.json").write_text(
+            json.dumps(
+                make_snapshot(
+                    review([]),
+                    repository="owner/app",
+                    resolved_sha=same_branch_sha,
+                    recorded_at="2026-01-09T00:00:00+00:00",
+                    lineage_ref="feature-y",
+                    base_sha=main_sha,
+                )
+            ),
+            encoding="utf-8",
+        )
+        filtered = load_history(
+            lineage_root,
+            repository="owner/app",
+            current_sha="d" * 40,
+            lineage_ref="feature-y",
+            base_sha=main_sha,
+        )
+        assert {_safe_text(row.get("resolved_sha")) for row in filtered} == {
+            main_sha,
+            same_branch_sha,
+        }
+        assert sibling_sha not in {_safe_text(row.get("resolved_sha")) for row in filtered}
+
         print("AppLab Longitudinal Product Intelligence self-test PASS")
 
 
@@ -892,6 +977,8 @@ def main() -> int:
     parser.add_argument("--repository", default="")
     parser.add_argument("--resolved-sha", default="")
     parser.add_argument("--run-id", default="")
+    parser.add_argument("--lineage-ref", default="")
+    parser.add_argument("--base-sha", default="")
     parser.add_argument("--output-dir", default="applab-longitudinal")
     parser.add_argument("--snapshot-output", default="")
     parser.add_argument("--history-limit", type=int, default=MAX_HISTORY)
@@ -917,6 +1004,8 @@ def main() -> int:
         history_dir,
         repository=args.repository,
         current_sha=args.resolved_sha,
+        lineage_ref=args.lineage_ref,
+        base_sha=args.base_sha,
         limit=max(1, args.history_limit),
     )
     report = build_report(
@@ -925,6 +1014,8 @@ def main() -> int:
         repository=args.repository,
         resolved_sha=args.resolved_sha,
         run_id=args.run_id,
+        lineage_ref=args.lineage_ref,
+        base_sha=args.base_sha,
     )
     write_outputs(report, Path(args.output_dir))
 
@@ -938,6 +1029,8 @@ def main() -> int:
                     repository=args.repository,
                     resolved_sha=args.resolved_sha,
                     run_id=args.run_id,
+                    lineage_ref=args.lineage_ref,
+                    base_sha=args.base_sha,
                 ),
                 indent=2,
                 sort_keys=True,
