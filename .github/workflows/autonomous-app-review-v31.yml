@@ -300,11 +300,21 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/studio-evidence"
-          cp "$GITHUB_WORKSPACE/applab-autonomous-review/"*.json "$GITHUB_WORKSPACE/studio-evidence/"
-          cp "$GITHUB_WORKSPACE/trusted-runtime/trusted-evidence-manifest.json" "$GITHUB_WORKSPACE/studio-evidence/"
-          cp "$GITHUB_WORKSPACE/trusted-runtime/result.json" "$GITHUB_WORKSPACE/studio-evidence/trusted-runtime-result.json"
-          cp "$GITHUB_WORKSPACE/trusted-runtime-validation.json" "$GITHUB_WORKSPACE/studio-evidence/"
+          PROJECT_ID="$(printf '%s' "${{ needs.resolve.outputs.repository }}" | tr '/' '_')"
+          PROJECT_DIR="$GITHUB_WORKSPACE/studio-evidence/$PROJECT_ID"
+          mkdir -p "$PROJECT_DIR"
+          cp "$GITHUB_WORKSPACE/applab-autonomous-review/"*.json "$PROJECT_DIR/"
+          cp "$GITHUB_WORKSPACE/trusted-runtime/trusted-evidence-manifest.json" "$PROJECT_DIR/"
+          cp "$GITHUB_WORKSPACE/trusted-runtime/result.json" "$PROJECT_DIR/trusted-runtime-result.json"
+          cp "$GITHUB_WORKSPACE/trusted-runtime-validation.json" "$PROJECT_DIR/"
+
+      - name: Build Studio snapshot
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/studio_snapshot.py \
+            --evidence-root "$GITHUB_WORKSPACE/studio-evidence" \
+            --output "$GITHUB_WORKSPACE/studio.json"
 
       - name: Upload Autonomous Review evidence
         uses: actions/upload-artifact@v7
@@ -313,5 +323,6 @@ jobs:
           path: |
             applab-autonomous-review/
             studio-evidence/
+            studio.json
           if-no-files-found: error
           retention-days: 30
