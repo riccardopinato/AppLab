@@ -160,6 +160,7 @@ jobs:
           cd frontend
           npm ci --no-audit --no-fund
           npm run build
+          VITE_APPLAB_READ_ONLY=true npm run build -- --outDir dist-readonly
 
       - name: Build backend container
         run: docker build -t applab-backend:ci backend
