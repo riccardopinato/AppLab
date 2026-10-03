@@ -13,6 +13,9 @@ backward compatibility.
 | True Autonomous Review | `.github/workflows/autonomous-app-review-v31.yml` | Current trusted evidence/review gate despite historical filename |
 | Trusted APK verification | `.github/workflows/trusted-apk-verifier.yml` | Trusted runtime authority |
 | Production certification | `.github/workflows/production-certification.yml` | Release certification authority |
+| Security SAST | `.github/workflows/codeql.yml` | Source security analysis |
+| Repository governance | `.github/workflows/repository-governance-audit.yml` | Branch-protection visibility |
+| Read-only Web Preview | `.github/workflows/web-preview.yml` | Public static UI preview only |
 | Universal target build/verify | `.github/workflows/universal-project-runner.yml` | Reusable build/verification entrypoint |
 
 ## Compatibility-only paths
