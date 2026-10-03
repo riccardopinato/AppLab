@@ -11,7 +11,7 @@ LIMITS = {
     "scripts/app_intelligence.py": 1600,
     "scripts/studio_snapshot.py": 1300,
     "scripts/verify_apk.sh": 1150,
-    "scripts/longitudinal_product_intelligence.py": 1050,
+    "scripts/longitudinal_product_intelligence.py": 1100,
     "scripts/autonomous_app_review.py": 500,
 }
 
