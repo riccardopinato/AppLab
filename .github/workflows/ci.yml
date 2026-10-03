@@ -89,8 +89,8 @@ jobs:
             scripts/cross_app_intelligence.py \
             scripts/audit_orchestrator.py \
             scripts/studio_snapshot.py \
-            scripts/control_center_snapshot.py
-            scripts/maintainability_budget.py
+            scripts/control_center_snapshot.py \
+            scripts/maintainability_budget.py \
             tests/intelligence/intelligence_corpus_test.py
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/interaction_crawler.py --self-test
