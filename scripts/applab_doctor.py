@@ -7,6 +7,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable
@@ -15,19 +16,19 @@ ENGINE_VERSION = "4.1.0"
 
 PROFILES = {
     "core": {
-        "required": ["git", "python"],
+        "required": ["git"],
         "optional": ["gh", "docker", "node", "npm"],
     },
     "android": {
-        "required": ["git", "python", "java", "adb"],
+        "required": ["git", "java", "adb"],
         "optional": ["gh", "docker", "sdkmanager", "gradle"],
     },
     "flutter": {
-        "required": ["git", "python", "java", "adb", "flutter", "dart"],
+        "required": ["git", "java", "adb", "flutter", "dart"],
         "optional": ["gh", "docker", "sdkmanager", "gradle", "node", "npm"],
     },
     "full": {
-        "required": ["git", "python", "java", "adb", "docker", "gh"],
+        "required": ["git", "java", "adb", "docker", "gh"],
         "optional": ["flutter", "dart", "sdkmanager", "gradle", "node", "npm"],
     },
 }
@@ -97,8 +98,61 @@ def probe_docker_daemon(
         }
 
 
+def probe_docker_compose(
+    docker_path: str,
+    runner: Callable[..., object] = subprocess.run,
+) -> dict[str, object]:
+    if not docker_path:
+        return {
+            "kind": "command",
+            "name": "docker-compose-v2",
+            "required": False,
+            "ok": False,
+            "path": "",
+            "detail": "docker client unavailable",
+        }
+    try:
+        completed = runner(
+            [docker_path, "compose", "version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        return_code = int(getattr(completed, "returncode", 1))
+        stdout = str(getattr(completed, "stdout", "") or "").strip()
+        stderr = str(getattr(completed, "stderr", "") or "").strip()
+        return {
+            "kind": "command",
+            "name": "docker-compose-v2",
+            "required": False,
+            "ok": return_code == 0 and bool(stdout),
+            "path": docker_path,
+            "detail": stdout if return_code == 0 else stderr[:240],
+        }
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {
+            "kind": "command",
+            "name": "docker-compose-v2",
+            "required": False,
+            "ok": False,
+            "path": docker_path,
+            "detail": str(exc)[:240],
+        }
+
+
 def build_report(profile: str) -> dict[str, object]:
     rows = probe_commands(profile)
+    rows.append(
+        {
+            "kind": "runtime",
+            "name": "python-runtime",
+            "required": True,
+            "ok": bool(sys.executable),
+            "path": sys.executable,
+            "detail": platform.python_version(),
+        }
+    )
     if platform.system().lower() == "linux":
         kvm = Path("/dev/kvm")
         rows.append(
@@ -115,6 +169,10 @@ def build_report(profile: str) -> dict[str, object]:
     docker_daemon = probe_docker_daemon(docker_path)
     docker_daemon["required"] = profile == "full"
     rows.append(docker_daemon)
+
+    docker_compose = probe_docker_compose(docker_path)
+    docker_compose["required"] = profile == "full"
+    rows.append(docker_compose)
 
     docker_socket = Path("/var/run/docker.sock")
     rows.append(
@@ -168,7 +226,7 @@ def markdown(report: dict[str, object]) -> str:
 
 
 def self_test() -> None:
-    available = {"git": "/usr/bin/git", "python": "/usr/bin/python", "java": "/usr/bin/java", "adb": "/usr/bin/adb"}
+    available = {"git": "/usr/bin/git", "java": "/usr/bin/java", "adb": "/usr/bin/adb"}
     rows = probe_commands("android", resolver=lambda name: available.get(name))
     required = [row for row in rows if row["required"]]
     assert all(row["ok"] for row in required)
@@ -192,6 +250,22 @@ def self_test() -> None:
         ),
     )
     assert blocked["ok"] is False
+
+    compose_ready = probe_docker_compose(
+        "/usr/bin/docker",
+        runner=lambda *args, **kwargs: SimpleNamespace(
+            returncode=0, stdout="Docker Compose version v2.40.0\n", stderr=""
+        ),
+    )
+    assert compose_ready["ok"] is True
+    compose_missing = probe_docker_compose(
+        "/usr/bin/docker",
+        runner=lambda *args, **kwargs: SimpleNamespace(
+            returncode=1, stdout="", stderr="docker: 'compose' is not a docker command"
+        ),
+    )
+    assert compose_missing["ok"] is False
+    assert sys.executable
     print("AppLab Doctor self-test PASS")
 
 
