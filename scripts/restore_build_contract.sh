@@ -30,8 +30,11 @@ done
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 : "${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is required}"
 
-for value in "$ARTIFACT_NAME" "$OUTPUT_DIR" "$EXPECTED_REPOSITORY" "$EXPECTED_SHA" "$EXPECTED_ENGINE" "$EXPECTED_ANALYSIS_MODE" "$EXPECTED_APPLAB_SHA"; do
-  [[ -n "$value" ]] || { echo "Missing required build-reuse argument" >&2; exit 2; }
+for value in   "$ARTIFACT_NAME"   "$OUTPUT_DIR"   "$EXPECTED_REPOSITORY"   "$EXPECTED_SHA"   "$EXPECTED_ENGINE"   "$EXPECTED_ANALYSIS_MODE"   "$EXPECTED_APPLAB_SHA"; do
+  [[ -n "$value" ]] || {
+    echo "Missing required build-reuse argument" >&2
+    exit 2
+  }
 done
 
 emit() {
@@ -49,17 +52,61 @@ miss() {
   exit 0
 }
 
+validate_candidate() {
+  local artifact_id="$1"
+  local zip_file
+
+  rm -rf "$OUTPUT_DIR"
+  mkdir -p "$OUTPUT_DIR"
+  zip_file="$(mktemp --suffix=.zip)"
+
+  if ! gh api \
+    -H "Accept: application/vnd.github+json" \
+    "/repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" \
+    > "$zip_file"; then
+    rm -f "$zip_file"
+    rm -rf "$OUTPUT_DIR"
+    echo "Skipping build-cache artifact $artifact_id: download unavailable." >&2
+    return 1
+  fi
+
+  if ! unzip -q "$zip_file" -d "$OUTPUT_DIR"; then
+    rm -f "$zip_file"
+    rm -rf "$OUTPUT_DIR"
+    echo "Skipping build-cache artifact $artifact_id: invalid archive." >&2
+    return 1
+  fi
+  rm -f "$zip_file"
+
+  if ! python "$GITHUB_WORKSPACE/.applab/scripts/validate_build_contract.py" \
+    --root "$OUTPUT_DIR" \
+    --expected-repository "$EXPECTED_REPOSITORY" \
+    --expected-sha "$EXPECTED_SHA" \
+    --expected-engine "$EXPECTED_ENGINE" \
+    --expected-analysis-mode "$EXPECTED_ANALYSIS_MODE" \
+    --expected-trusted-applab-sha "$EXPECTED_APPLAB_SHA"; then
+    rm -rf "$OUTPUT_DIR"
+    echo "Skipping build-cache artifact $artifact_id: contract validation failed." >&2
+    return 1
+  fi
+
+  return 0
+}
+
 emit hit false
 emit reason not-found
 
-JSON_FILE="$(mktemp)"
-if ! gh api   -H "Accept: application/vnd.github+json"   "/repos/$GITHUB_REPOSITORY/actions/artifacts?name=$ARTIFACT_NAME&per_page=100"   > "$JSON_FILE"; then
-  rm -f "$JSON_FILE"
+json_file="$(mktemp)"
+if ! gh api \
+  -H "Accept: application/vnd.github+json" \
+  "/repos/$GITHUB_REPOSITORY/actions/artifacts?name=$ARTIFACT_NAME&per_page=100" \
+  > "$json_file"; then
+  rm -f "$json_file"
   miss "artifact-list-unavailable"
 fi
 
-ARTIFACT_ID="$(
-  python3 - "$JSON_FILE" <<'PY'
+ids_file="$(mktemp)"
+if ! python3 - "$json_file" > "$ids_file" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -67,42 +114,38 @@ from pathlib import Path
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 rows = [item for item in payload.get("artifacts", []) if not item.get("expired")]
 rows.sort(key=lambda item: str(item.get("created_at", "")), reverse=True)
-print(rows[0].get("id", "") if rows else "")
+for item in rows[:20]:
+    artifact_id = item.get("id")
+    if artifact_id:
+        print(artifact_id)
 PY
-)" || {
-  rm -f "$JSON_FILE"
+then
+  rm -f "$json_file" "$ids_file"
   miss "artifact-list-invalid"
-}
-rm -f "$JSON_FILE"
-
-[[ -n "$ARTIFACT_ID" ]] || miss "artifact-not-found"
-
-rm -rf "$OUTPUT_DIR"
-mkdir -p "$OUTPUT_DIR"
-ZIP_FILE="$(mktemp --suffix=.zip)"
-
-if ! gh api   -H "Accept: application/vnd.github+json"   "/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip"   > "$ZIP_FILE"; then
-  rm -f "$ZIP_FILE"
-  miss "artifact-download-unavailable"
 fi
+rm -f "$json_file"
 
-if ! unzip -q "$ZIP_FILE" -d "$OUTPUT_DIR"; then
-  rm -f "$ZIP_FILE"
-  miss "artifact-unzip-failed"
-fi
-rm -f "$ZIP_FILE"
+mapfile -t ARTIFACT_IDS < "$ids_file"
+rm -f "$ids_file"
 
-if ! python "$GITHUB_WORKSPACE/.applab/scripts/validate_build_contract.py"   --root "$OUTPUT_DIR"   --expected-repository "$EXPECTED_REPOSITORY"   --expected-sha "$EXPECTED_SHA"   --expected-engine "$EXPECTED_ENGINE"   --expected-analysis-mode "$EXPECTED_ANALYSIS_MODE"   --expected-trusted-applab-sha "$EXPECTED_APPLAB_SHA"; then
-  miss "contract-validation-failed"
-fi
+(("${#ARTIFACT_IDS[@]}" > 0)) || miss "artifact-not-found"
 
-if [[ -n "$REPORT_DIR" ]]; then
-  mkdir -p "$REPORT_DIR"
-  cp "$OUTPUT_DIR/adaptive-quality.json" "$REPORT_DIR/adaptive-quality.json" 2>/dev/null || true
-  cp "$OUTPUT_DIR/apksigner.txt" "$REPORT_DIR/apksigner.txt" 2>/dev/null || true
-fi
+for ARTIFACT_ID in "${ARTIFACT_IDS[@]}"; do
+  if ! validate_candidate "$ARTIFACT_ID"; then
+    continue
+  fi
 
-emit hit true
-emit reason validated
-emit artifact_id "$ARTIFACT_ID"
-echo "Build reuse HIT: $ARTIFACT_NAME ($ARTIFACT_ID)"
+  if [[ -n "$REPORT_DIR" ]]; then
+    mkdir -p "$REPORT_DIR"
+    cp "$OUTPUT_DIR/adaptive-quality.json" "$REPORT_DIR/adaptive-quality.json" 2>/dev/null || true
+    cp "$OUTPUT_DIR/apksigner.txt" "$REPORT_DIR/apksigner.txt" 2>/dev/null || true
+  fi
+
+  emit hit true
+  emit reason validated
+  emit artifact_id "$ARTIFACT_ID"
+  echo "Build reuse HIT: $ARTIFACT_NAME ($ARTIFACT_ID)"
+  exit 0
+done
+
+miss "no-valid-artifact"
