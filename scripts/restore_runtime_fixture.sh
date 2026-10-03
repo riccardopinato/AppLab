@@ -17,8 +17,8 @@ STARTED_AT="$(date +%s)"
 ARTIFACT_ID=""
 
 while :; do
-  JSON_FILE="$(mktemp)"
   ARTIFACT_ID=""
+  JSON_FILE="$(mktemp)"
 
   if gh api \
     -H "Accept: application/vnd.github+json" \
@@ -31,11 +31,10 @@ import sys
 from pathlib import Path
 
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-# The exact artifact name already contains GITHUB_SHA. On pull_request events
-# that is the synthetic merge SHA, while REST workflow_run.head_sha exposes
-# the PR branch head SHA. Comparing those two identities would reject the
-# correct artifact. Source SHA and APK SHA-256 are verified from manifest.json
-# after download.
+# Artifact identity is encoded in the exact name with GITHUB_SHA. On
+# pull_request, GITHUB_SHA is the synthetic merge SHA while REST
+# workflow_run.head_sha is the branch head SHA, so those fields must not be
+# compared. The downloaded manifest and APK are verified below.
 rows = [
     item
     for item in payload.get("artifacts", [])
@@ -56,7 +55,30 @@ PY
   rm -f "$JSON_FILE"
 
   if [[ -n "$ARTIFACT_ID" ]]; then
-    break
+    rm -rf "$OUTPUT_DIR"
+    mkdir -p "$OUTPUT_DIR"
+    ZIP_FILE="$(mktemp --suffix=.zip)"
+    DOWNLOAD_OK=false
+
+    if gh api \
+      -H "Accept: application/vnd.github+json" \
+      "/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" \
+      > "$ZIP_FILE"; then
+      if unzip -q "$ZIP_FILE" -d "$OUTPUT_DIR"; then
+        DOWNLOAD_OK=true
+      else
+        echo "Runtime fixture artifact unzip failed; retrying within wait budget." >&2
+      fi
+    else
+      echo "Runtime fixture artifact download failed; retrying within wait budget." >&2
+    fi
+    rm -f "$ZIP_FILE"
+
+    if [[ "$DOWNLOAD_OK" == "true" ]]; then
+      break
+    fi
+    rm -rf "$OUTPUT_DIR"
+    ARTIFACT_ID=""
   fi
 
   NOW="$(date +%s)"
@@ -67,13 +89,6 @@ PY
   echo "Waiting for canonical runtime fixture $ARTIFACT_NAME..."
   sleep "$POLL_SECONDS"
 done
-
-rm -rf "$OUTPUT_DIR"
-mkdir -p "$OUTPUT_DIR"
-ZIP_FILE="$(mktemp --suffix=.zip)"
-gh api   -H "Accept: application/vnd.github+json"   "/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip"   > "$ZIP_FILE"
-unzip -q "$ZIP_FILE" -d "$OUTPUT_DIR"
-rm -f "$ZIP_FILE"
 
 MANIFEST="$OUTPUT_DIR/manifest.json"
 APK="$OUTPUT_DIR/app-debug.apk"
