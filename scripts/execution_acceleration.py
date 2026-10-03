@@ -74,8 +74,28 @@ def build_execution_plan(
     run_build = _bool(analysis_plan.get("run_build"), default_run_build)
     run_runtime = _bool(analysis_plan.get("run_runtime"), default_run_runtime)
 
-    semantic_plan = dict(analysis_plan)
-    semantic_plan.pop("planner_ms", None)
+    semantic_keys = (
+        "mode",
+        "requested_mode",
+        "lane",
+        "baseline_sha",
+        "changed_files",
+        "changes",
+        "impacted_files",
+        "selected_labs",
+        "predicted_selected_labs",
+        "fallback_full",
+        "shadow_full",
+        "run_static",
+        "run_build",
+        "run_runtime",
+        "targets",
+    )
+    semantic_plan = {
+        key: analysis_plan.get(key)
+        for key in semantic_keys
+        if key in analysis_plan
+    }
 
     identity = {
         "repository": repository.strip().lower(),
@@ -261,6 +281,62 @@ def self_test() -> None:
         build_inputs=["prepare:", "post:"],
     )
     assert timed_report["execution_key"] == first["execution_key"]
+    telemetry_plan = dict(plan)
+    telemetry_plan["learning_profile"] = {
+        "sample_count": 999,
+        "pass_count": 888,
+        "lane_p95_seconds": {"FAST_RUNTIME": 123.4},
+    }
+    telemetry_plan["historical_lane_p95_seconds"] = 123.4
+    telemetry_plan["verification_budget_seconds"] = 17
+    telemetry_report = build_execution_plan(
+        analysis_plan=telemetry_plan,
+        repository="owner/app",
+        resolved_sha="a" * 40,
+        engine="flutter",
+        history_key="demo",
+        working_directory=".",
+        build_command="flutter build apk --debug",
+        apk_path="build/app.apk",
+        contract_fingerprint="contract-1",
+        config_fingerprint="config-1",
+        toolchain=["java:17.0.17", "flutter:3.35.0"],
+        build_inputs=["prepare:", "post:"],
+    )
+    stable_toolchain_report = build_execution_plan(
+        analysis_plan=plan,
+        repository="owner/app",
+        resolved_sha="a" * 40,
+        engine="flutter",
+        history_key="demo",
+        working_directory=".",
+        build_command="flutter build apk --debug",
+        apk_path="build/app.apk",
+        contract_fingerprint="contract-1",
+        config_fingerprint="config-1",
+        toolchain=["java:17.0.17", "flutter:3.35.0"],
+        build_inputs=["prepare:", "post:"],
+    )
+    assert telemetry_report["execution_key"] == stable_toolchain_report["execution_key"]
+
+    changed_selection = dict(plan)
+    changed_selection["selected_labs"] = dict(plan["selected_labs"])
+    changed_selection["selected_labs"]["storage"] = True
+    changed_selection_report = build_execution_plan(
+        analysis_plan=changed_selection,
+        repository="owner/app",
+        resolved_sha="a" * 40,
+        engine="flutter",
+        history_key="demo",
+        working_directory=".",
+        build_command="flutter build apk --debug",
+        apk_path="build/app.apk",
+        contract_fingerprint="contract-1",
+        config_fingerprint="config-1",
+        toolchain=["java:17.0.17", "flutter:3.35.0"],
+        build_inputs=["prepare:", "post:"],
+    )
+    assert changed_selection_report["execution_key"] != stable_toolchain_report["execution_key"]
     assert first["artifact_name"] == second["artifact_name"]
     assert first["selected_labs"] == ["network", "persistence"]
     assert first["dag"]["build_once_verify_many"] is True
