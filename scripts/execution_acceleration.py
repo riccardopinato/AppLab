@@ -176,6 +176,11 @@ def build_execution_plan(
             "cancel_stale_same_ref": True,
             "build_once_verify_many": True,
             "content_addressed_build_contract": True,
+            "parallelism_policy": {
+                "independent_workflow_gates": "parallel",
+                "shared_emulator_specialist_labs": "serial",
+                "reason": "avoid multiplying emulator cold-start/state-isolation cost",
+            },
         },
         "guardrails": {
             "cache_hit_requires_contract_validation": True,
