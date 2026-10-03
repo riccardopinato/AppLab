@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v4.0.2 — Residual Hardening**
+Current production baseline: **v4.1.0 — Execution Acceleration Engine**
 
 ## Product rule
 
@@ -19,6 +19,22 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v4.1.0 — Execution Acceleration Engine
+
+- [x] Keep Smart Test Plan as the single change-aware test-selection authority.
+- [x] Add deterministic execution keys and a machine-readable execution DAG.
+- [x] Make build identity content-addressed by source, toolchain, build inputs and semantic plan.
+- [x] Reuse validated Flutter/native build contracts across equivalent reruns.
+- [x] Restrict build reuse to artifacts produced by the same AppLab workflow revision.
+- [x] Revalidate every restored build contract before trusted verification.
+- [x] Extend build-contract retention to seven days for safe rerun reuse.
+- [x] Build the AppLab self-test APK once and share identical bytes across Browser E2E and Emulator Self Test.
+- [x] Verify canonical runtime fixture source SHA and APK SHA-256 in every consumer.
+- [x] Preserve stale-run cancellation and explicit serial shared-emulator policy.
+- [x] Record execution key/build-cache hit in pipeline metrics.
+- [x] Add AppLab Doctor environment preflight.
+- [x] Encode v4.1 invariants in heavy-audit CI contracts.
 
 ### v4.0.2 — Residual Hardening
 
