@@ -395,6 +395,9 @@ jobs:
             --toolchain "gradle:${{ inputs.gradle_version }}" \
             --toolchain "compile-sdk:${{ inputs.compile_sdk }}" \
             --toolchain "build-tools:${{ inputs.build_tools }}" \
+            --build-input "prepare:${{ inputs.prepare_command }}" \
+            --build-input "test:${{ inputs.test_command }}" \
+            --build-input "lint:${{ inputs.lint_command }}" \
             --output "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
             --github-output "$GITHUB_OUTPUT"
           cp "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
