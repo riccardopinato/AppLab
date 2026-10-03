@@ -197,6 +197,10 @@ def check_execution_acceleration_contract() -> None:
         "canonical runtime fixture workflow must own the self-test APK build",
     )
     require(
+        "retention-days: 30" in fixture,
+        "canonical runtime fixture must survive the GitHub workflow rerun window",
+    )
+    require(
         canonical_build not in live and canonical_build not in emulator,
         "runtime consumers must not rebuild the canonical self-test APK",
     )
@@ -228,6 +232,12 @@ def check_execution_acceleration_contract() -> None:
         require(
             "BUILD_CACHE_APPLICABLE" in runner,
             "cache telemetry must distinguish not-applicable from MISS",
+        )
+        require(
+            "analysis_plan_sha256" in runner
+            and "REGENERATED_EXECUTION_KEY" in runner
+            and 'applab-build-contract/analysis-plan.json' in runner,
+            "post-build execution evidence must be regenerated from sealed trusted inputs",
         )
         for needle in (
             "scripts/execution_acceleration.py",
@@ -261,9 +271,13 @@ def check_execution_acceleration_contract() -> None:
         and 'timings={} if build_cache_hit is True else producer_timings' in metrics,
         "cache-hit metrics must exclude producer-run quality timings",
     )
+    doctor = (ROOT / "scripts/applab_doctor.py").read_text(encoding="utf-8")
     require(
-        (ROOT / "scripts/applab_doctor.py").is_file(),
-        "AppLab Doctor preflight is required",
+        "python-runtime" in doctor
+        and "sys.executable" in doctor
+        and "docker-compose-v2" in doctor
+        and 'docker_path, "compose", "version"' in doctor,
+        "AppLab Doctor must use the running Python interpreter and require Compose v2 for full profile",
     )
     require(
         "artifact lookup failed; retrying within wait budget" in restore_fixture
