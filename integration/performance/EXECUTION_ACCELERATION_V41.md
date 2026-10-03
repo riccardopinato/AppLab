@@ -136,7 +136,8 @@ reused.
 - `build_cache_hit`;
 - `execution_key`;
 - `execution_lane`;
-- `build_once_verify_many`.
+- `build_once_verify_many`;
+- `cached_quality_timings_ignored` when producer-run quality timings are deliberately excluded from current-run duration metrics.
 
 This lets future audits compare cache hit-rate and wall-clock savings against
 the pre-v4.1 baseline.
