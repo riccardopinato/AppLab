@@ -526,7 +526,7 @@ jobs:
             echo "- Engine: \`${{ inputs.engine }}\`"
             echo "- Analysis: \`${{ steps.analysis.outputs.effective_mode }}\`"
             if [[ -f "$GITHUB_WORKSPACE/applab-report/execution-plan.json" ]]; then
-              BUILD_REUSE="$(python -c 'import json; d=json.load(open("applab-report/execution-plan.json")); print("HIT" if (d.get("build_cache") or {}).get("hit") else "MISS")')"
+              BUILD_REUSE="$(python -c 'import json; d=json.load(open("applab-report/execution-plan.json")); c=d.get("build_cache") or {}; print("N/A" if c.get("applicable") is False else ("HIT" if c.get("hit") is True else "MISS"))')"
               EXECUTION_KEY="$(python -c 'import json; d=json.load(open("applab-report/execution-plan.json")); print(str(d.get("execution_key",""))[:16])')"
               echo "- Build reuse: \`$BUILD_REUSE\`"
               echo "- Execution key: \`$EXECUTION_KEY\`"
