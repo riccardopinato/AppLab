@@ -21,6 +21,8 @@ on:
       - "docker-compose.live.yml"
       - "scripts/check_live_host.sh"
       - ".github/workflows/live-emulator-self-test.yml"
+      - ".github/workflows/runtime-fixture-build.yml"
+      - "scripts/restore_runtime_fixture.sh"
 
 concurrency:
   group: applab-live-e2e-${{ github.ref }}
