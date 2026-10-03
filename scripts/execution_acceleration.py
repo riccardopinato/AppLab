@@ -391,6 +391,10 @@ def main() -> int:
     parser.add_argument("--config-fingerprint", default="")
     parser.add_argument("--toolchain", action="append", default=[])
     parser.add_argument("--build-input", action="append", default=[])
+    parser.add_argument("--build-cache-applicable", choices=("true", "false"), default="")
+    parser.add_argument("--build-cache-hit", choices=("true", "false"), default="")
+    parser.add_argument("--build-cache-reason", default="")
+    parser.add_argument("--build-cache-artifact-id", default="")
     parser.add_argument("--output", default="execution-plan.json")
     parser.add_argument("--github-output", default="")
     parser.add_argument("--self-test", action="store_true")
@@ -426,6 +430,20 @@ def main() -> int:
             toolchain=args.toolchain,
             build_inputs=args.build_input,
         )
+        if args.build_cache_applicable:
+            applicable = args.build_cache_applicable == "true"
+            hit = (
+                args.build_cache_hit == "true"
+                if applicable and args.build_cache_hit
+                else None
+            )
+            report["build_cache"] = {
+                "applicable": applicable,
+                "hit": hit,
+                "reason": args.build_cache_reason
+                or ("not-applicable" if not applicable else "unknown"),
+                "artifact_id": args.build_cache_artifact_id,
+            }
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
