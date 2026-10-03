@@ -83,6 +83,9 @@ Canonical Runtime Fixture Build
           +----> Emulator Self Test
 ```
 
+The canonical artifact is retained for **30 days**, matching the practical
+workflow-rerun horizon so push/PR reruns do not lose their build-once fixture.
+
 The canonical artifact contains:
 
 - source SHA;
@@ -168,6 +171,17 @@ Profiles report missing required and optional tooling before a long pipeline is
 started.
 
 Doctor is diagnostic only. It never modifies the host.
+
+## Post-build evidence sealing
+
+Before any target build command executes, the adaptive plan is sealed with
+SHA-256. After untrusted target execution AppLab restores its own trusted
+revision and the target source, packages the APK contract, then **regenerates**
+`execution-plan.json` from the packaged analysis plan. The regenerated
+execution key and artifact name must match the trusted pre-build step outputs.
+
+This prevents target build logic from fabricating cache/acceleration evidence by
+writing elsewhere in the shared runner workspace.
 
 ## Trust boundary
 
