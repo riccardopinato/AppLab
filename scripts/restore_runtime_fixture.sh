@@ -18,10 +18,14 @@ ARTIFACT_ID=""
 
 while :; do
   JSON_FILE="$(mktemp)"
-  gh api     -H "Accept: application/vnd.github+json"     "/repos/$GITHUB_REPOSITORY/actions/artifacts?name=$ARTIFACT_NAME&per_page=100"     > "$JSON_FILE"
+  ARTIFACT_ID=""
 
-  ARTIFACT_ID="$(
-    python3 - "$JSON_FILE" "$GITHUB_SHA" <<'PY'
+  if gh api \
+    -H "Accept: application/vnd.github+json" \
+    "/repos/$GITHUB_REPOSITORY/actions/artifacts?name=$ARTIFACT_NAME&per_page=100" \
+    > "$JSON_FILE"; then
+    if ARTIFACT_ID="$(
+      python3 - "$JSON_FILE" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -40,7 +44,15 @@ rows = [
 rows.sort(key=lambda item: str(item.get("created_at", "")), reverse=True)
 print(rows[0].get("id", "") if rows else "")
 PY
-  )"
+    )"; then
+      :
+    else
+      ARTIFACT_ID=""
+      echo "Runtime fixture artifact response was invalid; retrying within wait budget." >&2
+    fi
+  else
+    echo "Runtime fixture artifact lookup failed; retrying within wait budget." >&2
+  fi
   rm -f "$JSON_FILE"
 
   if [[ -n "$ARTIFACT_ID" ]]; then
