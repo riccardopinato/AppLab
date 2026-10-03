@@ -441,7 +441,7 @@ function gate(value: string) {
   return value && value !== "—" ? value : "—";
 }
 
-export default function ControlCenter({ backend }: { backend: string }) {
+export default function ControlCenter({ backend, staticBase }: { backend: string; staticBase?: string }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [studio, setStudio] = useState<StudioSnapshot | null>(null);
   const [error, setError] = useState("");
@@ -450,7 +450,8 @@ export default function ControlCenter({ backend }: { backend: string }) {
 
   const refresh = useCallback(async () => {
     try {
-      const response = await fetch(`${backend}/api/control-center`, {
+      const url = staticBase ? `${staticBase}/control-center.json` : `${backend}/api/control-center`;
+      const response = await fetch(url, {
         cache: "no-store",
       });
       const body = await response.json().catch(() => ({}));
@@ -463,11 +464,12 @@ export default function ControlCenter({ backend }: { backend: string }) {
       setSnapshot(null);
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [backend]);
+  }, [backend, staticBase]);
 
   const refreshStudio = useCallback(async () => {
     try {
-      const response = await fetch(`${backend}/api/studio`, {
+      const url = staticBase ? `${staticBase}/studio.json` : `${backend}/api/studio`;
+      const response = await fetch(url, {
         cache: "no-store",
       });
       const body = await response.json().catch(() => ({}));
@@ -480,7 +482,7 @@ export default function ControlCenter({ backend }: { backend: string }) {
       setStudio(null);
       setStudioError(err instanceof Error ? err.message : String(err));
     }
-  }, [backend]);
+  }, [backend, staticBase]);
 
   useEffect(() => {
     void refresh();
