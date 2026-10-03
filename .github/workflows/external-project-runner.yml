@@ -482,6 +482,34 @@ jobs:
             echo "Cached build contract failed validation; rebuilding."
           fi
 
+      - name: Record execution acceleration outcome
+        shell: bash
+        env:
+          BUILD_CACHE_HIT: ${{ steps.build_reuse.outputs.hit || 'false' }}
+          BUILD_CACHE_ARTIFACT_ID: ${{ steps.build_reuse.outputs.artifact_id || '' }}
+        run: |
+          set -Eeuo pipefail
+          python3 - "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          payload["build_cache"] = {
+              "hit": os.environ.get("BUILD_CACHE_HIT", "false").lower() == "true",
+              "artifact_id": os.environ.get("BUILD_CACHE_ARTIFACT_ID", ""),
+          }
+          path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+          cp "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
+             "$GITHUB_WORKSPACE/applab-report/execution-plan.json"
+          if [[ "$BUILD_CACHE_HIT" == "true" && -d "$GITHUB_WORKSPACE/applab-build-contract" ]]; then
+            cp "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
+               "$GITHUB_WORKSPACE/applab-build-contract/execution-plan.json"
+          fi
+
       - name: Setup Java
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
@@ -652,6 +680,7 @@ jobs:
           python .applab/scripts/pipeline_metrics.py \
             --plan "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
             --quality "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" \
+            --execution-plan "$GITHUB_WORKSPACE/applab-report/execution-plan.json" \
             --workflow-started-at "$RUN_STARTED_AT" \
             --output "$GITHUB_WORKSPACE/applab-report/pipeline-metrics.json"
 
