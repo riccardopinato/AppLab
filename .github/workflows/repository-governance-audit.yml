@@ -1,0 +1,28 @@
+name: Repository Governance Audit
+
+on:
+  pull_request:
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  main-protection:
+    name: Main branch protection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify main is protected
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          PROTECTED="$(gh api "/repos/$GITHUB_REPOSITORY/branches/main" --jq '.protected')"
+          if [[ "$PROTECTED" != "true" ]]; then
+            echo "::error::main is not protected. Enable a branch protection rule/ruleset before treating repository governance as closed."
+            exit 1
+          fi
+          echo "main branch protection: PASS"

@@ -5,6 +5,7 @@ import ControlCenter from "./ControlCenter";
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 const DEFAULT_GATEWAY = import.meta.env.VITE_GATEWAY_URI || "localhost:8080";
+const READ_ONLY = import.meta.env.VITE_APPLAB_READ_ONLY === "true";
 
 type DeviceInfo = {
   serial: string;
@@ -92,7 +93,7 @@ function verdictClass(value?: string) {
   return "neutral";
 }
 
-export default function App() {
+function LiveApp() {
   const emulatorRef = useRef<EmulatorRef | null>(null);
   const [gateway, setGateway] = useState(DEFAULT_GATEWAY);
   const [packageId, setPackageId] = useState(() => localStorage.getItem("applab.package") || "");
@@ -382,7 +383,7 @@ export default function App() {
           <p className="eyebrow">ANDROID VERIFICATION LAB</p>
           <div className="title-row">
             <h1>AppLab</h1>
-            <span className="version">v0.7.1</span>
+            <span className="version">v4.0.2</span>
           </div>
           <p className="subtitle">Live Android Emulator · WebRTC · ADB · Maestro · Diagnostics</p>
         </div>
@@ -715,4 +716,72 @@ export default function App() {
       </section>
     </main>
   );
+}
+
+function ReadOnlyApp() {
+  const staticBase = `${import.meta.env.BASE_URL}preview`.replace(/\/$/, "");
+
+  return (
+    <main className="app-shell">
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">READ-ONLY WEB PREVIEW</p>
+          <div className="title-row">
+            <h1>AppLab Studio</h1>
+            <span className="version">v4.0.2</span>
+          </div>
+          <p className="subtitle">
+            Static Studio · Analyst · Longitudinal Intelligence · Experiment Planner
+          </p>
+        </div>
+        <div className="status-pill neutral">
+          <span className="status-dot" />
+          No privileged runtime exposed
+        </div>
+      </header>
+
+      <section className="metrics">
+        <article className="metric-card good">
+          <span>Preview mode</span>
+          <strong>READ ONLY</strong>
+          <small>Safe for public web deployment</small>
+        </article>
+        <article className="metric-card">
+          <span>Controller</span>
+          <strong>DISABLED</strong>
+          <small>Docker · KVM · ADB remain local-only</small>
+        </article>
+        <article className="metric-card">
+          <span>Evidence</span>
+          <strong>SNAPSHOT</strong>
+          <small>Bundled preview fixture, clearly non-live</small>
+        </article>
+        <article className="metric-card">
+          <span>Purpose</span>
+          <strong>UI QA</strong>
+          <small>Studio navigation and information architecture</small>
+        </article>
+      </section>
+
+      <ControlCenter backend="" staticBase={staticBase} />
+
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="panel-kicker">SECURITY BOUNDARY</span>
+            <h2>Privileged runtime intentionally unavailable</h2>
+          </div>
+        </div>
+        <p>
+          This public preview contains no Docker socket, KVM, ADB, APK upload,
+          process control, Maestro execution or mutable backend API. Use the local
+          Live Controller for real runtime verification.
+        </p>
+      </section>
+    </main>
+  );
+}
+
+export default function App() {
+  return READ_ONLY ? <ReadOnlyApp /> : <LiveApp />;
 }

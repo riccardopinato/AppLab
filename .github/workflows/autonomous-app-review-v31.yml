@@ -1,6 +1,8 @@
-name: AppLab True Autonomous App Review v4.0.1
+name: AppLab True Autonomous App Review v4.0.2
 
 on:
+  schedule:
+    - cron: "17 3 1 * *"
   pull_request:
     paths:
       - ".github/workflows/autonomous-app-review-v31.yml"
@@ -283,7 +285,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v4.0.1"
+            echo "## AppLab True Autonomous App Review v4.0.2"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo

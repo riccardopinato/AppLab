@@ -1,3 +1,19 @@
+## v4.0.2 — Residual Hardening
+
+AppLab v4.0.2 closes the residual P2 findings from the heavy audit.
+
+- trusted review runs monthly on `main` so longitudinal history is refreshed before the 90-day artifact retention window can expire;
+- a separate cross-engine regression corpus validates Longitudinal Intelligence -> Experiment Planner -> Analyst outside the implementation-local self-tests;
+- CI now blocks on `pip-audit` and high-severity `npm audit` findings;
+- a maintainability growth budget prevents the largest monolithic modules from growing silently;
+- workflow compatibility is explicitly documented so historical filenames are no longer ambiguous;
+- the public Web Preview is read-only and contains no Docker/KVM/ADB/controller API;
+- a repository-governance workflow stays red until GitHub branch protection for `main` is enabled.
+
+The only remaining P1 is the external GitHub repository setting for branch protection, which cannot be mutated by the connected repository API.
+
+See `integration/intelligence/RESIDUAL_HARDENING_V402.md`.
+
 ## v4.0.1 — Heavy Audit Hardening
 
 AppLab v4.0.1 closes the post-v4.0 heavy-audit findings without adding a second
