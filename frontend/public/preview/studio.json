@@ -1,0 +1,249 @@
+{
+  "schema_version": 1,
+  "studio_version": "4.0.2",
+  "generated_at": "2026-10-03T00:00:00Z",
+  "preview": true,
+  "summary": {
+    "projects": 1,
+    "with_market": 0,
+    "manual_review": 1,
+    "recurrent_patterns": 0,
+    "with_change_intelligence": 1,
+    "change_attention": 0,
+    "with_longitudinal_intelligence": 1,
+    "longitudinal_attention": 0,
+    "with_experiment_plans": 1,
+    "planned_experiments": 2,
+    "high_priority_experiments": 1,
+    "with_analyst_reports": 1,
+    "analyst_attention": 1,
+    "autonomous_reviews": 1,
+    "autonomous_attention": 1,
+    "runtime_observed": 0,
+    "trusted_runtime_reviews": 0,
+    "evidence_contradictions": 1,
+    "evidence_unverified": 1,
+    "journeys_observed": 2,
+    "journey_review_signals": 1,
+    "ux_review_signals": 1,
+    "ux_no_change_actions": 0
+  },
+  "projects": [
+    {
+      "project_id": "applab-preview-fixture",
+      "product": {
+        "engine": "flutter/android utility platform",
+        "confidence": "PREVIEW_FIXTURE",
+        "capabilities": [
+          "Evidence Confidence",
+          "User Journey Intelligence",
+          "UX Friction Lab",
+          "Longitudinal Intelligence",
+          "Experiment Planner",
+          "AppLab Analyst"
+        ],
+        "screen_like_files": 0,
+        "entity_count": 0,
+        "surface_count": 0,
+        "lifecycle_review_signals": 0,
+        "documentation_drift_signals": 0,
+        "code_confirmed_capabilities": 6,
+        "doc_only_capabilities": 0,
+        "flow_nodes": 0,
+        "flow_edges": 0,
+        "orphan_surface_candidates": 0
+      },
+      "architecture": {
+        "review_signals": 0,
+        "local_first": "LOCAL_TOOLING"
+      },
+      "consistency": {
+        "total": 0,
+        "high_review": 0,
+        "review": 0,
+        "info": 0,
+        "by_domain": {},
+        "top_findings": []
+      },
+      "lifecycle": {
+        "entities_checked": 0,
+        "entities_with_review": 0,
+        "review_signals": 0,
+        "by_kind": {}
+      },
+      "market": null,
+      "audit": {
+        "selected_lab_count": 4,
+        "manual_review_required": true,
+        "top_labs": [
+          {
+            "lab": "AppLab CI",
+            "priority": "REQUIRED"
+          },
+          {
+            "lab": "Browser E2E",
+            "priority": "REQUIRED"
+          },
+          {
+            "lab": "Emulator Self Test",
+            "priority": "REQUIRED"
+          },
+          {
+            "lab": "True Autonomous Review",
+            "priority": "REQUIRED"
+          }
+        ]
+      },
+      "change": {
+        "review_state": "PREVIEW",
+        "feature_truth_changes": 0,
+        "capabilities_added": 0,
+        "capabilities_removed": 0,
+        "entities_added": 0,
+        "entities_removed": 0,
+        "surfaces_added": 0,
+        "surfaces_removed": 0,
+        "new_findings": 0,
+        "resolved_findings": 0,
+        "new_high_review": 0,
+        "new_review": 0
+      },
+      "longitudinal": {
+        "state": "PREVIEW_FIXTURE",
+        "history_snapshots": 3,
+        "baseline_available": true,
+        "baseline_sha": "",
+        "new_findings": 0,
+        "returned_findings": 0,
+        "persistent_findings": 2,
+        "resolved_findings": 1,
+        "severity_escalations": 0,
+        "claim_status_changes": 0,
+        "regression_candidates": 0,
+        "top_regressions": []
+      },
+      "experiment_plan": {
+        "state": "EXPERIMENTS_READY",
+        "next_experiment_id": "EXP-PREVIEW",
+        "experiments": 2,
+        "high_priority": 1,
+        "normal_priority": 1,
+        "existing_lab_ready": 1,
+        "bounded_review_only": 1,
+        "top_experiments": [
+          {
+            "id": "EXP-PREVIEW",
+            "priority": "HIGH",
+            "kind": "PREVIEW_VERIFICATION",
+            "subject": "read-only Studio",
+            "experiment_type": "BOUNDED_REVIEW",
+            "labs": [
+              "studio-preview"
+            ]
+          }
+        ]
+      },
+      "analyst": {
+        "state": "VERIFICATION_REQUIRED",
+        "headline": "Preview fixture: demonstrates Analyst presentation only; this is not live audit evidence.",
+        "engine": "4.0.0",
+        "runtime_trust_state": "NOT_PROVIDED",
+        "observations": 2,
+        "high_priority_observations": 1,
+        "next_actions": 2,
+        "high_priority_actions": 1,
+        "fix_now": 0,
+        "verify_next": 1,
+        "experiments": 2,
+        "contradictions": 1,
+        "regression_candidates": 0,
+        "top_observations": [
+          {
+            "priority": "HIGH",
+            "category": "PREVIEW",
+            "kind": "NON_LIVE_DATA",
+            "subject": "Web Preview",
+            "statement": "This snapshot is a deterministic UI fixture and must not be interpreted as current product evidence."
+          }
+        ],
+        "top_actions": [
+          {
+            "priority": "HIGH",
+            "action": "Use local trusted runtime for real verification",
+            "kind": "PREVIEW_BOUNDARY",
+            "subject": "Web Preview",
+            "source_id": "PREVIEW"
+          }
+        ]
+      },
+      "ux_friction": {
+        "runtime_transitions": 0,
+        "no_change_actions": 0,
+        "no_change_share": 0,
+        "review_signals": 1,
+        "info_signals": 0,
+        "by_category": {
+          "preview": 1
+        },
+        "top_findings": []
+      },
+      "user_journey": {
+        "journeys_observed": 2,
+        "states_observed": 3,
+        "transitions_observed": 2,
+        "max_observed_depth": 2,
+        "no_change_actions": 0,
+        "loop_candidates": 0,
+        "safe_dead_end_candidates": 0,
+        "review_signals": 1,
+        "sample_journeys": [
+          {
+            "depth": 2,
+            "steps": [
+              "Studio",
+              "Analyst",
+              "Experiment Planner"
+            ]
+          }
+        ],
+        "top_findings": []
+      },
+      "evidence_confidence": {
+        "total_claims": 3,
+        "confirmed": 1,
+        "corroborated": 1,
+        "contradicted": 0,
+        "unverified": 1,
+        "stale": 0,
+        "contradiction_count": 1,
+        "top_contradictions": []
+      },
+      "autonomous_review": {
+        "review_state": "PREVIEW_ONLY",
+        "runtime_evidence_state": "NOT_PROVIDED",
+        "observed_states": 0,
+        "applicable_states": 0,
+        "fix_now": 0,
+        "verify_next": 1,
+        "runtime_confirmed": 0,
+        "runtime_contradicted": 0,
+        "contract_review_signals": 0,
+        "runtime_trust_state": "NOT_PROVIDED",
+        "runtime_trusted": false,
+        "trusted_repository": "",
+        "trusted_sha": "",
+        "trusted_package_id": "",
+        "trusted_run_id": "",
+        "manifest_sha256": "",
+        "top_actions": []
+      }
+    }
+  ],
+  "portfolio": {
+    "project_count": 1,
+    "reusable_pattern_candidates": [],
+    "recurrent_review_signals": [],
+    "portfolio_profile": {}
+  },
+  "available": true
+}
