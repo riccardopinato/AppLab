@@ -172,6 +172,9 @@ def health() -> dict:
             "autonomous-experiment-planner",
             "applab-analyst",
             "audit-hardening-v4.0.1",
+            "residual-hardening-v4.0.2",
+            "read-only-web-preview",
+            "dependency-security-audit",
         ],
     }
 
