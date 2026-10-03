@@ -115,6 +115,47 @@ def check_no_floating_self_reference() -> None:
     )
 
 
+
+def check_residual_hardening_contract() -> None:
+    trusted = (ROOT / ".github/workflows/autonomous-app-review-v31.yml").read_text(
+        encoding="utf-8"
+    )
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    app = (ROOT / "frontend/src/App.tsx").read_text(encoding="utf-8")
+    control = (ROOT / "frontend/src/ControlCenter.tsx").read_text(encoding="utf-8")
+    vercel = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
+
+    require(
+        'cron: "17 3 1 * *"' in trusted,
+        "trusted review must refresh longitudinal history before artifact expiry",
+    )
+    require(
+        "tests/intelligence/intelligence_corpus_test.py" in ci,
+        "independent intelligence regression corpus must run in CI",
+    )
+    require(
+        "pip-audit==2.10.1" in ci and "npm audit --audit-level=high" in ci,
+        "Python and npm dependency security audits must remain blocking CI checks",
+    )
+    require(
+        "scripts/maintainability_budget.py" in ci,
+        "maintainability growth budget must remain a CI invariant",
+    )
+    require(
+        'VITE_APPLAB_READ_ONLY === "true"' in app
+        and "staticBase" in control
+        and "VITE_APPLAB_READ_ONLY=true" in str(vercel.get("buildCommand", "")),
+        "public Web Preview must remain read-only and detached from the privileged controller",
+    )
+    require(
+        (ROOT / ".github/workflows/repository-governance-audit.yml").is_file(),
+        "repository governance audit workflow is required",
+    )
+    require(
+        (ROOT / "integration/CANONICAL_WORKFLOWS.md").is_file(),
+        "canonical/compatibility workflow registry is required",
+    )
+
 def main() -> int:
     check_version_alignment()
     check_local_controller_boundary()
@@ -122,6 +163,7 @@ def main() -> int:
     check_trusted_review_contract()
     check_schema_forwarding()
     check_no_floating_self_reference()
+    check_residual_hardening_contract()
     print("AppLab audit hardening contract PASS")
     return 0
 
