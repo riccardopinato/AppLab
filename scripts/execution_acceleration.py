@@ -53,6 +53,7 @@ def build_execution_plan(
     contract_fingerprint: str,
     config_fingerprint: str,
     toolchain: list[str],
+    build_inputs: list[str],
 ) -> dict[str, Any]:
     sha = resolved_sha.lower().strip()
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
@@ -73,6 +74,9 @@ def build_execution_plan(
     run_build = _bool(analysis_plan.get("run_build"), default_run_build)
     run_runtime = _bool(analysis_plan.get("run_runtime"), default_run_runtime)
 
+    semantic_plan = dict(analysis_plan)
+    semantic_plan.pop("planner_ms", None)
+
     identity = {
         "repository": repository.strip().lower(),
         "resolved_sha": sha,
@@ -86,8 +90,9 @@ def build_execution_plan(
         "contract_fingerprint": contract_fingerprint.strip(),
         "config_fingerprint": config_fingerprint.strip(),
         "toolchain": sorted(value.strip() for value in toolchain if value.strip()),
+        "build_inputs": sorted(value.strip() for value in build_inputs if value.strip()),
         "analysis_plan_sha256": hashlib.sha256(
-            json.dumps(analysis_plan, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            json.dumps(semantic_plan, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest(),
     }
     encoded = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -217,6 +222,7 @@ def self_test() -> None:
         contract_fingerprint="contract-1",
         config_fingerprint="config-1",
         toolchain=["flutter:3.35.0", "java:17"],
+        build_inputs=["prepare:", "post:"],
     )
     second = build_execution_plan(
         analysis_plan=plan,
@@ -230,8 +236,26 @@ def self_test() -> None:
         contract_fingerprint="contract-1",
         config_fingerprint="config-1",
         toolchain=["java:17", "flutter:3.35.0"],
+        build_inputs=["post:", "prepare:"],
     )
     assert first["execution_key"] == second["execution_key"]
+    timed = dict(plan)
+    timed["planner_ms"] = 99999.0
+    timed_report = build_execution_plan(
+        analysis_plan=timed,
+        repository="owner/app",
+        resolved_sha="a" * 40,
+        engine="flutter",
+        history_key="demo",
+        working_directory=".",
+        build_command="flutter build apk --debug",
+        apk_path="build/app.apk",
+        contract_fingerprint="contract-1",
+        config_fingerprint="config-1",
+        toolchain=["java:17", "flutter:3.35.0"],
+        build_inputs=["prepare:", "post:"],
+    )
+    assert timed_report["execution_key"] == first["execution_key"]
     assert first["artifact_name"] == second["artifact_name"]
     assert first["selected_labs"] == ["network", "persistence"]
     assert first["dag"]["build_once_verify_many"] is True
@@ -248,6 +272,7 @@ def self_test() -> None:
         contract_fingerprint="contract-1",
         config_fingerprint="config-1",
         toolchain=["java:17", "flutter:3.35.0"],
+        build_inputs=["prepare:", "post:"],
     )
     assert changed["execution_key"] != first["execution_key"]
 
@@ -263,6 +288,7 @@ def self_test() -> None:
         contract_fingerprint="contract-1",
         config_fingerprint="config-1",
         toolchain=[],
+        build_inputs=[],
     )
     assert docs["run_build"] is False
     assert docs["run_runtime"] is False
@@ -283,6 +309,7 @@ def main() -> int:
     parser.add_argument("--contract-fingerprint", default="")
     parser.add_argument("--config-fingerprint", default="")
     parser.add_argument("--toolchain", action="append", default=[])
+    parser.add_argument("--build-input", action="append", default=[])
     parser.add_argument("--output", default="execution-plan.json")
     parser.add_argument("--github-output", default="")
     parser.add_argument("--self-test", action="store_true")
@@ -316,6 +343,7 @@ def main() -> int:
             contract_fingerprint=args.contract_fingerprint,
             config_fingerprint=args.config_fingerprint,
             toolchain=args.toolchain,
+            build_inputs=args.build_input,
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
