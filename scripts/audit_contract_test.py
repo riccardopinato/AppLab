@@ -152,6 +152,14 @@ def check_residual_hardening_contract() -> None:
         "repository governance audit workflow is required",
     )
     require(
+        (ROOT / ".github/workflows/codeql.yml").is_file(),
+        "CodeQL SAST workflow is required",
+    )
+    require(
+        (ROOT / ".github/workflows/web-preview.yml").is_file(),
+        "read-only Web Preview deployment workflow is required",
+    )
+    require(
         (ROOT / "integration/CANONICAL_WORKFLOWS.md").is_file(),
         "canonical/compatibility workflow registry is required",
     )
