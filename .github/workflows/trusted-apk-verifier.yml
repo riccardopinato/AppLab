@@ -154,6 +154,8 @@ jobs:
              "$GITHUB_WORKSPACE/applab-report/analysis-plan.json"
           cp "$GITHUB_WORKSPACE/.applab-build/adaptive-quality.json" \
              "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/.applab-build/execution-plan.json" \
+             "$GITHUB_WORKSPACE/applab-report/execution-plan.json" 2>/dev/null || true
 
       - name: Cache pinned Maestro
         id: maestro_cache
@@ -440,6 +442,7 @@ jobs:
           python .applab/scripts/pipeline_metrics.py \
             --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
             --quality "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" \
+            --execution-plan "$GITHUB_WORKSPACE/applab-report/execution-plan.json" \
             --shadow "$GITHUB_WORKSPACE/applab-report/shadow-calibration.json" \
             --runtime-timing "$GITHUB_WORKSPACE/applab-report/runtime-timing.json" \
             --avd-cache-hit "${{ steps.avd_cache.outputs.cache-hit }}" \
