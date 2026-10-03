@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "4.0.2"
+EXPECTED_VERSION = "4.1.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -164,6 +164,70 @@ def check_residual_hardening_contract() -> None:
         "canonical/compatibility workflow registry is required",
     )
 
+
+def check_execution_acceleration_contract() -> None:
+    fixture = (ROOT / ".github/workflows/runtime-fixture-build.yml").read_text(
+        encoding="utf-8"
+    )
+    live = (ROOT / ".github/workflows/live-emulator-self-test.yml").read_text(
+        encoding="utf-8"
+    )
+    emulator = (ROOT / ".github/workflows/emulator-self-test.yml").read_text(
+        encoding="utf-8"
+    )
+    flutter_runner = (ROOT / ".github/workflows/external-project-runner.yml").read_text(
+        encoding="utf-8"
+    )
+    native_runner = (
+        ROOT / ".github/workflows/external-native-android-runner.yml"
+    ).read_text(encoding="utf-8")
+    trusted = (ROOT / ".github/workflows/trusted-apk-verifier.yml").read_text(
+        encoding="utf-8"
+    )
+    metrics = (ROOT / "scripts/pipeline_metrics.py").read_text(encoding="utf-8")
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    canonical_build = "gradle -p selftest :app:assembleDebug --stacktrace"
+    require(
+        canonical_build in fixture,
+        "canonical runtime fixture workflow must own the self-test APK build",
+    )
+    require(
+        canonical_build not in live and canonical_build not in emulator,
+        "runtime consumers must not rebuild the canonical self-test APK",
+    )
+    for consumer in (live, emulator):
+        require(
+            "scripts/restore_runtime_fixture.sh" in consumer,
+            "runtime gate must restore and validate the canonical fixture",
+        )
+    for runner in (flutter_runner, native_runner):
+        for needle in (
+            "scripts/execution_acceleration.py",
+            "Restore content-addressed build contract",
+            "APPLAB_WORKFLOW_SHA",
+            "validate_build_contract.py",
+            "retention-days: 7",
+        ):
+            require(needle in runner, f"accelerated runner missing invariant: {needle}")
+    require(
+        "execution-plan.json" in trusted,
+        "trusted verifier must preserve acceleration evidence",
+    )
+    require(
+        '"build_cache_hit"' in metrics and '"execution_key"' in metrics,
+        "pipeline metrics must expose build reuse evidence",
+    )
+    require(
+        (ROOT / "scripts/applab_doctor.py").is_file(),
+        "AppLab Doctor preflight is required",
+    )
+    require(
+        "python scripts/execution_acceleration.py --self-test" in ci
+        and "python scripts/applab_doctor.py --self-test" in ci,
+        "CI must gate acceleration and doctor self-tests",
+    )
+
 def main() -> int:
     check_version_alignment()
     check_local_controller_boundary()
@@ -172,6 +236,7 @@ def main() -> int:
     check_schema_forwarding()
     check_no_floating_self_reference()
     check_residual_hardening_contract()
+    check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
     return 0
 
