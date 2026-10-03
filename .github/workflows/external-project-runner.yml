@@ -412,6 +412,8 @@ jobs:
             --config-fingerprint "${{ inputs.config_fingerprint }}" \
             --toolchain "java:${{ inputs.java_version }}" \
             --toolchain "flutter:${{ inputs.flutter_version != '' && inputs.flutter_version || inputs.flutter_channel }}" \
+            --build-input "prepare:${{ inputs.prepare_command }}" \
+            --build-input "post-pub-get:${{ inputs.post_pub_get_command }}" \
             --output "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
             --github-output "$GITHUB_OUTPUT"
           cp "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
