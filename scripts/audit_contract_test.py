@@ -238,13 +238,20 @@ def check_execution_acceleration_contract() -> None:
         "pipeline metrics must expose build reuse evidence",
     )
     require(
+        '"cached_quality_timings_ignored"' in metrics
+        and 'timings={} if build_cache_hit is True else producer_timings' in metrics,
+        "cache-hit metrics must exclude producer-run quality timings",
+    )
+    require(
         (ROOT / "scripts/applab_doctor.py").is_file(),
         "AppLab Doctor preflight is required",
     )
     require(
         "artifact lookup failed; retrying within wait budget" in restore_fixture
+        and "artifact download failed; retrying within wait budget" in restore_fixture
+        and "artifact unzip failed; retrying within wait budget" in restore_fixture
         and "if gh api" in restore_fixture,
-        "runtime fixture lookup must tolerate transient GitHub API failures",
+        "runtime fixture transport must tolerate transient GitHub API/download failures",
     )
     require(
         '"docker-daemon"' in doctor
