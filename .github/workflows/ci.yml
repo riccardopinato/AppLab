@@ -90,6 +90,7 @@ jobs:
             scripts/audit_orchestrator.py \
             scripts/studio_snapshot.py \
             scripts/control_center_snapshot.py
+            tests/intelligence/intelligence_corpus_test.py
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/interaction_crawler.py --self-test
           python scripts/journey_crawler.py --self-test
@@ -150,6 +151,7 @@ jobs:
           python scripts/audit_orchestrator.py --self-test
           python scripts/studio_snapshot.py --self-test
           python scripts/control_center_snapshot.py --self-test
+          python tests/intelligence/intelligence_corpus_test.py
 
       - name: Frontend build
         run: |
@@ -185,3 +187,33 @@ jobs:
       - name: Cleanup containers
         if: always()
         run: docker rm -f applab-backend-ci >/dev/null 2>&1 || true
+
+  security:
+    name: Dependency security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+
+      - name: Audit Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit==2.10.1
+          python -m pip_audit -r backend/requirements.txt --progress-spinner off
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Audit npm dependencies
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts --no-fund
+          npm audit --audit-level=high
