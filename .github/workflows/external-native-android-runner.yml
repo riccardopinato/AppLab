@@ -412,6 +412,7 @@ jobs:
             --contract-fingerprint "${{ steps.adaptive_contract.outputs.fingerprint }}" \
             --config-fingerprint "${{ inputs.config_fingerprint }}" \
             --toolchain "java:${{ steps.java_identity.outputs.version }}" \
+            --toolchain "runner:${RUNNER_OS:-unknown}:${RUNNER_ARCH:-unknown}:${ImageOS:-unknown}:${ImageVersion:-unknown}" \
             --toolchain "gradle:${{ inputs.gradle_version }}" \
             --toolchain "compile-sdk:${{ inputs.compile_sdk }}" \
             --toolchain "build-tools:${{ inputs.build_tools }}" \
@@ -638,6 +639,7 @@ jobs:
             --contract-fingerprint "${{ steps.adaptive_contract.outputs.fingerprint }}" \
             --config-fingerprint "${{ inputs.config_fingerprint }}" \
             --toolchain "java:${{ steps.java_identity.outputs.version }}" \
+            --toolchain "runner:${RUNNER_OS:-unknown}:${RUNNER_ARCH:-unknown}:${ImageOS:-unknown}:${ImageVersion:-unknown}" \
             --toolchain "gradle:${{ inputs.gradle_version }}" \
             --toolchain "compile-sdk:${{ inputs.compile_sdk }}" \
             --toolchain "build-tools:${{ inputs.build_tools }}" \
