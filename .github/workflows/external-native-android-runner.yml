@@ -407,6 +407,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ARTIFACT_NAME: ${{ steps.accel.outputs.artifact_name }}
+          APPLAB_WORKFLOW_SHA: ${{ job.workflow_sha }}
         run: |
           set -Eeuo pipefail
           echo "hit=false" >> "$GITHUB_OUTPUT"
@@ -418,10 +419,19 @@ jobs:
           ARTIFACT_ID="$(
             python3 - "$JSON_FILE" <<'PY'
           import json
+          import os
           import sys
           from pathlib import Path
           payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-          rows = [item for item in payload.get("artifacts", []) if not item.get("expired")]
+          workflow_sha = os.environ["APPLAB_WORKFLOW_SHA"]
+          rows = []
+          for item in payload.get("artifacts", []):
+              if item.get("expired"):
+                  continue
+              workflow = item.get("workflow_run") or {}
+              if workflow.get("head_sha") != workflow_sha:
+                  continue
+              rows.append(item)
           rows.sort(key=lambda item: str(item.get("created_at", "")), reverse=True)
           print(rows[0].get("id", "") if rows else "")
           PY
