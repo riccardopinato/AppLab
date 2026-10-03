@@ -431,6 +431,7 @@ jobs:
             --contract-fingerprint "${{ steps.adaptive_contract.outputs.fingerprint }}" \
             --config-fingerprint "${{ inputs.config_fingerprint }}" \
             --toolchain "java:${{ steps.java_identity.outputs.version }}" \
+            --toolchain "runner:${RUNNER_OS:-unknown}:${RUNNER_ARCH:-unknown}:${ImageOS:-unknown}:${ImageVersion:-unknown}" \
             --toolchain "flutter:${{ inputs.flutter_version != '' && inputs.flutter_version || inputs.flutter_channel }}" \
             --build-input "prepare:${{ inputs.prepare_command }}" \
             --build-input "post-pub-get:${{ inputs.post_pub_get_command }}" \
@@ -651,6 +652,7 @@ jobs:
             --contract-fingerprint "${{ steps.adaptive_contract.outputs.fingerprint }}" \
             --config-fingerprint "${{ inputs.config_fingerprint }}" \
             --toolchain "java:${{ steps.java_identity.outputs.version }}" \
+            --toolchain "runner:${RUNNER_OS:-unknown}:${RUNNER_ARCH:-unknown}:${ImageOS:-unknown}:${ImageVersion:-unknown}" \
             --toolchain "flutter:${{ inputs.flutter_version != '' && inputs.flutter_version || inputs.flutter_channel }}" \
             --build-input "prepare:${{ inputs.prepare_command }}" \
             --build-input "post-pub-get:${{ inputs.post_pub_get_command }}" \
