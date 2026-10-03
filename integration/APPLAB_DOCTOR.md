@@ -33,8 +33,7 @@ Additionally requires:
 
 ### full
 
-Requires the core Android/runtime toolchain plus Docker and GitHub CLI. On Linux,
-`/dev/kvm` is required for the full local-emulator profile.
+Requires the core Android/runtime toolchain plus Docker and GitHub CLI. The Docker client must also be able to reach a responsive daemon via the active Docker context/`DOCKER_HOST`; a stopped or inaccessible daemon blocks `READY`. On Linux, `/dev/kvm` is required for the full local-emulator profile.
 
 ## Usage
 
