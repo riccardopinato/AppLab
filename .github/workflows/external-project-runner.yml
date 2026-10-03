@@ -393,6 +393,24 @@ jobs:
           test -d "$PROJECT_DIR"
           test -f "$PROJECT_DIR/pubspec.yaml"
 
+      - name: Setup Java for execution identity
+        if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java_version }}
+
+      - name: Resolve Java runtime identity
+        id: java_identity
+        if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          JAVA_VERSION="$(java -XshowSettings:properties -version 2>&1 | sed -n 's/^[[:space:]]*java.version = //p' | head -n 1)"
+          test -n "$JAVA_VERSION"
+          echo "version=$JAVA_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved Temurin Java runtime: $JAVA_VERSION"
+
       - name: Plan accelerated execution
         id: accel
         shell: bash
@@ -410,7 +428,7 @@ jobs:
             --apk-path "${{ inputs.apk_path }}" \
             --contract-fingerprint "${{ steps.adaptive_contract.outputs.fingerprint }}" \
             --config-fingerprint "${{ inputs.config_fingerprint }}" \
-            --toolchain "java:${{ inputs.java_version }}" \
+            --toolchain "java:${{ steps.java_identity.outputs.version }}" \
             --toolchain "flutter:${{ inputs.flutter_version != '' && inputs.flutter_version || inputs.flutter_channel }}" \
             --build-input "prepare:${{ inputs.prepare_command }}" \
             --build-input "post-pub-get:${{ inputs.post_pub_get_command }}" \
@@ -444,7 +462,9 @@ jobs:
       - name: Record execution acceleration outcome
         shell: bash
         env:
-          BUILD_CACHE_HIT: ${{ steps.build_reuse.outputs.hit || 'false' }}
+          BUILD_CACHE_APPLICABLE: ${{ steps.impact.outputs.run_build == 'true' && inputs.flutter_version != '' }}
+          BUILD_CACHE_HIT: ${{ steps.build_reuse.outputs.hit || '' }}
+          BUILD_CACHE_REASON: ${{ steps.build_reuse.outputs.reason || '' }}
           BUILD_CACHE_ARTIFACT_ID: ${{ steps.build_reuse.outputs.artifact_id || '' }}
         run: |
           set -Eeuo pipefail
@@ -456,8 +476,14 @@ jobs:
 
           path = Path(sys.argv[1])
           payload = json.loads(path.read_text(encoding="utf-8"))
+          applicable = os.environ.get("BUILD_CACHE_APPLICABLE", "false").lower() == "true"
+          hit_raw = os.environ.get("BUILD_CACHE_HIT", "").lower()
+          hit = (hit_raw == "true") if applicable and hit_raw in {"true", "false"} else None
+          reason = os.environ.get("BUILD_CACHE_REASON", "")
           payload["build_cache"] = {
-              "hit": os.environ.get("BUILD_CACHE_HIT", "false").lower() == "true",
+              "applicable": applicable,
+              "hit": hit,
+              "reason": reason or ("not-applicable" if not applicable else "unknown"),
               "artifact_id": os.environ.get("BUILD_CACHE_ARTIFACT_ID", ""),
           }
           path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -468,13 +494,6 @@ jobs:
             cp "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
                "$GITHUB_WORKSPACE/applab-build-contract/execution-plan.json"
           fi
-
-      - name: Setup Java
-        if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
-        with:
-          distribution: temurin
-          java-version: ${{ inputs.java_version }}
 
       - name: Setup Flutter channel
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true' && inputs.flutter_version == ''
