@@ -47,11 +47,20 @@ The stable build identity includes:
 - APK path;
 - AppLab contract fingerprint;
 - project configuration fingerprint;
-- toolchain identity;
+- resolved toolchain identity (including the concrete Temurin Java patch);
 - build-affecting prepare/post/test/lint commands;
 - the semantic Smart Test Plan, excluding volatile planner timing.
 
 A matching previous build contract can be restored for seven days.
+
+Floating Flutter channels (for example `stable` without an exact
+`flutter_version`) deliberately do **not** reuse build contracts because the
+channel can move during the retention window. Java major/range inputs are
+resolved to the concrete installed Temurin patch before the key is computed.
+
+Historical learning statistics, timing percentiles and verification-budget
+telemetry are excluded from the content key. Only decision-affecting plan state
+(mode/lane/run flags, baseline/change set, selected labs and targets) participates.
 
 A cache hit **does not mean runtime PASS**. The restored contract is validated
 again against repository, SHA, engine and analysis mode, re-published into the
@@ -133,7 +142,9 @@ reused.
 
 `pipeline-metrics.json` now records:
 
-- `build_cache_hit`;
+- `build_cache_applicable`;
+- `build_cache_hit` (`null` when no lookup is applicable);
+- `build_cache_reason`;
 - `execution_key`;
 - `execution_lane`;
 - `build_once_verify_many`;
