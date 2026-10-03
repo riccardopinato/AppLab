@@ -34,7 +34,16 @@ def summarize(plan:dict,quality:dict|None=None,shadow:dict|None=None,runtime:dic
               workflow_started_at:str="", execution:dict|None=None)->dict:
     q=quality or {}; s=shadow or {}; r=runtime or {}; e=execution or {}
     build_cache=(e.get("build_cache") or {}) if isinstance(e.get("build_cache"),dict) else {}
-    build_cache_hit=build_cache.get("hit") if "hit" in build_cache else None
+    build_cache_applicable=(
+        build_cache.get("applicable")
+        if isinstance(build_cache.get("applicable"), bool)
+        else None
+    )
+    build_cache_hit=(
+        build_cache.get("hit")
+        if build_cache_applicable is not False and "hit" in build_cache
+        else None
+    )
     producer_timings={k:float(v) for k,v in (q.get("timings") or {}).items() if isinstance(v,(int,float))}
     cached_quality_timings_ignored=bool(build_cache_hit is True and producer_timings)
     timings={} if build_cache_hit is True else producer_timings
@@ -90,7 +99,9 @@ def summarize(plan:dict,quality:dict|None=None,shadow:dict|None=None,runtime:dic
       "learning_applied_lab_count":len(plan.get("learning_applied_labs",[]) or []),
       "avd_cache_hit":avd_cache_hit,
       "maestro_cache_hit":maestro_cache_hit,
+      "build_cache_applicable":build_cache_applicable,
       "build_cache_hit":build_cache_hit,
+      "build_cache_reason":build_cache.get("reason"),
       "cached_quality_timings_ignored":cached_quality_timings_ignored,
       "execution_key":e.get("execution_key"),
       "execution_lane":e.get("lane"),
@@ -116,6 +127,13 @@ def main()->int:
         )
         assert z["build_cache_hit"] is True and z["execution_key"]=="abc" and z["build_once_verify_many"]
         assert z["quality_seconds"]==0.0 and z["timings"]=={} and z["cached_quality_timings_ignored"] is True
+        na=summarize(
+            {"selected_labs":{}},
+            execution={"execution_key":"na","lane":"STATIC_ONLY","build_cache":{"applicable":False,"hit":None,"reason":"not-applicable"}},
+        )
+        assert na["build_cache_applicable"] is False
+        assert na["build_cache_hit"] is None
+        assert na["build_cache_reason"] == "not-applicable"
         y=summarize(
             {"selected_labs":{},"changed_files":[],"verification_budget_seconds":1},
             workflow_started_at="2000-01-01T00:00:00Z",
