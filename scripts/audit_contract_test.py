@@ -130,6 +130,12 @@ def check_residual_hardening_contract() -> None:
         "trusted review must refresh longitudinal history before artifact expiry",
     )
     require(
+        "github.event.pull_request.head.sha" not in trusted.split("concurrency:", 1)[1].split("jobs:", 1)[0]
+        and "github.event.pull_request.number" in trusted.split("concurrency:", 1)[1].split("jobs:", 1)[0]
+        and "cancel-in-progress: true" in trusted.split("concurrency:", 1)[1].split("jobs:", 1)[0],
+        "trusted review concurrency must cancel stale commits using stable PR identity",
+    )
+    require(
         "tests/intelligence/intelligence_corpus_test.py" in ci,
         "independent intelligence regression corpus must run in CI",
     )
