@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-03T00:00:00Z",
+  "preview": true,
+  "summary": {
+    "projects": 1,
+    "pass": 0,
+    "fail": 0,
+    "not_run": 1,
+    "certified": 0,
+    "certified_current": 0,
+    "certified_stale": 0,
+    "certification_blocked": 0,
+    "not_certified": 1,
+    "lanes": {
+      "PREVIEW_ONLY": 1
+    },
+    "shadow_runs": 0,
+    "shadow_false_negatives": 0,
+    "retryable_failures": 0,
+    "flaky_suspects": 0,
+    "release_ready": 0
+  },
+  "projects": [
+    {
+      "repository": "AppLab read-only preview fixture",
+      "key": "applab-preview",
+      "engine": "preview",
+      "ref": "v4.0.2",
+      "enabled": true,
+      "resolved_sha": "",
+      "result": "PREVIEW",
+      "maestro": "NOT_RUN",
+      "visual_qa": "PREVIEW",
+      "visual_regression": "NOT_RUN",
+      "visual_journey": "NOT_RUN",
+      "interaction_crawl": "NOT_RUN",
+      "system_lab": "NOT_RUN",
+      "network_lab": "NOT_RUN",
+      "persistence_lab": "NOT_RUN",
+      "configuration_lab": "NOT_RUN",
+      "resource_pressure_lab": "NOT_RUN",
+      "background_lab": "NOT_RUN",
+      "storage_lab": "NOT_RUN",
+      "upgrade_lab": "NOT_RUN",
+      "performance_lab": "NOT_RUN",
+      "applab_version": "4.0.2",
+      "certification_status": "NOT_CERTIFIED",
+      "recorded_at": "2026-10-03T00:00:00Z",
+      "watcher_run_id": "",
+      "watcher_run_url": ""
+    }
+  ],
+  "recent": [],
+  "available": true
+}
