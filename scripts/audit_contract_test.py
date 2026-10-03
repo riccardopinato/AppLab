@@ -201,12 +201,27 @@ def check_execution_acceleration_contract() -> None:
             "scripts/restore_runtime_fixture.sh" in consumer,
             "runtime gate must restore and validate the canonical fixture",
         )
+        require(
+            "scripts/build_runtime_fixture_fallback.sh" in consumer
+            and "github.event_name == 'workflow_dispatch'" in consumer,
+            "runtime gate must provide a workflow_dispatch fixture fallback",
+        )
+    require(
+        "inputs.flutter_version != ''" in flutter_runner,
+        "floating Flutter channels must not reuse content-addressed build contracts",
+    )
     for runner in (flutter_runner, native_runner):
+        require(
+            'build-input "package-id:' in runner
+            and 'build-input "maestro-flow:' in runner,
+            "runtime contract inputs must participate in build identity",
+        )
         for needle in (
             "scripts/execution_acceleration.py",
             "Restore content-addressed build contract",
-            "APPLAB_WORKFLOW_SHA",
-            "validate_build_contract.py",
+            "scripts/restore_build_contract.sh",
+            "--expected-applab-sha",
+            "--trusted-applab-sha",
             "retention-days: 7",
         ):
             require(needle in runner, f"accelerated runner missing invariant: {needle}")
