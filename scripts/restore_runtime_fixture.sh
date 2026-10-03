@@ -27,15 +27,16 @@ import sys
 from pathlib import Path
 
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-sha = sys.argv[2]
-rows = []
-for item in payload.get("artifacts", []):
-    if item.get("expired"):
-        continue
-    workflow = item.get("workflow_run") or {}
-    if workflow.get("head_sha") != sha:
-        continue
-    rows.append(item)
+# The exact artifact name already contains GITHUB_SHA. On pull_request events
+# that is the synthetic merge SHA, while REST workflow_run.head_sha exposes
+# the PR branch head SHA. Comparing those two identities would reject the
+# correct artifact. Source SHA and APK SHA-256 are verified from manifest.json
+# after download.
+rows = [
+    item
+    for item in payload.get("artifacts", [])
+    if not item.get("expired")
+]
 rows.sort(key=lambda item: str(item.get("created_at", "")), reverse=True)
 print(rows[0].get("id", "") if rows else "")
 PY
