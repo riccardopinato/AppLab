@@ -1,6 +1,7 @@
 name: Repository Governance Audit
 
 on:
+  pull_request:
   schedule:
     - cron: "41 5 * * 1"
   workflow_dispatch:
