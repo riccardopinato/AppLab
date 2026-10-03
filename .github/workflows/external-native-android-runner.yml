@@ -344,6 +344,8 @@ jobs:
             --root "$GITHUB_WORKSPACE/.applab" \
             --plan "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
             --github-output "$GITHUB_OUTPUT"
+          PLAN_SHA256="$(sha256sum "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" | awk '{print $1}')"
+          echo "analysis_plan_sha256=$PLAN_SHA256" >> "$GITHUB_OUTPUT"
 
       - name: Prepare evidence directory
         id: target
@@ -597,6 +599,8 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          CURRENT_PLAN_SHA256="$(sha256sum "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" | awk '{print $1}')"
+          test "$CURRENT_PLAN_SHA256" = "${{ steps.adaptive_contract.outputs.analysis_plan_sha256 }}"
           ARTIFACT_NAME="${{ steps.accel.outputs.artifact_name }}"
           echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
           python .applab/scripts/package_build_contract.py \
@@ -622,8 +626,36 @@ jobs:
             --lint-status "${{ steps.quality.outputs.lint || 'NOT_RUN' }}" \
             --test-status "${{ steps.quality.outputs.unit_tests || 'NOT_RUN' }}" \
             --build-status "${{ steps.quality.outputs.build || 'PASS' }}"
-          cp "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
-             "$GITHUB_WORKSPACE/applab-build-contract/execution-plan.json"
+          python .applab/scripts/execution_acceleration.py \
+            --analysis-plan "$GITHUB_WORKSPACE/applab-build-contract/analysis-plan.json" \
+            --repository "${{ inputs.repository }}" \
+            --resolved-sha "${{ steps.target.outputs.resolved_sha }}" \
+            --engine native_android \
+            --history-key "${{ inputs.history_key }}" \
+            --working-directory "${{ inputs.working_directory }}" \
+            --build-command "${{ inputs.build_command }}" \
+            --apk-path "${{ inputs.apk_path }}" \
+            --contract-fingerprint "${{ steps.adaptive_contract.outputs.fingerprint }}" \
+            --config-fingerprint "${{ inputs.config_fingerprint }}" \
+            --toolchain "java:${{ steps.java_identity.outputs.version }}" \
+            --toolchain "gradle:${{ inputs.gradle_version }}" \
+            --toolchain "compile-sdk:${{ inputs.compile_sdk }}" \
+            --toolchain "build-tools:${{ inputs.build_tools }}" \
+            --build-input "prepare:${{ inputs.prepare_command }}" \
+            --build-input "test:${{ inputs.test_command }}" \
+            --build-input "lint:${{ inputs.lint_command }}" \
+            --build-input "package-id:${{ inputs.package_id }}" \
+            --build-input "maestro-flow:${{ inputs.maestro_flow }}" \
+            --build-cache-applicable "true" \
+            --build-cache-hit "false" \
+            --build-cache-reason "${{ steps.build_reuse.outputs.reason }}" \
+            --output "$GITHUB_WORKSPACE/applab-build-contract/execution-plan.json"
+          REGENERATED_EXECUTION_KEY="$(python -c 'import json; print(json.load(open("applab-build-contract/execution-plan.json"))["execution_key"])')"
+          REGENERATED_ARTIFACT_NAME="$(python -c 'import json; print(json.load(open("applab-build-contract/execution-plan.json"))["artifact_name"])')"
+          test "$REGENERATED_EXECUTION_KEY" = "${{ steps.accel.outputs.execution_key }}"
+          test "$REGENERATED_ARTIFACT_NAME" = "${{ steps.accel.outputs.artifact_name }}"
+          cp "$GITHUB_WORKSPACE/applab-build-contract/execution-plan.json" \
+             "$GITHUB_WORKSPACE/applab-report/execution-plan.json"
           cp "$GITHUB_WORKSPACE/applab-report/apksigner.txt" \
              "$GITHUB_WORKSPACE/applab-build-contract/apksigner.txt" 2>/dev/null || true
 
