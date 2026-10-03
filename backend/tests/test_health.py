@@ -70,3 +70,6 @@ def test_health() -> None:
     assert "autonomous-experiment-planner" in payload["features"]
     assert "applab-analyst" in payload["features"]
     assert "audit-hardening-v4.0.1" in payload["features"]
+    assert "residual-hardening-v4.0.2" in payload["features"]
+    assert "read-only-web-preview" in payload["features"]
+    assert "dependency-security-audit" in payload["features"]
