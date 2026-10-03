@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd frontend && npm ci --no-audit --no-fund && VITE_APPLAB_READ_ONLY=true npm run build",
+  "outputDirectory": "frontend/dist",
+  "installCommand": null,
+  "framework": null,
+  "cleanUrls": true
+}
