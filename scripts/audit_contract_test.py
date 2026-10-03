@@ -220,6 +220,15 @@ def check_execution_acceleration_contract() -> None:
             and 'build-input "maestro-flow:' in runner,
             "runtime contract inputs must participate in build identity",
         )
+        require(
+            'toolchain "java:${{ steps.java_identity.outputs.version }}"' in runner
+            and 'toolchain "java:${{ inputs.java_version }}"' not in runner,
+            "build reuse must be keyed by the resolved Java runtime patch",
+        )
+        require(
+            "BUILD_CACHE_APPLICABLE" in runner,
+            "cache telemetry must distinguish not-applicable from MISS",
+        )
         for needle in (
             "scripts/execution_acceleration.py",
             "Restore content-addressed build contract",
@@ -234,8 +243,18 @@ def check_execution_acceleration_contract() -> None:
         "trusted verifier must preserve acceleration evidence",
     )
     require(
-        '"build_cache_hit"' in metrics and '"execution_key"' in metrics,
-        "pipeline metrics must expose build reuse evidence",
+        '"build_cache_hit"' in metrics
+        and '"build_cache_applicable"' in metrics
+        and '"execution_key"' in metrics,
+        "pipeline metrics must expose build reuse evidence and applicability",
+    )
+    acceleration = (ROOT / "scripts/execution_acceleration.py").read_text(
+        encoding="utf-8"
+    )
+    require(
+        "semantic_keys = (" in acceleration
+        and '"learning_profile"' not in acceleration.split("semantic_keys = (", 1)[1].split(")", 1)[0],
+        "execution identity must exclude historical learning telemetry",
     )
     require(
         '"cached_quality_timings_ignored"' in metrics
