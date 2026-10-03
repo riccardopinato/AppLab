@@ -11,6 +11,8 @@ on:
       - "docker-compose.live.yml"
       - "scripts/check_live_host.sh"
       - ".github/workflows/live-emulator-self-test.yml"
+      - ".github/workflows/runtime-fixture-build.yml"
+      - "scripts/restore_runtime_fixture.sh"
   pull_request:
     paths:
       - "backend/**"
@@ -19,10 +21,16 @@ on:
       - "docker-compose.live.yml"
       - "scripts/check_live_host.sh"
       - ".github/workflows/live-emulator-self-test.yml"
+      - ".github/workflows/runtime-fixture-build.yml"
+      - "scripts/restore_runtime_fixture.sh"
 
 concurrency:
   group: applab-live-e2e-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
 
 jobs:
   live-browser-e2e:
@@ -50,27 +58,14 @@ jobs:
           chmod +x scripts/check_live_host.sh
           ./scripts/check_live_host.sh
 
-      - name: Setup Java
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
-        with:
-          gradle-version: "9.6.0"
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
-
-      - name: Install Android SDK components
+      - name: Restore canonical runtime fixture
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
-
-      - name: Build browser interaction APK
-        run: gradle -p selftest :app:assembleDebug --stacktrace
+          set -Eeuo pipefail
+          chmod +x scripts/restore_runtime_fixture.sh
+          ./scripts/restore_runtime_fixture.sh "$GITHUB_WORKSPACE/runtime-fixture"
 
       - name: Install Playwright Chromium
         working-directory: frontend/e2e
@@ -132,7 +127,7 @@ jobs:
 
       - name: Install and launch browser interaction target
         run: |
-          curl --fail --show-error --silent             -F "file=@selftest/app/build/outputs/apk/debug/app-debug.apk"             http://127.0.0.1:8000/api/apk/install             | tee browser-install.json
+          curl --fail --show-error --silent             -F "file=@runtime-fixture/app-debug.apk"             http://127.0.0.1:8000/api/apk/install             | tee browser-install.json
 
           launch_ready=false
           for attempt in {1..5}; do

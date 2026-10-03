@@ -38,7 +38,14 @@ def safe_relative(raw: str) -> PurePosixPath:
         raise ValueError(f"Unsafe path in build contract: {raw!r}")
     return path
 
-def validate(root: Path, expected_repository: str, expected_sha: str, expected_engine: str, expected_analysis_mode: str = "full") -> dict:
+def validate(
+    root: Path,
+    expected_repository: str,
+    expected_sha: str,
+    expected_engine: str,
+    expected_analysis_mode: str = "full",
+    expected_trusted_applab_sha: str = "",
+) -> dict:
     root = root.resolve()
     contract_path = root / "contract.json"
     apk = root / "app.apk"
@@ -52,6 +59,13 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
     payload = json.loads(contract_path.read_text(encoding="utf-8"))
     if payload.get("schema_version") != 1:
         raise ValueError("Unsupported build contract schema")
+    trusted_applab_sha = str(payload.get("trusted_applab_sha", "")).strip().lower()
+    if trusted_applab_sha and not re.fullmatch(r"[0-9a-f]{40}", trusted_applab_sha):
+        raise ValueError("Build contract trusted AppLab SHA is invalid")
+    if expected_trusted_applab_sha:
+        expected_applab = expected_trusted_applab_sha.strip().lower()
+        if trusted_applab_sha != expected_applab:
+            raise ValueError("Build contract AppLab provenance mismatch")
     if payload.get("repository") != expected_repository:
         raise ValueError("Build contract repository mismatch")
     if payload.get("resolved_sha") != expected_sha:
@@ -234,6 +248,7 @@ def validate(root: Path, expected_repository: str, expected_sha: str, expected_e
         "analysis_mode": analysis_mode,
         "analysis_baseline_sha": baseline_sha,
         "analysis_plan_file": str(analysis_plan_path),
+        "trusted_applab_sha": trusted_applab_sha,
         "quality_evidence_json": json.dumps(quality, separators=(",", ":")),
         "certification_policy_json": json.dumps(certification_policy, separators=(",", ":")),
     }
@@ -282,7 +297,8 @@ def self_test() -> None:
             encoding="utf-8",
         )
         payload = {
-            "schema_version": 1, "repository": "owner/repo", "resolved_sha": "a"*40,
+            "schema_version": 1,             "trusted_applab_sha": "c" * 40,
+"repository": "owner/repo", "resolved_sha": "a"*40,
             "engine": "flutter", "working_directory": ".", "package_id": "com.example.app",
             "maestro_flow": ".maestro/smoke.yaml",
             "analysis_mode": "fast",
@@ -308,9 +324,10 @@ def self_test() -> None:
             encoding="utf-8",
         )
         (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
-        result = validate(root, "owner/repo", "a"*40, "flutter", "fast")
+        result = validate(root, "owner/repo", "a"*40, "flutter", "fast", "c"*40)
         assert result["package_id"] == "com.example.app"
         assert result["analysis_mode"] == "fast"
+        assert result["trusted_applab_sha"] == "c" * 40
         flow.write_text("appId: x\n---\n- runScript: evil.js\n", encoding="utf-8")
         try:
             validate(root, "owner/repo", "a"*40, "flutter")
@@ -327,6 +344,7 @@ def main() -> int:
     parser.add_argument("--expected-sha", default="")
     parser.add_argument("--expected-engine", choices=("flutter","native_android"), default="flutter")
     parser.add_argument("--expected-analysis-mode", choices=("fast","full","certification"), default="full")
+    parser.add_argument("--expected-trusted-applab-sha", default="")
     parser.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT", ""))
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
@@ -335,7 +353,14 @@ def main() -> int:
         return 0
     if not args.root:
         raise SystemExit("--root is required")
-    result = validate(Path(args.root), args.expected_repository, args.expected_sha, args.expected_engine, args.expected_analysis_mode)
+    result = validate(
+        Path(args.root),
+        args.expected_repository,
+        args.expected_sha,
+        args.expected_engine,
+        args.expected_analysis_mode,
+        args.expected_trusted_applab_sha,
+    )
     emit_github_output(args.github_output, result)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0

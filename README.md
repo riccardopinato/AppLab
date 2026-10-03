@@ -1,3 +1,24 @@
+## v4.1.0 — Execution Acceleration Engine
+
+AppLab now reuses the existing Smart Test Plan as the single change-aware
+decision authority and accelerates execution around it.
+
+- **Build Once / Verify Many:** Browser E2E and Emulator Self Test consume the
+  same canonical self-test APK bytes.
+- **Content-addressed build reuse:** Flutter/native target build contracts can be
+  restored across reruns when source, toolchain, build inputs and semantic plan
+  are identical.
+- **Trust-preserving reuse:** every restored build contract is validated again,
+  and runtime/certification evidence is never inferred from a build cache hit.
+- **Execution DAG:** RUN/SKIP/RESTORE_OR_BUILD nodes make the effective pipeline
+  explicit while stale same-ref work remains cancellable.
+- **Acceleration telemetry:** pipeline evidence records build cache hit,
+  execution key and lane.
+- **AppLab Doctor:** deterministic local/runner preflight before expensive work.
+
+See `integration/performance/EXECUTION_ACCELERATION_V41.md` and
+`integration/APPLAB_DOCTOR.md`.
+
 ## v4.0.2 — Residual Hardening
 
 AppLab v4.0.2 closes the residual P2 findings from the heavy audit.
