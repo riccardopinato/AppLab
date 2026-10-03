@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "name": "returned_navigation_regression",
+      "history": [
+        {
+          "repository": "owner/app",
+          "resolved_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "recorded_at": "2026-01-01T00:00:00+00:00",
+          "lineage_ref": "feature-a",
+          "review": {
+            "review_state": "READY_FOR_HUMAN_REVIEW",
+            "ux_friction": {
+              "findings": [
+                {
+                  "kind": "NAVIGATION_LOOP_CANDIDATE",
+                  "subject": "Search → Detail",
+                  "severity": "REVIEW",
+                  "message": "Observed cycle candidate.",
+                  "evidence": [
+                    "journey-a.json"
+                  ]
+                }
+              ]
+            },
+            "evidence_confidence": {
+              "claims": [],
+              "contradictions": []
+            }
+          }
+        },
+        {
+          "repository": "owner/app",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "recorded_at": "2026-01-02T00:00:00+00:00",
+          "lineage_ref": "feature-a",
+          "review": {
+            "review_state": "READY_FOR_HUMAN_REVIEW",
+            "ux_friction": {
+              "findings": []
+            },
+            "evidence_confidence": {
+              "claims": [],
+              "contradictions": []
+            }
+          }
+        }
+      ],
+      "current": {
+        "review_state": "READY_FOR_HUMAN_REVIEW",
+        "ux_friction": {
+          "findings": [
+            {
+              "kind": "NAVIGATION_LOOP_CANDIDATE",
+              "subject": "Search → Detail",
+              "severity": "REVIEW",
+              "message": "Observed cycle candidate.",
+              "evidence": [
+                "journey-current.json"
+              ]
+            }
+          ]
+        },
+        "evidence_confidence": {
+          "claims": [],
+          "contradictions": [
+            {
+              "kind": "CONTRACT_RUNTIME_CONTRADICTION",
+              "subject": "authentication",
+              "message": "Contract and runtime disagree.",
+              "evidence": [
+                "README.md",
+                "ui.xml"
+              ]
+            }
+          ]
+        }
+      },
+      "decision": {
+        "buckets": {
+          "FIX_NOW": [],
+          "VERIFY_NEXT": [
+            {
+              "kind": "NAVIGATION_LOOP_CANDIDATE",
+              "subject": "Search → Detail",
+              "message": "Verify repeated journey.",
+              "evidence": [
+                "journey-current.json"
+              ],
+              "basis": "RUNTIME_UX_REVIEW"
+            }
+          ],
+          "IMPROVE": []
+        }
+      },
+      "autonomous": {
+        "review_state": "READY_FOR_HUMAN_REVIEW",
+        "runtime_evidence_trust": {
+          "trusted": true,
+          "state": "TRUSTED"
+        }
+      },
+      "expected": {
+        "longitudinal_state": "REGRESSION_REVIEW",
+        "returned_findings": 1,
+        "regression_candidates": 1,
+        "planner_state": "EXPERIMENTS_READY",
+        "planner_high_priority_min": 2,
+        "loop_experiment_type": "TARGETED_JOURNEY",
+        "analyst_state": "VERIFICATION_REQUIRED"
+      }
+    },
+    {
+      "name": "stable_product_no_action",
+      "history": [
+        {
+          "repository": "owner/app",
+          "resolved_sha": "cccccccccccccccccccccccccccccccccccccccc",
+          "recorded_at": "2026-02-01T00:00:00+00:00",
+          "lineage_ref": "main",
+          "review": {
+            "review_state": "READY_FOR_HUMAN_REVIEW",
+            "ux_friction": {
+              "findings": []
+            },
+            "evidence_confidence": {
+              "claims": [],
+              "contradictions": []
+            }
+          }
+        }
+      ],
+      "current": {
+        "review_state": "READY_FOR_HUMAN_REVIEW",
+        "ux_friction": {
+          "findings": []
+        },
+        "evidence_confidence": {
+          "claims": [],
+          "contradictions": []
+        }
+      },
+      "decision": {
+        "buckets": {
+          "FIX_NOW": [],
+          "VERIFY_NEXT": [],
+          "IMPROVE": []
+        }
+      },
+      "autonomous": {
+        "review_state": "READY_FOR_HUMAN_REVIEW",
+        "runtime_evidence_trust": {
+          "trusted": true,
+          "state": "TRUSTED"
+        }
+      },
+      "expected": {
+        "longitudinal_state": "STABLE",
+        "returned_findings": 0,
+        "regression_candidates": 0,
+        "planner_state": "NO_EXPERIMENTS_REQUIRED",
+        "analyst_state": "NO_IMMEDIATE_ACTION"
+      }
+    }
+  ]
+}
