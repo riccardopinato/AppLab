@@ -185,6 +185,10 @@ def check_execution_acceleration_contract() -> None:
         encoding="utf-8"
     )
     metrics = (ROOT / "scripts/pipeline_metrics.py").read_text(encoding="utf-8")
+    restore_fixture = (ROOT / "scripts/restore_runtime_fixture.sh").read_text(
+        encoding="utf-8"
+    )
+    doctor = (ROOT / "scripts/applab_doctor.py").read_text(encoding="utf-8")
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
     canonical_build = "gradle -p selftest :app:assembleDebug --stacktrace"
@@ -236,6 +240,17 @@ def check_execution_acceleration_contract() -> None:
     require(
         (ROOT / "scripts/applab_doctor.py").is_file(),
         "AppLab Doctor preflight is required",
+    )
+    require(
+        "artifact lookup failed; retrying within wait budget" in restore_fixture
+        and "if gh api" in restore_fixture,
+        "runtime fixture lookup must tolerate transient GitHub API failures",
+    )
+    require(
+        '"docker-daemon"' in doctor
+        and '"info", "--format"' in doctor
+        and 'docker_daemon["required"] = profile == "full"' in doctor,
+        "full AppLab Doctor profile must verify Docker daemon readiness",
     )
     require(
         "python scripts/execution_acceleration.py --self-test" in ci
