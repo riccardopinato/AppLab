@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v4.0.1 — Heavy Audit Hardening**
+Current production baseline: **v4.0.2 — Residual Hardening**
 
 ## Product rule
 
@@ -19,6 +19,17 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v4.0.2 — Residual Hardening
+
+- [x] Refresh trusted longitudinal history monthly before 90-day artifact expiry.
+- [x] Add independent cross-engine regression corpus outside implementation-local self-tests.
+- [x] Add blocking Python and npm dependency vulnerability audits.
+- [x] Add maintainability growth ceilings for the largest high-cost modules.
+- [x] Make current vs compatibility workflow authority explicit.
+- [x] Add safe read-only Web Preview mode with no privileged backend/controller.
+- [x] Add repository-governance audit workflow for branch-protection visibility.
+- [ ] Enable GitHub branch protection/ruleset for `main` (external repository setting; connected API cannot mutate it).
 
 ### v4.0.1 — Heavy Audit Hardening
 
