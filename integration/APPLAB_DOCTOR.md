@@ -13,7 +13,7 @@ It answers a simple question before expensive work starts:
 Requires:
 
 - Git;
-- Python.
+- the Python interpreter already executing AppLab Doctor (no `python` alias is required).
 
 ### android
 
