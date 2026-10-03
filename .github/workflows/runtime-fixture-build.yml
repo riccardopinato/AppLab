@@ -103,6 +103,6 @@ jobs:
           name: applab-runtime-fixture-${{ github.sha }}
           path: runtime-fixture/
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
           compression-level: 0
           overwrite: true
