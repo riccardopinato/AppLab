@@ -661,6 +661,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
+          overwrite: true
           include-hidden-files: true
 
       - name: Record analysis-only pipeline metrics
