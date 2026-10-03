@@ -6,7 +6,9 @@ import json
 import os
 import platform
 import shutil
+import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Callable
 
 ENGINE_VERSION = "4.1.0"
@@ -52,6 +54,49 @@ def probe_commands(
     return rows
 
 
+def probe_docker_daemon(
+    docker_path: str,
+    runner: Callable[..., object] = subprocess.run,
+) -> dict[str, object]:
+    if not docker_path:
+        return {
+            "kind": "service",
+            "name": "docker-daemon",
+            "required": False,
+            "ok": False,
+            "path": "",
+            "detail": "docker client unavailable",
+        }
+    try:
+        completed = runner(
+            [docker_path, "info", "--format", "{{json .ServerVersion}}"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        return_code = int(getattr(completed, "returncode", 1))
+        stderr = str(getattr(completed, "stderr", "") or "").strip()
+        stdout = str(getattr(completed, "stdout", "") or "").strip()
+        return {
+            "kind": "service",
+            "name": "docker-daemon",
+            "required": False,
+            "ok": return_code == 0 and bool(stdout),
+            "path": docker_path,
+            "detail": stdout if return_code == 0 else stderr[:240],
+        }
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {
+            "kind": "service",
+            "name": "docker-daemon",
+            "required": False,
+            "ok": False,
+            "path": docker_path,
+            "detail": str(exc)[:240],
+        }
+
+
 def build_report(profile: str) -> dict[str, object]:
     rows = probe_commands(profile)
     if platform.system().lower() == "linux":
@@ -65,6 +110,12 @@ def build_report(profile: str) -> dict[str, object]:
                 "path": str(kvm) if kvm.exists() else "",
             }
         )
+    docker_row = next((row for row in rows if row["name"] == "docker"), None)
+    docker_path = str(docker_row.get("path", "")) if docker_row else ""
+    docker_daemon = probe_docker_daemon(docker_path)
+    docker_daemon["required"] = profile == "full"
+    rows.append(docker_daemon)
+
     docker_socket = Path("/var/run/docker.sock")
     rows.append(
         {
@@ -126,6 +177,21 @@ def self_test() -> None:
     rows_missing = probe_commands("flutter", resolver=lambda name: available.get(name))
     missing = [row["name"] for row in rows_missing if row["required"] and not row["ok"]]
     assert "flutter" in missing and "dart" in missing
+
+    ready = probe_docker_daemon(
+        "/usr/bin/docker",
+        runner=lambda *args, **kwargs: SimpleNamespace(
+            returncode=0, stdout='"27.5.1"\n', stderr=""
+        ),
+    )
+    assert ready["ok"] is True
+    blocked = probe_docker_daemon(
+        "/usr/bin/docker",
+        runner=lambda *args, **kwargs: SimpleNamespace(
+            returncode=1, stdout="", stderr="Cannot connect to the Docker daemon"
+        ),
+    )
+    assert blocked["ok"] is False
     print("AppLab Doctor self-test PASS")
 
 
