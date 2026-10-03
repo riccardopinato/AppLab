@@ -236,7 +236,9 @@ jobs:
     timeout-minutes: 35
     outputs:
       resolved_sha: ${{ steps.target.outputs.resolved_sha }}
-      artifact_name: ${{ steps.contract.outputs.artifact_name }}
+      artifact_name: ${{ steps.accel.outputs.artifact_name }}
+      execution_key: ${{ steps.accel.outputs.execution_key }}
+      build_cache_hit: ${{ steps.build_reuse.outputs.hit }}
       analysis_lane: ${{ steps.impact.outputs.lane }}
       run_runtime: ${{ steps.impact.outputs.run_runtime }}
       run_build: ${{ steps.impact.outputs.run_build }}
@@ -372,15 +374,98 @@ jobs:
             exit 1
           fi
 
+      - name: Plan accelerated execution
+        id: accel
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/applab-acceleration"
+          python .applab/scripts/execution_acceleration.py \
+            --analysis-plan "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
+            --repository "${{ inputs.repository }}" \
+            --resolved-sha "${{ steps.target.outputs.resolved_sha }}" \
+            --engine native_android \
+            --history-key "${{ inputs.history_key }}" \
+            --working-directory "${{ inputs.working_directory }}" \
+            --build-command "${{ inputs.build_command }}" \
+            --apk-path "${{ inputs.apk_path }}" \
+            --contract-fingerprint "${{ steps.adaptive_contract.outputs.fingerprint }}" \
+            --config-fingerprint "${{ inputs.config_fingerprint }}" \
+            --toolchain "java:${{ inputs.java_version }}" \
+            --toolchain "gradle:${{ inputs.gradle_version }}" \
+            --toolchain "compile-sdk:${{ inputs.compile_sdk }}" \
+            --toolchain "build-tools:${{ inputs.build_tools }}" \
+            --output "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
+            --github-output "$GITHUB_OUTPUT"
+          cp "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
+             "$GITHUB_WORKSPACE/applab-report/execution-plan.json"
+
+      - name: Restore content-addressed build contract
+        id: build_reuse
+        if: steps.impact.outputs.run_build == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: ${{ steps.accel.outputs.artifact_name }}
+        run: |
+          set -Eeuo pipefail
+          echo "hit=false" >> "$GITHUB_OUTPUT"
+          JSON_FILE="$(mktemp)"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$GITHUB_REPOSITORY/actions/artifacts?name=$ARTIFACT_NAME&per_page=100" \
+            > "$JSON_FILE"
+          ARTIFACT_ID="$(
+            python3 - "$JSON_FILE" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          rows = [item for item in payload.get("artifacts", []) if not item.get("expired")]
+          rows.sort(key=lambda item: str(item.get("created_at", "")), reverse=True)
+          print(rows[0].get("id", "") if rows else "")
+          PY
+          )"
+          rm -f "$JSON_FILE"
+          [[ -n "$ARTIFACT_ID" ]] || exit 0
+
+          rm -rf "$GITHUB_WORKSPACE/applab-build-contract"
+          mkdir -p "$GITHUB_WORKSPACE/applab-build-contract"
+          ZIP_FILE="$(mktemp --suffix=.zip)"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" \
+            > "$ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d "$GITHUB_WORKSPACE/applab-build-contract"
+          rm -f "$ZIP_FILE"
+
+          if python .applab/scripts/validate_build_contract.py \
+            --root "$GITHUB_WORKSPACE/applab-build-contract" \
+            --expected-repository "${{ inputs.repository }}" \
+            --expected-sha "${{ steps.target.outputs.resolved_sha }}" \
+            --expected-engine native_android \
+            --expected-analysis-mode "${{ inputs.analysis_mode }}"; then
+            cp "$GITHUB_WORKSPACE/applab-build-contract/adaptive-quality.json" \
+               "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" 2>/dev/null || true
+            cp "$GITHUB_WORKSPACE/applab-build-contract/apksigner.txt" \
+               "$GITHUB_WORKSPACE/applab-report/apksigner.txt" 2>/dev/null || true
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            echo "artifact_id=$ARTIFACT_ID" >> "$GITHUB_OUTPUT"
+            echo "Reused content-addressed build contract $ARTIFACT_NAME ($ARTIFACT_ID)."
+          else
+            rm -rf "$GITHUB_WORKSPACE/applab-build-contract"
+            echo "Cached build contract failed validation; rebuilding."
+          fi
+
       - name: Setup Java
-        if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
+        if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
           distribution: temurin
           java-version: ${{ inputs.java_version }}
 
       - name: Install Android SDK components
-        if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
+        if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -403,13 +488,13 @@ jobs:
             "build-tools;${{ inputs.build_tools }}"
 
       - name: Setup Gradle
-        if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
+        if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
         with:
           gradle-version: ${{ inputs.gradle_version }}
 
       - name: Target preparation
-        if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && inputs.prepare_command != ''
+        if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true' && inputs.prepare_command != ''
         working-directory: target/${{ inputs.working_directory }}
         shell: bash
         env:
@@ -418,7 +503,7 @@ jobs:
 
       - name: Adaptive Gradle quality and build
         id: quality
-        if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
+        if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -434,7 +519,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
 
       - name: Resolve APK
-        if: steps.impact.outputs.run_build == 'true'
+        if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
         id: apk
         shell: bash
         run: |
@@ -454,7 +539,7 @@ jobs:
           } | tee "$GITHUB_WORKSPACE/applab-report/apk.txt"
 
       - name: Verify APK signature
-        if: steps.impact.outputs.run_build == 'true'
+        if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
         shell: bash
         run: |
           "$ANDROID_HOME/build-tools/${{ inputs.build_tools }}/apksigner" \
@@ -463,7 +548,7 @@ jobs:
 
 
       - name: Restore trusted AppLab contract packager
-        if: steps.impact.outputs.run_build == 'true'
+        if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
         shell: bash
         env:
           APPLAB_TRUSTED_SHA: ${{ job.workflow_sha }}
@@ -474,7 +559,7 @@ jobs:
           test "$(git -C "$GITHUB_WORKSPACE/.applab" rev-parse HEAD)" = "$APPLAB_TRUSTED_SHA"
 
       - name: Restore target source before trusted packaging
-        if: steps.impact.outputs.run_build == 'true'
+        if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
         id: trusted_target
         shell: bash
         run: |
@@ -492,12 +577,12 @@ jobs:
           echo "apk_file=$TRUSTED_APK" >> "$GITHUB_OUTPUT"
 
       - name: Package isolated APK contract
-        if: steps.impact.outputs.run_build == 'true'
+        if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
         id: contract
         shell: bash
         run: |
           set -Eeuo pipefail
-          ARTIFACT_NAME="applab-build-${{ inputs.history_key }}-${{ github.run_id }}-${{ github.run_attempt }}"
+          ARTIFACT_NAME="${{ steps.accel.outputs.artifact_name }}"
           echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
           python .applab/scripts/package_build_contract.py \
             --repo-root "$GITHUB_WORKSPACE/target" \
@@ -521,15 +606,19 @@ jobs:
             --lint-status "${{ steps.quality.outputs.lint || 'NOT_RUN' }}" \
             --test-status "${{ steps.quality.outputs.unit_tests || 'NOT_RUN' }}" \
             --build-status "${{ steps.quality.outputs.build || 'PASS' }}"
+          cp "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
+             "$GITHUB_WORKSPACE/applab-build-contract/execution-plan.json"
+          cp "$GITHUB_WORKSPACE/applab-report/apksigner.txt" \
+             "$GITHUB_WORKSPACE/applab-build-contract/apksigner.txt" 2>/dev/null || true
 
       - name: Upload isolated APK contract
         if: steps.impact.outputs.run_build == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: ${{ steps.contract.outputs.artifact_name }}
+          name: ${{ steps.accel.outputs.artifact_name }}
           path: applab-build-contract/
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
           compression-level: 0
           include-hidden-files: true
 
