@@ -73,7 +73,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: applab-true-autonomous-review-${{ github.event.pull_request.head.repo.full_name || inputs.target_repository || github.repository }}-${{ github.event.pull_request.head.sha || inputs.target_ref || 'main' }}
+  group: applab-true-autonomous-review-${{ github.event.pull_request.head.repo.full_name || inputs.target_repository || github.repository }}-${{ github.event.pull_request.number || github.event.pull_request.head.ref || inputs.target_ref || 'main' }}
   cancel-in-progress: true
 
 jobs:
