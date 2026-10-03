@@ -57,7 +57,22 @@ jobs:
           chmod +x scripts/install_maestro.sh
           ./scripts/install_maestro.sh
 
+      - name: Setup Gradle for manual runtime fixture
+        if: github.event_name == 'workflow_dispatch'
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Build manual runtime fixture fallback
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          chmod +x scripts/build_runtime_fixture_fallback.sh
+          ./scripts/build_runtime_fixture_fallback.sh "$GITHUB_WORKSPACE/runtime-fixture"
+
       - name: Restore canonical runtime fixture
+        if: github.event_name != 'workflow_dispatch'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
