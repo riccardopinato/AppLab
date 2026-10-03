@@ -125,6 +125,7 @@ The policy is therefore:
 
 - independent workflow gates: **parallel**;
 - stale same-ref work: **cancel**;
+- True Autonomous Review PR runs use a stable PR identity (not the changing commit SHA), so a newer commit cancels the obsolete review;
 - shared-emulator specialist labs: **serial**.
 
 ## 5. Content-addressed build reuse guardrails
