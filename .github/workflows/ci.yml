@@ -90,6 +90,8 @@ jobs:
             scripts/audit_orchestrator.py \
             scripts/studio_snapshot.py \
             scripts/control_center_snapshot.py \
+            scripts/execution_acceleration.py \
+            scripts/applab_doctor.py \
             scripts/maintainability_budget.py \
             tests/intelligence/intelligence_corpus_test.py
           python scripts/dismiss_foreign_anr.py --self-test
@@ -152,6 +154,8 @@ jobs:
           python scripts/audit_orchestrator.py --self-test
           python scripts/studio_snapshot.py --self-test
           python scripts/control_center_snapshot.py --self-test
+          python scripts/execution_acceleration.py --self-test
+          python scripts/applab_doctor.py --self-test
           python scripts/maintainability_budget.py
           python tests/intelligence/intelligence_corpus_test.py
 
@@ -170,7 +174,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"4.0.2"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"4.1.0"'; then
               healthy=true
               break
             fi
