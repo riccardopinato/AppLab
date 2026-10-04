@@ -15,15 +15,7 @@ on:
       - "scripts/restore_runtime_fixture.sh"
       - "scripts/build_runtime_fixture_fallback.sh"
   pull_request:
-    paths:
-      - "backend/**"
-      - "frontend/**"
-      - "selftest/**"
-      - "docker-compose.live.yml"
-      - "scripts/check_live_host.sh"
-      - ".github/workflows/live-emulator-self-test.yml"
-      - ".github/workflows/runtime-fixture-build.yml"
-      - "scripts/restore_runtime_fixture.sh"
+
 
 concurrency:
   group: applab-live-e2e-${{ github.ref }}
@@ -34,7 +26,37 @@ permissions:
   actions: read
 
 jobs:
+  scope:
+    name: Required-check scope
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - id: scope
+        name: Decide whether trusted runtime work is applicable
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/applab-changed-files.txt"
+          if grep -Eq '^(backend/|frontend/|selftest/|docker-compose\.live\.yml$|scripts/check_live_host\.sh$|scripts/(restore_runtime_fixture|build_runtime_fixture_fallback)\.sh$|\.github/workflows/(live-emulator-self-test|runtime-fixture-build)\.yml$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   live-browser-e2e:
+    needs: scope
+    if: github.event_name != 'pull_request' || needs.scope.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
