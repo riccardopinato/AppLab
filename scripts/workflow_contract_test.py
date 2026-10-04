@@ -58,7 +58,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "runtime-timing.json",
         "pipeline_metrics.py",
         "shadow_calibration.py",
-        "AppLab v4.1.0 Trusted APK Verification",
+        "AppLab v4.2.0 Trusted APK Verification",
         "BASELINE_FALLBACK",
         "effective FULL fallback",
         "Evaluate verification cache eligibility",
