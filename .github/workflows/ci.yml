@@ -91,6 +91,7 @@ jobs:
             scripts/studio_snapshot.py \
             scripts/control_center_snapshot.py \
             scripts/execution_acceleration.py \
+            scripts/build_reuse_eligibility.py \
             scripts/applab_doctor.py \
             scripts/maintainability_budget.py \
             tests/intelligence/intelligence_corpus_test.py
@@ -155,6 +156,7 @@ jobs:
           python scripts/studio_snapshot.py --self-test
           python scripts/control_center_snapshot.py --self-test
           python scripts/execution_acceleration.py --self-test
+          python scripts/build_reuse_eligibility.py --self-test
           python scripts/applab_doctor.py --self-test
           python scripts/maintainability_budget.py
           python tests/intelligence/intelligence_corpus_test.py
