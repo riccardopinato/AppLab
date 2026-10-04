@@ -48,6 +48,7 @@ The stable build identity includes:
 - AppLab contract fingerprint;
 - project configuration fingerprint;
 - resolved toolchain identity (including the concrete Temurin Java patch);
+- GitHub hosted-runner OS/architecture/image version, so an image rollout invalidates reuse;
 - build-affecting prepare/post/test/lint commands;
 - the semantic Smart Test Plan, excluding volatile planner timing.
 
@@ -66,7 +67,10 @@ A cache hit **does not mean runtime PASS**. The restored contract is validated
 again against repository, SHA, engine and analysis mode, re-published into the
 current run, then consumed by the normal Trusted APK Verifier.
 
-Artifacts from another AppLab workflow revision are rejected.
+Artifacts from another AppLab workflow revision are rejected. When multiple
+artifacts share the same execution-key name, AppLab scans newest-to-oldest (up
+to 20 candidates) until a contract with valid current-revision provenance is
+found; one invalid newer candidate therefore cannot mask an older valid one.
 
 ## 2. Canonical AppLab Runtime Fixture
 
@@ -94,8 +98,9 @@ The canonical artifact contains:
 - build command;
 - workflow run identity.
 
-Consumers wait for the artifact, verify source SHA and SHA-256, and use exactly
-the same APK bytes.
+Consumers wait up to **22 minutes** for the artifact (longer than the producer's
+20-minute job timeout), verify source SHA and SHA-256, and use exactly the same
+APK bytes.
 
 ## 3. Change-aware execution
 
@@ -148,6 +153,7 @@ reused.
 
 - `build_cache_applicable`;
 - `build_cache_hit` (`null` when no lookup is applicable);
+- trusted summaries render that non-applicable state as `N/A`, not as a cache MISS;
 - `build_cache_reason`;
 - `execution_key`;
 - `execution_lane`;
