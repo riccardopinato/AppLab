@@ -413,6 +413,22 @@ jobs:
           echo "version=$JAVA_VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved Temurin Java runtime: $JAVA_VERSION"
 
+      - name: Resolve build reuse eligibility
+        id: reuse_eligibility
+        if: steps.impact.outputs.run_build == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/build_reuse_eligibility.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --working-directory "${{ inputs.working_directory }}" \
+            --engine flutter \
+            --flutter-version "${{ inputs.flutter_version }}" \
+            --prepare-command "${{ inputs.prepare_command }}" \
+            --post-command "${{ inputs.post_pub_get_command }}" \
+            --output "$GITHUB_WORKSPACE/applab-report/build-reuse-eligibility.json" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Plan accelerated execution
         id: accel
         shell: bash
@@ -437,6 +453,8 @@ jobs:
             --build-input "post-pub-get:${{ inputs.post_pub_get_command }}" \
             --build-input "package-id:${{ inputs.package_id }}" \
             --build-input "maestro-flow:${{ inputs.maestro_flow }}" \
+            --build-input "dependency-material:${{ steps.reuse_eligibility.outputs.material_digest }}" \
+            --build-input "reuse-eligibility:${{ steps.reuse_eligibility.outputs.eligible }}:${{ steps.reuse_eligibility.outputs.reason }}" \
             --output "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
             --github-output "$GITHUB_OUTPUT"
           cp "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
@@ -444,7 +462,7 @@ jobs:
 
       - name: Restore content-addressed build contract
         id: build_reuse
-        if: steps.impact.outputs.run_build == 'true' && inputs.flutter_version != ''
+        if: steps.impact.outputs.run_build == 'true' && steps.reuse_eligibility.outputs.eligible == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -465,7 +483,7 @@ jobs:
       - name: Record execution acceleration outcome
         shell: bash
         env:
-          BUILD_CACHE_APPLICABLE: ${{ steps.impact.outputs.run_build == 'true' && inputs.flutter_version != '' }}
+          BUILD_CACHE_APPLICABLE: ${{ steps.impact.outputs.run_build == 'true' && steps.reuse_eligibility.outputs.eligible == 'true' }}
           BUILD_CACHE_HIT: ${{ steps.build_reuse.outputs.hit || '' }}
           BUILD_CACHE_REASON: ${{ steps.build_reuse.outputs.reason || '' }}
           BUILD_CACHE_ARTIFACT_ID: ${{ steps.build_reuse.outputs.artifact_id || '' }}
@@ -658,7 +676,9 @@ jobs:
             --build-input "post-pub-get:${{ inputs.post_pub_get_command }}" \
             --build-input "package-id:${{ inputs.package_id }}" \
             --build-input "maestro-flow:${{ inputs.maestro_flow }}" \
-            --build-cache-applicable "${{ inputs.flutter_version != '' && 'true' || 'false' }}" \
+            --build-input "dependency-material:${{ steps.reuse_eligibility.outputs.material_digest }}" \
+            --build-input "reuse-eligibility:${{ steps.reuse_eligibility.outputs.eligible }}:${{ steps.reuse_eligibility.outputs.reason }}" \
+            --build-cache-applicable "${{ steps.reuse_eligibility.outputs.eligible == 'true' && 'true' || 'false' }}" \
             --build-cache-hit "false" \
             --build-cache-reason "${{ steps.build_reuse.outputs.reason }}" \
             --output "$GITHUB_WORKSPACE/applab-build-contract/execution-plan.json"
