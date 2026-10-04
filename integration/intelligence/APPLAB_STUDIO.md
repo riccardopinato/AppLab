@@ -67,6 +67,13 @@ Studio shows per project:
 6. Certification remains owned exclusively by the trusted certification pipeline.
 
 
+## Evidence Graph v4.2
+
+When `evidence-graph.json` is present, Studio surfaces a compact graph summary:
+node/edge counts, node-type distribution, unverified capabilities, recurring
+findings and regression candidates. Studio does not replace the full graph; the
+complete queryable artifact remains part of the trusted review evidence bundle.
+
 ## Trusted review integration
 
 True Autonomous Review now packages each target's trusted evidence under a
