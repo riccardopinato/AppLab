@@ -15,6 +15,7 @@ decision authority and accelerates execution around it.
 - **Acceleration telemetry:** pipeline evidence records build cache hit,
   execution key and lane.
 - **AppLab Doctor:** deterministic local/runner preflight before expensive work.
+- **Final v4.1 validation:** PR #73 closed with CI/security, CodeQL, canonical runtime fixture, Browser E2E, Emulator Self Test, True Autonomous Review and Repository Governance all green.
 
 See `integration/performance/EXECUTION_ACCELERATION_V41.md` and
 `integration/APPLAB_DOCTOR.md`.
@@ -31,7 +32,7 @@ AppLab v4.0.2 closes the residual P2 findings from the heavy audit.
 - the public Web Preview is read-only and contains no Docker/KVM/ADB/controller API;
 - a repository-governance workflow stays red until GitHub branch protection for `main` is enabled.
 
-The only remaining P1 is the external GitHub repository setting for branch protection, which cannot be mutated by the connected repository API.
+Branch protection/ruleset for `main` is now enabled and verified by the Repository Governance Audit; the v4.0.2 residual-hardening P0/P1/P2 list is closed.
 
 See `integration/intelligence/RESIDUAL_HARDENING_V402.md`.
 
@@ -51,8 +52,8 @@ A CI audit contract prevents version drift, unpinned Actions, weakened local
 runtime boundaries, missing lineage metadata and producer/backend schema loss
 from silently returning.
 
-GitHub branch protection remains a repository-setting requirement and is reported
-as a governance blocker until enabled.
+GitHub branch protection was still an external prerequisite at v4.0.1; it is now
+enabled, and the Repository Governance Audit verifies the current state.
 
 See `integration/intelligence/HEAVY_AUDIT_HARDENING_V401.md`.
 

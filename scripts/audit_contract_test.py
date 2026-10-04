@@ -181,6 +181,9 @@ def check_execution_acceleration_contract() -> None:
     emulator = (ROOT / ".github/workflows/emulator-self-test.yml").read_text(
         encoding="utf-8"
     )
+    autonomous = (
+        ROOT / ".github/workflows/autonomous-app-review-v31.yml"
+    ).read_text(encoding="utf-8")
     flutter_runner = (ROOT / ".github/workflows/external-project-runner.yml").read_text(
         encoding="utf-8"
     )
@@ -226,6 +229,14 @@ def check_execution_acceleration_contract() -> None:
             "scripts/build_runtime_fixture_fallback.sh" in consumer
             and "github.event_name == 'workflow_dispatch'" in consumer,
             "runtime gate must provide a workflow_dispatch fixture fallback",
+        )
+    for required_workflow in (live, emulator, autonomous):
+        require(
+            "pull_request:\n    paths:" not in required_workflow
+            and "name: Required-check scope" in required_workflow
+            and "needs: scope" in required_workflow
+            and "needs.scope.outputs.run == 'true'" in required_workflow,
+            "required status-check workflows must always instantiate on pull requests and scope expensive work at job level",
         )
     require(
         "inputs.flutter_version != ''" in flutter_runner,
