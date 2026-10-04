@@ -175,6 +175,10 @@ def package(args: argparse.Namespace) -> dict:
     working = safe_relative(args.working_directory)
     flow = safe_relative(args.maestro_flow) if args.maestro_flow else None
 
+    trusted_applab_sha = args.trusted_applab_sha.strip().lower()
+    if trusted_applab_sha and not re.fullmatch(r"[0-9a-f]{40}", trusted_applab_sha):
+        raise ValueError("trusted_applab_sha must be a 40-character Git SHA")
+
     expected_sha = args.resolved_sha.strip().lower()
     if expected_sha:
         if not re.fullmatch(r"[0-9a-f]{40}", expected_sha):
@@ -226,7 +230,8 @@ def package(args: argparse.Namespace) -> dict:
 
     contract = {
         "schema_version": 1,
-        "applab_version": "1.0.0",
+        "applab_version": "4.1.0",
+        "trusted_applab_sha": args.trusted_applab_sha.strip().lower(),
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
         "engine": args.engine,
@@ -322,6 +327,7 @@ def self_test() -> None:
         args = argparse.Namespace(
             repo_root=str(root), apk=str(apk), output=str(out),
             repository="owner/repo", resolved_sha="", engine="flutter",
+            trusted_applab_sha="c" * 40,
             working_directory=".", package_id="com.example.app",
             maestro_flow=".maestro/smoke.yaml",
             analysis_mode="fast", baseline_sha="", analysis_plan_input="", history_file="",
@@ -332,6 +338,7 @@ def self_test() -> None:
         )
         contract = package(args)
         assert contract["apk"]["sha256"] == sha256(out / "app.apk")
+        assert contract["trusted_applab_sha"] == "c" * 40
         assert (out / "target-evidence/.maestro/smoke.yaml").is_file()
         assert (out / "analysis-plan.json").is_file()
     print("AppLab build contract packager self-test PASS")
@@ -343,6 +350,7 @@ def main() -> int:
     parser.add_argument("--output")
     parser.add_argument("--repository", default="")
     parser.add_argument("--resolved-sha", default="")
+    parser.add_argument("--trusted-applab-sha", default="")
     parser.add_argument("--engine", choices=("flutter", "native_android"), default="flutter")
     parser.add_argument("--working-directory", default=".")
     parser.add_argument("--package-id", default="")

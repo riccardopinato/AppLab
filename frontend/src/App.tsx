@@ -383,7 +383,7 @@ function LiveApp() {
           <p className="eyebrow">ANDROID VERIFICATION LAB</p>
           <div className="title-row">
             <h1>AppLab</h1>
-            <span className="version">v4.0.2</span>
+            <span className="version">v4.1.0</span>
           </div>
           <p className="subtitle">Live Android Emulator · WebRTC · ADB · Maestro · Diagnostics</p>
         </div>
@@ -728,7 +728,7 @@ function ReadOnlyApp() {
           <p className="eyebrow">READ-ONLY WEB PREVIEW</p>
           <div className="title-row">
             <h1>AppLab Studio</h1>
-            <span className="version">v4.0.2</span>
+            <span className="version">v4.1.0</span>
           </div>
           <p className="subtitle">
             Static Studio · Analyst · Longitudinal Intelligence · Experiment Planner

@@ -10,6 +10,7 @@ backward compatibility.
 | Static + container CI | `.github/workflows/ci.yml` | Required engineering gate |
 | Browser live-emulator E2E | `.github/workflows/live-emulator-self-test.yml` | Runtime UI gate |
 | Android Emulator Self Test | `.github/workflows/emulator-self-test.yml` | Android runtime gate |
+| Canonical runtime fixture | `.github/workflows/runtime-fixture-build.yml` | Build-once source for Browser E2E and Emulator Self Test |
 | True Autonomous Review | `.github/workflows/autonomous-app-review-v31.yml` | Current trusted evidence/review gate despite historical filename |
 | Trusted APK verification | `.github/workflows/trusted-apk-verifier.yml` | Trusted runtime authority |
 | Production certification | `.github/workflows/production-certification.yml` | Release certification authority |

@@ -147,6 +147,7 @@ jobs:
             --expected-sha "${{ inputs.resolved_sha }}" \
             --expected-engine "${{ inputs.engine }}" \
             --expected-analysis-mode "${{ inputs.analysis_mode }}" \
+            --expected-trusted-applab-sha "${{ job.workflow_sha }}" \
             --github-output "$GITHUB_OUTPUT"
           cp "$GITHUB_WORKSPACE/.applab-build/contract.json" \
              "$GITHUB_WORKSPACE/applab-report/build-contract.json"
@@ -154,6 +155,8 @@ jobs:
              "$GITHUB_WORKSPACE/applab-report/analysis-plan.json"
           cp "$GITHUB_WORKSPACE/.applab-build/adaptive-quality.json" \
              "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/.applab-build/execution-plan.json" \
+             "$GITHUB_WORKSPACE/applab-report/execution-plan.json" 2>/dev/null || true
 
       - name: Cache pinned Maestro
         id: maestro_cache
@@ -245,6 +248,52 @@ jobs:
               path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
           PY
           fi
+          python - \
+            "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
+            "$GITHUB_WORKSPACE/applab-report/execution-plan.json" \
+            "$MODE" "$LANE" "$BASELINE_FALLBACK" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          plan_path = Path(sys.argv[1])
+          execution_path = Path(sys.argv[2])
+          if execution_path.is_file():
+              plan = json.loads(plan_path.read_text(encoding="utf-8"))
+              execution = json.loads(execution_path.read_text(encoding="utf-8"))
+              selected = sorted(
+                  key
+                  for key, enabled in (plan.get("selected_labs") or {}).items()
+                  if enabled
+              )
+              execution.setdefault(
+                  "preflight_runtime",
+                  {
+                      "mode": execution.get("mode"),
+                      "lane": execution.get("lane"),
+                      "selected_labs": execution.get("selected_labs", []),
+                      "run_static": execution.get("run_static"),
+                      "run_build": execution.get("run_build"),
+                      "run_runtime": execution.get("run_runtime"),
+                  },
+              )
+              execution["plan_scope"] = "build_identity_with_effective_runtime_overlay"
+              execution["effective_runtime"] = {
+                  "mode": sys.argv[3],
+                  "lane": sys.argv[4],
+                  "fallback_full": sys.argv[5].lower() == "true",
+                  "selected_labs": selected,
+                  "run_static": bool(plan.get("run_static", True)),
+                  "run_build": bool(plan.get("run_build", True)),
+                  "run_runtime": bool(plan.get("run_runtime", True)),
+              }
+              guardrails = execution.setdefault("guardrails", {})
+              guardrails["trusted_runtime_fallback_recorded"] = True
+              execution_path.write_text(
+                  json.dumps(execution, indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+          PY
           echo "effective_mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "lane=$LANE" >> "$GITHUB_OUTPUT"
 
@@ -440,6 +489,7 @@ jobs:
           python .applab/scripts/pipeline_metrics.py \
             --plan "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
             --quality "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" \
+            --execution-plan "$GITHUB_WORKSPACE/applab-report/execution-plan.json" \
             --shadow "$GITHUB_WORKSPACE/applab-report/shadow-calibration.json" \
             --runtime-timing "$GITHUB_WORKSPACE/applab-report/runtime-timing.json" \
             --avd-cache-hit "${{ steps.avd_cache.outputs.cache-hit }}" \
@@ -516,11 +566,17 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v1.0.0 Trusted APK Verification"
+            echo "## AppLab v4.1.0 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"
             echo "- Analysis: \`${{ steps.analysis.outputs.effective_mode }}\`"
+            if [[ -f "$GITHUB_WORKSPACE/applab-report/execution-plan.json" ]]; then
+              BUILD_REUSE="$(python -c 'import json; d=json.load(open("applab-report/execution-plan.json")); c=d.get("build_cache") or {}; print("N/A" if c.get("applicable") is False else ("HIT" if c.get("hit") is True else "MISS"))')"
+              EXECUTION_KEY="$(python -c 'import json; d=json.load(open("applab-report/execution-plan.json")); print(str(d.get("execution_key",""))[:16])')"
+              echo "- Build reuse: \`$BUILD_REUSE\`"
+              echo "- Execution key: \`$EXECUTION_KEY\`"
+            fi
             echo "- Build job repository checkout: **not present in this job**"
             echo
             if [[ -f "$GITHUB_WORKSPACE/applab-report/summary.md" ]]; then

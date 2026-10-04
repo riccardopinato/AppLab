@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "4.0.2"
+EXPECTED_VERSION = "4.1.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -130,6 +130,12 @@ def check_residual_hardening_contract() -> None:
         "trusted review must refresh longitudinal history before artifact expiry",
     )
     require(
+        "github.event.pull_request.head.sha" not in trusted.split("concurrency:", 1)[1].split("jobs:", 1)[0]
+        and "github.event.pull_request.number" in trusted.split("concurrency:", 1)[1].split("jobs:", 1)[0]
+        and "cancel-in-progress: true" in trusted.split("concurrency:", 1)[1].split("jobs:", 1)[0],
+        "trusted review concurrency must cancel stale commits using stable PR identity",
+    )
+    require(
         "tests/intelligence/intelligence_corpus_test.py" in ci,
         "independent intelligence regression corpus must run in CI",
     )
@@ -164,6 +170,162 @@ def check_residual_hardening_contract() -> None:
         "canonical/compatibility workflow registry is required",
     )
 
+
+def check_execution_acceleration_contract() -> None:
+    fixture = (ROOT / ".github/workflows/runtime-fixture-build.yml").read_text(
+        encoding="utf-8"
+    )
+    live = (ROOT / ".github/workflows/live-emulator-self-test.yml").read_text(
+        encoding="utf-8"
+    )
+    emulator = (ROOT / ".github/workflows/emulator-self-test.yml").read_text(
+        encoding="utf-8"
+    )
+    flutter_runner = (ROOT / ".github/workflows/external-project-runner.yml").read_text(
+        encoding="utf-8"
+    )
+    native_runner = (
+        ROOT / ".github/workflows/external-native-android-runner.yml"
+    ).read_text(encoding="utf-8")
+    trusted = (ROOT / ".github/workflows/trusted-apk-verifier.yml").read_text(
+        encoding="utf-8"
+    )
+    metrics = (ROOT / "scripts/pipeline_metrics.py").read_text(encoding="utf-8")
+    restore_fixture = (ROOT / "scripts/restore_runtime_fixture.sh").read_text(
+        encoding="utf-8"
+    )
+    restore_build = (ROOT / "scripts/restore_build_contract.sh").read_text(
+        encoding="utf-8"
+    )
+    doctor = (ROOT / "scripts/applab_doctor.py").read_text(encoding="utf-8")
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    canonical_build = "gradle -p selftest :app:assembleDebug --stacktrace"
+    require(
+        canonical_build in fixture,
+        "canonical runtime fixture workflow must own the self-test APK build",
+    )
+    require(
+        "retention-days: 30" in fixture,
+        "canonical runtime fixture must survive the GitHub workflow rerun window",
+    )
+    require(
+        'APPLAB_FIXTURE_WAIT_SECONDS:-1320' in restore_fixture,
+        "runtime consumers must wait beyond the canonical producer timeout",
+    )
+    require(
+        canonical_build not in live and canonical_build not in emulator,
+        "runtime consumers must not rebuild the canonical self-test APK",
+    )
+    for consumer in (live, emulator):
+        require(
+            "scripts/restore_runtime_fixture.sh" in consumer,
+            "runtime gate must restore and validate the canonical fixture",
+        )
+        require(
+            "scripts/build_runtime_fixture_fallback.sh" in consumer
+            and "github.event_name == 'workflow_dispatch'" in consumer,
+            "runtime gate must provide a workflow_dispatch fixture fallback",
+        )
+    require(
+        "inputs.flutter_version != ''" in flutter_runner,
+        "floating Flutter channels must not reuse content-addressed build contracts",
+    )
+    for runner in (flutter_runner, native_runner):
+        require(
+            'build-input "package-id:' in runner
+            and 'build-input "maestro-flow:' in runner,
+            "runtime contract inputs must participate in build identity",
+        )
+        require(
+            'toolchain "java:${{ steps.java_identity.outputs.version }}"' in runner
+            and 'toolchain "java:${{ inputs.java_version }}"' not in runner,
+            "build reuse must be keyed by the resolved Java runtime patch",
+        )
+        require(
+            runner.count('toolchain "runner:${RUNNER_OS:-unknown}:${RUNNER_ARCH:-unknown}:${ImageOS:-unknown}:${ImageVersion:-unknown}"') >= 2,
+            "initial and post-build execution identities must include the hosted runner image",
+        )
+        require(
+            "BUILD_CACHE_APPLICABLE" in runner,
+            "cache telemetry must distinguish not-applicable from MISS",
+        )
+        require(
+            "analysis_plan_sha256" in runner
+            and "REGENERATED_EXECUTION_KEY" in runner
+            and 'applab-build-contract/analysis-plan.json' in runner,
+            "post-build execution evidence must be regenerated from sealed trusted inputs",
+        )
+        for needle in (
+            "scripts/execution_acceleration.py",
+            "Restore content-addressed build contract",
+            "scripts/restore_build_contract.sh",
+            "--expected-applab-sha",
+            "--trusted-applab-sha",
+            "retention-days: 7",
+        ):
+            require(needle in runner, f"accelerated runner missing invariant: {needle}")
+    require(
+        "execution-plan.json" in trusted,
+        "trusted verifier must preserve acceleration evidence",
+    )
+    require(
+        '"N/A" if c.get("applicable") is False' in trusted,
+        "trusted summary must preserve build-cache not-applicable state",
+    )
+    require(
+        'for ARTIFACT_ID in "${ARTIFACT_IDS[@]}"' in restore_build
+        and "rows[:20]" in restore_build
+        and 'miss "no-valid-artifact"' in restore_build,
+        "build reuse must search multiple matching artifacts before rebuilding",
+    )
+    require(
+        '"build_cache_hit"' in metrics
+        and '"build_cache_applicable"' in metrics
+        and '"execution_key"' in metrics,
+        "pipeline metrics must expose build reuse evidence and applicability",
+    )
+    acceleration = (ROOT / "scripts/execution_acceleration.py").read_text(
+        encoding="utf-8"
+    )
+    require(
+        "semantic_keys = (" in acceleration
+        and '"learning_profile"' not in acceleration.split("semantic_keys = (", 1)[1].split(")", 1)[0],
+        "execution identity must exclude historical learning telemetry",
+    )
+    require(
+        '"cached_quality_timings_ignored"' in metrics
+        and 'timings={} if build_cache_hit is True else producer_timings' in metrics,
+        "cache-hit metrics must exclude producer-run quality timings",
+    )
+    doctor = (ROOT / "scripts/applab_doctor.py").read_text(encoding="utf-8")
+    require(
+        "python-runtime" in doctor
+        and "sys.executable" in doctor
+        and "docker-compose-v2" in doctor
+        and 'docker_path, "compose", "version"' in doctor,
+        "AppLab Doctor must use the running Python interpreter and require Compose v2 for full profile",
+    )
+    require(
+        "artifact lookup failed; retrying within wait budget" in restore_fixture
+        and "artifact download failed; retrying within wait budget" in restore_fixture
+        and "artifact unzip failed; retrying within wait budget" in restore_fixture
+        and "if gh api" in restore_fixture,
+        "runtime fixture transport must tolerate transient GitHub API/download failures",
+    )
+    require(
+        '"docker-daemon"' in doctor
+        and '"info", "--format"' in doctor
+        and 'docker_daemon["required"] = profile == "full"' in doctor,
+        "full AppLab Doctor profile must verify Docker daemon readiness",
+    )
+    require(
+        "python scripts/execution_acceleration.py --self-test" in ci
+        and "python scripts/build_reuse_eligibility.py --self-test" in ci
+        and "python scripts/applab_doctor.py --self-test" in ci,
+        "CI must gate acceleration, hermetic build reuse eligibility and doctor self-tests",
+    )
+
 def main() -> int:
     check_version_alignment()
     check_local_controller_boundary()
@@ -172,6 +334,7 @@ def main() -> int:
     check_schema_forwarding()
     check_no_floating_self_reference()
     check_residual_hardening_contract()
+    check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
     return 0
 

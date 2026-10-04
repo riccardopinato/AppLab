@@ -31,9 +31,23 @@ def parse_started_at(value:str)->datetime|None:
 
 def summarize(plan:dict,quality:dict|None=None,shadow:dict|None=None,runtime:dict|None=None,
               avd_cache_hit:bool|None=None,maestro_cache_hit:bool|None=None,
-              workflow_started_at:str="")->dict:
-    q=quality or {}; s=shadow or {}; r=runtime or {}
-    timings={k:float(v) for k,v in (q.get("timings") or {}).items() if isinstance(v,(int,float))}
+              workflow_started_at:str="", execution:dict|None=None)->dict:
+    q=quality or {}; s=shadow or {}; r=runtime or {}; e=execution or {}
+    effective_runtime=(e.get("effective_runtime") or {}) if isinstance(e.get("effective_runtime"),dict) else {}
+    build_cache=(e.get("build_cache") or {}) if isinstance(e.get("build_cache"),dict) else {}
+    build_cache_applicable=(
+        build_cache.get("applicable")
+        if isinstance(build_cache.get("applicable"), bool)
+        else None
+    )
+    build_cache_hit=(
+        build_cache.get("hit")
+        if build_cache_applicable is not False and "hit" in build_cache
+        else None
+    )
+    producer_timings={k:float(v) for k,v in (q.get("timings") or {}).items() if isinstance(v,(int,float))}
+    cached_quality_timings_ignored=bool(build_cache_hit is True and producer_timings)
+    timings={} if build_cache_hit is True else producer_timings
     runtime_seconds=float(r.get("runtime_seconds",0) or 0)
     quality_seconds=sum(timings.values())
     planner_seconds=float(plan.get("planner_ms",0) or 0)/1000.0
@@ -86,6 +100,15 @@ def summarize(plan:dict,quality:dict|None=None,shadow:dict|None=None,runtime:dic
       "learning_applied_lab_count":len(plan.get("learning_applied_labs",[]) or []),
       "avd_cache_hit":avd_cache_hit,
       "maestro_cache_hit":maestro_cache_hit,
+      "build_cache_applicable":build_cache_applicable,
+      "build_cache_hit":build_cache_hit,
+      "build_cache_reason":build_cache.get("reason"),
+      "cached_quality_timings_ignored":cached_quality_timings_ignored,
+      "execution_key":e.get("execution_key"),
+      "execution_lane":effective_runtime.get("lane") or e.get("lane"),
+      "execution_mode":effective_runtime.get("mode") or e.get("mode"),
+      "execution_fallback_full":bool(effective_runtime.get("fallback_full",False)),
+      "build_once_verify_many":bool((e.get("dag") or {}).get("build_once_verify_many",False)) if isinstance(e.get("dag"),dict) else False,
     }
 
 def main()->int:
@@ -93,12 +116,39 @@ def main()->int:
     ap.add_argument("--plan"); ap.add_argument("--quality",default=""); ap.add_argument("--shadow",default="")
     ap.add_argument("--runtime-timing",default=""); ap.add_argument("--avd-cache-hit",default="")
     ap.add_argument("--maestro-cache-hit",default=""); ap.add_argument("--workflow-started-at",default="")
+    ap.add_argument("--execution-plan",default="")
     ap.add_argument("--output"); ap.add_argument("--self-test",action="store_true")
     a=ap.parse_args()
     if a.self_test:
         x=summarize({"selected_labs":{},"changed_files":[],"planner_ms":1000},{"timings":{"build_seconds":2}},runtime={"runtime_seconds":3})
         assert x["selected_lab_count"]==0 and x["total_observed_seconds"]==6.0
         assert x["wall_clock_seconds"] is None
+        z=summarize(
+            {"selected_labs":{}},
+            quality={"timings":{"build_seconds":17,"unit_tests_seconds":3}},
+            execution={"execution_key":"abc","lane":"FAST_RUNTIME","build_cache":{"hit":True},"dag":{"build_once_verify_many":True}},
+        )
+        assert z["build_cache_hit"] is True and z["execution_key"]=="abc" and z["build_once_verify_many"]
+        assert z["quality_seconds"]==0.0 and z["timings"]=={} and z["cached_quality_timings_ignored"] is True
+        overlay=summarize(
+            {"selected_labs":{"network":True},"lane":"FULL_RUNTIME"},
+            execution={
+                "execution_key":"overlay",
+                "lane":"FAST_RUNTIME",
+                "mode":"fast",
+                "effective_runtime":{"lane":"FULL_RUNTIME","mode":"full","fallback_full":True},
+            },
+        )
+        assert overlay["execution_lane"]=="FULL_RUNTIME"
+        assert overlay["execution_mode"]=="full"
+        assert overlay["execution_fallback_full"] is True
+        na=summarize(
+            {"selected_labs":{}},
+            execution={"execution_key":"na","lane":"STATIC_ONLY","build_cache":{"applicable":False,"hit":None,"reason":"not-applicable"}},
+        )
+        assert na["build_cache_applicable"] is False
+        assert na["build_cache_hit"] is None
+        assert na["build_cache_reason"] == "not-applicable"
         y=summarize(
             {"selected_labs":{},"changed_files":[],"verification_budget_seconds":1},
             workflow_started_at="2000-01-01T00:00:00Z",
@@ -106,9 +156,9 @@ def main()->int:
         assert y["budget_exceeded"] and y["budget_ratio"] is not None
         print("AppLab pipeline metrics self-test PASS"); return 0
     if not a.plan or not a.output: raise SystemExit("--plan and --output are required")
-    p=read_json(a.plan); q=read_json(a.quality); s=read_json(a.shadow); r=read_json(a.runtime_timing)
+    p=read_json(a.plan); q=read_json(a.quality); s=read_json(a.shadow); r=read_json(a.runtime_timing); e=read_json(a.execution_plan)
     payload=summarize(
-        p,q,s,r,as_bool(a.avd_cache_hit),as_bool(a.maestro_cache_hit),a.workflow_started_at
+        p,q,s,r,as_bool(a.avd_cache_hit),as_bool(a.maestro_cache_hit),a.workflow_started_at,e
     )
     Path(a.output).write_text(json.dumps(payload,indent=2,sort_keys=True)+"\n",encoding="utf-8")
     return 0

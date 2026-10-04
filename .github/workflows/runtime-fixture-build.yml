@@ -1,0 +1,108 @@
+name: Canonical Runtime Fixture Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "scripts/**"
+      - "selftest/**"
+      - "tests/flows/selftest.yaml"
+      - ".maestro/**"
+      - "docker-compose.live.yml"
+      - ".github/workflows/live-emulator-self-test.yml"
+      - ".github/workflows/emulator-self-test.yml"
+      - ".github/workflows/runtime-fixture-build.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "scripts/**"
+      - "selftest/**"
+      - "tests/flows/selftest.yaml"
+      - ".maestro/**"
+      - "docker-compose.live.yml"
+      - ".github/workflows/live-emulator-self-test.yml"
+      - ".github/workflows/emulator-self-test.yml"
+      - ".github/workflows/runtime-fixture-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-runtime-fixture-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  canonical-runtime-fixture:
+    name: Canonical runtime fixture
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+
+      - name: Install Android SDK components
+        run: |
+          set -Eeuo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Build canonical self-test APK once
+        run: gradle -p selftest :app:assembleDebug --stacktrace
+
+      - name: Package immutable runtime fixture
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p runtime-fixture
+          cp selftest/app/build/outputs/apk/debug/app-debug.apk runtime-fixture/app-debug.apk
+          APK_SHA="$(sha256sum runtime-fixture/app-debug.apk | awk '{print $1}')"
+          APK_SIZE="$(stat -c '%s' runtime-fixture/app-debug.apk)"
+          python3 - "$APK_SHA" "$APK_SIZE" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          payload = {
+              "schema_version": 1,
+              "engine_version": "4.1.0",
+              "source_sha": os.environ["GITHUB_SHA"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+              "workflow_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "apk_sha256": sys.argv[1],
+              "apk_size": int(sys.argv[2]),
+              "build_command": "gradle -p selftest :app:assembleDebug --stacktrace",
+              "build_once_verify_many": True,
+          }
+          Path("runtime-fixture/manifest.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload canonical runtime fixture
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-runtime-fixture-${{ github.sha }}
+          path: runtime-fixture/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+          overwrite: true

@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v4.0.2
+name: AppLab True Autonomous App Review v4.1.0
 
 on:
   schedule:
@@ -73,7 +73,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: applab-true-autonomous-review-${{ github.event.pull_request.head.repo.full_name || inputs.target_repository || github.repository }}-${{ github.event.pull_request.head.sha || inputs.target_ref || 'main' }}
+  group: applab-true-autonomous-review-${{ github.event.pull_request.head.repo.full_name || inputs.target_repository || github.repository }}-${{ github.event.pull_request.number || github.event.pull_request.head.ref || inputs.target_ref || 'main' }}
   cancel-in-progress: true
 
 jobs:
@@ -285,7 +285,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v4.0.2"
+            echo "## AppLab True Autonomous App Review v4.1.0"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
