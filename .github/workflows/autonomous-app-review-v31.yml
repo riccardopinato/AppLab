@@ -4,80 +4,44 @@ on:
   schedule:
     - cron: "17 3 1 * *"
   pull_request:
-    paths:
-      - ".github/workflows/autonomous-app-review-v31.yml"
-      - ".github/workflows/trusted-apk-verifier.yml"
-      - ".github/workflows/universal-project-runner.yml"
-      - "scripts/trusted_evidence_manifest.py"
-      - "scripts/project_autodiscover.py"
-      - "scripts/autonomous_app_review.py"
-      - "scripts/behavioral_product_lab.py"
-      - "scripts/state_edge_case_lab.py"
-      - "scripts/evidence_calibration.py"
-      - "scripts/evidence_confidence_engine.py"
-      - "scripts/journey_crawler.py"
-      - "scripts/user_journey_intelligence.py"
-      - "scripts/ux_friction_lab.py"
-      - "scripts/longitudinal_product_intelligence.py"
-      - "scripts/autonomous_experiment_planner.py"
-      - "scripts/applab_analyst.py"
-      - "scripts/verify_apk.sh"
-      - "scripts/product_contract_audit.py"
-      - "scripts/decision_brief.py"
-  workflow_dispatch:
-    inputs:
-      target_repository:
-        description: "Target repository in owner/name form. Empty = this repository."
-        required: false
-        default: ""
-        type: string
-      target_ref:
-        description: "Branch, tag or SHA to resolve once and review immutably."
-        required: false
-        default: "main"
-        type: string
-      max_files:
-        description: "Maximum tracked text files for product analysis."
-        required: false
-        default: "3500"
-        type: string
-      run_maestro:
-        description: "Run Maestro during trusted verification."
-        required: false
-        default: true
-        type: boolean
-  workflow_call:
-    inputs:
-      target_repository:
-        required: false
-        default: ""
-        type: string
-      target_ref:
-        required: false
-        default: "main"
-        type: string
-      max_files:
-        required: false
-        default: "3500"
-        type: string
-      run_maestro:
-        required: false
-        default: true
-        type: boolean
-    secrets:
-      APPLAB_TARGET_TOKEN:
-        required: false
 
-permissions:
-  contents: read
-  actions: read
 
 concurrency:
   group: applab-true-autonomous-review-${{ github.event.pull_request.head.repo.full_name || inputs.target_repository || github.repository }}-${{ github.event.pull_request.number || github.event.pull_request.head.ref || inputs.target_ref || 'main' }}
   cancel-in-progress: true
 
 jobs:
+  scope:
+    name: Required-check scope
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - id: scope
+        name: Decide whether trusted runtime work is applicable
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/applab-changed-files.txt"
+          if grep -Eq '(^\.github/workflows/(autonomous-app-review-v31|trusted-apk-verifier|universal-project-runner)\.yml$|^scripts/(trusted_evidence_manifest|project_autodiscover|autonomous_app_review|behavioral_product_lab|state_edge_case_lab|evidence_calibration|evidence_confidence_engine|journey_crawler|user_journey_intelligence|ux_friction_lab|longitudinal_product_intelligence|autonomous_experiment_planner|applab_analyst|product_contract_audit|decision_brief)\.py$|^scripts/verify_apk\.sh$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   resolve:
+    needs: scope
+    if: github.event_name != 'pull_request' || needs.scope.outputs.run == 'true'
     name: Resolve immutable target
     runs-on: ubuntu-latest
     outputs:
