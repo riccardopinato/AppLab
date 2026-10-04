@@ -352,6 +352,27 @@ type StudioProject = {
       message?: string;
     }>;
   } | null;
+  evidence_graph?: {
+    nodes?: number;
+    edges?: number;
+    nodes_by_type?: Record<string, number>;
+    relations_by_type?: Record<string, number>;
+    unverified_capabilities?: number;
+    recurring_findings?: number;
+    regression_candidates?: number;
+    top_unverified_capabilities?: Array<{
+      capability?: string;
+      status?: string;
+      claim_id?: string;
+    }>;
+    top_recurring_findings?: Array<{
+      kind?: string;
+      subject?: string;
+      seen_count?: number;
+      first_observed_sha?: string;
+      last_observed_sha?: string;
+    }>;
+  } | null;
   autonomous_review?: {
     review_state?: string;
     runtime_evidence_state?: string;
@@ -396,6 +417,11 @@ type StudioSnapshot = {
     high_priority_experiments?: number;
     with_analyst_reports?: number;
     analyst_attention?: number;
+    with_evidence_graph?: number;
+    evidence_graph_nodes?: number;
+    evidence_graph_edges?: number;
+    graph_unverified_capabilities?: number;
+    graph_recurring_findings?: number;
     autonomous_reviews?: number;
     autonomous_attention?: number;
     runtime_observed?: number;
@@ -642,6 +668,15 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                       {project.analyst?.headline ? <small>{project.analyst.headline}</small> : null}
                     </div>
                     <div>
+                      <span>Evidence Graph</span>
+                      <strong>{project.evidence_graph?.nodes ?? 0}</strong>
+                      <small>
+                        {project.evidence_graph
+                          ? `${project.evidence_graph.edges ?? 0} relations · ${project.evidence_graph.unverified_capabilities ?? 0} unverified capabilities · ${project.evidence_graph.recurring_findings ?? 0} recurring findings · ${project.evidence_graph.regression_candidates ?? 0} regressions`
+                          : "no unified evidence graph"}
+                      </small>
+                    </div>
+                    <div>
                       <span>Evidence</span>
                       <strong>{project.evidence_confidence?.contradiction_count ?? 0}</strong>
                       <small>
@@ -714,6 +749,24 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                         <span key={`analyst-observation-${item.category}-${item.kind}-${item.subject}-${index}`}>
                           {item.priority} · {item.category} · {item.kind}
                           {item.subject ? ` · ${item.subject}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {project.evidence_graph?.top_unverified_capabilities?.length ? (
+                    <div className="studio-labs">
+                      {project.evidence_graph.top_unverified_capabilities.slice(0, 6).map((item, index) => (
+                        <span key={`graph-unverified-${item.claim_id}-${index}`}>
+                          {item.status || "UNVERIFIED"} · capability · {item.capability || "unknown"}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {project.evidence_graph?.top_recurring_findings?.length ? (
+                    <div className="studio-labs">
+                      {project.evidence_graph.top_recurring_findings.slice(0, 6).map((item, index) => (
+                        <span key={`graph-recurring-${item.kind}-${item.subject}-${index}`}>
+                          RECURRING · {item.kind || "finding"}{item.subject ? ` · ${item.subject}` : ""} · {item.seen_count ?? 0} observations
                         </span>
                       ))}
                     </div>
