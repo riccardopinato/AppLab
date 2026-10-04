@@ -139,12 +139,13 @@ def main() -> int:
     require(payload["summary"]["nodes_by_type"]["Project"] == 1, "project node missing")
     require(payload["summary"]["nodes_by_type"]["Revision"] == 2, "revision lineage missing")
     require(payload["summary"]["nodes_by_type"]["Capability"] == 2, "capability nodes missing")
+    require(payload["summary"]["nodes_by_type"]["Finding"] == 1, "duplicate canonical finding nodes")
     require(payload["summary"]["nodes_by_type"]["Experiment"] == 1, "experiment node missing")
     require(payload["summary"]["recurring_findings"] == 1, "recurrence not imported")
     require(payload["summary"]["unverified_capabilities"] == 1, "unverified capability not surfaced")
 
     history = graph.query_graph(payload, "history", "draft")
-    require(history["results"], "history query returned no result")
+    require(len(history["results"]) == 1, "history query duplicated one canonical finding")
     require(history["results"][0]["first_observed_sha"] == sha_old, "first observed SHA mismatch")
     require("not proof" in history["results"][0]["caveat"], "causal caveat missing")
 
