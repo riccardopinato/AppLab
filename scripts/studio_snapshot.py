@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "4.1.0"
+STUDIO_VERSION = "4.2.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -57,13 +57,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     longitudinal = read_json(project_dir / "longitudinal-intelligence.json")
     experiment = read_json(project_dir / "experiment-plan.json")
     analyst = read_json(project_dir / "analyst-report.json")
+    evidence_graph = read_json(project_dir / "evidence-graph.json")
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, evidence_graph, contract, brief, autonomous)
     ):
         return None
 
@@ -81,6 +82,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "longitudinal": None,
         "experiment_plan": None,
         "analyst": None,
+        "evidence_graph": None,
         "autonomous_review": None,
     }
 
@@ -445,6 +447,73 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
             ],
         }
 
+    if evidence_graph:
+        graph_summary = (
+            evidence_graph.get("summary")
+            if isinstance(evidence_graph.get("summary"), dict)
+            else {}
+        )
+        graph_insights = (
+            evidence_graph.get("insights")
+            if isinstance(evidence_graph.get("insights"), dict)
+            else {}
+        )
+        graph_nodes_by_type = (
+            graph_summary.get("nodes_by_type")
+            if isinstance(graph_summary.get("nodes_by_type"), dict)
+            else {}
+        )
+        graph_relations = (
+            graph_summary.get("relations_by_type")
+            if isinstance(graph_summary.get("relations_by_type"), dict)
+            else {}
+        )
+        graph_unverified = (
+            graph_insights.get("unverified_capabilities")
+            if isinstance(graph_insights.get("unverified_capabilities"), list)
+            else []
+        )
+        graph_recurring = (
+            graph_insights.get("recurring_findings")
+            if isinstance(graph_insights.get("recurring_findings"), list)
+            else []
+        )
+        row["evidence_graph"] = {
+            "nodes": int(graph_summary.get("nodes", 0) or 0),
+            "edges": int(graph_summary.get("edges", 0) or 0),
+            "nodes_by_type": graph_nodes_by_type,
+            "relations_by_type": graph_relations,
+            "unverified_capabilities": int(
+                graph_summary.get("unverified_capabilities", 0) or 0
+            ),
+            "recurring_findings": int(
+                graph_summary.get("recurring_findings", 0) or 0
+            ),
+            "regression_candidates": int(
+                graph_summary.get("regression_candidates", 0) or 0
+            ),
+            "top_unverified_capabilities": [
+                {
+                    "capability": str(item.get("capability", "")),
+                    "status": str(item.get("status", "")),
+                    "claim_id": str(item.get("claim_id", "")),
+                }
+                for item in graph_unverified[:8]
+                if isinstance(item, dict)
+            ],
+            "top_recurring_findings": [
+                {
+                    "kind": str(item.get("kind", "")),
+                    "subject": str(item.get("subject", "")),
+                    "seen_count": int(item.get("seen_count", 0) or 0),
+                    "first_observed_sha": str(item.get("first_observed_sha", "")),
+                    "last_observed_sha": str(item.get("last_observed_sha", "")),
+                }
+                for item in graph_recurring[:8]
+                if isinstance(item, dict)
+            ],
+        }
+
     if user_journey:
         journey_summary = (
             user_journey.get("summary")
@@ -720,6 +789,29 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
             ),
             "with_analyst_reports": sum(
                 1 for row in projects if row.get("analyst") is not None
+            ),
+            "with_evidence_graph": sum(
+                1 for row in projects if row.get("evidence_graph") is not None
+            ),
+            "evidence_graph_nodes": sum(
+                int((row.get("evidence_graph") or {}).get("nodes", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "evidence_graph_edges": sum(
+                int((row.get("evidence_graph") or {}).get("edges", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "graph_unverified_capabilities": sum(
+                int((row.get("evidence_graph") or {}).get("unverified_capabilities", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "graph_recurring_findings": sum(
+                int((row.get("evidence_graph") or {}).get("recurring_findings", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
             ),
             "analyst_attention": sum(
                 1
@@ -1121,6 +1213,58 @@ def self_test() -> None:
             ),
             encoding="utf-8",
         )
+        (project / "evidence-graph.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "engine_version": "4.2.0",
+                    "graph_version": "1.0",
+                    "summary": {
+                        "nodes": 24,
+                        "edges": 38,
+                        "nodes_by_type": {
+                            "Project": 1,
+                            "Revision": 2,
+                            "BuildArtifact": 1,
+                            "Capability": 6,
+                            "Surface": 2,
+                            "Journey": 2,
+                            "Finding": 3,
+                            "Claim": 3,
+                            "Evidence": 2,
+                            "Experiment": 1,
+                            "Result": 1
+                        },
+                        "relations_by_type": {
+                            "PROJECT_HAS_REVISION": 2,
+                            "CLAIM_SUPPORTED_BY": 3
+                        },
+                        "unverified_capabilities": 1,
+                        "recurring_findings": 1,
+                        "regression_candidates": 1
+                    },
+                    "insights": {
+                        "unverified_capabilities": [
+                            {
+                                "claim_id": "capability:backup",
+                                "capability": "backup",
+                                "status": "UNVERIFIED"
+                            }
+                        ],
+                        "recurring_findings": [
+                            {
+                                "kind": "NAVIGATION_LOOP_CANDIDATE",
+                                "subject": "Open",
+                                "seen_count": 3,
+                                "first_observed_sha": "a" * 40,
+                                "last_observed_sha": "b" * 40
+                            }
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
         (project / "audit-plan.json").write_text(
             json.dumps(
                 {
@@ -1177,6 +1321,15 @@ def self_test() -> None:
         assert snapshot["projects"][0]["analyst"]["next_actions"] == 3
         assert snapshot["summary"]["with_analyst_reports"] == 1
         assert snapshot["summary"]["analyst_attention"] == 1
+        assert snapshot["projects"][0]["evidence_graph"]["nodes"] == 24
+        assert snapshot["projects"][0]["evidence_graph"]["edges"] == 38
+        assert snapshot["projects"][0]["evidence_graph"]["unverified_capabilities"] == 1
+        assert snapshot["projects"][0]["evidence_graph"]["recurring_findings"] == 1
+        assert snapshot["summary"]["with_evidence_graph"] == 1
+        assert snapshot["summary"]["evidence_graph_nodes"] == 24
+        assert snapshot["summary"]["evidence_graph_edges"] == 38
+        assert snapshot["summary"]["graph_unverified_capabilities"] == 1
+        assert snapshot["summary"]["graph_recurring_findings"] == 1
         assert snapshot["projects"][0]["autonomous_review"]["review_state"] == "REVIEW_REQUIRED"
         assert snapshot["projects"][0]["autonomous_review"]["runtime_confirmed"] == 1
         assert snapshot["summary"]["autonomous_reviews"] == 1
