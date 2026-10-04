@@ -321,8 +321,9 @@ def check_execution_acceleration_contract() -> None:
     )
     require(
         "python scripts/execution_acceleration.py --self-test" in ci
+        and "python scripts/build_reuse_eligibility.py --self-test" in ci
         and "python scripts/applab_doctor.py --self-test" in ci,
-        "CI must gate acceleration and doctor self-tests",
+        "CI must gate acceleration, hermetic build reuse eligibility and doctor self-tests",
     )
 
 def main() -> int:
