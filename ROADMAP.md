@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v4.1.0 — Execution Acceleration Engine**
+Current production baseline: **v4.2.0 — Evidence Graph**
 
 ## Product rule
 
@@ -19,6 +19,19 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v4.2.0 — Evidence Graph
+
+- [x] Add one deterministic graph model across Project, Revision, BuildArtifact, Capability, Surface, Journey, Finding, Claim, Evidence, Experiment and Result.
+- [x] Bind graph identity to repository, resolved SHA, workflow run, package and APK/build provenance when trusted runtime evidence is available.
+- [x] Preserve every source report as authoritative evidence and record report/content provenance instead of replacing upstream engines.
+- [x] Link claims/findings/experiments to their product subjects and supporting evidence.
+- [x] Import longitudinal first/last observation and recurrence statistics without treating first observation as causal commit blame.
+- [x] Add deterministic graph queries for unverified capabilities, recurring findings, regressions, subject history and supporting evidence.
+- [x] Integrate Evidence Graph into True Autonomous Review and publish `evidence-graph.json` / `evidence-graph.md`.
+- [x] Surface graph summary and high-value graph insights in AppLab Studio and the read-only Web Preview.
+- [x] Add self-test, independent regression coverage and audit-contract enforcement.
+- [x] Preserve FAST/FULL/CERTIFICATION, trusted runtime and Analyst authority boundaries.
 
 ### v4.1.0 — Execution Acceleration Engine
 
