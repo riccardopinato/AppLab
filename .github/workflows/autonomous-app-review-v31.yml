@@ -4,7 +4,53 @@ on:
   schedule:
     - cron: "17 3 1 * *"
   pull_request:
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: "Target repository in owner/name form. Empty = this repository."
+        required: false
+        default: ""
+        type: string
+      target_ref:
+        description: "Branch, tag or SHA to resolve once and review immutably."
+        required: false
+        default: "main"
+        type: string
+      max_files:
+        description: "Maximum tracked text files for product analysis."
+        required: false
+        default: "3500"
+        type: string
+      run_maestro:
+        description: "Run Maestro during trusted verification."
+        required: false
+        default: true
+        type: boolean
+  workflow_call:
+    inputs:
+      target_repository:
+        required: false
+        default: ""
+        type: string
+      target_ref:
+        required: false
+        default: "main"
+        type: string
+      max_files:
+        required: false
+        default: "3500"
+        type: string
+      run_maestro:
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      APPLAB_TARGET_TOKEN:
+        required: false
 
+permissions:
+  contents: read
+  actions: read
 
 concurrency:
   group: applab-true-autonomous-review-${{ github.event.pull_request.head.repo.full_name || inputs.target_repository || github.repository }}-${{ github.event.pull_request.number || github.event.pull_request.head.ref || inputs.target_ref || 'main' }}
