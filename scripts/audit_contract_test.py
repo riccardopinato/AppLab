@@ -91,7 +91,7 @@ def check_trusted_review_contract() -> None:
         "studio.json",
         "Build Evidence Graph",
         "scripts/evidence_graph.py",
-        "evidence-graph.json",
+        "evidence-graph.md",
     ):
         require(needle in workflow, f"trusted review missing audit-hardening contract: {needle}")
 
