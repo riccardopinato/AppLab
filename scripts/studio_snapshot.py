@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import studio_evidence_graph
+
 SCHEMA_VERSION = 1
 STUDIO_VERSION = "4.2.0"
 
@@ -448,71 +450,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         }
 
     if evidence_graph:
-        graph_summary = (
-            evidence_graph.get("summary")
-            if isinstance(evidence_graph.get("summary"), dict)
-            else {}
-        )
-        graph_insights = (
-            evidence_graph.get("insights")
-            if isinstance(evidence_graph.get("insights"), dict)
-            else {}
-        )
-        graph_nodes_by_type = (
-            graph_summary.get("nodes_by_type")
-            if isinstance(graph_summary.get("nodes_by_type"), dict)
-            else {}
-        )
-        graph_relations = (
-            graph_summary.get("relations_by_type")
-            if isinstance(graph_summary.get("relations_by_type"), dict)
-            else {}
-        )
-        graph_unverified = (
-            graph_insights.get("unverified_capabilities")
-            if isinstance(graph_insights.get("unverified_capabilities"), list)
-            else []
-        )
-        graph_recurring = (
-            graph_insights.get("recurring_findings")
-            if isinstance(graph_insights.get("recurring_findings"), list)
-            else []
-        )
-        row["evidence_graph"] = {
-            "nodes": int(graph_summary.get("nodes", 0) or 0),
-            "edges": int(graph_summary.get("edges", 0) or 0),
-            "nodes_by_type": graph_nodes_by_type,
-            "relations_by_type": graph_relations,
-            "unverified_capabilities": int(
-                graph_summary.get("unverified_capabilities", 0) or 0
-            ),
-            "recurring_findings": int(
-                graph_summary.get("recurring_findings", 0) or 0
-            ),
-            "regression_candidates": int(
-                graph_summary.get("regression_candidates", 0) or 0
-            ),
-            "top_unverified_capabilities": [
-                {
-                    "capability": str(item.get("capability", "")),
-                    "status": str(item.get("status", "")),
-                    "claim_id": str(item.get("claim_id", "")),
-                }
-                for item in graph_unverified[:8]
-                if isinstance(item, dict)
-            ],
-            "top_recurring_findings": [
-                {
-                    "kind": str(item.get("kind", "")),
-                    "subject": str(item.get("subject", "")),
-                    "seen_count": int(item.get("seen_count", 0) or 0),
-                    "first_observed_sha": str(item.get("first_observed_sha", "")),
-                    "last_observed_sha": str(item.get("last_observed_sha", "")),
-                }
-                for item in graph_recurring[:8]
-                if isinstance(item, dict)
-            ],
-        }
+        row["evidence_graph"] = studio_evidence_graph.project_summary(evidence_graph)
 
     if user_journey:
         journey_summary = (
@@ -1214,55 +1152,7 @@ def self_test() -> None:
             encoding="utf-8",
         )
         (project / "evidence-graph.json").write_text(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "engine_version": "4.2.0",
-                    "graph_version": "1.0",
-                    "summary": {
-                        "nodes": 24,
-                        "edges": 38,
-                        "nodes_by_type": {
-                            "Project": 1,
-                            "Revision": 2,
-                            "BuildArtifact": 1,
-                            "Capability": 6,
-                            "Surface": 2,
-                            "Journey": 2,
-                            "Finding": 3,
-                            "Claim": 3,
-                            "Evidence": 2,
-                            "Experiment": 1,
-                            "Result": 1
-                        },
-                        "relations_by_type": {
-                            "PROJECT_HAS_REVISION": 2,
-                            "CLAIM_SUPPORTED_BY": 3
-                        },
-                        "unverified_capabilities": 1,
-                        "recurring_findings": 1,
-                        "regression_candidates": 1
-                    },
-                    "insights": {
-                        "unverified_capabilities": [
-                            {
-                                "claim_id": "capability:backup",
-                                "capability": "backup",
-                                "status": "UNVERIFIED"
-                            }
-                        ],
-                        "recurring_findings": [
-                            {
-                                "kind": "NAVIGATION_LOOP_CANDIDATE",
-                                "subject": "Open",
-                                "seen_count": 3,
-                                "first_observed_sha": "a" * 40,
-                                "last_observed_sha": "b" * 40
-                            }
-                        ]
-                    }
-                }
-            ),
+            json.dumps(studio_evidence_graph.self_test_payload()),
             encoding="utf-8",
         )
         (project / "audit-plan.json").write_text(
