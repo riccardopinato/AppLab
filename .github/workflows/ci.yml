@@ -90,6 +90,7 @@ jobs:
             scripts/cross_app_intelligence.py \
             scripts/audit_orchestrator.py \
             scripts/studio_snapshot.py \
+            scripts/studio_evidence_graph.py \
             scripts/control_center_snapshot.py \
             scripts/execution_acceleration.py \
             scripts/build_reuse_eligibility.py \
@@ -157,6 +158,7 @@ jobs:
           python scripts/cross_app_intelligence.py --self-test
           python scripts/audit_orchestrator.py --self-test
           python scripts/studio_snapshot.py --self-test
+          python scripts/studio_evidence_graph.py
           python scripts/control_center_snapshot.py --self-test
           python scripts/execution_acceleration.py --self-test
           python scripts/build_reuse_eligibility.py --self-test
