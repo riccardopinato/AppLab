@@ -84,6 +84,8 @@ def build_execution_plan(
         "impacted_files",
         "selected_labs",
         "predicted_selected_labs",
+        "risk_score",
+        "confidence",
         "fallback_full",
         "shadow_full",
         "run_static",
@@ -337,6 +339,25 @@ def self_test() -> None:
         build_inputs=["prepare:", "post:"],
     )
     assert changed_selection_report["execution_key"] != stable_toolchain_report["execution_key"]
+
+    changed_risk = dict(plan)
+    changed_risk["risk_score"] = 72
+    changed_risk["confidence"] = 0.91
+    changed_risk_report = build_execution_plan(
+        analysis_plan=changed_risk,
+        repository="owner/app",
+        resolved_sha="a" * 40,
+        engine="flutter",
+        history_key="demo",
+        working_directory=".",
+        build_command="flutter build apk --debug",
+        apk_path="build/app.apk",
+        contract_fingerprint="contract-1",
+        config_fingerprint="config-1",
+        toolchain=["java:17.0.17", "flutter:3.35.0"],
+        build_inputs=["prepare:", "post:"],
+    )
+    assert changed_risk_report["execution_key"] != stable_toolchain_report["execution_key"]
     assert first["artifact_name"] == second["artifact_name"]
     assert first["selected_labs"] == ["network", "persistence"]
     assert first["dag"]["build_once_verify_many"] is True
