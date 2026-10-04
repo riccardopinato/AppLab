@@ -345,7 +345,11 @@ def _add_core(
             "lineage_ref": identity["lineage_ref"],
             "base_sha": identity["base_sha"],
         },
-        provenance=[FILES["autonomous"], FILES["longitudinal"]],
+        provenance=(
+            ([FILES["autonomous"]] if "autonomous" in inputs else [])
+            + ([FILES["longitudinal"]] if "longitudinal" in inputs else [])
+            + (["trusted-evidence-manifest.json"] if "trusted_manifest" in inputs else [])
+        ),
     )
     builder.add_edge("PROJECT_HAS_REVISION", project, revision)
 
@@ -379,7 +383,7 @@ def _add_core(
     artifact: str | None = None
     package_id = _safe(apk.get("package_id")) or identity["package_id"]
     apk_sha256 = _safe(apk.get("sha256"))
-    if contract or package_id:
+    if contract:
         artifact_key = apk_sha256 or f"{repository}@{sha}:{package_id}"
         artifact = builder.add_node(
             "BuildArtifact",
@@ -396,7 +400,11 @@ def _add_core(
                 "trusted_applab_sha": _safe(contract.get("trusted_applab_sha")),
                 "manifest_sha256": _safe(trust.get("manifest_sha256")),
             },
-            provenance=["build-contract.json", FILES["autonomous"]],
+            provenance=(
+                ["build-contract.json"]
+                + ([FILES["autonomous"]] if "autonomous" in inputs else [])
+                + (["trusted-evidence-manifest.json"] if "trusted_manifest" in inputs else [])
+            ),
         )
         builder.add_edge("REVISION_BUILT_AS", revision, artifact)
 
@@ -556,7 +564,8 @@ def _add_finding_rows(
             "seen_count": int(hist.get("seen_count", 0) or 0),
             "consecutive_seen": int(hist.get("consecutive_seen", 0) or 0),
         }
-        key = original_id or f"{source_key}:{kind}:{subject}"
+        canonical_history_key = _safe(hist.get("key")) or _safe(row.get("key"))
+        key = canonical_history_key or original_id or f"{source_key}:{kind}:{subject}"
         node = builder.add_node(
             "Finding",
             key,
@@ -1193,6 +1202,7 @@ def self_test() -> None:
     assert counts["Revision"] == 2
     assert counts["BuildArtifact"] == 1
     assert counts["Capability"] == 2
+    assert counts["Finding"] == 1
     assert counts["Claim"] == 2
     assert counts["Experiment"] == 1
     assert graph["summary"]["unverified_capabilities"] == 1
@@ -1204,9 +1214,24 @@ def self_test() -> None:
     unverified = query_graph(graph, "unverified-capabilities")
     assert unverified["results"][0]["capability"] == "backup"
     history = query_graph(graph, "history", "save")
+    assert len(history["results"]) == 1
     assert history["results"][0]["seen_count"] == 2
     evidence_query = query_graph(graph, "evidence", "backup")
     assert any(row.get("type") == "Evidence" for row in evidence_query["evidence"])
+
+    optional_inputs = dict(evidence)
+    optional_inputs.pop("autonomous", None)
+    optional_inputs.pop("build_contract", None)
+    optional_graph = build_graph(optional_inputs)
+    optional_nodes = optional_graph["nodes"]
+    optional_revision = next(
+        row
+        for row in optional_nodes
+        if row.get("type") == "Revision"
+        and (row.get("attributes") or {}).get("resolved_sha") == sha2
+    )
+    assert FILES["autonomous"] not in optional_revision["provenance"]
+    assert not any(row.get("type") == "BuildArtifact" for row in optional_nodes)
 
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp)
