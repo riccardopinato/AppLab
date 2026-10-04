@@ -11,7 +11,7 @@ from typing import Any
 
 ENGINE_VERSION = "4.1.0"
 DYNAMIC_GRADLE = re.compile(
-    r"(?i)(?:\bSNAPSHOT\b|latest\.(?:release|integration)|\d+(?:\.\d+)*\.\+|["']\+["'])"
+    r"""(?i)(?:\bSNAPSHOT\b|latest\.(?:release|integration)|\d+(?:\.\d+)*\.\+|["']\+["'])"""
 )
 SAFE_GRADLE_COMMAND = re.compile(r"^(?:\./gradlew|gradle)(?:\s+[-A-Za-z0-9_:.=/]+)+$")
 
