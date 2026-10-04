@@ -35,6 +35,7 @@ publish a certified release artifact.
 - [x] Record execution key/build-cache hit in pipeline metrics.
 - [x] Add AppLab Doctor environment preflight.
 - [x] Encode v4.1 invariants in heavy-audit CI contracts.
+- [x] Close PR #73 with CI/security, CodeQL, canonical runtime fixture, Browser E2E, Emulator Self Test, True Autonomous Review and Repository Governance all green.
 
 ### v4.0.2 — Residual Hardening
 
@@ -45,7 +46,7 @@ publish a certified release artifact.
 - [x] Make current vs compatibility workflow authority explicit.
 - [x] Add safe read-only Web Preview mode with no privileged backend/controller.
 - [x] Add repository-governance audit workflow for branch-protection visibility.
-- [ ] Enable GitHub branch protection/ruleset for `main` (external repository setting; connected API cannot mutate it).
+- [x] Enable and verify GitHub branch protection/ruleset for `main`; Repository Governance Audit is green.
 
 ### v4.0.1 — Heavy Audit Hardening
 
@@ -60,7 +61,7 @@ publish a certified release artifact.
 - [x] Align backend/frontend/Studio/CI version contracts to 4.0.1.
 - [x] Add CI audit-contract enforcement for hardening invariants.
 - [x] Add Dependabot governance for Python, npm and GitHub Actions.
-- [ ] Enable GitHub branch protection/ruleset for `main` (repository setting; connector cannot mutate it).
+- [x] Enable GitHub branch protection/ruleset for `main` (completed during subsequent hardening; current Repository Governance Audit verifies it).
 
 ### v4.0.0 — AppLab Analyst
 
