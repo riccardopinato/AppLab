@@ -194,6 +194,9 @@ def check_execution_acceleration_contract() -> None:
     restore_fixture = (ROOT / "scripts/restore_runtime_fixture.sh").read_text(
         encoding="utf-8"
     )
+    restore_build = (ROOT / "scripts/restore_build_contract.sh").read_text(
+        encoding="utf-8"
+    )
     doctor = (ROOT / "scripts/applab_doctor.py").read_text(encoding="utf-8")
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
@@ -205,6 +208,10 @@ def check_execution_acceleration_contract() -> None:
     require(
         "retention-days: 30" in fixture,
         "canonical runtime fixture must survive the GitHub workflow rerun window",
+    )
+    require(
+        'APPLAB_FIXTURE_WAIT_SECONDS:-1320' in restore_fixture,
+        "runtime consumers must wait beyond the canonical producer timeout",
     )
     require(
         canonical_build not in live and canonical_build not in emulator,
@@ -236,6 +243,10 @@ def check_execution_acceleration_contract() -> None:
             "build reuse must be keyed by the resolved Java runtime patch",
         )
         require(
+            runner.count('toolchain "runner:${RUNNER_OS:-unknown}:${RUNNER_ARCH:-unknown}:${ImageOS:-unknown}:${ImageVersion:-unknown}"') >= 2,
+            "initial and post-build execution identities must include the hosted runner image",
+        )
+        require(
             "BUILD_CACHE_APPLICABLE" in runner,
             "cache telemetry must distinguish not-applicable from MISS",
         )
@@ -257,6 +268,16 @@ def check_execution_acceleration_contract() -> None:
     require(
         "execution-plan.json" in trusted,
         "trusted verifier must preserve acceleration evidence",
+    )
+    require(
+        '"N/A" if c.get("applicable") is False' in trusted,
+        "trusted summary must preserve build-cache not-applicable state",
+    )
+    require(
+        'for ARTIFACT_ID in "${ARTIFACT_IDS[@]}"' in restore_build
+        and "rows[:20]" in restore_build
+        and 'miss "no-valid-artifact"' in restore_build,
+        "build reuse must search multiple matching artifacts before rebuilding",
     )
     require(
         '"build_cache_hit"' in metrics
