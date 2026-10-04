@@ -248,6 +248,52 @@ jobs:
               path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
           PY
           fi
+          python - \
+            "$GITHUB_WORKSPACE/applab-report/analysis-plan.json" \
+            "$GITHUB_WORKSPACE/applab-report/execution-plan.json" \
+            "$MODE" "$LANE" "$BASELINE_FALLBACK" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          plan_path = Path(sys.argv[1])
+          execution_path = Path(sys.argv[2])
+          if execution_path.is_file():
+              plan = json.loads(plan_path.read_text(encoding="utf-8"))
+              execution = json.loads(execution_path.read_text(encoding="utf-8"))
+              selected = sorted(
+                  key
+                  for key, enabled in (plan.get("selected_labs") or {}).items()
+                  if enabled
+              )
+              execution.setdefault(
+                  "preflight_runtime",
+                  {
+                      "mode": execution.get("mode"),
+                      "lane": execution.get("lane"),
+                      "selected_labs": execution.get("selected_labs", []),
+                      "run_static": execution.get("run_static"),
+                      "run_build": execution.get("run_build"),
+                      "run_runtime": execution.get("run_runtime"),
+                  },
+              )
+              execution["plan_scope"] = "build_identity_with_effective_runtime_overlay"
+              execution["effective_runtime"] = {
+                  "mode": sys.argv[3],
+                  "lane": sys.argv[4],
+                  "fallback_full": sys.argv[5].lower() == "true",
+                  "selected_labs": selected,
+                  "run_static": bool(plan.get("run_static", True)),
+                  "run_build": bool(plan.get("run_build", True)),
+                  "run_runtime": bool(plan.get("run_runtime", True)),
+              }
+              guardrails = execution.setdefault("guardrails", {})
+              guardrails["trusted_runtime_fallback_recorded"] = True
+              execution_path.write_text(
+                  json.dumps(execution, indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+          PY
           echo "effective_mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "lane=$LANE" >> "$GITHUB_OUTPUT"
 
