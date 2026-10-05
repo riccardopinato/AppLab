@@ -160,6 +160,9 @@ def launch(package_id: str) -> str:
 def runtime_unhealthy(package_id: str) -> str:
     if not pid_of(package_id):
         return "application process is not running"
+    # ActivityManager emits ANRs from system_server, so this check must inspect
+    # the system log buffer. Process-death callers clear that buffer immediately
+    # before relaunch so only recovery-window failures are considered.
     logs = adb("logcat", "-b", "all", "-d", "-v", "brief", timeout=30).stdout
     if f"ANR in {package_id}" in logs:
         return "ANR detected"
@@ -300,7 +303,7 @@ def evaluate(
     if not config["enabled"]:
         return {
             "schema_version": 1,
-            "resource_pressure_lab_version": "0.7.7",
+            "resource_pressure_lab_version": "0.7.8",
             "result": "SKIPPED",
             "package_id": package_id,
             "config": config,
@@ -405,8 +408,15 @@ def evaluate(
                 )
             )
 
+        # Exclude diagnostics emitted by the intentional background kill and
+        # Home transition. Any target ANR/FATAL observed after this clear belongs
+        # to the actual recovery window and remains fail-closed.
+        adb("logcat", "-b", "all", "-c", timeout=20)
         recovered_pid = launch(package_id)
-        time.sleep(config["settle_seconds"])
+        # A PID becomes visible before Flutter/SurfaceView startup has settled on
+        # loaded hosted emulators. Do not reuse the short trim-memory settle delay
+        # as an application-start readiness timeout.
+        time.sleep(max(config["settle_seconds"], 5.0))
         process_death.append(
             {
                 "cycle": cycle,
@@ -444,7 +454,7 @@ def evaluate(
 
     return {
         "schema_version": 1,
-        "resource_pressure_lab_version": "0.7.7",
+        "resource_pressure_lab_version": "0.7.8",
         "result": result,
         "package_id": package_id,
         "config": config,
@@ -489,6 +499,7 @@ def self_test() -> None:
     cfg = load_config(None)
     assert cfg["trim_levels"] == ["RUNNING_LOW", "BACKGROUND"]
     assert cfg["process_death_cycles"] == 1
+    assert max(cfg["settle_seconds"], 5.0) == 5.0
 
     import tempfile
 
