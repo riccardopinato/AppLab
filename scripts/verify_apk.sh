@@ -294,7 +294,7 @@ capture_evidence() {
 
 assert_runtime_healthy() {
   local stage="$1"
-  local pid
+  local pid runtime_health_file runtime_reason
   pid="$(runtime_pid)"
 
   if [[ -z "$pid" ]]; then
@@ -305,14 +305,24 @@ assert_runtime_healthy() {
   adb logcat -b all -d -v threadtime > "$REPORT_DIR/logcat.txt" 2>&1 || true
   adb logcat --pid="$pid" -d -v threadtime > "$REPORT_DIR/app-logcat.txt" 2>&1 || true
 
-  if grep -Fq "ANR in $PACKAGE_ID" "$REPORT_DIR/logcat.txt"; then
-    capture_evidence "failure-${stage}"
-    fail "ANR detected for $PACKAGE_ID during ${stage}."
-  fi
+  runtime_health_file="$REPORT_DIR/runtime-health-${stage}.json"
+  python3 "$(dirname "$0")/android_runtime_health.py" \
+    --package-id "$PACKAGE_ID" \
+    --logcat-file "$REPORT_DIR/logcat.txt" \
+    > "$runtime_health_file"
+  runtime_reason="$(
+    python3 - "$runtime_health_file" <<'PY'
+import json
+import sys
+from pathlib import Path
 
-  if grep -F -A 40 "FATAL EXCEPTION" "$REPORT_DIR/logcat.txt" | grep -Fq "Process: $PACKAGE_ID"; then
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(payload.get("reason", ""))
+PY
+  )"
+  if [[ -n "$runtime_reason" ]]; then
     capture_evidence "failure-${stage}"
-    fail "Fatal exception detected for $PACKAGE_ID during ${stage}."
+    fail "$runtime_reason for $PACKAGE_ID during ${stage}."
   fi
 
   if grep -Eqi "Unhandled Exception:|EXCEPTION CAUGHT BY (WIDGETS|RENDERING|SCHEDULER) LIBRARY|Failed assertion:|Another exception was thrown" "$REPORT_DIR/app-logcat.txt"; then
