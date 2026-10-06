@@ -30,6 +30,7 @@ jobs:
       - name: Validate watcher tooling
         run: |
           python -m py_compile \
+            scripts/android_runtime_health.py \
             scripts/dismiss_foreign_anr.py \
             scripts/finalize_external_result.py \
             scripts/release_artifact.py \
@@ -95,6 +96,7 @@ jobs:
             scripts/applab_doctor.py \
             scripts/maintainability_budget.py \
             tests/intelligence/intelligence_corpus_test.py
+          python scripts/android_runtime_health.py --self-test
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/interaction_crawler.py --self-test
           python scripts/journey_crawler.py --self-test
