@@ -4,6 +4,65 @@ import re
 from typing import Any
 
 
+_BRIEF_ANDROID_RUNTIME = re.compile(
+    r"^[VDIWEF]/AndroidRuntime(?:\\(\\s*(\\d+)\\))?:\\s*(.*)$"
+)
+_THREADTIME_ANDROID_RUNTIME = re.compile(
+    r"^\\S+\\s+\\S+\\s+(\\d+)\\s+\\d+\\s+[VDIWEF]\\s+AndroidRuntime:\\s*(.*)$"
+)
+_PROCESS_LINE = re.compile(r"^Process:\\s*([^,\\s]+)(?:,\\s*PID:\\s*(\\d+))?")
+
+
+def _android_runtime_entry(line: str) -> tuple[str | None, str] | None:
+    match = _BRIEF_ANDROID_RUNTIME.match(line.strip())
+    if match:
+        return match.group(1), match.group(2)
+    match = _THREADTIME_ANDROID_RUNTIME.match(line.strip())
+    if match:
+        return match.group(1), match.group(2)
+    return None
+
+
+def _target_fatal(logcat: str, package_id: str) -> bool:
+    lines = logcat.splitlines()
+    entries = [_android_runtime_entry(line) for line in lines]
+    for index, entry in enumerate(entries):
+        if entry is None:
+            continue
+        emitter_pid, message = entry
+        if not message.startswith("FATAL EXCEPTION:"):
+            continue
+        for detail_index in range(index + 1, min(len(lines), index + 24)):
+            detail = entries[detail_index]
+            if detail is None:
+                continue
+            detail_pid, detail_message = detail
+            if detail_message.startswith("FATAL EXCEPTION:"):
+                if emitter_pid is None or detail_pid == emitter_pid:
+                    break
+                continue
+            if (
+                emitter_pid is not None
+                and detail_pid is not None
+                and detail_pid != emitter_pid
+            ):
+                continue
+            process = _PROCESS_LINE.match(detail_message)
+            if process is None:
+                continue
+            if process.group(1) != package_id:
+                break
+            process_pid = process.group(2)
+            if (
+                emitter_pid is not None
+                and process_pid is not None
+                and emitter_pid != process_pid
+            ):
+                break
+            return True
+    return False
+
+
 _FLUTTER_PATTERNS = (
     re.compile(r"Unhandled Exception:", re.IGNORECASE),
     re.compile(r"EXCEPTION CAUGHT BY .* LIBRARY", re.IGNORECASE),
@@ -38,16 +97,7 @@ def analyze_logcat(
             }
         )
 
-    fatal_blocks = re.findall(
-        r"FATAL EXCEPTION.*?(?=\n\S|\Z)",
-        logcat,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    fatal_for_package = any(
-        package_id in block or "AndroidRuntime" in block
-        for block in fatal_blocks
-    )
-    if fatal_for_package:
+    if _target_fatal(logcat, package_id):
         issues.append(
             {
                 "code": "FATAL_EXCEPTION",
