@@ -141,14 +141,21 @@ def logcat_crash_state(logcat: str, package_id: str) -> tuple[bool, str]:
     # mention the target package, creating a false positive.
     lines = logcat.splitlines()
     for index, line in enumerate(lines):
-        if "FATAL EXCEPTION:" not in line:
+        if "FATAL EXCEPTION:" not in line or "AndroidRuntime" not in line:
             continue
-        block = "\n".join(lines[index : index + 8])
-        if re.search(
-            rf"\bProcess:\s*{re.escape(package_id)}(?:,|\s|$)",
-            block,
-        ):
-            return True, "fatal exception detected"
+        for detail in lines[index + 1 : index + 6]:
+            if "FATAL EXCEPTION:" in detail:
+                break
+            if "AndroidRuntime" not in detail or "Process:" not in detail:
+                continue
+            if re.search(
+                rf"\bProcess:\s*{re.escape(package_id)}(?:,|\s|$)",
+                detail,
+            ):
+                return True, "fatal exception detected"
+            # The AndroidRuntime Process line belongs to this fatal record.
+            # Once it names another process, this crash cannot belong to target.
+            break
     return False, ""
 
 
