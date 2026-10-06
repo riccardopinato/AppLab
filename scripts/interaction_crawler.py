@@ -11,6 +11,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from android_runtime_health import target_crash_state
+
 BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 SAFE_LABEL = re.compile(
     r"(?i)^(?:"
@@ -241,16 +243,18 @@ def pid_of(package_id: str) -> str:
 def app_crashed(package_id: str) -> tuple[bool, str]:
     if not pid_of(package_id):
         return True, "application process died"
-    logcat = run("adb", "logcat", "-b", "all", "-d", "-v", "brief", check=False).stdout
-    if f"ANR in {package_id}" in logcat:
-        return True, "ANR detected"
-    fatal = re.search(
-        rf"FATAL EXCEPTION:[\s\S]{{0,1800}}Process:\s*{re.escape(package_id)}\b",
-        logcat,
-    )
-    if fatal:
-        return True, "fatal exception detected"
-    return False, ""
+    logcat = run(
+        "adb",
+        "logcat",
+        "-b",
+        "all",
+        "-d",
+        "-v",
+        "brief",
+        check=False,
+    ).stdout
+    reason, _ = target_crash_state(logcat, package_id)
+    return bool(reason), reason
 
 
 def relaunch(package_id: str, settle: float) -> None:
