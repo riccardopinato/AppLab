@@ -5,12 +5,12 @@ from typing import Any
 
 
 _BRIEF_ANDROID_RUNTIME = re.compile(
-    r"^[VDIWEF]/AndroidRuntime(?:\\(\\s*(\\d+)\\))?:\\s*(.*)$"
+    r"^[VDIWEF]/AndroidRuntime(?:\(\s*(\d+)\))?:\s*(.*)$"
 )
 _THREADTIME_ANDROID_RUNTIME = re.compile(
-    r"^\\S+\\s+\\S+\\s+(\\d+)\\s+\\d+\\s+[VDIWEF]\\s+AndroidRuntime:\\s*(.*)$"
+    r"^\S+\s+\S+\s+(\d+)\s+\d+\s+[VDIWEF]\s+AndroidRuntime:\s*(.*)$"
 )
-_PROCESS_LINE = re.compile(r"^Process:\\s*([^,\\s]+)(?:,\\s*PID:\\s*(\\d+))?")
+_PROCESS_LINE = re.compile(r"^Process:\s*([^,\s]+)(?:,\s*PID:\s*(\d+))?")
 
 
 def _android_runtime_entry(line: str) -> tuple[str | None, str] | None:
