@@ -20,10 +20,10 @@ jobs:
       ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
       source_ref: main
       run_maestro: true
-      history_key: audit-camperboss-api35-solo
+      history_key: audit-camperboss-api35-isolated
       cache_verification: false
-      contract_fingerprint: camperboss-audit-2026-10-07-api35-solo
-      config_fingerprint: camperboss-audit-2026-10-07-api35-solo
+      contract_fingerprint: camperboss-audit-2026-10-07-api35-isolated
+      config_fingerprint: camperboss-audit-2026-10-07-api35-isolated
       approve_visual_baseline: false
       analysis_mode: certification
       api_level_override: "35"
