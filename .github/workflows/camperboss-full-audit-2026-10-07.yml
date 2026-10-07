@@ -1,4 +1,4 @@
-name: CamperBoss Full Audit 2026-10-07
+name: CamperBoss API35 Audit 2026-10-07
 
 on:
   push:
@@ -12,20 +12,20 @@ permissions:
   actions: read
 
 jobs:
-  exploratory_debug:
-    name: CamperBoss exploratory FULL API 35
+  primary:
+    name: CamperBoss certification API 35
     uses: ./.github/workflows/universal-project-runner.yml
     with:
       repository: riccardopinato/CamperBoss
       ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
       source_ref: main
       run_maestro: true
-      history_key: audit-camperboss-debug-api35
+      history_key: audit-camperboss-api35-solo
       cache_verification: false
-      contract_fingerprint: camperboss-audit-debug-2026-10-07
-      config_fingerprint: camperboss-audit-debug-2026-10-07
+      contract_fingerprint: camperboss-audit-2026-10-07-api35-solo
+      config_fingerprint: camperboss-audit-2026-10-07-api35-solo
       approve_visual_baseline: false
-      analysis_mode: full
+      analysis_mode: certification
       api_level_override: "35"
       emulator_profile_override: pixel_7_pro
       publish_release_artifact: false
