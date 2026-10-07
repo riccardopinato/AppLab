@@ -1,0 +1,158 @@
+name: CamperBoss Screen Crawl 2026-10-07
+
+on:
+  push:
+    branches:
+      - audit-camperboss-2026-10-07
+    paths:
+      - ".github/workflows/camperboss-screen-crawl-2026-10-07.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Download previously verified CamperBoss debug APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          curl -fL             -H "Authorization: Bearer $GH_TOKEN"             -H "Accept: application/vnd.github+json"             "https://api.github.com/repos/riccardopinato/AppLab/actions/artifacts/11485986880/zip"             -o camperboss-contract.zip
+          mkdir contract
+          unzip -q camperboss-contract.zip -d contract
+          APK="$(find contract -type f -name 'app.apk' -print -quit)"
+          test -n "$APK" && test -s "$APK"
+          cp "$APK" camperboss.apk
+          sha256sum camperboss.apk | tee apk.sha256
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Crawl UI
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          disable-animations: true
+          script: |
+            set -Eeuo pipefail
+            mkdir -p audit/screens audit/ui audit/logs
+            adb install -r camperboss.apk
+            adb shell pm clear com.camperboss.camperboss
+            adb shell monkey -p com.camperboss.camperboss -c android.intent.category.LAUNCHER 1 >/dev/null
+            sleep 7
+
+            capture() {
+              n="$1"
+              adb exec-out screencap -p > "audit/screens/$n.png"
+              adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
+              adb pull /sdcard/window.xml "audit/ui/$n.xml" >/dev/null 2>&1 || true
+            }
+
+            tap_xy() {
+              adb shell input tap "$1" "$2"
+              sleep "${3:-4}"
+            }
+
+            tap_desc() {
+              pattern="$1"
+              adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
+              adb pull /sdcard/window.xml /tmp/window.xml >/dev/null 2>&1 || true
+              XY="$(python3 - "$pattern" <<'PY'
+            import re, sys, xml.etree.ElementTree as ET
+            pat=re.compile(sys.argv[1], re.I)
+            root=ET.parse('/tmp/window.xml').getroot()
+            for n in root.iter('node'):
+                text=(n.attrib.get('content-desc','')+' '+n.attrib.get('text','')).strip()
+                if pat.search(text):
+                    b=n.attrib.get('bounds','')
+                    m=re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]',b)
+                    if m:
+                        x1,y1,x2,y2=map(int,m.groups())
+                        print((x1+x2)//2,(y1+y2)//2)
+                        raise SystemExit
+            raise SystemExit(2)
+            PY
+            )" || return 1
+              set -- $XY
+              adb shell input tap "$1" "$2"
+              sleep 4
+            }
+
+            back() { adb shell input keyevent 4; sleep 3; }
+
+            capture 01-home
+
+            # Bottom navigation centers on the Pixel 7 Pro emulator (1440x3120).
+            tap_xy 430 2990 7; capture 02-map
+            tap_xy 720 2990 4; capture 03-trips
+            tap_xy 1010 2990 4; capture 04-camper
+            tap_xy 1290 2990 4; capture 05-more
+
+            # Camper sub-surfaces.
+            tap_xy 1010 2990 3
+            tap_desc "Vehicle profile|Profilo del mezzo" && capture 06-vehicle-profile || true
+            back
+            tap_desc "Documents|Documenti" && capture 07-documents || true
+            back
+            tap_desc "Maintenance|Manutenzione" && capture 08-maintenance || true
+            back
+
+            # Trip sub-surfaces.
+            tap_xy 720 2990 3
+            tap_desc "Trip planner|Pianifica" && capture 09-trip-planner || true
+            back
+            tap_desc "Checklist" && capture 10-checklist || true
+            back
+            tap_desc "Travel journal|Diario" && capture 11-journal || true
+            back
+            tap_desc "Finance|Finanze" && capture 12-finance || true
+            back
+            tap_desc "Travel history|Storico" && capture 13-travel-history || true
+            back
+
+            # More sub-surfaces.
+            tap_xy 1290 2990 3
+            tap_desc "Search|Cerca" && capture 14-search || true
+            back
+            tap_desc "Offline content|Contenuti offline|Offline" && capture 15-offline-content || true
+            back
+            tap_desc "Backup" && capture 16-backup || true
+            back
+            tap_desc "Language|Lingua" && capture 17-language || true
+            back
+            tap_desc "Notifications|Notifiche" && capture 18-notifications || true
+            back
+            tap_desc "Guided setup|Configurazione guidata" && capture 19-guided-setup || true
+            back
+
+            # Home offline guides.
+            tap_xy 140 2990 3
+            tap_desc "Offline guides|Guide offline" && capture 20-offline-guides || true
+            back
+
+            adb logcat -d > audit/logs/logcat.txt || true
+            adb shell dumpsys meminfo com.camperboss.camperboss > audit/logs/meminfo.txt || true
+            find audit -type f -maxdepth 3 -print | sort
+
+      - name: Upload screen crawl
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: camperboss-screen-crawl-${{ github.run_id }}
+          path: |
+            audit/
+            apk.sha256
+          if-no-files-found: error
+          retention-days: 2
