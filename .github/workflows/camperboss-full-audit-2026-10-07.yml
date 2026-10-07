@@ -12,7 +12,7 @@ permissions:
   actions: read
 
 jobs:
-  api35:
+  primary:
     name: CamperBoss certification API 35
     uses: ./.github/workflows/universal-project-runner.yml
     with:
@@ -20,10 +20,10 @@ jobs:
       ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
       source_ref: main
       run_maestro: true
-      history_key: audit-camperboss-api35-only
+      history_key: audit-camperboss-api35-solo
       cache_verification: false
-      contract_fingerprint: camperboss-audit-2026-10-07-api35-only
-      config_fingerprint: camperboss-audit-2026-10-07-api35-only
+      contract_fingerprint: camperboss-audit-2026-10-07-api35-solo
+      config_fingerprint: camperboss-audit-2026-10-07-api35-solo
       approve_visual_baseline: false
       analysis_mode: certification
       api_level_override: "35"
