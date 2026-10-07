@@ -1,4 +1,4 @@
-name: CamperBoss Full Audit 2026-10-07
+name: CamperBoss Runtime Journey Audit 2026-10-07
 
 on:
   push:
@@ -12,17 +12,17 @@ permissions:
   actions: read
 
 jobs:
-  debug_core:
-    name: CamperBoss debug user journey
+  runtime_api35:
+    name: CamperBoss debug runtime journey API 35
     uses: ./.github/workflows/external-project-runner.yml
     with:
       repository: riccardopinato/CamperBoss
       ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
-      source_ref: main
+      source_ref: audit-api35-debug
       working_directory: "."
       flutter_channel: stable
       flutter_version: "3.47.6"
-      java_version: "21"
+      java_version: "17"
       prepare_command: ""
       post_pub_get_command: ""
       android_prepare_command: ""
@@ -33,10 +33,10 @@ jobs:
       build_command: flutter build apk --debug
       run_maestro: true
       maestro_flow: .maestro/applab-release-core-final.yaml
-      history_key: audit-camperboss-debug-core
+      history_key: audit-camperboss-api35-debug
       cache_verification: false
-      contract_fingerprint: camperboss-audit-debug-core-2026-10-07
-      config_fingerprint: camperboss-audit-debug-core-2026-10-07
+      contract_fingerprint: camperboss-runtime-audit-2026-10-07
+      config_fingerprint: camperboss-runtime-audit-2026-10-07-api35
       approve_visual_baseline: false
       analysis_mode: full
       baseline_sha: ""
