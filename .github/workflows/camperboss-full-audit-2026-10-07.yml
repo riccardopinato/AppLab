@@ -1,0 +1,22 @@
+name: CamperBoss Full Audit 2026-10-07
+
+on:
+  push:
+    branches:
+      - audit-camperboss-2026-10-07
+    paths:
+      - ".github/workflows/camperboss-full-audit-2026-10-07.yml"
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  certify:
+    uses: ./.github/workflows/production-certification.yml
+    with:
+      repository: riccardopinato/CamperBoss
+      ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
+      api_level: "35"
+      compatibility_api_level: auto
+      emulator_profile: pixel_7_pro
