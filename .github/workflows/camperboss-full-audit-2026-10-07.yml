@@ -9,14 +9,42 @@ on:
 
 permissions:
   contents: read
-  actions: write
+  actions: read
 
 jobs:
-  certify:
-    uses: ./.github/workflows/production-certification.yml
+  primary:
+    name: CamperBoss certification API 35
+    uses: ./.github/workflows/universal-project-runner.yml
     with:
       repository: riccardopinato/CamperBoss
       ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
-      api_level: "35"
-      compatibility_api_level: auto
-      emulator_profile: pixel_7_pro
+      source_ref: main
+      run_maestro: true
+      history_key: audit-camperboss-api35
+      cache_verification: false
+      contract_fingerprint: camperboss-audit-2026-10-07-api35
+      config_fingerprint: camperboss-audit-2026-10-07-api35
+      approve_visual_baseline: false
+      analysis_mode: certification
+      api_level_override: "35"
+      emulator_profile_override: pixel_7_pro
+      publish_release_artifact: false
+
+  compatibility:
+    name: CamperBoss compatibility API 29
+    uses: ./.github/workflows/universal-project-runner.yml
+    with:
+      repository: riccardopinato/CamperBoss
+      ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
+      source_ref: main
+      run_maestro: true
+      history_key: audit-camperboss-api29
+      cache_verification: false
+      contract_fingerprint: camperboss-audit-2026-10-07-api29
+      config_fingerprint: camperboss-audit-2026-10-07-api29
+      approve_visual_baseline: false
+      analysis_mode: full
+      force_release_build: true
+      api_level_override: "29"
+      emulator_profile_override: pixel_7_pro
+      publish_release_artifact: false
