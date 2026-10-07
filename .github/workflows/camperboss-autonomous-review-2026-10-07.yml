@@ -1,0 +1,21 @@
+name: CamperBoss Autonomous Review 2026-10-07
+
+on:
+  push:
+    branches:
+      - audit-camperboss-intelligence-2026-10-07
+    paths:
+      - ".github/workflows/camperboss-autonomous-review-2026-10-07.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  review:
+    uses: ./.github/workflows/autonomous-app-review-v31.yml
+    with:
+      target_repository: riccardopinato/CamperBoss
+      target_ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
+      max_files: "3500"
+      run_maestro: true
