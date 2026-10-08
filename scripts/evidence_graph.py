@@ -50,7 +50,12 @@ def _safe(value: Any) -> str:
 
 
 def _norm(value: Any) -> str:
-    return re.sub(r"[^a-z0-9_.:/-]+", "-", _safe(value).lower()).strip("-")
+    return re.sub(
+        r"[^\w.:/-]+",
+        "-",
+        _safe(value).casefold(),
+        flags=re.UNICODE,
+    ).strip("-")
 
 
 def _stable(prefix: str, *parts: Any) -> str:
@@ -301,23 +306,37 @@ def _identity(inputs: dict[str, dict[str, Any]]) -> tuple[dict[str, str], dict[s
     current = longitudinal.get("current")
     current = current if isinstance(current, dict) else {}
 
+    build_contract = inputs.get("build_contract", {})
+    contract_apk = (
+        build_contract.get("apk")
+        if isinstance(build_contract.get("apk"), dict)
+        else {}
+    )
+
     repository = (
         _safe(binding.get("repository"))
         or _safe(manifest_binding.get("repository"))
         or _safe(current.get("repository"))
+        or _safe(build_contract.get("repository"))
         or "unknown/unknown"
     )
     resolved_sha = (
         _safe(binding.get("resolved_sha"))
         or _safe(manifest_binding.get("resolved_sha"))
         or _safe(current.get("resolved_sha"))
+        or _safe(build_contract.get("resolved_sha"))
     ).lower()
     run_id = (
         _safe(binding.get("workflow_run_id"))
         or _safe(manifest_binding.get("workflow_run_id"))
         or _safe(current.get("run_id"))
     )
-    package_id = _safe(binding.get("package_id")) or _safe(manifest_binding.get("package_id"))
+    package_id = (
+        _safe(binding.get("package_id"))
+        or _safe(manifest_binding.get("package_id"))
+        or _safe(build_contract.get("package_id"))
+        or _safe(contract_apk.get("package_id"))
+    )
     lineage_ref = _safe(current.get("lineage_ref"))
     base_sha = _safe(current.get("base_sha")).lower()
 
@@ -546,22 +565,64 @@ def _add_journeys(
 
 def _finding_history(
     inputs: dict[str, dict[str, Any]]
-) -> dict[tuple[str, str, str], dict[str, Any]]:
+) -> dict[str, Any]:
     longitudinal = inputs.get("longitudinal", {})
     findings = longitudinal.get("findings") if isinstance(longitudinal.get("findings"), dict) else {}
     rows = findings.get("history") if isinstance(findings.get("history"), list) else []
-    result: dict[tuple[str, str, str], dict[str, Any]] = {}
+    exact: dict[str, dict[str, Any]] = {}
+    signatures: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     for row in rows:
         if not isinstance(row, dict):
             continue
-        key = (
-            _norm(row.get("source")),
+        source = _safe(row.get("source"))
+        canonical_key = _safe(row.get("key"))
+        explicit_id = _safe(row.get("id"))
+        if canonical_key:
+            exact[canonical_key] = row
+        if source and explicit_id:
+            exact.setdefault(f"{source}|id:{explicit_id}", row)
+
+        signature = (
+            _norm(source),
             _norm(row.get("kind")),
             _norm(row.get("subject")),
         )
-        if key != ("", "", ""):
-            result[key] = row
-    return result
+        if signature != ("", "", ""):
+            signatures.setdefault(signature, []).append(row)
+    return {"exact": exact, "signatures": signatures}
+
+
+def _resolve_finding_history(
+    history: dict[str, Any],
+    *,
+    finding_source: str,
+    kind: str,
+    subject: str,
+    row: dict[str, Any],
+) -> dict[str, Any]:
+    exact = history.get("exact") if isinstance(history.get("exact"), dict) else {}
+    signatures = (
+        history.get("signatures")
+        if isinstance(history.get("signatures"), dict)
+        else {}
+    )
+
+    explicit_id = _safe(row.get("id"))
+    candidates = [_safe(row.get("key"))]
+    if finding_source and explicit_id:
+        candidates.append(f"{finding_source}|id:{explicit_id}")
+    for candidate in candidates:
+        if candidate and isinstance(exact.get(candidate), dict):
+            return exact[candidate]
+
+    for signature in (
+        (_norm(finding_source), _norm(kind), _norm(subject)),
+        ("", _norm(kind), _norm(subject)),
+    ):
+        matches = signatures.get(signature, [])
+        if isinstance(matches, list) and len(matches) == 1 and isinstance(matches[0], dict):
+            return matches[0]
+    return {}
 
 
 def _add_finding_rows(
@@ -572,7 +633,7 @@ def _add_finding_rows(
     source_key: str,
     report_node: str | None,
     revision: str,
-    history: dict[tuple[str, str, str], dict[str, Any]],
+    history: dict[str, Any],
 ) -> None:
     if not isinstance(rows, list):
         return
@@ -591,9 +652,12 @@ def _add_finding_rows(
         finding_source = (
             _safe(row.get("source")) if source_key == "regression" else source_key
         )
-        hist = history.get(
-            (_norm(finding_source), _norm(kind), _norm(subject)),
-            history.get(("", _norm(kind), _norm(subject)), {}),
+        hist = _resolve_finding_history(
+            history,
+            finding_source=finding_source,
+            kind=kind,
+            subject=subject,
+            row=row,
         )
         attrs = {
             **_scalars(
@@ -621,8 +685,15 @@ def _add_finding_rows(
             "seen_count": int(hist.get("seen_count", 0) or 0),
             "consecutive_seen": int(hist.get("consecutive_seen", 0) or 0),
         }
-        canonical_history_key = _safe(hist.get("key")) or _safe(hist.get("id")) or _safe(row.get("key"))
-        key = canonical_history_key or original_id or f"{source_key}:{kind}:{subject}"
+        canonical_history_key = _safe(hist.get("key")) or _safe(row.get("key"))
+        if not canonical_history_key and original_id and finding_source:
+            canonical_history_key = f"{finding_source}|id:{original_id}"
+        key = (
+            canonical_history_key
+            or _safe(hist.get("id"))
+            or original_id
+            or f"{source_key}:{kind}:{subject}"
+        )
         node = builder.add_node(
             "Finding",
             key,
@@ -776,7 +847,16 @@ def _add_claims(
         if "confidence" in reports:
             builder.add_edge("DERIVED_FROM", node, reports["confidence"], provenance=[FILES["confidence"]])
 
-        target = builder.match_subject(subject, ("Capability", "Surface", "Finding"))
+        domain = _norm(row.get("domain"))
+        allowed_by_domain = {
+            "capability": ("Capability",),
+            "surface": ("Surface",),
+            "finding": ("Finding",),
+        }
+        target = builder.match_subject(
+            subject,
+            allowed_by_domain.get(domain, ("Capability", "Surface", "Finding")),
+        )
         if target:
             builder.add_edge("CLAIM_ABOUT", node, target, provenance=[FILES["confidence"]])
 
@@ -946,6 +1026,61 @@ def _add_results(
     reports: dict[str, str],
     revision: str,
 ) -> None:
+    trusted_result = inputs.get("trusted_result", {})
+    if trusted_result:
+        node = builder.add_node(
+            "Result",
+            "trusted_runtime",
+            "Trusted Runtime Verification",
+            attributes={
+                **_scalars(
+                    trusted_result,
+                    (
+                        "result",
+                        "pipeline_status",
+                        "analysis_mode",
+                        "analysis_lane",
+                        "reason",
+                        "repository",
+                        "resolved_sha",
+                        "workflow_run_id",
+                        "package_id",
+                        "engine",
+                        "observed_at",
+                        "maestro",
+                        "visual_qa",
+                        "visual_regression",
+                        "visual_journey",
+                        "interaction_crawl",
+                        "system_lab",
+                        "network_lab",
+                        "persistence_lab",
+                        "configuration_lab",
+                        "resource_pressure_lab",
+                        "background_lab",
+                        "storage_lab",
+                        "upgrade_lab",
+                        "performance_lab",
+                    ),
+                ),
+                "authoritative_runtime_result": True,
+            },
+            provenance=["result.json"],
+        )
+        builder.add_edge(
+            "REVISION_HAS_RESULT",
+            revision,
+            node,
+            provenance=["result.json"],
+        )
+        if "trusted_result" in reports:
+            builder.add_edge(
+                "DERIVED_FROM",
+                node,
+                reports["trusted_result"],
+                provenance=["result.json"],
+            )
+
     analyst = inputs.get("analyst", {})
     if analyst:
         summary = analyst.get("summary") if isinstance(analyst.get("summary"), dict) else {}
