@@ -10,6 +10,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from android_runtime_health import target_crash_state
+
 PACKAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$")
 
 
@@ -229,19 +231,14 @@ def wait_for_connectivity(
 def app_crash_state(package_id: str) -> tuple[bool, str]:
     # A fresh Android process can briefly disappear from a single pidof probe
     # while ActivityManager is completing a cold relaunch. Judge runtime health
-    # from fatal/ANR evidence first, then require the process to remain visible
-    # across a short stabilization window before declaring it healthy.
+    # from target-scoped fatal/ANR evidence first, then require the process to
+    # remain visible across a short stabilization window.
     def fatal_or_anr() -> str:
         logcat = adb(
             "logcat", "-b", "all", "-d", "-v", "brief", timeout=30
         ).stdout
-        if f"ANR in {package_id}" in logcat:
-            return "ANR detected"
-        fatal = re.search(
-            rf"FATAL EXCEPTION:[\s\S]{{0,2200}}Process:\s*{re.escape(package_id)}\b",
-            logcat,
-        )
-        return "fatal exception detected" if fatal else ""
+        reason, _ = target_crash_state(logcat, package_id)
+        return reason
 
     reason = fatal_or_anr()
     if reason:

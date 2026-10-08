@@ -10,6 +10,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from android_runtime_health import target_crash_state
+
 PACKAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$")
 ALLOWED_TRIM_LEVELS = {
     "RUNNING_MODERATE",
@@ -160,18 +162,12 @@ def launch(package_id: str) -> str:
 def runtime_unhealthy(package_id: str) -> str:
     if not pid_of(package_id):
         return "application process is not running"
-    # ActivityManager emits ANRs from system_server, so this check must inspect
-    # the system log buffer. Process-death callers clear that buffer immediately
-    # before relaunch so only recovery-window failures are considered.
+    # ActivityManager emits ANRs from system_server, so inspect the system log
+    # buffer but classify AndroidRuntime fatal records only when they belong to
+    # this package and runtime PID.
     logs = adb("logcat", "-b", "all", "-d", "-v", "brief", timeout=30).stdout
-    if f"ANR in {package_id}" in logs:
-        return "ANR detected"
-    if re.search(
-        rf"FATAL EXCEPTION:[\s\S]{{0,2200}}Process:\s*{re.escape(package_id)}\b",
-        logs,
-    ):
-        return "fatal exception detected"
-    return ""
+    reason, _ = target_crash_state(logs, package_id)
+    return reason
 
 
 def meminfo(package_id: str) -> dict[str, Any]:

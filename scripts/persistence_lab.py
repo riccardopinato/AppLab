@@ -10,6 +10,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from android_runtime_health import target_crash_state
+
 PACKAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$")
 
 
@@ -158,14 +160,8 @@ def package_runtime_unhealthy(package_id: str) -> str:
     if not pid:
         return "application process is not running"
     logs = adb("logcat", "-b", "all", "-d", "-v", "brief", timeout=30).stdout
-    if f"ANR in {package_id}" in logs:
-        return "ANR detected"
-    if re.search(
-        rf"FATAL EXCEPTION:[\s\S]{{0,2200}}Process:\s*{re.escape(package_id)}\b",
-        logs,
-    ):
-        return "fatal exception detected"
-    return ""
+    reason, _ = target_crash_state(logs, package_id)
+    return reason
 
 
 def check_text_policy(

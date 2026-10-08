@@ -10,6 +10,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from android_runtime_health import target_crash_state
+
 PACKAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$")
 PERMISSION_RE = re.compile(r"^android\.permission\.[A-Z0-9_]+$")
 
@@ -131,19 +133,41 @@ def wait_for_pid(package_id: str, timeout: float = 30.0) -> str:
     return ""
 
 
-def app_crash_state(package_id: str) -> tuple[bool, str]:
-    if not pid_of(package_id):
-        return True, "application process is not running"
+def logcat_crash_state(
+    logcat: str,
+    package_id: str,
+) -> tuple[bool, str, list[str]]:
+    reason, evidence = target_crash_state(logcat, package_id)
+    return bool(reason), reason, evidence
+
+
+def app_crash_state(
+    package_id: str,
+) -> tuple[bool, str, list[str], str]:
+    # Read target-scoped crash evidence before interpreting a transient pidof
+    # miss. Hosted AVDs can briefly recycle a process after force-stop/relaunch.
     logcat = run("adb", "logcat", "-b", "all", "-d", "-v", "brief").stdout
-    if f"ANR in {package_id}" in logcat:
-        return True, "ANR detected"
-    fatal = re.search(
-        rf"FATAL EXCEPTION:[\s\S]{{0,1800}}Process:\s*{re.escape(package_id)}\b",
-        logcat,
-    )
-    if fatal:
-        return True, "fatal exception detected"
-    return False, ""
+    crashed, reason, evidence = logcat_crash_state(logcat, package_id)
+    if crashed:
+        return True, reason, evidence, logcat
+
+    pid = wait_for_pid(package_id, timeout=5.0)
+    if not pid:
+        logcat = run("adb", "logcat", "-b", "all", "-d", "-v", "brief").stdout
+        crashed, reason, evidence = logcat_crash_state(logcat, package_id)
+        if crashed:
+            return True, reason, evidence, logcat
+        return True, "application process is not running", [], logcat
+
+    time.sleep(1.0)
+    if not pid_of(package_id) and not wait_for_pid(package_id, timeout=3.0):
+        return (
+            True,
+            "application process did not remain stable",
+            [],
+            logcat,
+        )
+    return False, "", [], logcat
 
 
 def relaunch(package_id: str) -> str:
@@ -416,6 +440,13 @@ def evaluate(
         raise ValueError("invalid package id")
 
     findings: list[Finding] = []
+
+    # Own only diagnostics produced during System UI Lab. Clear before any
+    # lab-initiated relaunch so startup ANR/FATAL records remain in scope.
+    # Previous Maestro/crawler/platform noise must not be reclassified as a
+    # current app failure.
+    run("adb", "logcat", "-b", "all", "-c")
+
     initial_pid = pid_of(package_id)
     if not initial_pid:
         restarted = relaunch(package_id)
@@ -451,14 +482,19 @@ def evaluate(
     deep_links = exercise_deep_links(package_id, config["deep_links"], findings)
     biometric = exercise_biometric(config, findings)
 
-    crashed, crash_reason = app_crash_state(package_id)
+    crashed, crash_reason, crash_evidence, crash_logcat = app_crash_state(
+        package_id
+    )
     if crashed:
         findings.append(
             Finding(
                 "error",
                 "runtime_unhealthy",
                 "Application runtime is unhealthy after system checks.",
-                {"reason": crash_reason},
+                {
+                    "reason": crash_reason,
+                    "logcat_evidence": crash_evidence,
+                },
             )
         )
 
@@ -468,7 +504,7 @@ def evaluate(
 
     return {
         "schema_version": 1,
-        "system_lab_version": "0.6.7",
+        "system_lab_version": "0.6.9",
         "result": result,
         "package_id": package_id,
         "errors": len(errors),
@@ -483,6 +519,7 @@ def evaluate(
         "process_restart": process_restart,
         "deep_links": deep_links,
         "biometric": biometric,
+        "runtime_logcat": crash_logcat,
         "findings": [asdict(item) for item in findings],
     }
 
@@ -550,6 +587,31 @@ def self_test() -> None:
         assert parsed["deep_links"][0]["uri"] == "applab://selftest"
         assert parsed["biometric"]["finger_id"] == 2
 
+    foreign_fatal = """E/AndroidRuntime( 1200): FATAL EXCEPTION: main
+E/AndroidRuntime( 1200): Process: com.google.android.apps.nexuslauncher, PID: 1200
+E/AndroidRuntime( 1200): java.lang.RuntimeException: launcher failure
+I/ActivityManager( 700): Process: com.riccardopinato.trail_path state changed
+"""
+    assert logcat_crash_state(
+        foreign_fatal,
+        "com.riccardopinato.trail_path",
+    )[:2] == (False, "")
+
+    target_fatal = """E/AndroidRuntime( 2200): FATAL EXCEPTION: main
+E/AndroidRuntime( 2200): Process: com.riccardopinato.trail_path, PID: 2200
+E/AndroidRuntime( 2200): java.lang.RuntimeException: target failure
+"""
+    assert logcat_crash_state(
+        target_fatal,
+        "com.riccardopinato.trail_path",
+    )[:2] == (True, "fatal exception detected")
+
+    target_anr = "E/ActivityManager: ANR in com.riccardopinato.trail_path\n"
+    assert logcat_crash_state(
+        target_anr,
+        "com.riccardopinato.trail_path",
+    )[:2] == (True, "ANR detected")
+
     try:
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "bad.json"
@@ -584,6 +646,10 @@ def main() -> int:
     report = evaluate(args.package_id, config)
     report_dir = Path(args.report_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
+    (report_dir / "system-lab-logcat.txt").write_text(
+        report.pop("runtime_logcat", ""),
+        encoding="utf-8",
+    )
     (report_dir / "system-lab.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
