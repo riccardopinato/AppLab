@@ -1,0 +1,92 @@
+name: CamperBoss Screen-by-Screen Emulator Audit
+
+on:
+  push:
+    branches:
+      - audit-camperboss-2026-10-07
+    paths:
+      - ".github/workflows/camperboss-screen-by-screen.yml"
+      - ".maestro/camperboss-screen-by-screen-audit.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: riccardopinato/CamperBoss
+          ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: "3.47.6"
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --debug
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: camperboss-audit-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 1
+          compression-level: 0
+
+  screen_audit:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        api: ["35", "29"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: camperboss-audit-debug-apk
+          path: apk
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Maestro
+        run: |
+          chmod +x scripts/install_maestro.sh
+          ./scripts/install_maestro.sh
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run screen-by-screen audit
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          disable-animations: true
+          script: |
+            set -Eeuo pipefail
+            adb install -r "$GITHUB_WORKSPACE/apk/app-debug.apk"
+            mkdir -p "$GITHUB_WORKSPACE/audit-output/api-${{ matrix.api }}"
+            cp "$GITHUB_WORKSPACE/.maestro/camperboss-screen-by-screen-audit.yaml" "$GITHUB_WORKSPACE/audit-output/api-${{ matrix.api }}/flow.yaml"
+            cd "$GITHUB_WORKSPACE/audit-output/api-${{ matrix.api }}"
+            "$HOME/.maestro/bin/maestro" test flow.yaml --debug-output debug
+            adb logcat -d > logcat.txt || true
+            adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
+            adb pull /sdcard/window.xml window.xml >/dev/null 2>&1 || true
+      - name: Upload screen evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: camperboss-screen-audit-api-${{ matrix.api }}
+          path: audit-output/api-${{ matrix.api }}/
+          if-no-files-found: warn
+          retention-days: 3
