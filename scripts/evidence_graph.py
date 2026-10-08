@@ -473,19 +473,26 @@ def _add_surfaces(
             "Surface",
             surface,
             _safe(row.get("label")) or _safe(row.get("name")) or surface,
-            attributes=_scalars(
-                row,
-                (
-                    "id",
-                    "name",
-                    "label",
-                    "role",
-                    "route",
-                    "path",
-                    "source",
-                    "kind",
+            attributes={
+                **_scalars(
+                    row,
+                    (
+                        "id",
+                        "name",
+                        "label",
+                        "role",
+                        "route",
+                        "path",
+                        "source",
+                        "kind",
+                    ),
                 ),
-            ),
+                "roles": [
+                    _safe(value)
+                    for value in row.get("roles", [])[:16]
+                    if _safe(value)
+                ] if isinstance(row.get("roles"), list) else [],
+            },
             provenance=[FILES["app"]],
         )
         builder.add_edge("REVISION_HAS_SURFACE", revision, node, provenance=[FILES["app"]])
@@ -505,13 +512,29 @@ def _add_journeys(
         if not isinstance(row, dict):
             continue
         steps = row.get("steps") if isinstance(row.get("steps"), list) else []
-        key = _safe(row.get("id")) or "|".join(_safe(x) for x in steps) or f"journey-{index}"
+        key = (
+            _safe(row.get("id"))
+            or _safe(row.get("state_id"))
+            or "|".join(_safe(x) for x in steps)
+            or f"journey-{index}"
+        )
         node = builder.add_node(
             "Journey",
             key,
             _safe(row.get("name")) or f"Journey {index + 1}",
             attributes={
-                **_scalars(row, ("id", "name", "depth", "status", "start_state", "end_state")),
+                **_scalars(
+                    row,
+                    (
+                        "id",
+                        "state_id",
+                        "name",
+                        "depth",
+                        "status",
+                        "start_state",
+                        "end_state",
+                    ),
+                ),
                 "steps": [_safe(x) for x in steps[:20]],
             },
             provenance=[FILES["journey"]],
@@ -557,7 +580,12 @@ def _add_finding_rows(
         if not isinstance(row, dict):
             continue
         kind = _safe(row.get("kind")) or _safe(row.get("category")) or "FINDING"
-        subject = _safe(row.get("subject")) or _safe(row.get("id")) or f"{source_key}-{index}"
+        subject = (
+            _safe(row.get("subject"))
+            or _safe(row.get("capability"))
+            or _safe(row.get("id"))
+            or f"{source_key}-{index}"
+        )
         message = _safe(row.get("message")) or _safe(row.get("reason"))
         original_id = _safe(row.get("id"))
         finding_source = (
@@ -577,6 +605,7 @@ def _add_finding_rows(
                     "kind",
                     "severity",
                     "subject",
+                    "capability",
                     "message",
                     "reason",
                     "source",
