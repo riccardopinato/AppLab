@@ -15,6 +15,12 @@ _THREADTIME_ANDROID_RUNTIME = re.compile(
 _PROCESS_LINE = re.compile(
     r"^Process:\s*([^,\s]+)(?:,\s*PID:\s*(\d+))?"
 )
+_ANR_LINE = re.compile(r"\bANR in\s+([^,\s]+)")
+
+
+def _is_target_process(process_name: str, package_id: str) -> bool:
+    return process_name == package_id or process_name.startswith(package_id + ":")
+
 
 
 def _android_runtime_entry(line: str) -> tuple[str | None, str] | None:
@@ -35,7 +41,8 @@ def target_crash_state(
     lines = logcat.splitlines()
 
     for index, line in enumerate(lines):
-        if f"ANR in {package_id}" in line:
+        anr = _ANR_LINE.search(line)
+        if anr and _is_target_process(anr.group(1), package_id):
             return "ANR detected", lines[max(0, index - 2) : index + 4]
 
     entries = [_android_runtime_entry(line) for line in lines]
@@ -77,7 +84,7 @@ def target_crash_state(
 
             process_name = process.group(1)
             process_pid = process.group(2)
-            if process_name != package_id:
+            if not _is_target_process(process_name, package_id):
                 break
 
             if (
@@ -123,8 +130,21 @@ E/AndroidRuntime( 2200): java.lang.RuntimeException: target failure
 """
     assert target_crash_state(threadtime, package)[0] == "fatal exception detected"
 
+    subprocess_fatal = """E/AndroidRuntime( 3300): FATAL EXCEPTION: worker
+E/AndroidRuntime( 3300): Process: com.riccardopinato.trail_path:worker, PID: 3300
+E/AndroidRuntime( 3300): java.lang.RuntimeException: worker failure
+"""
+    assert target_crash_state(subprocess_fatal, package)[0] == "fatal exception detected"
+
+    neighbor = """E/AndroidRuntime( 4400): FATAL EXCEPTION: main
+E/AndroidRuntime( 4400): Process: com.riccardopinato.trail_path_extra, PID: 4400
+"""
+    assert target_crash_state(neighbor, package) == ("", [])
+
     anr = "E/ActivityManager( 700): ANR in com.riccardopinato.trail_path\n"
     assert target_crash_state(anr, package)[0] == "ANR detected"
+    subprocess_anr = "E/ActivityManager( 700): ANR in com.riccardopinato.trail_path:worker\n"
+    assert target_crash_state(subprocess_anr, package)[0] == "ANR detected"
 
     print("AppLab target-scoped Android runtime health self-test PASS")
 
