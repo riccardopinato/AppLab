@@ -22,6 +22,7 @@ CONTRACT_FILES = (
     "scripts/install_maestro.sh",
     "scripts/interaction_crawler.py",
     "scripts/system_lab.py",
+    "scripts/android_runtime_health.py",
     "scripts/performance_lab.py",
     "scripts/network_lab.py",
     "scripts/persistence_lab.py",
