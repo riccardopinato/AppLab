@@ -1,0 +1,127 @@
+appId: com.camperboss.camperboss
+---
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible: "Camper cockpit"
+    timeout: 30000
+- takeScreenshot: "01-home-first-run"
+
+- tapOn:
+    text: "^Camper$"
+- extendedWaitUntil:
+    visible: "Vehicle profile"
+    timeout: 15000
+- takeScreenshot: "02-camper-hub"
+
+- tapOn: "Vehicle profile"
+- extendedWaitUntil:
+    visible: "Create profile"
+    timeout: 15000
+- takeScreenshot: "03-vehicle-profile-empty"
+- back
+
+- tapOn: "Vehicle documents"
+- extendedWaitUntil:
+    visible: "Vehicle documents"
+    timeout: 15000
+- takeScreenshot: "04-documents-empty"
+- back
+
+- tapOn: "Maintenance"
+- extendedWaitUntil:
+    visible: "Maintenance"
+    timeout: 15000
+- takeScreenshot: "05-maintenance-empty"
+- back
+
+- tapOn:
+    text: "^Trips$"
+- extendedWaitUntil:
+    visible: "Trip planner"
+    timeout: 15000
+- takeScreenshot: "06-trips-hub"
+
+- tapOn: "Trip planner"
+- extendedWaitUntil:
+    visible: "Add trip"
+    timeout: 15000
+- takeScreenshot: "07-trip-planner-empty"
+- back
+
+- tapOn: "Checklists"
+- extendedWaitUntil:
+    visible: "Checklists"
+    timeout: 15000
+- takeScreenshot: "08-checklist-empty"
+- back
+
+- tapOn: "Travel journal"
+- extendedWaitUntil:
+    visible: "Travel journal"
+    timeout: 15000
+- takeScreenshot: "09-journal-empty"
+- back
+
+- tapOn: "Budget, fuel & bookings"
+- extendedWaitUntil:
+    visible: "Add expense"
+    timeout: 15000
+- takeScreenshot: "10-finance-empty"
+- back
+
+- tapOn: "GPX, memories & statistics"
+- extendedWaitUntil:
+    visible: "Travel history"
+    timeout: 15000
+- takeScreenshot: "11-travel-history-empty"
+- back
+
+- tapOn:
+    text: "^More$"
+- extendedWaitUntil:
+    visible: "Search"
+    timeout: 15000
+- takeScreenshot: "12-more-hub"
+
+- tapOn: "Search"
+- extendedWaitUntil:
+    visible: "Rebuild index"
+    timeout: 15000
+- takeScreenshot: "13-search"
+- back
+
+- tapOn: "Offline content"
+- extendedWaitUntil:
+    visible: "Offline content"
+    timeout: 15000
+- takeScreenshot: "14-offline-content"
+- back
+
+- tapOn: "Backup & recovery"
+- extendedWaitUntil:
+    visible: "Create backup"
+    timeout: 15000
+- takeScreenshot: "15-backup"
+- back
+
+- tapOn: "Language"
+- extendedWaitUntil:
+    visible: "Use device language"
+    timeout: 15000
+- takeScreenshot: "16-language"
+- back
+
+- tapOn: "Notifications"
+- extendedWaitUntil:
+    visible: "Enable local reminders"
+    timeout: 15000
+- takeScreenshot: "17-notifications"
+- back
+
+- tapOn: "Guided setup"
+- extendedWaitUntil:
+    visible: "Language and country"
+    timeout: 15000
+- takeScreenshot: "18-guided-setup"
