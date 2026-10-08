@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "studio_version": "4.1.0",
-  "generated_at": "2026-10-03T00:00:00Z",
+  "studio_version": "4.2.0",
+  "generated_at": "2026-10-04T00:00:00Z",
   "preview": true,
   "summary": {
     "projects": 1,
@@ -26,7 +26,12 @@
     "journeys_observed": 2,
     "journey_review_signals": 1,
     "ux_review_signals": 1,
-    "ux_no_change_actions": 0
+    "ux_no_change_actions": 0,
+    "with_evidence_graph": 1,
+    "evidence_graph_nodes": 31,
+    "evidence_graph_edges": 47,
+    "graph_unverified_capabilities": 1,
+    "graph_recurring_findings": 1
   },
   "projects": [
     {
@@ -40,7 +45,8 @@
           "UX Friction Lab",
           "Longitudinal Intelligence",
           "Experiment Planner",
-          "AppLab Analyst"
+          "AppLab Analyst",
+          "Evidence Graph"
         ],
         "screen_like_files": 0,
         "entity_count": 0,
@@ -236,6 +242,50 @@
         "trusted_run_id": "",
         "manifest_sha256": "",
         "top_actions": []
+      },
+      "evidence_graph": {
+        "nodes": 31,
+        "edges": 47,
+        "nodes_by_type": {
+          "Project": 1,
+          "Revision": 2,
+          "BuildArtifact": 1,
+          "Capability": 7,
+          "Surface": 2,
+          "Journey": 2,
+          "Finding": 4,
+          "Claim": 3,
+          "Evidence": 5,
+          "Experiment": 2,
+          "Result": 2
+        },
+        "relations_by_type": {
+          "PROJECT_HAS_REVISION": 2,
+          "REVISION_HAS_CAPABILITY": 7,
+          "REVISION_HAS_FINDING": 4,
+          "REVISION_HAS_CLAIM": 3,
+          "CLAIM_SUPPORTED_BY": 3,
+          "REVISION_PLANS_EXPERIMENT": 2
+        },
+        "unverified_capabilities": 1,
+        "recurring_findings": 1,
+        "regression_candidates": 0,
+        "top_unverified_capabilities": [
+          {
+            "capability": "Web Preview runtime authority",
+            "status": "UNVERIFIED",
+            "claim_id": "PREVIEW"
+          }
+        ],
+        "top_recurring_findings": [
+          {
+            "kind": "PREVIEW_BOUNDARY",
+            "subject": "Web Preview",
+            "seen_count": 3,
+            "first_observed_sha": "",
+            "last_observed_sha": ""
+          }
+        ]
       }
     }
   ],
