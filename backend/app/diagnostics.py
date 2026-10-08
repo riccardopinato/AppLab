@@ -11,6 +11,12 @@ _THREADTIME_ANDROID_RUNTIME = re.compile(
     r"^\S+\s+\S+\s+(\d+)\s+\d+\s+[VDIWEF]\s+AndroidRuntime:\s*(.*)$"
 )
 _PROCESS_LINE = re.compile(r"^Process:\s*([^,\s]+)(?:,\s*PID:\s*(\d+))?")
+_ANR_LINE = re.compile(r"\bANR in\s+([^,\s]+)")
+
+
+def _is_target_process(process_name: str, package_id: str) -> bool:
+    return process_name == package_id or process_name.startswith(package_id + ":")
+
 
 
 def _android_runtime_entry(line: str) -> tuple[str | None, str] | None:
@@ -50,7 +56,7 @@ def _target_fatal(logcat: str, package_id: str) -> bool:
             process = _PROCESS_LINE.match(detail_message)
             if process is None:
                 continue
-            if process.group(1) != package_id:
+            if not _is_target_process(process.group(1), package_id):
                 break
             process_pid = process.group(2)
             if (
@@ -88,7 +94,11 @@ def analyze_logcat(
             }
         )
 
-    if f"ANR in {package_id}" in logcat:
+    if any(
+        _is_target_process(match.group(1), package_id)
+        for line in logcat.splitlines()
+        if (match := _ANR_LINE.search(line))
+    ):
         issues.append(
             {
                 "code": "ANR",
