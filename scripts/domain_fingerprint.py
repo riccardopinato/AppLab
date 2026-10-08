@@ -10,7 +10,10 @@ from contract_fingerprint import CONTRACT_FILES
 
 
 SPECIALIST_DOMAINS: dict[str, tuple[str, ...]] = {
-    "system": ("scripts/system_lab.py",),
+    "system": (
+        "scripts/system_lab.py",
+        "scripts/android_runtime_health.py",
+    ),
     "performance": ("scripts/performance_lab.py", "scripts/prepare_performance_baseline.py"),
     "network": ("scripts/network_lab.py",),
     "persistence": ("scripts/persistence_lab.py",),
