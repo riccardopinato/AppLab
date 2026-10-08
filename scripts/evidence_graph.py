@@ -686,12 +686,12 @@ def _add_finding_rows(
             "consecutive_seen": int(hist.get("consecutive_seen", 0) or 0),
         }
         canonical_history_key = _safe(hist.get("key")) or _safe(row.get("key"))
-        if not canonical_history_key and original_id and finding_source:
-            canonical_history_key = f"{finding_source}|id:{original_id}"
+        canonical_id = original_id or _safe(hist.get("id"))
+        if not canonical_history_key and canonical_id and finding_source:
+            canonical_history_key = f"{finding_source}|id:{canonical_id}"
         key = (
             canonical_history_key
-            or _safe(hist.get("id"))
-            or original_id
+            or canonical_id
             or f"{source_key}:{kind}:{subject}"
         )
         node = builder.add_node(
