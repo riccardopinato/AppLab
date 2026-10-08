@@ -1,0 +1,30 @@
+name: CamperBoss API35 Final Audit 2026-10-08
+
+on:
+  push:
+    branches:
+      - audit-camperboss-api35-final-20261008
+    paths:
+      - ".github/workflows/camperboss-api35-final-audit.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    uses: ./.github/workflows/universal-project-runner.yml
+    with:
+      repository: riccardopinato/CamperBoss
+      ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
+      source_ref: main
+      run_maestro: false
+      history_key: audit-camperboss-api35-final
+      cache_verification: false
+      contract_fingerprint: camperboss-audit-api35-final
+      config_fingerprint: camperboss-audit-api35-final
+      approve_visual_baseline: false
+      analysis_mode: certification
+      api_level_override: "35"
+      emulator_profile_override: pixel_7_pro
+      publish_release_artifact: false
