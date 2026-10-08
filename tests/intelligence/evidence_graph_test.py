@@ -61,8 +61,30 @@ def main() -> int:
             ],
             "contradictions": [],
         },
-        "journey": {"journeys": [{"depth": 1, "steps": ["home", "settings"]}], "findings": []},
+        "journey": {
+            "journeys": [{"depth": 1, "steps": ["home", "settings"]}],
+            "findings": [
+                {
+                    "id": "persist-gap-journey",
+                    "kind": "PERSISTENCE_GAP",
+                    "subject": "draft",
+                    "severity": "REVIEW",
+                    "evidence": ["journey.json"],
+                }
+            ],
+        },
         "ux": {"findings": []},
+        "behavioral": {
+            "findings": [
+                {
+                    "id": "behavioral-recurring",
+                    "kind": "BEHAVIOR_GAP",
+                    "subject": "resume",
+                    "severity": "REVIEW",
+                    "evidence": ["behavioral.json"],
+                }
+            ]
+        },
         "longitudinal": {
             "state": "REGRESSION_REVIEW",
             "current": {
@@ -81,10 +103,34 @@ def main() -> int:
             "findings": {
                 "history": [
                     {
+                        "key": "product_consistency|id:persist-gap",
+                        "source": "product_consistency",
                         "id": "persist-gap",
                         "kind": "PERSISTENCE_GAP",
                         "subject": "draft",
                         "seen_count": 3,
+                        "consecutive_seen": 2,
+                        "first_seen_sha": sha_old,
+                        "last_seen_sha": sha_new,
+                    },
+                    {
+                        "key": "user_journey|id:persist-gap-journey",
+                        "source": "user_journey",
+                        "id": "persist-gap-journey",
+                        "kind": "PERSISTENCE_GAP",
+                        "subject": "draft",
+                        "seen_count": 2,
+                        "consecutive_seen": 2,
+                        "first_seen_sha": sha_old,
+                        "last_seen_sha": sha_new,
+                    },
+                    {
+                        "key": "behavioral_product|id:behavioral-recurring",
+                        "source": "behavioral_product",
+                        "id": "behavioral-recurring",
+                        "kind": "BEHAVIOR_GAP",
+                        "subject": "resume",
+                        "seen_count": 2,
                         "consecutive_seen": 2,
                         "first_seen_sha": sha_old,
                         "last_seen_sha": sha_new,
@@ -93,6 +139,8 @@ def main() -> int:
             },
             "regression_candidates": [
                 {
+                    "key": "user_journey|id:persist-gap-journey",
+                    "source": "user_journey",
                     "kind": "PERSISTENCE_GAP",
                     "subject": "draft",
                     "reason": "returned after absence",
@@ -139,15 +187,40 @@ def main() -> int:
     require(payload["summary"]["nodes_by_type"]["Project"] == 1, "project node missing")
     require(payload["summary"]["nodes_by_type"]["Revision"] == 2, "revision lineage missing")
     require(payload["summary"]["nodes_by_type"]["Capability"] == 2, "capability nodes missing")
-    require(payload["summary"]["nodes_by_type"]["Finding"] == 1, "duplicate canonical finding nodes")
+    require(payload["summary"]["nodes_by_type"]["Finding"] == 3, "source-namespaced finding identity mismatch")
     require(payload["summary"]["nodes_by_type"]["Experiment"] == 1, "experiment node missing")
-    require(payload["summary"]["recurring_findings"] == 1, "recurrence not imported")
+    require(payload["summary"]["recurring_findings"] == 3, "recurrence not imported")
     require(payload["summary"]["unverified_capabilities"] == 1, "unverified capability not surfaced")
 
     history = graph.query_graph(payload, "history", "draft")
-    require(len(history["results"]) == 1, "history query duplicated one canonical finding")
-    require(history["results"][0]["first_observed_sha"] == sha_old, "first observed SHA mismatch")
-    require("not proof" in history["results"][0]["caveat"], "causal caveat missing")
+    require(len(history["results"]) == 2, "source-namespaced findings collapsed")
+    require(all(row["first_observed_sha"] == sha_old for row in history["results"]), "first observed SHA mismatch")
+    require(all("not proof" in row["caveat"] for row in history["results"]), "causal caveat missing")
+
+    finding_nodes = {
+        row["key"]: row
+        for row in nodes
+        if row.get("type") == "Finding"
+    }
+    require("behavioral_product|id:behavioral-recurring" in finding_nodes, "behavioral finding not imported")
+    experiment_node = next(row for row in nodes if row.get("type") == "Experiment")
+    experiment_edges = [
+        row for row in edges
+        if row.get("type") == "EXPERIMENT_TARGETS" and row.get("from") == experiment_node["id"]
+    ]
+    require(len(experiment_edges) == 1, "experiment target must be unambiguous")
+    journey_target = finding_nodes["user_journey|id:persist-gap-journey"]["id"]
+    require(experiment_edges[0]["to"] == journey_target, "experiment linked to wrong same-subject finding")
+
+    journey_revision_edge = next(
+        row for row in edges
+        if row.get("type") == "REVISION_HAS_FINDING" and row.get("to") == journey_target
+    )
+    require(
+        set(journey_revision_edge.get("provenance", []))
+        == {"user-journey.json", "longitudinal-intelligence.json"},
+        "edge provenance was overwritten instead of merged",
+    )
 
     evidence = graph.query_graph(payload, "evidence", "cloud_backup")
     require(evidence["matched_nodes"], "subject matching failed")
