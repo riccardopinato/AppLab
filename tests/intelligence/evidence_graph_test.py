@@ -152,6 +152,8 @@ def main() -> int:
                 {
                     "id": "EXP-PERSIST",
                     "priority": "HIGH",
+                    "source": "LONGITUDINAL_REGRESSION",
+                    "triggers": ["LONGITUDINAL_REGRESSION"],
                     "kind": "PERSISTENCE_GAP",
                     "subject": "draft",
                     "experiment_type": "SPECIALIST_RUNTIME",
