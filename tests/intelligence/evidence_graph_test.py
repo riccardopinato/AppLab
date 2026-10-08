@@ -50,6 +50,14 @@ def main() -> int:
                         "subject": "draft",
                         "severity": "REVIEW",
                         "evidence": ["lib/store-secondary.dart"],
+                    },
+                    {
+                        "id": "orphan-settings",
+                        "domain": "product_flow",
+                        "kind": "ORPHAN_SURFACE_CANDIDATE",
+                        "subject": "settings",
+                        "severity": "REVIEW",
+                        "evidence": ["ui/settings.dart"],
                     }
                 ]
             },
@@ -84,8 +92,34 @@ def main() -> int:
                     "status": "UNVERIFIED",
                     "evidence": ["localized-state.json"],
                 },
+                {
+                    "id": "state:offline",
+                    "domain": "state",
+                    "subject": "offline",
+                    "status": "CONFIRMED",
+                    "evidence": ["state-offline.json"],
+                },
+                {
+                    "id": "finding:orphan-settings",
+                    "domain": "product_flow",
+                    "subject": "settings",
+                    "status": "UNVERIFIED",
+                    "evidence": ["ui/settings.dart"],
+                },
             ],
             "contradictions": [],
+        },
+        "states": {
+            "findings": [
+                {
+                    "id": "offline-state-settings",
+                    "domain": "state",
+                    "kind": "OFFLINE_STATE_FAILURE",
+                    "subject": "settings",
+                    "severity": "REVIEW",
+                    "evidence": ["state-settings.json"],
+                }
+            ]
         },
         "journey": {
             "journeys": [
@@ -265,8 +299,8 @@ def main() -> int:
     require(payload["summary"]["nodes_by_type"]["Capability"] == 3, "capability nodes missing")
     require(payload["summary"]["nodes_by_type"]["Surface"] == 2, "surface nodes missing")
     require(payload["summary"]["nodes_by_type"]["Journey"] == 2, "state-distinct journeys collapsed")
-    require(payload["summary"]["nodes_by_type"]["Finding"] == 5, "canonical finding identity mismatch")
-    require(payload["summary"]["nodes_by_type"]["Claim"] == 4, "claim nodes missing")
+    require(payload["summary"]["nodes_by_type"]["Finding"] == 7, "canonical finding identity mismatch")
+    require(payload["summary"]["nodes_by_type"]["Claim"] == 6, "claim nodes missing")
     require(payload["summary"]["nodes_by_type"]["Experiment"] == 1, "experiment node missing")
     require(payload["summary"]["nodes_by_type"]["Result"] == 3, "trusted runtime result missing")
     require(payload["summary"]["recurring_findings"] == 5, "recurrence not imported")
@@ -321,6 +355,50 @@ def main() -> int:
         surface_claim_edges[0]["to"] == surface_settings["id"]
         and surface_claim_edges[0]["to"] != capability_settings["id"],
         "surface claim linked to colliding capability",
+    )
+
+    orphan_finding = finding_nodes["product_consistency|id:orphan-settings"]
+    orphan_edges = [
+        row for row in edges
+        if row.get("type") == "FINDING_ABOUT" and row.get("from") == orphan_finding["id"]
+    ]
+    require(len(orphan_edges) == 1, "surface finding target missing")
+    require(
+        orphan_edges[0]["to"] == surface_settings["id"]
+        and orphan_edges[0]["to"] != capability_settings["id"],
+        "surface finding linked to colliding capability",
+    )
+
+    calibrated_claim = next(
+        row for row in nodes
+        if row.get("type") == "Claim" and row.get("key") == "finding:orphan-settings"
+    )
+    calibrated_edges = [
+        row for row in edges
+        if row.get("type") == "CLAIM_ABOUT" and row.get("from") == calibrated_claim["id"]
+    ]
+    require(len(calibrated_edges) == 1, "calibrated finding claim target missing")
+    require(
+        calibrated_edges[0]["to"] == orphan_finding["id"],
+        "calibrated finding claim linked to wrong colliding subject",
+    )
+
+    state_claim = next(
+        row for row in nodes
+        if row.get("type") == "Claim" and row.get("key") == "state:offline"
+    )
+    require(
+        not any(
+            row.get("type") == "CLAIM_ABOUT" and row.get("from") == state_claim["id"]
+            for row in edges
+        ),
+        "state claim manufactured a false semantic target",
+    )
+
+    offline_history = graph.query_graph(payload, "history", "offline")
+    require(
+        offline_history["results"] == [],
+        "subject query matched finding kind instead of finding subject",
     )
 
     localized = graph.query_graph(payload, "evidence", "設定")
