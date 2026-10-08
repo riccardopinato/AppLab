@@ -1,0 +1,21 @@
+name: CamperBoss Autonomous Product Audit 2026-10-08
+
+on:
+  push:
+    branches:
+      - audit-camperboss-2026-10-07
+    paths:
+      - ".github/workflows/camperboss-autonomous-audit-2026-10-08.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    uses: ./.github/workflows/autonomous-app-review-v31.yml
+    with:
+      target_repository: riccardopinato/CamperBoss
+      target_ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
+      max_files: "3500"
+      run_maestro: true
