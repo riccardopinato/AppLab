@@ -1,0 +1,221 @@
+name: CamperBoss Exploratory UI Audit
+
+on:
+  push:
+    branches:
+      - audit-camperboss-2026-10-07
+    paths:
+      - ".github/workflows/camperboss-exploratory-ui-audit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  explore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout AppLab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Checkout CamperBoss baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: riccardopinato/CamperBoss
+          ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
+          path: target
+          persist-credentials: false
+      - name: Setup Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Setup Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: "3.47.6"
+          cache: true
+      - name: Build exact release runtime
+        working-directory: target
+        env:
+          ORG_GRADLE_PROJECT_requireReleaseSigning: "false"
+        run: |
+          flutter pub get
+          git diff --exit-code -- pubspec.lock
+          flutter build apk --release --target-platform android-x64
+          test -s build/app/outputs/flutter-apk/app-release.apk
+          sha256sum build/app/outputs/flutter-apk/app-release.apk | tee ../exploratory-apk-sha256.txt
+      - name: Install Maestro
+        run: |
+          chmod +x scripts/install_maestro.sh
+          ./scripts/install_maestro.sh
+      - name: Prepare exploratory flows
+        shell: bash
+        run: |
+          mkdir -p audit-flows audit-report/screens audit-report/maestro
+          cat > audit-flows/top-level.yaml <<'YAML'
+          appId: com.camperboss.camperboss
+          ---
+          - launchApp:
+              clearState: true
+          - extendedWaitUntil:
+              visible: "Camper cockpit"
+              timeout: 15000
+          - takeScreenshot: home
+          - tapOn: "Map"
+          - waitForAnimationToEnd
+          - takeScreenshot: map
+          - tapOn: "Trips"
+          - waitForAnimationToEnd
+          - takeScreenshot: trips-hub
+          - tapOn: "Camper"
+          - waitForAnimationToEnd
+          - takeScreenshot: camper-hub
+          - tapOn: "More"
+          - waitForAnimationToEnd
+          - takeScreenshot: more-hub
+          YAML
+          cat > audit-flows/trips.yaml <<'YAML'
+          appId: com.camperboss.camperboss
+          ---
+          - launchApp
+          - tapOn: "Trips"
+          - tapOn: "Trip planner"
+          - waitForAnimationToEnd
+          - takeScreenshot: trip-planner
+          - back
+          - tapOn: "Checklists"
+          - waitForAnimationToEnd
+          - takeScreenshot: checklist
+          - back
+          - tapOn: "Travel journal"
+          - waitForAnimationToEnd
+          - takeScreenshot: journal
+          - back
+          - tapOn: "Budget, fuel & bookings"
+          - waitForAnimationToEnd
+          - takeScreenshot: finance
+          - back
+          - tapOn: "GPX, memories & statistics"
+          - waitForAnimationToEnd
+          - takeScreenshot: travel-history
+          YAML
+          cat > audit-flows/camper.yaml <<'YAML'
+          appId: com.camperboss.camperboss
+          ---
+          - launchApp
+          - tapOn: "Camper"
+          - tapOn: "Vehicle profile"
+          - waitForAnimationToEnd
+          - takeScreenshot: vehicle-profile
+          - back
+          - tapOn: "Vehicle documents"
+          - waitForAnimationToEnd
+          - takeScreenshot: vehicle-documents
+          - back
+          - tapOn: "Maintenance"
+          - waitForAnimationToEnd
+          - takeScreenshot: maintenance
+          YAML
+          cat > audit-flows/more.yaml <<'YAML'
+          appId: com.camperboss.camperboss
+          ---
+          - launchApp
+          - tapOn: "More"
+          - tapOn: "Search"
+          - waitForAnimationToEnd
+          - takeScreenshot: search
+          - back
+          - tapOn: "Offline content"
+          - waitForAnimationToEnd
+          - takeScreenshot: offline-content
+          - back
+          - tapOn: "Backup & recovery"
+          - waitForAnimationToEnd
+          - takeScreenshot: backup
+          - back
+          - tapOn: "Language"
+          - waitForAnimationToEnd
+          - takeScreenshot: language
+          - back
+          - tapOn: "Notifications"
+          - waitForAnimationToEnd
+          - takeScreenshot: notifications
+          - back
+          YAML
+          cat > audit-flows/onboarding.yaml <<'YAML'
+          appId: com.camperboss.camperboss
+          ---
+          - launchApp
+          - tapOn: "More"
+          - tapOn: "Guided setup"
+          - waitForAnimationToEnd
+          - takeScreenshot: setup-step-1
+          - tapOn: "Continue"
+          - waitForAnimationToEnd
+          - takeScreenshot: setup-step-2
+          - tapOn: "Continue"
+          - waitForAnimationToEnd
+          - takeScreenshot: setup-step-3
+          - tapOn:
+              text: "Explain and request"
+              optional: true
+          - waitForAnimationToEnd
+          - takeScreenshot: setup-location-request
+          - tapOn:
+              text: "While using the app"
+              optional: true
+          - tapOn:
+              text: "Only this time"
+              optional: true
+          - tapOn: "Continue"
+          - waitForAnimationToEnd
+          - takeScreenshot: setup-step-4-notifications
+          - tapOn:
+              text: "Explain and request"
+              optional: true
+          - waitForAnimationToEnd
+          - takeScreenshot: setup-notification-request
+          YAML
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Explore release APK despite known logcat failure
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          disable-animations: true
+          script: |
+            set -Eeuo pipefail
+            APK="$GITHUB_WORKSPACE/target/build/app/outputs/flutter-apk/app-release.apk"
+            adb install -r -t "$APK" | tee "$GITHUB_WORKSPACE/audit-report/install.txt"
+            adb logcat -c || true
+            export PATH="$PATH:$HOME/.maestro/bin"
+            for flow in top-level trips camper more onboarding; do
+              set +e
+              (
+                cd "$GITHUB_WORKSPACE/audit-report/screens"
+                maestro test "$GITHUB_WORKSPACE/audit-flows/$flow.yaml"                   --test-output-dir "$GITHUB_WORKSPACE/audit-report/maestro/$flow"
+              ) > "$GITHUB_WORKSPACE/audit-report/maestro/$flow.log" 2>&1
+              status=$?
+              set -e
+              echo "$flow=$status" | tee -a "$GITHUB_WORKSPACE/audit-report/flow-status.txt"
+            done
+            adb logcat -b all -d -v threadtime > "$GITHUB_WORKSPACE/audit-report/logcat.txt" || true
+            adb shell uiautomator dump /sdcard/final.xml >/dev/null 2>&1 || true
+            adb pull /sdcard/final.xml "$GITHUB_WORKSPACE/audit-report/final-window.xml" >/dev/null 2>&1 || true
+            adb exec-out screencap -p > "$GITHUB_WORKSPACE/audit-report/final.png" || true
+      - name: Upload exploratory evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: camperboss-exploratory-ui-audit
+          path: |
+            audit-report/
+            exploratory-apk-sha256.txt
+          if-no-files-found: warn
+          retention-days: 7
