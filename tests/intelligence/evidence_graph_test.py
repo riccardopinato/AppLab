@@ -24,6 +24,7 @@ def main() -> int:
                 "capabilities": [
                     {"capability": "offline", "truth": "CODE_CONFIRMED"},
                     {"capability": "cloud_backup", "truth": "DOC_ONLY_SIGNAL"},
+                    {"capability": "settings", "truth": "CODE_CONFIRMED"},
                 ]
             },
             "product_flow_graph": {
@@ -41,6 +42,14 @@ def main() -> int:
                         "subject": "draft",
                         "severity": "REVIEW",
                         "evidence": ["lib/store.dart"],
+                    },
+                    {
+                        "id": "persist-gap-secondary",
+                        "domain": "data",
+                        "kind": "PERSISTENCE_GAP",
+                        "subject": "draft",
+                        "severity": "REVIEW",
+                        "evidence": ["lib/store-secondary.dart"],
                     }
                 ]
             },
@@ -60,6 +69,20 @@ def main() -> int:
                     "subject": "cloud_backup",
                     "status": "UNVERIFIED",
                     "evidence": ["README.md"],
+                },
+                {
+                    "id": "surface:settings",
+                    "domain": "surface",
+                    "subject": "settings",
+                    "status": "CONFIRMED",
+                    "evidence": ["ui/settings.dart"],
+                },
+                {
+                    "id": "localized:設定",
+                    "domain": "state",
+                    "subject": "設定",
+                    "status": "UNVERIFIED",
+                    "evidence": ["localized-state.json"],
                 },
             ],
             "contradictions": [],
@@ -131,6 +154,17 @@ def main() -> int:
                         "last_seen_sha": sha_new,
                     },
                     {
+                        "key": "product_consistency|id:persist-gap-secondary",
+                        "source": "product_consistency",
+                        "id": "persist-gap-secondary",
+                        "kind": "PERSISTENCE_GAP",
+                        "subject": "draft",
+                        "seen_count": 2,
+                        "consecutive_seen": 2,
+                        "first_seen_sha": sha_old,
+                        "last_seen_sha": sha_new,
+                    },
+                    {
                         "key": "user_journey|id:persist-gap-journey",
                         "source": "user_journey",
                         "id": "persist-gap-journey",
@@ -189,6 +223,19 @@ def main() -> int:
                 }
             ]
         },
+        "trusted_result": {
+            "schema_version": 1,
+            "result": "PASS",
+            "pipeline_status": "success",
+            "analysis_mode": "full",
+            "analysis_lane": "FULL_RUNTIME",
+            "reason": "Trusted runtime verification passed.",
+            "repository": "owner/app",
+            "resolved_sha": sha_new,
+            "workflow_run_id": "9",
+            "package_id": "com.example.app",
+            "engine": "native_android",
+        },
         "analyst": {
             "state": "VERIFICATION_REQUIRED",
             "headline": "Persistence requires verification",
@@ -215,16 +262,18 @@ def main() -> int:
     require(all(row["from"] in node_ids and row["to"] in node_ids for row in edges), "dangling edge")
     require(payload["summary"]["nodes_by_type"]["Project"] == 1, "project node missing")
     require(payload["summary"]["nodes_by_type"]["Revision"] == 2, "revision lineage missing")
-    require(payload["summary"]["nodes_by_type"]["Capability"] == 2, "capability nodes missing")
+    require(payload["summary"]["nodes_by_type"]["Capability"] == 3, "capability nodes missing")
     require(payload["summary"]["nodes_by_type"]["Surface"] == 2, "surface nodes missing")
     require(payload["summary"]["nodes_by_type"]["Journey"] == 2, "state-distinct journeys collapsed")
-    require(payload["summary"]["nodes_by_type"]["Finding"] == 4, "source-namespaced finding identity mismatch")
+    require(payload["summary"]["nodes_by_type"]["Finding"] == 5, "canonical finding identity mismatch")
+    require(payload["summary"]["nodes_by_type"]["Claim"] == 4, "claim nodes missing")
     require(payload["summary"]["nodes_by_type"]["Experiment"] == 1, "experiment node missing")
-    require(payload["summary"]["recurring_findings"] == 4, "recurrence not imported")
+    require(payload["summary"]["nodes_by_type"]["Result"] == 3, "trusted runtime result missing")
+    require(payload["summary"]["recurring_findings"] == 5, "recurrence not imported")
     require(payload["summary"]["unverified_capabilities"] == 1, "unverified capability not surfaced")
 
     history = graph.query_graph(payload, "history", "draft")
-    require(len(history["results"]) == 2, "source-namespaced findings collapsed")
+    require(len(history["results"]) == 3, "canonical same-subject findings collapsed")
     require(all(row["first_observed_sha"] == sha_old for row in history["results"]), "first observed SHA mismatch")
     require(all("not proof" in row["caveat"] for row in history["results"]), "causal caveat missing")
 
@@ -249,6 +298,53 @@ def main() -> int:
         if row.get("type") == "Finding"
     }
     require("behavioral_product|id:behavioral-recurring" in finding_nodes, "behavioral finding not imported")
+    require(
+        "product_consistency|id:persist-gap" in finding_nodes
+        and "product_consistency|id:persist-gap-secondary" in finding_nodes,
+        "distinct canonical finding IDs collapsed",
+    )
+    surface_settings = surface_nodes["settings"]
+    capability_settings = next(
+        row for row in nodes
+        if row.get("type") == "Capability" and row.get("key") == "settings"
+    )
+    surface_claim = next(
+        row for row in nodes
+        if row.get("type") == "Claim" and row.get("key") == "surface:settings"
+    )
+    surface_claim_edges = [
+        row for row in edges
+        if row.get("type") == "CLAIM_ABOUT" and row.get("from") == surface_claim["id"]
+    ]
+    require(len(surface_claim_edges) == 1, "surface claim target missing")
+    require(
+        surface_claim_edges[0]["to"] == surface_settings["id"]
+        and surface_claim_edges[0]["to"] != capability_settings["id"],
+        "surface claim linked to colliding capability",
+    )
+
+    localized = graph.query_graph(payload, "evidence", "設定")
+    require(localized["matched_nodes"], "Unicode subject did not normalize for query")
+    require(localized["evidence"], "Unicode subject evidence was not reachable")
+
+    trusted_result = next(
+        row for row in nodes
+        if row.get("type") == "Result" and row.get("key") == "trusted_runtime"
+    )
+    require(
+        trusted_result["attributes"].get("result") == "PASS"
+        and trusted_result["attributes"].get("pipeline_status") == "success",
+        "trusted runtime result attributes missing",
+    )
+    require(
+        any(
+            row.get("type") == "REVISION_HAS_RESULT"
+            and row.get("to") == trusted_result["id"]
+            for row in edges
+        ),
+        "trusted runtime result is not revision-linked",
+    )
+
     contract_key = "product_contract|||promised_without_implementation|cloud_backup"
     require(contract_key in finding_nodes, "contract finding did not match longitudinal identity")
     require(
@@ -293,6 +389,24 @@ def main() -> int:
 
     regression = graph.query_graph(payload, "regressions")
     require(len(regression["results"]) == 1, "regression query mismatch")
+
+    fallback_inputs = dict(inputs)
+    fallback_inputs.pop("autonomous", None)
+    fallback_inputs.pop("trusted_result", None)
+    fallback_inputs["build_contract"] = {
+        "repository": "owner/app",
+        "resolved_sha": sha_new,
+        "apk": {
+            "package_id": "com.example.contract",
+            "sha256": "c" * 64,
+            "size_bytes": 1234,
+        },
+    }
+    fallback_graph = graph.build_graph(fallback_inputs)
+    require(
+        fallback_graph["identity"].get("package_id") == "com.example.contract",
+        "build contract package identity fallback missing",
+    )
 
     print("Evidence Graph independent regression test PASS")
     return 0
