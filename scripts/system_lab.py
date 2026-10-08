@@ -440,6 +440,13 @@ def evaluate(
         raise ValueError("invalid package id")
 
     findings: list[Finding] = []
+
+    # Own only diagnostics produced during System UI Lab. Clear before any
+    # lab-initiated relaunch so startup ANR/FATAL records remain in scope.
+    # Previous Maestro/crawler/platform noise must not be reclassified as a
+    # current app failure.
+    run("adb", "logcat", "-b", "all", "-c")
+
     initial_pid = pid_of(package_id)
     if not initial_pid:
         restarted = relaunch(package_id)
@@ -452,11 +459,6 @@ def evaluate(
                     {},
                 )
             )
-
-    # Own only diagnostics produced during System UI Lab. Previous
-    # Maestro/crawler/platform noise must not be reclassified as a current app
-    # failure. Target ANR/FATAL events generated below still fail closed.
-    run("adb", "logcat", "-b", "all", "-c")
 
     permissions_before = permission_snapshot(package_id)
     permission_actions = apply_permissions(package_id, config, findings)
