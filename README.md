@@ -1,3 +1,28 @@
+## v4.2.0 — Evidence Graph
+
+AppLab now has a deterministic, queryable evidence model above the existing
+product-intelligence and trusted-runtime stack.
+
+- **Common evidence model:** Project, Revision, BuildArtifact, Capability,
+  Surface, Journey, Finding, Claim, Evidence, Experiment and Result.
+- **Traceable relations:** claims, findings and experiments are linked to their
+  product subjects, source reports and supporting evidence.
+- **Longitudinal queries:** recurring findings and first/last observed revisions
+  are directly inspectable without confusing first observation with causal blame.
+- **Verification gaps:** capabilities that remain contradicted, stale or
+  unverified can be queried directly.
+- **Trusted provenance:** repository/SHA/run/package/APK identity is included
+  when trusted runtime/build evidence is available.
+- **No parallel authority:** Evidence Graph does not replace Evidence Confidence,
+  Longitudinal Intelligence, Experiment Planner, Analyst, trusted runtime or
+  FAST/FULL/CERTIFICATION.
+- **Studio integration:** graph counts and high-value insights are visible in
+  AppLab Studio and the read-only Web Preview.
+
+Generate or query it with `scripts/evidence_graph.py`.
+
+See `integration/intelligence/EVIDENCE_GRAPH_V42.md`.
+
 ## v4.1.0 — Execution Acceleration Engine
 
 AppLab now reuses the existing Smart Test Plan as the single change-aware

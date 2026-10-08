@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "4.1.0"
+EXPECTED_VERSION = "4.2.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -89,6 +89,9 @@ def check_trusted_review_contract() -> None:
         "Build Studio snapshot",
         "scripts/studio_snapshot.py",
         "studio.json",
+        "Build Evidence Graph",
+        "scripts/evidence_graph.py",
+        "evidence-graph.md",
     ):
         require(needle in workflow, f"trusted review missing audit-hardening contract: {needle}")
 
@@ -168,6 +171,48 @@ def check_residual_hardening_contract() -> None:
     require(
         (ROOT / "integration/CANONICAL_WORKFLOWS.md").is_file(),
         "canonical/compatibility workflow registry is required",
+    )
+
+
+def check_evidence_graph_contract() -> None:
+    graph = (ROOT / "scripts/evidence_graph.py").read_text(encoding="utf-8")
+    studio = (ROOT / "scripts/studio_snapshot.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/autonomous-app-review-v31.yml").read_text(
+        encoding="utf-8"
+    )
+    for node_type in (
+        "Project",
+        "Revision",
+        "BuildArtifact",
+        "Capability",
+        "Surface",
+        "Journey",
+        "Finding",
+        "Claim",
+        "Evidence",
+        "Experiment",
+        "Result",
+    ):
+        require(f'"{node_type}"' in graph, f"Evidence Graph missing node type {node_type}")
+    for query in (
+        "unverified-capabilities",
+        "recurring-findings",
+        "regressions",
+        "history",
+        "evidence",
+    ):
+        require(query in graph, f"Evidence Graph missing query contract {query}")
+    require(
+        'first_observed_sha_is_not_proof_of_introducing_commit' in graph,
+        "Evidence Graph must not convert first observation into causal blame",
+    )
+    require(
+        "Build Evidence Graph" in workflow and "evidence-graph.md" in workflow,
+        "trusted review must build and publish Evidence Graph",
+    )
+    require(
+        'evidence-graph.json' in studio,
+        "Studio must ingest Evidence Graph summary evidence",
     )
 
 
@@ -345,6 +390,7 @@ def main() -> int:
     check_schema_forwarding()
     check_no_floating_self_reference()
     check_residual_hardening_contract()
+    check_evidence_graph_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
     return 0

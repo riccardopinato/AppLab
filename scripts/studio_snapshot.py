@@ -8,8 +8,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import studio_evidence_graph
+
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "4.1.0"
+STUDIO_VERSION = "4.2.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -57,13 +59,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     longitudinal = read_json(project_dir / "longitudinal-intelligence.json")
     experiment = read_json(project_dir / "experiment-plan.json")
     analyst = read_json(project_dir / "analyst-report.json")
+    evidence_graph = read_json(project_dir / "evidence-graph.json")
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, evidence_graph, contract, brief, autonomous)
     ):
         return None
 
@@ -81,6 +84,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "longitudinal": None,
         "experiment_plan": None,
         "analyst": None,
+        "evidence_graph": None,
         "autonomous_review": None,
     }
 
@@ -445,6 +449,9 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
             ],
         }
 
+    if evidence_graph:
+        row["evidence_graph"] = studio_evidence_graph.project_summary(evidence_graph)
+
     if user_journey:
         journey_summary = (
             user_journey.get("summary")
@@ -720,6 +727,29 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
             ),
             "with_analyst_reports": sum(
                 1 for row in projects if row.get("analyst") is not None
+            ),
+            "with_evidence_graph": sum(
+                1 for row in projects if row.get("evidence_graph") is not None
+            ),
+            "evidence_graph_nodes": sum(
+                int((row.get("evidence_graph") or {}).get("nodes", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "evidence_graph_edges": sum(
+                int((row.get("evidence_graph") or {}).get("edges", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "graph_unverified_capabilities": sum(
+                int((row.get("evidence_graph") or {}).get("unverified_capabilities", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "graph_recurring_findings": sum(
+                int((row.get("evidence_graph") or {}).get("recurring_findings", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
             ),
             "analyst_attention": sum(
                 1
@@ -1121,6 +1151,10 @@ def self_test() -> None:
             ),
             encoding="utf-8",
         )
+        (project / "evidence-graph.json").write_text(
+            json.dumps(studio_evidence_graph.self_test_payload()),
+            encoding="utf-8",
+        )
         (project / "audit-plan.json").write_text(
             json.dumps(
                 {
@@ -1177,6 +1211,15 @@ def self_test() -> None:
         assert snapshot["projects"][0]["analyst"]["next_actions"] == 3
         assert snapshot["summary"]["with_analyst_reports"] == 1
         assert snapshot["summary"]["analyst_attention"] == 1
+        assert snapshot["projects"][0]["evidence_graph"]["nodes"] == 24
+        assert snapshot["projects"][0]["evidence_graph"]["edges"] == 38
+        assert snapshot["projects"][0]["evidence_graph"]["unverified_capabilities"] == 1
+        assert snapshot["projects"][0]["evidence_graph"]["recurring_findings"] == 1
+        assert snapshot["summary"]["with_evidence_graph"] == 1
+        assert snapshot["summary"]["evidence_graph_nodes"] == 24
+        assert snapshot["summary"]["evidence_graph_edges"] == 38
+        assert snapshot["summary"]["graph_unverified_capabilities"] == 1
+        assert snapshot["summary"]["graph_recurring_findings"] == 1
         assert snapshot["projects"][0]["autonomous_review"]["review_state"] == "REVIEW_REQUIRED"
         assert snapshot["projects"][0]["autonomous_review"]["runtime_confirmed"] == 1
         assert snapshot["summary"]["autonomous_reviews"] == 1
