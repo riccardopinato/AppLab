@@ -27,7 +27,10 @@ def main() -> int:
                 ]
             },
             "product_flow_graph": {
-                "nodes": [{"id": "home"}, {"id": "settings"}]
+                "nodes": [
+                    {"id": "home", "roles": ["home", "entry"]},
+                    {"id": "settings", "roles": ["settings"]}
+                ]
             },
             "product_consistency": {
                 "findings": [
@@ -62,7 +65,10 @@ def main() -> int:
             "contradictions": [],
         },
         "journey": {
-            "journeys": [{"depth": 1, "steps": ["home", "settings"]}],
+            "journeys": [
+                {"state_id": "state-settings-a", "depth": 1, "steps": ["home", "settings"]},
+                {"state_id": "state-settings-b", "depth": 1, "steps": ["home", "settings"]}
+            ],
             "findings": [
                 {
                     "id": "persist-gap-journey",
@@ -82,6 +88,17 @@ def main() -> int:
                     "subject": "resume",
                     "severity": "REVIEW",
                     "evidence": ["behavioral.json"],
+                }
+            ]
+        },
+        "contract": {
+            "findings": [
+                {
+                    "kind": "PROMISED_WITHOUT_IMPLEMENTATION",
+                    "capability": "cloud_backup",
+                    "severity": "REVIEW",
+                    "message": "Cloud backup is promised without strong implementation evidence.",
+                    "evidence": ["README.md"],
                 }
             ]
         },
@@ -130,6 +147,16 @@ def main() -> int:
                         "id": "behavioral-recurring",
                         "kind": "BEHAVIOR_GAP",
                         "subject": "resume",
+                        "seen_count": 2,
+                        "consecutive_seen": 2,
+                        "first_seen_sha": sha_old,
+                        "last_seen_sha": sha_new,
+                    },
+                    {
+                        "key": "product_contract|||promised_without_implementation|cloud_backup",
+                        "source": "product_contract",
+                        "kind": "PROMISED_WITHOUT_IMPLEMENTATION",
+                        "subject": "cloud_backup",
                         "seen_count": 2,
                         "consecutive_seen": 2,
                         "first_seen_sha": sha_old,
@@ -189,9 +216,11 @@ def main() -> int:
     require(payload["summary"]["nodes_by_type"]["Project"] == 1, "project node missing")
     require(payload["summary"]["nodes_by_type"]["Revision"] == 2, "revision lineage missing")
     require(payload["summary"]["nodes_by_type"]["Capability"] == 2, "capability nodes missing")
-    require(payload["summary"]["nodes_by_type"]["Finding"] == 3, "source-namespaced finding identity mismatch")
+    require(payload["summary"]["nodes_by_type"]["Surface"] == 2, "surface nodes missing")
+    require(payload["summary"]["nodes_by_type"]["Journey"] == 2, "state-distinct journeys collapsed")
+    require(payload["summary"]["nodes_by_type"]["Finding"] == 4, "source-namespaced finding identity mismatch")
     require(payload["summary"]["nodes_by_type"]["Experiment"] == 1, "experiment node missing")
-    require(payload["summary"]["recurring_findings"] == 3, "recurrence not imported")
+    require(payload["summary"]["recurring_findings"] == 4, "recurrence not imported")
     require(payload["summary"]["unverified_capabilities"] == 1, "unverified capability not surfaced")
 
     history = graph.query_graph(payload, "history", "draft")
@@ -199,12 +228,46 @@ def main() -> int:
     require(all(row["first_observed_sha"] == sha_old for row in history["results"]), "first observed SHA mismatch")
     require(all("not proof" in row["caveat"] for row in history["results"]), "causal caveat missing")
 
+    surface_nodes = {
+        row["key"]: row
+        for row in nodes
+        if row.get("type") == "Surface"
+    }
+    require(
+        surface_nodes["home"]["attributes"].get("roles") == ["home", "entry"],
+        "surface roles array was not preserved",
+    )
+    journey_nodes = [row for row in nodes if row.get("type") == "Journey"]
+    require(
+        {row["key"] for row in journey_nodes} == {"state-settings-a", "state-settings-b"},
+        "journey state_id was not used as canonical key",
+    )
+
     finding_nodes = {
         row["key"]: row
         for row in nodes
         if row.get("type") == "Finding"
     }
     require("behavioral_product|id:behavioral-recurring" in finding_nodes, "behavioral finding not imported")
+    contract_key = "product_contract|||promised_without_implementation|cloud_backup"
+    require(contract_key in finding_nodes, "contract finding did not match longitudinal identity")
+    require(
+        finding_nodes[contract_key]["attributes"].get("capability") == "cloud_backup",
+        "contract capability attribute was not preserved",
+    )
+    cloud_capability = next(
+        row for row in nodes
+        if row.get("type") == "Capability" and row.get("key") == "cloud_backup"
+    )
+    require(
+        any(
+            row.get("type") == "FINDING_ABOUT"
+            and row.get("from") == finding_nodes[contract_key]["id"]
+            and row.get("to") == cloud_capability["id"]
+            for row in edges
+        ),
+        "contract finding was not linked to its capability",
+    )
     experiment_node = next(row for row in nodes if row.get("type") == "Experiment")
     experiment_edges = [
         row for row in edges
