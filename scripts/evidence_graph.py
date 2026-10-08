@@ -1438,6 +1438,8 @@ def self_test() -> None:
             "findings": {
                 "history": [
                     {
+                        "key": "product_consistency|id:finding-save",
+                        "source": "product_consistency",
                         "id": "finding-save",
                         "kind": "SAVE_FAILURE",
                         "subject": "save",
@@ -1449,7 +1451,13 @@ def self_test() -> None:
                 ]
             },
             "regression_candidates": [
-                {"kind": "SAVE_FAILURE", "subject": "save", "reason": "returned", "source": "product_consistency"}
+                {
+                    "key": "product_consistency|id:finding-save",
+                    "kind": "SAVE_FAILURE",
+                    "subject": "save",
+                    "reason": "returned",
+                    "source": "product_consistency",
+                }
             ],
         },
         "experiment": {
