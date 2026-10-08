@@ -1,0 +1,30 @@
+name: CamperBoss Debug Exploration 2026-10-08
+
+on:
+  push:
+    branches:
+      - audit-camperboss-2026-10-07
+    paths:
+      - ".github/workflows/camperboss-debug-exploration-2026-10-08.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  explore:
+    uses: ./.github/workflows/universal-project-runner.yml
+    with:
+      repository: riccardopinato/CamperBoss
+      ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
+      source_ref: main
+      run_maestro: false
+      history_key: audit-camperboss-debug-api35
+      cache_verification: false
+      contract_fingerprint: camperboss-debug-exploration-2026-10-08
+      config_fingerprint: camperboss-debug-exploration-2026-10-08
+      approve_visual_baseline: false
+      analysis_mode: full
+      api_level_override: "35"
+      emulator_profile_override: pixel_7_pro
+      publish_release_artifact: false
