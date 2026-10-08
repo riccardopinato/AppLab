@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/camperboss-screen-by-screen.yml"
       - ".maestro/camperboss-screen-by-screen-audit.yaml"
+      - "scripts/camperboss_screen_audit.sh"
 
 permissions:
   contents: read
@@ -65,6 +66,8 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Run screen-by-screen audit
+        env:
+          API_LEVEL: ${{ matrix.api }}
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
           api-level: ${{ matrix.api }}
@@ -72,16 +75,7 @@ jobs:
           arch: x86_64
           profile: pixel_7_pro
           disable-animations: true
-          script: |
-            set -Eeuo pipefail
-            adb install -r "$GITHUB_WORKSPACE/apk/app-debug.apk"
-            mkdir -p "$GITHUB_WORKSPACE/audit-output/api-${{ matrix.api }}"
-            cp "$GITHUB_WORKSPACE/.maestro/camperboss-screen-by-screen-audit.yaml" "$GITHUB_WORKSPACE/audit-output/api-${{ matrix.api }}/flow.yaml"
-            cd "$GITHUB_WORKSPACE/audit-output/api-${{ matrix.api }}"
-            "$HOME/.maestro/bin/maestro" test flow.yaml --debug-output debug
-            adb logcat -d > logcat.txt || true
-            adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
-            adb pull /sdcard/window.xml window.xml >/dev/null 2>&1 || true
+          script: bash "$GITHUB_WORKSPACE/scripts/camperboss_screen_audit.sh"
       - name: Upload screen evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
