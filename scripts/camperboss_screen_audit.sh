@@ -5,7 +5,14 @@ PKG="com.camperboss.camperboss"
 OUT="$GITHUB_WORKSPACE/audit-output/api-${API_LEVEL}"
 mkdir -p "$OUT"
 
+dismiss_foreign_system_anr() {
+  python3 "$GITHUB_WORKSPACE/scripts/dismiss_foreign_anr.py" \
+    --package-id "$PKG" >/dev/null 2>&1 || true
+  sleep 0.4
+}
+
 dump_ui() {
+  dismiss_foreign_system_anr
   adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
   adb pull /sdcard/window.xml "$OUT/current.xml" >/dev/null 2>&1 || true
 }
@@ -13,6 +20,7 @@ dump_ui() {
 capture() {
   local name="$1"
   sleep 1.2
+  dismiss_foreign_system_anr
   adb exec-out screencap -p > "$OUT/${name}.png" || true
   adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
   adb pull /sdcard/window.xml "$OUT/${name}.xml" >/dev/null 2>&1 || true
@@ -86,6 +94,8 @@ adb install -r "$GITHUB_WORKSPACE/apk/app-debug.apk"
 adb shell pm clear "$PKG" >/dev/null
 adb logcat -c || true
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null
+sleep 2
+dismiss_foreign_system_anr
 wait_label "Camper cockpit" 35
 capture "01-home-first-run"
 
