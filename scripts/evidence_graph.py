@@ -705,7 +705,18 @@ def _add_finding_rows(
         if report_node:
             builder.add_edge("DERIVED_FROM", node, report_node, provenance=[source_file])
 
-        target = builder.match_subject(subject, ("Capability", "Surface"))
+        domain = _norm(row.get("domain"))
+        capability = _safe(row.get("capability"))
+        target: str | None = None
+        if capability:
+            target = builder.match_subject(capability, ("Capability",))
+        elif domain in {"surface", "product_flow"} or kind in {
+            "ORPHAN_SURFACE_CANDIDATE",
+            "STATIC_ORPHAN_CONTRADICTED_BY_RUNTIME",
+        }:
+            target = builder.match_subject(subject, ("Surface",))
+        elif domain == "capability":
+            target = builder.match_subject(subject, ("Capability",))
         if target:
             builder.add_edge("FINDING_ABOUT", node, target, provenance=[source_file])
 
@@ -848,15 +859,29 @@ def _add_claims(
             builder.add_edge("DERIVED_FROM", node, reports["confidence"], provenance=[FILES["confidence"]])
 
         domain = _norm(row.get("domain"))
-        allowed_by_domain = {
-            "capability": ("Capability",),
-            "surface": ("Surface",),
-            "finding": ("Finding",),
-        }
-        target = builder.match_subject(
-            subject,
-            allowed_by_domain.get(domain, ("Capability", "Surface", "Finding")),
-        )
+        target: str | None = None
+        if domain == "capability":
+            target = builder.match_subject(subject, ("Capability",))
+        elif domain == "surface":
+            target = builder.match_subject(subject, ("Surface",))
+        elif domain == "finding" or source_id.startswith("finding:"):
+            finding_id = source_id.split(":", 1)[1] if source_id.startswith("finding:") else ""
+            if finding_id:
+                for candidate_id, candidate in builder.nodes.items():
+                    if candidate.get("type") != "Finding":
+                        continue
+                    attrs = (
+                        candidate.get("attributes")
+                        if isinstance(candidate.get("attributes"), dict)
+                        else {}
+                    )
+                    if _norm(attrs.get("id")) == _norm(finding_id):
+                        target = candidate_id
+                        break
+            if not target:
+                target = builder.match_subject(subject, ("Finding",))
+        # State and unknown domains do not have a canonical graph node type.
+        # Leave them unmatched rather than manufacturing a false semantic edge.
         if target:
             builder.add_edge("CLAIM_ABOUT", node, target, provenance=[FILES["confidence"]])
 
@@ -1276,17 +1301,17 @@ def query_graph(graph: dict[str, Any], query: str, subject: str = "") -> dict[st
         }
 
     token = _norm(subject)
-    matched = [
-        row
-        for row in by_id.values()
-        if token
-        and (
+    matched = []
+    for row in by_id.values():
+        if not token:
+            continue
+        attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
+        node_subject = _norm(attrs.get("subject"))
+        if (
             token == _norm(row.get("key"))
-            or token == _norm(row.get("label"))
-            or token in _norm(row.get("key"))
-            or token in _norm(row.get("label"))
-        )
-    ]
+            or (node_subject and token == node_subject)
+        ):
+            matched.append(row)
 
     if query == "history":
         results = []
