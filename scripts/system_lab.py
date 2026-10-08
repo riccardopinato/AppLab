@@ -131,6 +131,30 @@ def wait_for_pid(package_id: str, timeout: float = 30.0) -> str:
     return ""
 
 
+def wait_for_stable_pid(
+    package_id: str,
+    timeout: float = 30.0,
+    stable_seconds: float = 2.0,
+) -> str:
+    started = time.monotonic()
+    candidate = ""
+    candidate_since = 0.0
+
+    while time.monotonic() - started < timeout:
+        now = time.monotonic()
+        pid = pid_of(package_id)
+        if not pid:
+            candidate = ""
+            candidate_since = 0.0
+        elif pid != candidate:
+            candidate = pid
+            candidate_since = now
+        elif now - candidate_since >= stable_seconds:
+            return pid
+        time.sleep(0.25)
+    return ""
+
+
 def app_crash_state(package_id: str) -> tuple[bool, str]:
     if not pid_of(package_id):
         return True, "application process is not running"
@@ -161,7 +185,11 @@ def relaunch(package_id: str) -> str:
             "android.intent.category.LAUNCHER",
             "1",
         )
-        pid = wait_for_pid(package_id, timeout=30.0)
+        pid = wait_for_stable_pid(
+            package_id,
+            timeout=30.0,
+            stable_seconds=2.0,
+        )
         if pid:
             return pid
         if attempt == 0:
