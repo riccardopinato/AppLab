@@ -1,0 +1,42 @@
+name: CamperBoss Debug Exploratory Final 2026-10-08
+
+on:
+  push:
+    branches:
+      - audit-camperboss-debug-final-20261008
+    paths:
+      - ".github/workflows/camperboss-debug-final-audit.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    uses: ./.github/workflows/external-project-runner.yml
+    with:
+      repository: riccardopinato/CamperBoss
+      ref: 26f966f58934f6cfffbdb0d70c573a15f5445a9f
+      source_ref: main
+      working_directory: "."
+      flutter_channel: stable
+      flutter_version: "3.47.6"
+      java_version: "21"
+      prepare_command: ""
+      post_pub_get_command: ""
+      android_prepare_command: ""
+      api_level: "35"
+      emulator_profile: pixel_7_pro
+      apk_path: build/app/outputs/flutter-apk/app-debug.apk
+      package_id: com.camperboss.camperboss
+      build_command: flutter build apk --debug
+      run_maestro: false
+      maestro_flow: ""
+      history_key: audit-camperboss-debug-final
+      cache_verification: false
+      contract_fingerprint: camperboss-debug-final
+      config_fingerprint: camperboss-debug-final
+      approve_visual_baseline: false
+      analysis_mode: full
+      baseline_sha: ""
+      publish_release_artifact: false
