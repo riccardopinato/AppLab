@@ -21,6 +21,9 @@ FILES = {
     "confidence": "evidence-confidence.json",
     "journey": "user-journey.json",
     "ux": "ux-friction.json",
+    "behavioral": "behavioral-product.json",
+    "states": "state-edge-case.json",
+    "contract": "product-contract-audit.json",
     "longitudinal": "longitudinal-intelligence.json",
     "experiment": "experiment-plan.json",
     "analyst": "analyst-report.json",
@@ -174,7 +177,7 @@ class GraphBuilder:
         if source not in self.nodes or target not in self.nodes:
             raise ValueError(f"Evidence Graph edge references unknown node: {source} -> {target}")
         edge_id = _stable("Edge", relation, source, target)
-        self.edges[edge_id] = {
+        row = {
             "id": edge_id,
             "type": relation,
             "from": source,
@@ -182,6 +185,18 @@ class GraphBuilder:
             "attributes": attributes or {},
             "provenance": sorted(set(provenance or [])),
         }
+        existing = self.edges.get(edge_id)
+        if existing:
+            existing["provenance"] = sorted(
+                set(existing.get("provenance", [])) | set(row["provenance"])
+            )
+            merged = dict(existing.get("attributes", {}))
+            for attr, value in row["attributes"].items():
+                if value not in ("", None, [], {}):
+                    merged[attr] = value
+            existing["attributes"] = merged
+        else:
+            self.edges[edge_id] = row
         return edge_id
 
     def match_subject(self, subject: Any, allowed: tuple[str, ...] = ()) -> str | None:
@@ -506,16 +521,22 @@ def _add_journeys(
             builder.add_edge("DERIVED_FROM", node, reports["journey"], provenance=[FILES["journey"]])
 
 
-def _finding_history(inputs: dict[str, dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
+def _finding_history(
+    inputs: dict[str, dict[str, Any]]
+) -> dict[tuple[str, str, str], dict[str, Any]]:
     longitudinal = inputs.get("longitudinal", {})
     findings = longitudinal.get("findings") if isinstance(longitudinal.get("findings"), dict) else {}
     rows = findings.get("history") if isinstance(findings.get("history"), list) else []
-    result: dict[tuple[str, str], dict[str, Any]] = {}
+    result: dict[tuple[str, str, str], dict[str, Any]] = {}
     for row in rows:
         if not isinstance(row, dict):
             continue
-        key = (_norm(row.get("kind")), _norm(row.get("subject")))
-        if key != ("", ""):
+        key = (
+            _norm(row.get("source")),
+            _norm(row.get("kind")),
+            _norm(row.get("subject")),
+        )
+        if key != ("", "", ""):
             result[key] = row
     return result
 
@@ -528,7 +549,7 @@ def _add_finding_rows(
     source_key: str,
     report_node: str | None,
     revision: str,
-    history: dict[tuple[str, str], dict[str, Any]],
+    history: dict[tuple[str, str, str], dict[str, Any]],
 ) -> None:
     if not isinstance(rows, list):
         return
@@ -539,7 +560,13 @@ def _add_finding_rows(
         subject = _safe(row.get("subject")) or _safe(row.get("id")) or f"{source_key}-{index}"
         message = _safe(row.get("message")) or _safe(row.get("reason"))
         original_id = _safe(row.get("id"))
-        hist = history.get((_norm(kind), _norm(subject)), {})
+        finding_source = (
+            _safe(row.get("source")) if source_key == "regression" else source_key
+        )
+        hist = history.get(
+            (_norm(finding_source), _norm(kind), _norm(subject)),
+            history.get(("", _norm(kind), _norm(subject)), {}),
+        )
         attrs = {
             **_scalars(
                 row,
@@ -559,6 +586,7 @@ def _add_finding_rows(
                 ),
             ),
             "source_file": source_file,
+            "finding_source": finding_source,
             "first_observed_sha": _safe(hist.get("first_seen_sha")),
             "last_observed_sha": _safe(hist.get("last_seen_sha")),
             "seen_count": int(hist.get("seen_count", 0) or 0),
@@ -615,9 +643,36 @@ def _add_findings(
 
     _add_finding_rows(
         builder,
+        inputs.get("contract", {}).get("findings"),
+        source_file=FILES["contract"],
+        source_key="product_contract",
+        report_node=reports.get("contract"),
+        revision=revision,
+        history=history,
+    )
+    _add_finding_rows(
+        builder,
+        inputs.get("behavioral", {}).get("findings"),
+        source_file=FILES["behavioral"],
+        source_key="behavioral_product",
+        report_node=reports.get("behavioral"),
+        revision=revision,
+        history=history,
+    )
+    _add_finding_rows(
+        builder,
+        inputs.get("states", {}).get("findings"),
+        source_file=FILES["states"],
+        source_key="state_edge_case",
+        report_node=reports.get("states"),
+        revision=revision,
+        history=history,
+    )
+    _add_finding_rows(
+        builder,
         inputs.get("journey", {}).get("findings"),
         source_file=FILES["journey"],
-        source_key="journey",
+        source_key="user_journey",
         report_node=reports.get("journey"),
         revision=revision,
         history=history,
@@ -626,7 +681,7 @@ def _add_findings(
         builder,
         inputs.get("ux", {}).get("findings"),
         source_file=FILES["ux"],
-        source_key="ux",
+        source_key="ux_friction",
         report_node=reports.get("ux"),
         revision=revision,
         history=history,
@@ -635,7 +690,7 @@ def _add_findings(
         builder,
         inputs.get("confidence", {}).get("contradictions"),
         source_file=FILES["confidence"],
-        source_key="contradiction",
+        source_key="evidence_contradiction",
         report_node=reports.get("confidence"),
         revision=revision,
         history=history,
@@ -708,6 +763,92 @@ def _add_claims(
                 builder.add_edge("CLAIM_SUPPORTED_BY", node, evidence_node, provenance=[FILES["confidence"]])
 
 
+def _match_node_key(
+    builder: GraphBuilder,
+    key: str,
+    allowed: tuple[str, ...] = (),
+) -> str | None:
+    token = _safe(key)
+    if not token:
+        return None
+    for node_id, row in builder.nodes.items():
+        if allowed and row.get("type") not in allowed:
+            continue
+        if _safe(row.get("key")) == token:
+            return node_id
+    return None
+
+
+def _match_experiment_finding(
+    builder: GraphBuilder,
+    inputs: dict[str, dict[str, Any]],
+    row: dict[str, Any],
+) -> str | None:
+    subject = _safe(row.get("subject"))
+    kind = _safe(row.get("kind"))
+    target_key = _safe(row.get("target_key")) or _safe(row.get("finding_key"))
+    if target_key:
+        exact = _match_node_key(builder, target_key, ("Finding",))
+        if exact:
+            return exact
+
+    source = _safe(row.get("source")).upper()
+    triggers = {
+        _safe(value).upper()
+        for value in row.get("triggers", [])
+        if _safe(value)
+    } if isinstance(row.get("triggers"), list) else set()
+    logical_sources: set[str] = set()
+
+    if source == "EVIDENCE_CONTRADICTION" or "EVIDENCE_CONTRADICTION" in triggers:
+        logical_sources.add("evidence_contradiction")
+
+    if source == "LONGITUDINAL_REGRESSION" or "LONGITUDINAL_REGRESSION" in triggers:
+        longitudinal = inputs.get("longitudinal", {})
+        regressions = (
+            longitudinal.get("regression_candidates")
+            if isinstance(longitudinal.get("regression_candidates"), list)
+            else []
+        )
+        matching_rows = [
+            candidate
+            for candidate in regressions
+            if isinstance(candidate, dict)
+            and _norm(candidate.get("kind")) == _norm(kind)
+            and _norm(candidate.get("subject")) == _norm(subject)
+        ]
+        canonical_keys = {
+            _safe(candidate.get("key"))
+            for candidate in matching_rows
+            if _safe(candidate.get("key"))
+        }
+        if len(canonical_keys) == 1:
+            exact = _match_node_key(builder, next(iter(canonical_keys)), ("Finding",))
+            if exact:
+                return exact
+        logical_sources.update(
+            _safe(candidate.get("source"))
+            for candidate in matching_rows
+            if _safe(candidate.get("source"))
+        )
+
+    matches: list[str] = []
+    for node_id, candidate in builder.nodes.items():
+        if candidate.get("type") != "Finding":
+            continue
+        attrs = candidate.get("attributes")
+        attrs = attrs if isinstance(attrs, dict) else {}
+        if kind and _norm(attrs.get("kind") or attrs.get("category")) != _norm(kind):
+            continue
+        if subject and _norm(attrs.get("subject")) != _norm(subject):
+            continue
+        if logical_sources and _safe(attrs.get("finding_source")) not in logical_sources:
+            continue
+        matches.append(node_id)
+
+    return matches[0] if len(matches) == 1 else None
+
+
 def _add_experiments(
     builder: GraphBuilder,
     inputs: dict[str, dict[str, Any]],
@@ -752,7 +893,9 @@ def _add_experiments(
         if "experiment" in reports:
             builder.add_edge("DERIVED_FROM", node, reports["experiment"], provenance=[FILES["experiment"]])
 
-        target = builder.match_subject(subject, ("Finding", "Claim", "Capability", "Surface"))
+        target = _match_experiment_finding(builder, inputs, row)
+        if not target:
+            target = builder.match_subject(subject, ("Claim", "Capability", "Surface"))
         if target:
             builder.add_edge("EXPERIMENT_TARGETS", node, target, provenance=[FILES["experiment"]])
 
