@@ -7,7 +7,7 @@ on:
     paths:
       - ".github/workflows/camperboss-release-hotfix-2026-10-09.yml"
 
-# Retry after fixing the first-run Home assertion to match Product Truth.
+# Retry after targeting Flutter NavigationBar semantic tab nodes.
 permissions:
   contents: read
   actions: read
@@ -18,7 +18,7 @@ jobs:
     uses: ./.github/workflows/external-project-runner.yml
     with:
       repository: riccardopinato/CamperBoss
-      ref: f40293158fddb761fa152c77d1195079b1eaed58
+      ref: dca585edb4d057ffde5a4e623e82092683ce9b5a
       source_ref: fix/applab-notification-icon-runtime
       working_directory: "."
       flutter_channel: stable
@@ -34,10 +34,10 @@ jobs:
       build_command: flutter build apk --release
       run_maestro: true
       maestro_flow: ".maestro/applab-release-core-final.yaml"
-      history_key: camperboss-release-hotfix-api35-r2-2026-10-09
+      history_key: camperboss-release-hotfix-api35-r3-2026-10-09
       cache_verification: false
-      contract_fingerprint: camperboss-release-hotfix-api35-r2-2026-10-09
-      config_fingerprint: camperboss-release-hotfix-api35-r2-2026-10-09
+      contract_fingerprint: camperboss-release-hotfix-api35-r3-2026-10-09
+      config_fingerprint: camperboss-release-hotfix-api35-r3-2026-10-09
       approve_visual_baseline: false
       analysis_mode: full
       baseline_sha: ""
@@ -48,7 +48,7 @@ jobs:
     uses: ./.github/workflows/external-project-runner.yml
     with:
       repository: riccardopinato/CamperBoss
-      ref: f40293158fddb761fa152c77d1195079b1eaed58
+      ref: dca585edb4d057ffde5a4e623e82092683ce9b5a
       source_ref: fix/applab-notification-icon-runtime
       working_directory: "."
       flutter_channel: stable
@@ -64,10 +64,10 @@ jobs:
       build_command: flutter build apk --release
       run_maestro: true
       maestro_flow: ".maestro/applab-release-core-final.yaml"
-      history_key: camperboss-release-hotfix-api29-r2-2026-10-09
+      history_key: camperboss-release-hotfix-api29-r3-2026-10-09
       cache_verification: false
-      contract_fingerprint: camperboss-release-hotfix-api29-r2-2026-10-09
-      config_fingerprint: camperboss-release-hotfix-api29-r2-2026-10-09
+      contract_fingerprint: camperboss-release-hotfix-api29-r3-2026-10-09
+      config_fingerprint: camperboss-release-hotfix-api29-r3-2026-10-09
       approve_visual_baseline: false
       analysis_mode: full
       baseline_sha: ""
