@@ -1,0 +1,73 @@
+name: CamperBoss Release Hotfix Verification 2026-10-09
+
+on:
+  push:
+    branches:
+      - audit-camperboss-2026-10-07
+    paths:
+      - ".github/workflows/camperboss-release-hotfix-2026-10-09.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  release_api35:
+    name: CamperBoss release 0.2.2+18 / API 35
+    uses: ./.github/workflows/external-project-runner.yml
+    with:
+      repository: riccardopinato/CamperBoss
+      ref: 0967ebfb1b7d5bc95985b304de26e00498640756
+      source_ref: fix/applab-notification-icon-runtime
+      working_directory: "."
+      flutter_channel: stable
+      flutter_version: "3.47.6"
+      java_version: "21"
+      prepare_command: ""
+      post_pub_get_command: ""
+      android_prepare_command: ""
+      api_level: "35"
+      emulator_profile: pixel_7_pro
+      apk_path: build/app/outputs/flutter-apk/app-release.apk
+      package_id: com.camperboss.camperboss
+      build_command: flutter build apk --release
+      run_maestro: true
+      maestro_flow: ".maestro/applab-release-core-final.yaml"
+      history_key: camperboss-release-hotfix-api35-2026-10-09
+      cache_verification: false
+      contract_fingerprint: camperboss-release-hotfix-api35-2026-10-09
+      config_fingerprint: camperboss-release-hotfix-api35-2026-10-09
+      approve_visual_baseline: false
+      analysis_mode: full
+      baseline_sha: ""
+      publish_release_artifact: false
+
+  release_api29:
+    name: CamperBoss release 0.2.2+18 / API 29
+    uses: ./.github/workflows/external-project-runner.yml
+    with:
+      repository: riccardopinato/CamperBoss
+      ref: 0967ebfb1b7d5bc95985b304de26e00498640756
+      source_ref: fix/applab-notification-icon-runtime
+      working_directory: "."
+      flutter_channel: stable
+      flutter_version: "3.47.6"
+      java_version: "21"
+      prepare_command: ""
+      post_pub_get_command: ""
+      android_prepare_command: ""
+      api_level: "29"
+      emulator_profile: pixel_7_pro
+      apk_path: build/app/outputs/flutter-apk/app-release.apk
+      package_id: com.camperboss.camperboss
+      build_command: flutter build apk --release
+      run_maestro: true
+      maestro_flow: ".maestro/applab-release-core-final.yaml"
+      history_key: camperboss-release-hotfix-api29-2026-10-09
+      cache_verification: false
+      contract_fingerprint: camperboss-release-hotfix-api29-2026-10-09
+      config_fingerprint: camperboss-release-hotfix-api29-2026-10-09
+      approve_visual_baseline: false
+      analysis_mode: full
+      baseline_sha: ""
+      publish_release_artifact: false
