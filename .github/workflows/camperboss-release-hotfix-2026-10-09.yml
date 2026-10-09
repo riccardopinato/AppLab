@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/camperboss-release-hotfix-2026-10-09.yml"
 
+# Retry after per-API concurrency isolation in the audit harness.
 permissions:
   contents: read
   actions: read
