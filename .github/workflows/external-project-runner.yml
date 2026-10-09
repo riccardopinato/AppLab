@@ -254,7 +254,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: applab-external-${{ inputs.repository }}-${{ inputs.ref }}
+  group: applab-external-${{ inputs.repository }}-${{ inputs.ref }}-api${{ inputs.api_level }}
   cancel-in-progress: true
 
 jobs:
