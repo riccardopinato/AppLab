@@ -44,12 +44,6 @@ def require_positive_revision(value: object, label: str) -> int:
     return value
 
 
-def exact_v1(value: Any, label: str) -> int:
-    if not isinstance(value, int) or isinstance(value, bool) or value != 1:
-        raise ValueError(f"{label} must be integer 1")
-    return value
-
-
 def validate_protocol(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise ValueError("protocol must be an object")
