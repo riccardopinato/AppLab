@@ -444,6 +444,7 @@ def verify_hub_run(
     conclusion = str(payload.get("conclusion", ""))
     head_branch = str(payload.get("head_branch", ""))
     head_sha = str(payload.get("head_sha", "")).lower()
+    run_attempt = str(payload.get("run_attempt", "")).strip()
     run_repository = str((payload.get("repository") or {}).get("full_name", ""))
 
     if run_repository != repository:
@@ -458,12 +459,15 @@ def verify_hub_run(
         raise ValueError("Physical evidence run must originate from AppLab main")
     if not SHA40_RE.fullmatch(head_sha):
         raise ValueError("Physical evidence run head SHA is invalid")
+    if not run_attempt.isdigit():
+        raise ValueError("Physical evidence run attempt is invalid")
 
     return {
         "repository": repository,
         "run_id": run_id,
+        "run_attempt": run_attempt,
         "head_sha": head_sha,
-        "artifact_name": f"applab-physical-evidence-{run_id}",
+        "artifact_name": f"applab-physical-evidence-{run_id}-{run_attempt}",
     }
 
 
@@ -474,6 +478,7 @@ def validate_against_artifact(
     *,
     expected_hub_repository: str,
     expected_hub_run_id: str,
+    expected_hub_run_attempt: str,
     expected_hub_head_sha: str,
     verifier_run_id: str,
     verifier_trusted_applab_sha: str,
@@ -516,6 +521,8 @@ def validate_against_artifact(
         raise ValueError("Physical evidence hub repository binding mismatch")
     if str(attestation.get("workflow_run_id", "")) != str(expected_hub_run_id):
         raise ValueError("Physical evidence hub run binding mismatch")
+    if str(attestation.get("workflow_run_attempt", "")) != str(expected_hub_run_attempt):
+        raise ValueError("Physical evidence hub run attempt binding mismatch")
     if str(attestation.get("trusted_applab_sha", "")).lower() != expected_hub_head_sha.lower():
         raise ValueError("Physical evidence hub SHA binding mismatch")
 
@@ -529,6 +536,7 @@ def validate_against_artifact(
             verifier_trusted_applab_sha, "verifier_trusted_applab_sha", 40
         ).lower(),
         "hub_run_id": str(expected_hub_run_id),
+        "hub_run_attempt": str(expected_hub_run_attempt),
         "hub_head_sha": expected_hub_head_sha.lower(),
         "exact_artifact_sha256": actual_sha,
         "exact_artifact_match": True,
@@ -685,6 +693,7 @@ def self_test() -> None:
             apk,
             expected_hub_repository="owner/AppLab",
             expected_hub_run_id="123",
+            expected_hub_run_attempt="1",
             expected_hub_head_sha="c" * 40,
             verifier_run_id="456",
             verifier_trusted_applab_sha="d" * 40,
@@ -769,6 +778,7 @@ def main() -> int:
     validate.add_argument("--artifact", required=True)
     validate.add_argument("--expected-hub-repository", required=True)
     validate.add_argument("--expected-hub-run-id", required=True)
+    validate.add_argument("--expected-hub-run-attempt", required=True)
     validate.add_argument("--expected-hub-head-sha", required=True)
     validate.add_argument("--verifier-run-id", required=True)
     validate.add_argument("--verifier-trusted-applab-sha", required=True)
@@ -832,6 +842,7 @@ def main() -> int:
             Path(args.artifact),
             expected_hub_repository=args.expected_hub_repository,
             expected_hub_run_id=args.expected_hub_run_id,
+            expected_hub_run_attempt=args.expected_hub_run_attempt,
             expected_hub_head_sha=args.expected_hub_head_sha,
             verifier_run_id=args.verifier_run_id,
             verifier_trusted_applab_sha=args.verifier_trusted_applab_sha,
