@@ -166,7 +166,7 @@ jobs:
       config_fingerprint: autonomous-review-v31
       approve_visual_baseline: false
       analysis_mode: full
-      baseline_sha: ""
+      baseline_sha: ${{ needs.resolve.outputs.base_sha }}
       force_release_build: false
       publish_release_artifact: false
 
