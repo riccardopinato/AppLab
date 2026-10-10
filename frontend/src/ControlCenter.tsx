@@ -396,6 +396,7 @@ type StudioProject = {
     current_level?: string;
     highest_observed_pass?: string;
     certification_status?: string;
+    certification_authority?: string;
     certified?: boolean;
     identity_complete?: boolean;
     source?: {
@@ -468,6 +469,8 @@ type StudioProject = {
       label?: string;
       observed?: string;
     }>;
+    why_not_certified_total?: number;
+    why_not_certified_truncated?: boolean;
   } | null;
   autonomous_review?: {
     review_state?: string;
@@ -558,7 +561,7 @@ type StudioSnapshot = {
 function badgeClass(value: string) {
   if (value === "PASS" || value === "CERTIFIED" || value === "CERTIFIED_CURRENT") return "cc-badge good";
   if (value === "CERTIFIED_STALE") return "cc-badge warn";
-  if (value === "FAIL" || value === "ERROR" || value === "NOT_CERTIFIED")
+  if (value === "FAIL" || value === "FAILURE" || value === "ERROR" || value === "NOT_CERTIFIED")
     return "cc-badge bad";
   if (value === "WARN" || value === "BLOCKED") return "cc-badge warn";
   return "cc-badge neutral";
@@ -712,7 +715,7 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                         <span>Release Reality</span>
                         <strong>{project.release_cockpit.current_level ?? "NOT_VERIFIED"}</strong>
                         <small>
-                          source {shortSha(project.release_cockpit.source?.resolved_sha ?? "")} · artifact {shortSha(project.release_cockpit.artifact?.sha256 ?? "")}
+                          source {shortSha(project.release_cockpit.source?.resolved_sha ?? "")} · artifact {shortSha(project.release_cockpit.artifact?.sha256 ?? "")} · {project.release_cockpit.certification_authority ?? "RELEASE_REALITY"}
                         </small>
                       </div>
                       <span className={badgeClass(project.release_cockpit.certification_status ?? "NOT_VERIFIED")}>
