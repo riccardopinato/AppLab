@@ -751,6 +751,31 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
                 for row in projects
                 if isinstance(row.get("evidence_graph"), dict)
             ),
+            "graph_changed_files": sum(
+                int((row.get("evidence_graph") or {}).get("changed_files", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "graph_impact_paths": sum(
+                int((row.get("evidence_graph") or {}).get("impact_paths", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "graph_invalidated_evidence": sum(
+                int((row.get("evidence_graph") or {}).get("invalidated_evidence", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "graph_resolved_findings": sum(
+                int(
+                    ((row.get("evidence_graph") or {}).get("finding_lifecycle") or {}).get(
+                        "RESOLVED", 0
+                    )
+                    or 0
+                )
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
             "analyst_attention": sum(
                 1
                 for row in projects
