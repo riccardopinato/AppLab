@@ -256,8 +256,20 @@ def check_project_adapter_contract() -> None:
         "target adapter metadata must not weaken certification policy",
     )
     require(
-        "Declared package id does not match APK package id" in validator,
-        "trusted contract validation must bind configured package to built APK identity",
+        "confined_repo_path" in adapter
+        and "TOOLCHAIN_PATTERNS" in adapter
+        and "unsafe or unsupported format" in adapter,
+        "adapter paths and toolchain metadata must remain declarative and repository-confined",
+    )
+    require(
+        "confined_repo_source" in packager
+        and "traverses a symlink" in packager,
+        "target evidence packaging must reject symlink traversal",
+    )
+    require(
+        "Declared package id does not match APK package id" in validator
+        and "APK package id is unavailable" in validator,
+        "trusted contract validation must bind configured package to available built APK identity",
     )
     require(
         "riccardopinato/CamperBoss" in integration
