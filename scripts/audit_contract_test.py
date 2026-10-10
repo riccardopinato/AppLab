@@ -744,6 +744,8 @@ def check_cross_app_verification_contract() -> None:
         'SUPPORTED_TRANSPORTS',
         'installed=kind in INSTALLED_APP_TRANSPORTS',
         'unsupported cross-app scenario transport',
+        'scenario transport must match pair transport',
+        'EVIDENCE_URI_PREFIXES',
         'kind in {"deep_link","android_intent"}',
         'producer and consumer cannot use identical APK bytes',
         'semantic contract lineage mismatch',
