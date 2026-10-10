@@ -2235,7 +2235,10 @@ def self_test() -> None:
                 ]
             },
             "product_flow_graph": {
-                "nodes": [{"id": "home", "role": "home"}, {"id": "settings", "role": "settings"}]
+                "nodes": [
+                    {"id": "home", "path": "lib/auth.dart", "role": "home"},
+                    {"id": "settings", "path": "lib/settings.dart", "role": "settings"},
+                ]
             },
             "product_consistency": {
                 "findings": [
@@ -2288,6 +2291,29 @@ def self_test() -> None:
             "baseline": {"available": True, "repository": "owner/app", "resolved_sha": sha1, "run_id": "41"},
             "summary": {"history_snapshots": 2, "regression_candidates": 1},
             "findings": {
+                "new": [],
+                "returned": [
+                    {
+                        "key": "product_consistency|id:finding-save",
+                        "source": "product_consistency",
+                        "id": "finding-save",
+                        "kind": "SAVE_FAILURE",
+                        "subject": "save",
+                    }
+                ],
+                "persistent": [],
+                "resolved": [
+                    {
+                        "key": "product_consistency|id:old-gap",
+                        "source": "product_consistency",
+                        "id": "old-gap",
+                        "kind": "LEGACY_GAP",
+                        "subject": "legacy",
+                        "severity": "REVIEW",
+                        "evidence": ["lib/legacy.dart"],
+                    }
+                ],
+                "suppressed_resolved": [],
                 "history": [
                     {
                         "key": "product_consistency|id:finding-save",
@@ -2359,6 +2385,17 @@ def self_test() -> None:
                 "build_variant": "debug",
             },
         },
+        "analysis_plan": {
+            "schema_version": 1,
+            "mode": "fast",
+            "lane": "FAST_RUNTIME",
+            "changed_files": ["lib/auth.dart", "lib/legacy.dart"],
+            "changes": [
+                {"path": "lib/auth.dart", "status": "M"},
+                {"path": "lib/legacy.dart", "status": "M"},
+            ],
+            "impacted_files": ["lib/settings.dart"],
+        },
     }
 
     graph = build_graph(evidence)
@@ -2369,12 +2406,18 @@ def self_test() -> None:
     assert counts["Revision"] == 2
     assert counts["BuildArtifact"] == 1
     assert counts["Capability"] == 2
-    assert counts["Finding"] == 1
+    assert counts["Finding"] == 2
     assert counts["Claim"] == 2
     assert counts["Experiment"] == 1
     assert graph["summary"]["unverified_capabilities"] == 1
     assert graph["summary"]["recurring_findings"] == 1
     assert graph["summary"]["regression_candidates"] == 1
+    assert counts["File"] >= 4
+    assert counts["Component"] >= 2
+    assert graph["summary"]["finding_lifecycle"]["RETURNED"] == 1
+    assert graph["summary"]["finding_lifecycle"]["RESOLVED"] == 1
+    assert graph["summary"]["invalidated_evidence"] == 1
+    assert graph["summary"]["impact_paths"] >= 1
 
     recurring = query_graph(graph, "recurring-findings")
     assert recurring["results"][0]["first_observed_sha"] == sha1
@@ -2385,6 +2428,20 @@ def self_test() -> None:
     assert history["results"][0]["seen_count"] == 2
     evidence_query = query_graph(graph, "evidence", "backup")
     assert any(row.get("type") == "Evidence" for row in evidence_query["evidence"])
+
+    lifecycle_query = query_graph(graph, "lifecycle")
+    assert lifecycle_query["results"]["RETURNED"] == 1
+    stale_query = query_graph(graph, "stale-evidence")
+    assert len(stale_query["results"]) == 1
+    assert stale_query["results"][0]["label"] == "lib/legacy.dart"
+    impact_query = query_graph(graph, "impact")
+    relations = [relation for row in impact_query["results"]["paths"] for relation in row["relations"]]
+    assert "FILE_IN_COMPONENT" in relations
+    assert "COMPONENT_SUPPORTS_CAPABILITY" in relations
+    assert "CAPABILITY_OBSERVED_ON_SURFACE" in relations
+    assert "SURFACE_IN_JOURNEY" in relations
+    subject_query = query_graph(graph, "subject", "legacy")
+    assert subject_query["history"][0]["lifecycle_state"] == "RESOLVED"
 
     optional_inputs = dict(evidence)
     optional_inputs.pop("autonomous", None)
