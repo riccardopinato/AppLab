@@ -689,7 +689,11 @@ def check_certification_studio_contract() -> None:
     require(
         'STUDIO_VERSION = "4.7.0"' in cockpit
         and '"read_only": True' in cockpit
-        and '"why_not_certified"' in cockpit,
+        and '"why_not_certified"' in cockpit
+        and 'CERTIFICATION_PREREQUISITE_STAGES' in cockpit
+        and 'row.get("key") or row.get("stage")' in cockpit
+        and 'project_dir / "certification.json"' in cockpit
+        and '"why_not_certified_truncated": False' in cockpit,
         "Certification Studio must expose an explicit read-only why-not-certified projection",
     )
     require(
@@ -700,6 +704,7 @@ def check_certification_studio_contract() -> None:
     require(
         "Why is this not CERTIFIED?" in frontend
         and "release_cockpit.certification_status" in frontend
+        and "release_cockpit.certification_authority" in frontend
         and "release_cockpit.artifact?.same_bytes_verified" in frontend,
         "Control Center must expose release blockers and exact-artifact state",
     )
