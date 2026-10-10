@@ -513,6 +513,18 @@ jobs:
             --run-id "$GITHUB_RUN_ID" \
             --analysis-mode "${{ steps.analysis.outputs.effective_mode }}"
 
+      - name: Build Release Reality record
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/release_reality.py \
+            --report-dir "$GITHUB_WORKSPACE/applab-report" \
+            --artifact "$GITHUB_WORKSPACE/.applab-build/app.apk" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --trusted-applab-sha "${{ job.workflow_sha }}" \
+            --runtime-outcome "${{ steps.verify.outcome }}"
+
       - name: Bind trusted runtime evidence
         if: steps.verify.outcome == 'success'
         shell: bash
@@ -566,7 +578,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v4.3.0 Trusted APK Verification"
+            echo "## AppLab v4.4.0 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"
@@ -584,6 +596,10 @@ jobs:
               if [[ -f "$GITHUB_WORKSPACE/applab-report/certification.md" ]]; then
                 echo
                 cat "$GITHUB_WORKSPACE/applab-report/certification.md"
+              fi
+              if [[ -f "$GITHUB_WORKSPACE/applab-report/release-reality.md" ]]; then
+                echo
+                cat "$GITHUB_WORKSPACE/applab-report/release-reality.md"
               fi
             else
               echo "Trusted verification ended before a runtime report was produced."
