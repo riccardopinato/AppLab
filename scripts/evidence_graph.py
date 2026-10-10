@@ -1878,7 +1878,14 @@ def _apply_evidence_freshness(
     }
 
 
-def _summary(builder: GraphBuilder, inputs: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _summary(
+    builder: GraphBuilder,
+    inputs: dict[str, dict[str, Any]],
+    *,
+    lifecycle: dict[str, int] | None = None,
+    impact: dict[str, Any] | None = None,
+    freshness: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     counts = Counter(str(row["type"]) for row in builder.nodes.values())
     relation_counts = Counter(str(row["type"]) for row in builder.edges.values())
 
@@ -1933,6 +1940,14 @@ def _summary(builder: GraphBuilder, inputs: dict[str, dict[str, Any]]) -> dict[s
         "unverified_capabilities": len(unverified_capabilities),
         "recurring_findings": len(recurring_findings),
         "regression_candidates": len([row for row in regressions if isinstance(row, dict)]),
+        "finding_lifecycle": dict(sorted((lifecycle or {}).items())),
+        "changed_files": len((impact or {}).get("changed_files", [])),
+        "dependency_impacted_files": len((impact or {}).get("dependency_impacted_files", [])),
+        "impact_paths": len((impact or {}).get("paths", [])),
+        "invalidated_evidence": int((freshness or {}).get("invalidated_count", 0) or 0),
+        "stale_or_historical_evidence": int(
+            (freshness or {}).get("stale_or_historical_count", 0) or 0
+        ),
     }, {
         "unverified_capabilities": sorted(
             unverified_capabilities,
@@ -1952,6 +1967,9 @@ def _summary(builder: GraphBuilder, inputs: dict[str, dict[str, Any]]) -> dict[s
             for row in regressions
             if isinstance(row, dict)
         ],
+        "finding_lifecycle": dict(sorted((lifecycle or {}).items())),
+        "impact": impact or {},
+        "freshness": freshness or {},
     }
 
 
@@ -1965,11 +1983,20 @@ def build_graph(
     _add_surfaces(builder, inputs, reports, revision)
     _add_journeys(builder, inputs, reports, revision)
     _add_findings(builder, inputs, reports, revision)
+    lifecycle = _finding_lifecycle(builder, inputs, reports, revision)
     _add_claims(builder, inputs, reports, revision)
     _add_experiments(builder, inputs, reports, revision)
     _add_results(builder, inputs, reports, revision)
+    impact = _add_impact_graph(builder, inputs, reports, revision)
+    freshness = _apply_evidence_freshness(builder, inputs)
 
-    summary, insights = _summary(builder, inputs)
+    summary, insights = _summary(
+        builder,
+        inputs,
+        lifecycle=lifecycle,
+        impact=impact,
+        freshness=freshness,
+    )
     identity, _ = _identity(inputs)
     return {
         "schema_version": SCHEMA_VERSION,
@@ -1994,6 +2021,10 @@ def build_graph(
             "regression_candidate_is_not_automatic_defect": True,
             "no_numeric_product_quality_score": True,
             "trusted_runtime_boundary_unchanged": True,
+            "structural_component_edges_are_not_behavioral_proof": True,
+            "impact_path_is_not_root_cause_proof": True,
+            "resolution_observation_is_not_fix_causality": True,
+            "current_evidence_is_not_invalidated_only_because_its_source_file_changed": True,
         },
     }
 
@@ -2029,6 +2060,24 @@ def query_graph(graph: dict[str, Any], query: str, subject: str = "") -> dict[st
             "results": (graph.get("insights") or {}).get("regression_candidates", []),
         }
 
+    if query == "impact":
+        return {
+            "query": query,
+            "results": (graph.get("insights") or {}).get("impact", {}),
+        }
+    if query == "stale-evidence":
+        freshness = (graph.get("insights") or {}).get("freshness", {})
+        return {
+            "query": query,
+            "results": freshness.get("invalidated", []) if isinstance(freshness, dict) else [],
+            "summary": freshness if isinstance(freshness, dict) else {},
+        }
+    if query == "lifecycle":
+        return {
+            "query": query,
+            "results": (graph.get("insights") or {}).get("finding_lifecycle", {}),
+        }
+
     token = _norm(subject)
     matched = []
     for row in by_id.values():
@@ -2057,7 +2106,10 @@ def query_graph(graph: dict[str, Any], query: str, subject: str = "") -> dict[st
                     "last_observed_sha": attrs.get("last_observed_sha"),
                     "seen_count": attrs.get("seen_count", 0),
                     "consecutive_seen": attrs.get("consecutive_seen", 0),
-                    "caveat": "first_observed_sha is evidence of first observation, not proof of the code-introducing commit",
+                    "lifecycle_state": attrs.get("lifecycle_state", "UNKNOWN"),
+                    "active": attrs.get("active"),
+                    "resolution_observed_sha": attrs.get("resolution_observed_sha", ""),
+                    "caveat": "first_observed_sha/resolution_observed_sha are observation boundaries, not proof of the code-introducing or code-fixing commit",
                 }
             )
         return {"query": query, "subject": subject, "results": results}
@@ -2082,9 +2134,46 @@ def query_graph(graph: dict[str, Any], query: str, subject: str = "") -> dict[st
             "relations": relations,
         }
 
+    if query == "subject":
+        matched_ids = {str(row.get("id")) for row in matched}
+        relations = [
+            edge for edge in edges
+            if _safe(edge.get("from")) in matched_ids
+            or _safe(edge.get("to")) in matched_ids
+        ]
+        evidence_ids: set[str] = set()
+        for edge in relations:
+            source = _safe(edge.get("from"))
+            target = _safe(edge.get("to"))
+            for candidate in (source, target):
+                if by_id.get(candidate, {}).get("type") == "Evidence":
+                    evidence_ids.add(candidate)
+        history_rows = []
+        for row in matched:
+            if row.get("type") != "Finding":
+                continue
+            attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
+            history_rows.append({
+                "id": row.get("id"),
+                "kind": attrs.get("kind"),
+                "subject": attrs.get("subject"),
+                "lifecycle_state": attrs.get("lifecycle_state"),
+                "first_observed_sha": attrs.get("first_observed_sha"),
+                "last_observed_sha": attrs.get("last_observed_sha"),
+                "resolution_observed_sha": attrs.get("resolution_observed_sha"),
+            })
+        return {
+            "query": query,
+            "subject": subject,
+            "matched_nodes": matched,
+            "relations": relations,
+            "evidence": [by_id[node_id] for node_id in sorted(evidence_ids)],
+            "history": history_rows,
+        }
+
     raise ValueError(
         "Unsupported query. Use one of: unverified-capabilities, recurring-findings, "
-        "regressions, history, evidence"
+        "regressions, impact, stale-evidence, lifecycle, history, evidence, subject"
     )
 
 
@@ -2092,7 +2181,7 @@ def markdown(graph: dict[str, Any]) -> str:
     summary = graph["summary"]
     identity = graph["identity"]
     lines = [
-        "# AppLab v4.2 — Evidence Graph",
+        "# AppLab v4.6 — Evidence Graph 2",
         "",
         f"- Project: **{identity.get('repository') or 'unknown'}**",
         f"- Revision: **{identity.get('resolved_sha') or 'unknown'}**",
@@ -2101,6 +2190,9 @@ def markdown(graph: dict[str, Any]) -> str:
         f"- Unverified capabilities: **{summary['unverified_capabilities']}**",
         f"- Recurring findings: **{summary['recurring_findings']}**",
         f"- Regression candidates: **{summary['regression_candidates']}**",
+        f"- Changed files mapped: **{summary.get('changed_files', 0)}**",
+        f"- Impact paths: **{summary.get('impact_paths', 0)}**",
+        f"- Invalidated evidence: **{summary.get('invalidated_evidence', 0)}**",
         "",
         "## Node model",
         "",
@@ -2116,6 +2208,12 @@ def markdown(graph: dict[str, Any]) -> str:
     )
     lines.append(
         "- Evidence Graph does not alter FAST/FULL/CERTIFICATION or trusted-runtime authority."
+    )
+    lines.append(
+        "- Impact edges are bounded structural observations, not root-cause proof."
+    )
+    lines.append(
+        "- Resolution timestamps are observation boundaries, not proof that a commit caused the fix."
     )
     return "\n".join(lines)
 
@@ -2307,7 +2405,7 @@ def self_test() -> None:
         write_outputs(graph, out)
         assert (out / "evidence-graph.json").is_file()
         assert (out / "evidence-graph.md").is_file()
-    print("AppLab Evidence Graph v4.2 self-test PASS")
+    print("AppLab Evidence Graph v4.6 self-test PASS")
 
 
 def main() -> int:
@@ -2322,8 +2420,12 @@ def main() -> int:
             "unverified-capabilities",
             "recurring-findings",
             "regressions",
+            "impact",
+            "stale-evidence",
+            "lifecycle",
             "history",
             "evidence",
+            "subject",
         ),
         default="",
     )
