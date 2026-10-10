@@ -115,6 +115,7 @@ Cross-app PASS is impossible when any of these applies:
 - the selected transport is unsupported or its physical-requirement declaration is contradictory;
 - COPY/LINK/idempotency/provenance/ownership observations do not share one coherent lineage;
 - producer and consumer claim identical APK bytes;
+- producer and consumer claim the same Android package id;
 - required assertions are absent/false in a claimed PASS scenario;
 - installed-app transport lacks paired physical evidence;
 - paired physical evidence does not bind both exact APK hashes;
