@@ -456,6 +456,11 @@ def build_release_reality(
     if not isinstance(policy, dict):
         policy = {}
     requires_real_device = bool(policy.get("requires_real_device", False))
+    required_physical_capabilities = {
+        str(value or "").strip().lower()
+        for value in (policy.get("required_physical_capabilities") or [])
+        if str(value or "").strip()
+    }
     physical = physical_evidence_summary(
         report_dir,
         repository,
@@ -463,12 +468,27 @@ def build_release_reality(
         artifact,
     )
     if physical.get("present"):
-        physical_state = str(physical["result"])
-        physical_reason = (
-            f"Trusted physical-device scenario {physical['scenario']['id']!r} "
-            f"reported {physical_state} on "
-            f"{physical['device']['manufacturer']} {physical['device']['model']}."
+        covered_capabilities = {
+            str(value or "").strip().lower()
+            for value in physical["scenario"].get("capabilities", [])
+            if str(value or "").strip()
+        }
+        missing_capabilities = sorted(
+            required_physical_capabilities - covered_capabilities
         )
+        physical_state = str(physical["result"])
+        if physical_state == PASS and missing_capabilities:
+            physical_state = BLOCKED
+            physical_reason = (
+                "Trusted physical evidence passed but required capability coverage "
+                "is incomplete: " + ", ".join(missing_capabilities)
+            )
+        else:
+            physical_reason = (
+                f"Trusted physical-device scenario {physical['scenario']['id']!r} "
+                f"reported {physical_state} on "
+                f"{physical['device']['manufacturer']} {physical['device']['model']}."
+            )
         physical_applicable = True
         physical_evidence_refs = [
             "physical-evidence.json",
@@ -624,7 +644,10 @@ def build_release_reality(
         "unresolved_stages": unresolved,
         "certification": certification,
         "certification_blockers": certification_blockers,
-        "physical_evidence": physical,
+        "physical_evidence": {
+            **physical,
+            "required_capabilities": sorted(required_physical_capabilities),
+        },
         "same_artifact_semantics": {
             "artifact_sha256_is_release_identity": True,
             "same_bytes_verified": bool(artifact.get("same_bytes_verified")),
@@ -811,6 +834,7 @@ def self_test() -> None:
 
         contract["analysis_mode"] = "certification"
         contract["certification_policy"]["requires_real_device"] = True
+        contract["certification_policy"]["required_physical_capabilities"] = ["gps", "background"]
         result["analysis_mode"] = "certification"
         (report / "build-contract.json").write_text(json.dumps(contract), encoding="utf-8")
         (report / "result.json").write_text(json.dumps(result), encoding="utf-8")
