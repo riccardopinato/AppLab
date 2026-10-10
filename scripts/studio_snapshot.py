@@ -11,7 +11,7 @@ from typing import Any
 import certification_studio, studio_evidence_graph
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "4.7.0"
+STUDIO_VERSION = "4.8.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
