@@ -262,7 +262,7 @@ def make_record(
     result = clean_string(result, "result", 16).upper()
     if result not in RESULTS:
         raise ValueError("result must be PASS, FAIL or BLOCKED")
-    captured_at = clean_string(captured_at, "captured_at", 64)
+    captured_at = optional_string(captured_at, 64) or now_iso()
     try:
         datetime.fromisoformat(captured_at.replace("Z", "+00:00"))
     except ValueError as exc:
