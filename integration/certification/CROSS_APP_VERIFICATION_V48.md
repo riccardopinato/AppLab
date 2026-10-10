@@ -80,11 +80,11 @@ rejection, no domain mutation, and private-media rejection.
 
 ## Transport and physical-device evidence
 
-Protocol and transport stay separate. Each scenario declares its transport. Both
-the pair-level transport and every scenario transport must use a supported
-`deep_link` / `android_intent` / `clipboard` / `fallback` value. AppLab derives
-the installed-app requirement from that validated transport class; the submitted
-boolean cannot weaken the requirement.
+Protocol and transport stay separate. Each scenario declares its transport. Both the pair-level transport and every scenario transport must use a supported
+`deep_link` / `android_intent` / `clipboard` / `fallback` value, and every
+scenario in one verification session must match the selected pair transport.
+AppLab derives the installed-app requirement from that validated transport class;
+the submitted boolean cannot weaken the requirement.
 
 When `requires_installed_apps=true`, **paired physical-device evidence is required**.
 Emulator evidence or two independent single-app physical sessions cannot be
@@ -96,7 +96,8 @@ The paired physical record binds:
 - physical device manufacturer/model/OS/build;
 - every installed-app-dependent scenario id;
 - PASS/FAIL/BLOCKED result;
-- **at least one** hashed screenshot/log/video/file/trace/report reference.
+- **at least one** hashed screenshot/log/video/file/trace/report reference using
+  `https://`, `artifact://` or `file-sha256://`.
 
 The v4.8 workflow is an operator-attested evidence path, following the existing
 Physical Evidence Hub trust model. Evidence-reference hashes are recorded, but
