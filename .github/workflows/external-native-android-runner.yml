@@ -294,8 +294,8 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Fetch FAST baseline commit
-        if: inputs.analysis_mode == 'fast' && inputs.baseline_sha != ''
+      - name: Fetch change baseline commit
+        if: inputs.baseline_sha != ''
         shell: bash
         env:
           BASELINE_SHA: ${{ inputs.baseline_sha }}

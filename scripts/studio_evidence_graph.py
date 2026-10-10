@@ -35,6 +35,20 @@ def project_summary(evidence_graph: dict[str, Any]) -> dict[str, Any]:
         if isinstance(insights.get("recurring_findings"), list)
         else []
     )
+    impact = insights.get("impact") if isinstance(insights.get("impact"), dict) else {}
+    freshness = insights.get("freshness") if isinstance(insights.get("freshness"), dict) else {}
+    lifecycle = (
+        insights.get("finding_lifecycle")
+        if isinstance(insights.get("finding_lifecycle"), dict)
+        else {}
+    )
+    invalidated = (
+        freshness.get("invalidated")
+        if isinstance(freshness.get("invalidated"), list)
+        else []
+    )
+    impact_paths = impact.get("paths") if isinstance(impact.get("paths"), list) else []
+
     return {
         "nodes": int(summary.get("nodes", 0) or 0),
         "edges": int(summary.get("edges", 0) or 0),
@@ -47,6 +61,19 @@ def project_summary(evidence_graph: dict[str, Any]) -> dict[str, Any]:
         "regression_candidates": int(
             summary.get("regression_candidates", 0) or 0
         ),
+        "changed_files": int(summary.get("changed_files", 0) or 0),
+        "dependency_impacted_files": int(
+            summary.get("dependency_impacted_files", 0) or 0
+        ),
+        "impact_paths": int(summary.get("impact_paths", 0) or 0),
+        "invalidated_evidence": int(summary.get("invalidated_evidence", 0) or 0),
+        "stale_or_historical_evidence": int(
+            summary.get("stale_or_historical_evidence", 0) or 0
+        ),
+        "finding_lifecycle": {
+            str(key): int(value or 0)
+            for key, value in sorted(lifecycle.items())
+        },
         "top_unverified_capabilities": [
             {
                 "capability": str(item.get("capability", "")),
@@ -67,14 +94,38 @@ def project_summary(evidence_graph: dict[str, Any]) -> dict[str, Any]:
             for item in recurring[:8]
             if isinstance(item, dict)
         ],
+        "top_invalidated_evidence": [
+            {
+                "evidence_id": str(item.get("evidence_id", "")),
+                "label": str(item.get("label", "")),
+                "invalidated_by_files": [
+                    str(value)
+                    for value in item.get("invalidated_by_files", [])[:8]
+                ] if isinstance(item.get("invalidated_by_files"), list) else [],
+            }
+            for item in invalidated[:8]
+            if isinstance(item, dict)
+        ],
+        "top_impact_paths": [
+            {
+                "origin_file": str(item.get("origin_file", "")),
+                "origin_kind": str(item.get("origin_kind", "")),
+                "relations": [
+                    str(value) for value in item.get("relations", [])[:8]
+                ] if isinstance(item.get("relations"), list) else [],
+                "terminal_evidence": str(item.get("terminal_evidence", "")),
+            }
+            for item in impact_paths[:8]
+            if isinstance(item, dict)
+        ],
     }
 
 
 def self_test_payload() -> dict[str, Any]:
     return {
-        "schema_version": 1,
-        "engine_version": "4.2.0",
-        "graph_version": "1.0",
+        "schema_version": 2,
+        "engine_version": "4.6.0",
+        "graph_version": "2.0",
         "summary": {
             "nodes": 24,
             "edges": 38,
@@ -98,6 +149,11 @@ def self_test_payload() -> dict[str, Any]:
             "unverified_capabilities": 1,
             "recurring_findings": 1,
             "regression_candidates": 1,
+            "changed_files": 2,
+            "dependency_impacted_files": 1,
+            "impact_paths": 1,
+            "invalidated_evidence": 1,
+            "stale_or_historical_evidence": 2,
         },
         "insights": {
             "unverified_capabilities": [
@@ -116,6 +172,36 @@ def self_test_payload() -> dict[str, Any]:
                     "last_observed_sha": "b" * 40,
                 }
             ],
+            "finding_lifecycle": {
+                "RETURNED": 1,
+                "RESOLVED": 1,
+            },
+            "freshness": {
+                "invalidated_count": 1,
+                "invalidated": [
+                    {
+                        "evidence_id": "Evidence:1",
+                        "label": "lib/legacy.dart",
+                        "invalidated_by_files": ["lib/legacy.dart"],
+                    }
+                ],
+            },
+            "impact": {
+                "paths": [
+                    {
+                        "origin_file": "lib/settings.dart",
+                        "origin_kind": "DEPENDENCY_IMPACT",
+                        "relations": [
+                            "FILE_IN_COMPONENT",
+                            "COMPONENT_SUPPORTS_CAPABILITY",
+                            "CAPABILITY_OBSERVED_ON_SURFACE",
+                            "SURFACE_IN_JOURNEY",
+                            "DERIVED_FROM",
+                        ],
+                        "terminal_evidence": "user-journey.json",
+                    }
+                ]
+            },
         },
     }
 
@@ -128,6 +214,11 @@ def self_test() -> None:
     assert row["recurring_findings"] == 1
     assert row["top_unverified_capabilities"][0]["capability"] == "backup"
     assert row["top_recurring_findings"][0]["seen_count"] == 3
+    assert row["impact_paths"] == 1
+    assert row["invalidated_evidence"] == 1
+    assert row["finding_lifecycle"]["RESOLVED"] == 1
+    assert row["top_invalidated_evidence"][0]["label"] == "lib/legacy.dart"
+    assert "SURFACE_IN_JOURNEY" in row["top_impact_paths"][0]["relations"]
     print("AppLab Studio Evidence Graph projection self-test PASS")
 
 

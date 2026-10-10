@@ -12,9 +12,9 @@ from typing import Any
 
 from product_review_common import write_report
 
-SCHEMA_VERSION = 1
-ENGINE_VERSION = "4.2.0"
-GRAPH_VERSION = "1.0"
+SCHEMA_VERSION = 2
+ENGINE_VERSION = "4.6.0"
+GRAPH_VERSION = "2.0"
 
 FILES = {
     "app": "app-intelligence.json",
@@ -28,12 +28,15 @@ FILES = {
     "experiment": "experiment-plan.json",
     "analyst": "analyst-report.json",
     "autonomous": "autonomous-review.json",
+    "analysis_plan": "analysis-plan.json",
 }
 
 NODE_TYPES = (
     "Project",
     "Revision",
     "BuildArtifact",
+    "File",
+    "Component",
     "Capability",
     "Surface",
     "Journey",
@@ -90,6 +93,7 @@ def load_inputs(evidence_dir: Path, trusted_runtime_dir: Path | None = None) -> 
             ("trusted_manifest", "trusted-evidence-manifest.json"),
             ("build_contract", "build-contract.json"),
             ("trusted_result", "result.json"),
+            ("analysis_plan", "analysis-plan.json"),
         ):
             payload = read_json(trusted_runtime_dir / filename)
             if payload is not None:
@@ -119,6 +123,105 @@ def _scalars(row: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
         if isinstance(value, (str, int, float, bool)) or value is None:
             result[key] = value
     return result
+
+
+_PATH_SUFFIXES = {
+    ".dart", ".kt", ".java", ".kts", ".gradle", ".xml", ".json", ".yaml",
+    ".yml", ".properties", ".md", ".txt", ".rst", ".swift", ".m", ".mm",
+    ".cpp", ".c", ".h", ".hpp", ".js", ".jsx", ".ts", ".tsx", ".css",
+    ".html", ".sql", ".toml",
+}
+
+
+def _repo_path(value: Any) -> str:
+    text = _safe(value).replace("\\", "/").strip()
+    if not text or "\n" in text or "\r" in text:
+        return ""
+    if text.startswith(("http://", "https://", "artifact://", "file-sha256://")):
+        return ""
+    while text.startswith("./"):
+        text = text[2:]
+    text = re.sub(r"/+", "/", text).strip("/")
+    if not text or text.startswith("../") or "/../" in f"/{text}/":
+        return ""
+    suffix = Path(text).suffix.lower()
+    if "/" not in text and suffix not in _PATH_SUFFIXES and text not in {
+        "README", "LICENSE", "Dockerfile", "Makefile",
+    }:
+        return ""
+    if any(char in text for char in (" ", "\t", "|", "<", ">")):
+        return ""
+    return text
+
+
+def _component_key(path: str) -> str:
+    normalized = _repo_path(path)
+    if not normalized:
+        return ""
+    parts = normalized.split("/")
+    if parts[0] == "lib":
+        return "/".join(parts[:2]) if len(parts) >= 3 else "lib"
+    if "src" in parts:
+        index = parts.index("src")
+        prefix = parts[:index]
+        if prefix:
+            return "/".join(prefix)
+    if len(parts) > 1:
+        return parts[0]
+    return "root"
+
+
+def _analysis_paths(inputs: dict[str, dict[str, Any]]) -> tuple[set[str], set[str]]:
+    plan = inputs.get("analysis_plan", {})
+    changed: set[str] = set()
+    impacted: set[str] = set()
+    if not isinstance(plan, dict):
+        return changed, impacted
+    for value in plan.get("changed_files", []) if isinstance(plan.get("changed_files"), list) else []:
+        path = _repo_path(value)
+        if path:
+            changed.add(path)
+    changes = plan.get("changes") if isinstance(plan.get("changes"), list) else []
+    for row in changes:
+        if not isinstance(row, dict):
+            continue
+        for key in ("path", "previous_path"):
+            path = _repo_path(row.get(key))
+            if path:
+                changed.add(path)
+    for value in plan.get("impacted_files", []) if isinstance(plan.get("impacted_files"), list) else []:
+        path = _repo_path(value)
+        if path and path not in changed:
+            impacted.add(path)
+    return changed, impacted
+
+
+def _file_node(
+    builder: "GraphBuilder",
+    path: str,
+    *,
+    changed: set[str],
+    impacted: set[str],
+    provenance: list[str] | None = None,
+) -> str | None:
+    normalized = _repo_path(path)
+    if not normalized:
+        return None
+    state = "CHANGED" if normalized in changed else (
+        "DEPENDENCY_IMPACT" if normalized in impacted else "OBSERVED"
+    )
+    return builder.add_node(
+        "File",
+        normalized,
+        normalized,
+        attributes={
+            "path": normalized,
+            "change_state": state,
+            "changed": normalized in changed,
+            "dependency_impacted": normalized in impacted,
+        },
+        provenance=provenance or [],
+    )
 
 
 class GraphBuilder:
@@ -270,15 +373,22 @@ def _reference_evidence(
     *,
     source_file: str,
     report_node: str | None,
+    attributes: dict[str, Any] | None = None,
 ) -> str | None:
     text = _safe(value)
     if not text:
         return None
+    metadata = attributes or {}
+    scope = _safe(metadata.get("observation_scope")).upper()
+    source_sha = _safe(metadata.get("source_sha") or metadata.get("observed_sha")).lower()
+    reference_key = f"reference:{text}"
+    if scope == "HISTORICAL":
+        reference_key += f"@{source_sha or 'historical'}"
     node_id = builder.add_node(
         "Evidence",
-        f"reference:{text}",
+        reference_key,
         text,
-        attributes={"kind": "REFERENCE"},
+        attributes={"kind": "REFERENCE", **metadata},
         provenance=[source_file],
     )
     if report_node:
@@ -722,11 +832,20 @@ def _add_finding_rows(
 
         evidence_values = row.get("evidence") if isinstance(row.get("evidence"), list) else []
         for value in evidence_values[:16]:
+            revision_attrs = (
+                builder.nodes.get(revision, {}).get("attributes", {})
+                if isinstance(builder.nodes.get(revision, {}).get("attributes", {}), dict)
+                else {}
+            )
             evidence_node = _reference_evidence(
                 builder,
                 value,
                 source_file=source_file,
                 report_node=report_node,
+                attributes={
+                    "observation_scope": "CURRENT",
+                    "observed_sha": _safe(revision_attrs.get("resolved_sha")),
+                },
             )
             if evidence_node:
                 builder.add_edge("FINDING_SUPPORTED_BY", node, evidence_node, provenance=[source_file])
@@ -817,6 +936,210 @@ def _add_findings(
     )
 
 
+def _finding_row_key(row: dict[str, Any]) -> str:
+    key = _safe(row.get("key"))
+    if key:
+        return key
+    source = _safe(row.get("source"))
+    explicit_id = _safe(row.get("id"))
+    if source and explicit_id:
+        return f"{source}|id:{explicit_id}"
+    kind = _safe(row.get("kind") or row.get("category"))
+    subject = _safe(row.get("subject") or row.get("capability"))
+    if source and (kind or subject):
+        return f"{source}|{kind}|{subject}"
+    return ""
+
+
+def _finding_lifecycle(
+    builder: GraphBuilder,
+    inputs: dict[str, dict[str, Any]],
+    reports: dict[str, str],
+    revision: str,
+) -> dict[str, int]:
+    longitudinal = inputs.get("longitudinal", {})
+    findings = (
+        longitudinal.get("findings")
+        if isinstance(longitudinal.get("findings"), dict)
+        else {}
+    )
+    current = (
+        longitudinal.get("current")
+        if isinstance(longitudinal.get("current"), dict)
+        else {}
+    )
+    baseline = (
+        longitudinal.get("baseline")
+        if isinstance(longitudinal.get("baseline"), dict)
+        else {}
+    )
+    current_sha = _safe(current.get("resolved_sha")).lower()
+    baseline_sha = _safe(baseline.get("resolved_sha")).lower()
+
+    states: dict[str, str] = {}
+    for bucket, state in (
+        ("new", "FIRST_OBSERVED"),
+        ("persistent", "PERSISTENT"),
+        ("returned", "RETURNED"),
+    ):
+        rows = findings.get(bucket) if isinstance(findings.get(bucket), list) else []
+        for row in rows:
+            if isinstance(row, dict):
+                key = _finding_row_key(row)
+                if key:
+                    states[key] = state
+
+    counts = Counter()
+    for node_id, node in list(builder.nodes.items()):
+        if node.get("type") != "Finding":
+            continue
+        key = _safe(node.get("key"))
+        attrs = node.get("attributes") if isinstance(node.get("attributes"), dict) else {}
+        state = states.get(key, "ACTIVE")
+        attrs["lifecycle_state"] = state
+        attrs["active"] = True
+        attrs["resolution_observed_sha"] = ""
+        attrs["causal_attribution"] = "NOT_INFERRED"
+        node["attributes"] = attrs
+        counts[state] += 1
+        relation = {
+            "FIRST_OBSERVED": "REVISION_FIRST_OBSERVED_FINDING",
+            "RETURNED": "REVISION_RETURNED_FINDING",
+            "PERSISTENT": "REVISION_PERSISTS_FINDING",
+        }.get(state)
+        if relation:
+            builder.add_edge(
+                relation,
+                revision,
+                node_id,
+                attributes={"causal_blame": False},
+                provenance=[FILES["longitudinal"]],
+            )
+
+    baseline_revision = None
+    if baseline_sha:
+        for node_id, node in builder.nodes.items():
+            if node.get("type") != "Revision":
+                continue
+            attrs = node.get("attributes") if isinstance(node.get("attributes"), dict) else {}
+            if _safe(attrs.get("resolved_sha")).lower() == baseline_sha:
+                baseline_revision = node_id
+                break
+
+    resolved_rows: dict[str, dict[str, Any]] = {}
+    for bucket in ("resolved_history", "resolved"):
+        rows = findings.get(bucket) if isinstance(findings.get(bucket), list) else []
+        for index, row in enumerate(rows):
+            if not isinstance(row, dict):
+                continue
+            key = _finding_row_key(row) or f"{bucket}:{index}:{_safe(row.get('kind'))}:{_safe(row.get('subject'))}"
+            resolved_rows[key] = row
+    resolved = [resolved_rows[key] for key in sorted(resolved_rows)]
+    for index, row in enumerate(resolved):
+        if not isinstance(row, dict):
+            continue
+        key = _finding_row_key(row) or f"resolved:{index}:{_safe(row.get('kind'))}:{_safe(row.get('subject'))}"
+        existing = _match_node_key(builder, key, ("Finding",))
+        kind = _safe(row.get("kind") or row.get("category")) or "FINDING"
+        subject = _safe(row.get("subject") or row.get("capability") or row.get("id")) or key
+        if existing:
+            node_id = existing
+            attrs = builder.nodes[node_id].get("attributes")
+            attrs = attrs if isinstance(attrs, dict) else {}
+        else:
+            node_id = builder.add_node(
+                "Finding",
+                key,
+                f"{kind}: {subject}",
+                attributes={
+                    **_scalars(
+                        row,
+                        (
+                            "id", "domain", "category", "kind", "severity",
+                            "subject", "capability", "message", "reason", "source",
+                        ),
+                    ),
+                    "finding_source": _safe(row.get("source")),
+                    "source_file": FILES["longitudinal"],
+                    "first_observed_sha": _safe(row.get("first_seen_sha")),
+                    "last_observed_sha": _safe(row.get("last_seen_sha")) or baseline_sha,
+                    "seen_count": int(row.get("seen_count", 0) or 0),
+                    "consecutive_seen": 0,
+                },
+                provenance=[FILES["longitudinal"]],
+            )
+            attrs = builder.nodes[node_id]["attributes"]
+
+        resolution_observed_sha = (
+            _safe(row.get("resolution_observed_sha")).lower() or current_sha
+        )
+        last_seen_sha = (
+            _safe(row.get("last_seen_sha")).lower()
+            or _safe(attrs.get("last_observed_sha")).lower()
+            or baseline_sha
+        )
+        attrs["lifecycle_state"] = "RESOLVED"
+        attrs["active"] = False
+        attrs["resolution_observed_sha"] = resolution_observed_sha
+        attrs["causal_attribution"] = "NOT_INFERRED"
+        builder.nodes[node_id]["attributes"] = attrs
+        counts["RESOLVED"] += 1
+
+        if baseline_revision and last_seen_sha == baseline_sha:
+            builder.add_edge(
+                "REVISION_HAD_FINDING",
+                baseline_revision,
+                node_id,
+                attributes={"historical_observation": True},
+                provenance=[FILES["longitudinal"]],
+            )
+        resolution_relation = (
+            "REVISION_OBSERVED_RESOLUTION"
+            if resolution_observed_sha == current_sha
+            else "REVISION_CONFIRMS_RESOLVED_FINDING"
+        )
+        builder.add_edge(
+            resolution_relation,
+            revision,
+            node_id,
+            attributes={
+                "causal_blame": False,
+                "first_resolution_observed_sha": resolution_observed_sha,
+                "caveat": (
+                    "resolution is an observed absence versus trusted history, "
+                    "not proof that this revision caused the fix"
+                ),
+            },
+            provenance=[FILES["longitudinal"]],
+        )
+        evidence_values = row.get("evidence") if isinstance(row.get("evidence"), list) else []
+        for value in evidence_values[:16]:
+            evidence_node = _reference_evidence(
+                builder,
+                value,
+                source_file=FILES["longitudinal"],
+                report_node=reports.get("longitudinal"),
+                attributes={
+                    "observation_scope": "HISTORICAL",
+                    "source_sha": last_seen_sha,
+                    "current_sha": current_sha,
+                },
+            )
+            if evidence_node:
+                builder.add_edge(
+                    "FINDING_SUPPORTED_BY",
+                    node_id,
+                    evidence_node,
+                    provenance=[FILES["longitudinal"]],
+                )
+
+    suppressed = findings.get("suppressed_resolved")
+    counts["RESOLUTION_SUPPRESSED"] = len(
+        [row for row in suppressed if isinstance(row, dict)]
+    ) if isinstance(suppressed, list) else 0
+    return dict(counts)
+
+
 def _add_claims(
     builder: GraphBuilder,
     inputs: dict[str, dict[str, Any]],
@@ -887,11 +1210,25 @@ def _add_claims(
 
         values = row.get("evidence") if isinstance(row.get("evidence"), list) else []
         for value in values[:16]:
+            claim_status = _safe(row.get("status")).upper()
+            source_sha = _safe(row.get("source_sha")).lower()
+            current_sha = _safe(row.get("current_sha")).lower()
             evidence_node = _reference_evidence(
                 builder,
                 value,
                 source_file=FILES["confidence"],
                 report_node=reports.get("confidence"),
+                attributes={
+                    "observation_scope": (
+                        "HISTORICAL"
+                        if claim_status == "STALE"
+                        or (source_sha and current_sha and source_sha != current_sha)
+                        else "CURRENT"
+                    ),
+                    "claim_status": claim_status,
+                    "source_sha": source_sha,
+                    "current_sha": current_sha,
+                },
             )
             if evidence_node:
                 builder.add_edge("CLAIM_SUPPORTED_BY", node, evidence_node, provenance=[FILES["confidence"]])
@@ -1149,7 +1486,451 @@ def _add_results(
             builder.add_edge("DERIVED_FROM", node, reports["longitudinal"], provenance=[FILES["longitudinal"]])
 
 
-def _summary(builder: GraphBuilder, inputs: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _ensure_component(
+    builder: GraphBuilder,
+    file_node: str,
+    path: str,
+    *,
+    provenance: list[str] | None = None,
+) -> str | None:
+    key = _component_key(path)
+    if not key:
+        return None
+    node = builder.add_node(
+        "Component",
+        key,
+        key,
+        attributes={
+            "structural_only": True,
+            "derivation": "PATH_GROUP",
+        },
+        provenance=provenance or [],
+    )
+    builder.add_edge(
+        "FILE_IN_COMPONENT",
+        file_node,
+        node,
+        attributes={"structural_only": True},
+        provenance=provenance or [],
+    )
+    return node
+
+
+def _surface_aliases(row: dict[str, Any]) -> set[str]:
+    attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
+    values = [
+        row.get("key"),
+        row.get("label"),
+        attrs.get("id"),
+        attrs.get("name"),
+        attrs.get("label"),
+        attrs.get("route"),
+        attrs.get("path"),
+        attrs.get("source"),
+    ]
+    aliases: set[str] = set()
+    for value in values:
+        text = _safe(value)
+        if not text:
+            continue
+        aliases.add(_norm(text))
+        path = _repo_path(text)
+        if path:
+            aliases.add(_norm(Path(path).stem))
+    return {value for value in aliases if value}
+
+
+def _add_impact_graph(
+    builder: GraphBuilder,
+    inputs: dict[str, dict[str, Any]],
+    reports: dict[str, str],
+    revision: str,
+) -> dict[str, Any]:
+    changed, impacted = _analysis_paths(inputs)
+    provenance = [FILES["analysis_plan"]] if "analysis_plan" in inputs else []
+
+    file_nodes: dict[str, str] = {}
+    component_nodes: dict[str, str] = {}
+
+    def ensure_file(path: str, extra_provenance: list[str] | None = None) -> str | None:
+        normalized = _repo_path(path)
+        if not normalized:
+            return None
+        node = _file_node(
+            builder,
+            normalized,
+            changed=changed,
+            impacted=impacted,
+            provenance=sorted(set(provenance + (extra_provenance or []))),
+        )
+        if not node:
+            return None
+        file_nodes[normalized] = node
+        component = _ensure_component(
+            builder,
+            node,
+            normalized,
+            provenance=sorted(set(provenance + (extra_provenance or []))),
+        )
+        if component:
+            component_nodes[_component_key(normalized)] = component
+        if normalized in changed:
+            builder.add_edge(
+                "REVISION_CHANGED_FILE",
+                revision,
+                node,
+                provenance=provenance,
+            )
+        elif normalized in impacted:
+            builder.add_edge(
+                "REVISION_IMPACTS_FILE",
+                revision,
+                node,
+                attributes={"dependency_impact": True},
+                provenance=provenance,
+            )
+        return node
+
+    for path in sorted(changed | impacted):
+        ensure_file(path)
+
+    capability_files: dict[str, set[str]] = {}
+    app = inputs.get("app", {})
+    truth = app.get("feature_truth") if isinstance(app.get("feature_truth"), dict) else {}
+    capability_rows = truth.get("capabilities") if isinstance(truth.get("capabilities"), list) else []
+    for row in capability_rows:
+        if not isinstance(row, dict):
+            continue
+        capability = _safe(row.get("capability"))
+        capability_node = _match_node_key(builder, capability, ("Capability",))
+        if not capability_node:
+            continue
+        paths: set[str] = set()
+        provenance_map = row.get("provenance") if isinstance(row.get("provenance"), dict) else {}
+        for values in provenance_map.values():
+            if not isinstance(values, list):
+                continue
+            for value in values:
+                path_value = _repo_path(value)
+                if path_value:
+                    paths.add(path_value)
+        for path_value in sorted(paths):
+            file_node = ensure_file(path_value, [FILES["app"]])
+            if not file_node:
+                continue
+            capability_files.setdefault(capability_node, set()).add(path_value)
+            builder.add_edge(
+                "FILE_SUPPORTS_CAPABILITY",
+                file_node,
+                capability_node,
+                attributes={"bounded_static_provenance": True},
+                provenance=[FILES["app"]],
+            )
+            component = _ensure_component(
+                builder,
+                file_node,
+                path_value,
+                provenance=[FILES["app"]],
+            )
+            if component:
+                builder.add_edge(
+                    "COMPONENT_SUPPORTS_CAPABILITY",
+                    component,
+                    capability_node,
+                    attributes={
+                        "structural_only": True,
+                        "basis": "member_file_provenance",
+                    },
+                    provenance=[FILES["app"]],
+                )
+
+    surface_files: dict[str, set[str]] = {}
+    flow = app.get("product_flow_graph") if isinstance(app.get("product_flow_graph"), dict) else {}
+    surface_rows = flow.get("nodes") if isinstance(flow.get("nodes"), list) else []
+    for row in surface_rows:
+        if not isinstance(row, dict):
+            continue
+        surface_key = _safe(row.get("id")) or _safe(row.get("path"))
+        surface_node = _match_node_key(builder, surface_key, ("Surface",))
+        path_value = _repo_path(row.get("path") or row.get("id"))
+        if not surface_node or not path_value:
+            continue
+        file_node = ensure_file(path_value, [FILES["app"]])
+        if not file_node:
+            continue
+        surface_files.setdefault(surface_node, set()).add(path_value)
+        builder.add_edge(
+            "FILE_IMPLEMENTS_SURFACE",
+            file_node,
+            surface_node,
+            attributes={"bounded_static_provenance": True},
+            provenance=[FILES["app"]],
+        )
+        component = _ensure_component(
+            builder,
+            file_node,
+            path_value,
+            provenance=[FILES["app"]],
+        )
+        if component:
+            builder.add_edge(
+                "COMPONENT_IMPLEMENTS_SURFACE",
+                component,
+                surface_node,
+                attributes={
+                    "structural_only": True,
+                    "basis": "member_file_surface",
+                },
+                provenance=[FILES["app"]],
+            )
+
+    for capability_node, cap_paths in capability_files.items():
+        for surface_node, surf_paths in surface_files.items():
+            shared = sorted(cap_paths & surf_paths)
+            if not shared:
+                continue
+            builder.add_edge(
+                "CAPABILITY_OBSERVED_ON_SURFACE",
+                capability_node,
+                surface_node,
+                attributes={
+                    "basis": "shared_static_file",
+                    "shared_files": shared[:16],
+                    "behavioral_claim": False,
+                },
+                provenance=[FILES["app"]],
+            )
+
+    surfaces = [
+        row for row in builder.nodes.values()
+        if row.get("type") == "Surface"
+    ]
+    journeys = [
+        row for row in builder.nodes.values()
+        if row.get("type") == "Journey"
+    ]
+    aliases_by_surface = {
+        str(row.get("id")): _surface_aliases(row)
+        for row in surfaces
+    }
+    for journey in journeys:
+        attrs = journey.get("attributes") if isinstance(journey.get("attributes"), dict) else {}
+        observations = list(attrs.get("steps", [])) if isinstance(attrs.get("steps"), list) else []
+        observations.extend(
+            value
+            for value in (attrs.get("start_state"), attrs.get("end_state"))
+            if _safe(value)
+        )
+        tokens = {_norm(value) for value in observations if _norm(value)}
+        for surface in surfaces:
+            aliases = aliases_by_surface.get(str(surface.get("id")), set())
+            matched = sorted(tokens & aliases)
+            if not matched:
+                continue
+            builder.add_edge(
+                "SURFACE_IN_JOURNEY",
+                str(surface["id"]),
+                str(journey["id"]),
+                attributes={
+                    "basis": "exact_observed_step_alias",
+                    "matched_tokens": matched[:8],
+                },
+                provenance=[FILES["journey"], FILES["app"]],
+            )
+
+    for node in list(builder.nodes.values()):
+        if node.get("type") != "Evidence":
+            continue
+        attrs = node.get("attributes") if isinstance(node.get("attributes"), dict) else {}
+        if _safe(attrs.get("kind")).upper() != "REFERENCE":
+            continue
+        path_value = _repo_path(node.get("label"))
+        if not path_value:
+            continue
+        # Evidence labels may also be generated reports/screenshots/runtime artifacts.
+        # Only connect references to File nodes whose repository identity was already
+        # established by the trusted change plan or bounded app provenance.
+        file_node = file_nodes.get(path_value)
+        if file_node:
+            builder.add_edge(
+                "EVIDENCE_REFERENCES_FILE",
+                str(node["id"]),
+                file_node,
+                attributes={"repository_path_prevalidated": True},
+                provenance=list(node.get("provenance", [])),
+            )
+
+    impact_paths = _collect_impact_paths(builder)
+    return {
+        "changed_files": sorted(changed),
+        "dependency_impacted_files": sorted(impacted),
+        "mapped_files": len(file_nodes),
+        "mapped_components": len(component_nodes),
+        "paths": impact_paths,
+    }
+
+
+def _collect_impact_paths(builder: GraphBuilder) -> list[dict[str, Any]]:
+    allowed = {
+        "FILE_IN_COMPONENT",
+        "COMPONENT_SUPPORTS_CAPABILITY",
+        "CAPABILITY_OBSERVED_ON_SURFACE",
+        "SURFACE_IN_JOURNEY",
+        "DERIVED_FROM",
+    }
+    adjacency: dict[str, list[dict[str, Any]]] = {}
+    for edge in builder.edges.values():
+        if edge.get("type") not in allowed:
+            continue
+        adjacency.setdefault(str(edge.get("from")), []).append(edge)
+
+    starts = [
+        node for node in builder.nodes.values()
+        if node.get("type") == "File"
+        and isinstance(node.get("attributes"), dict)
+        and (
+            bool(node["attributes"].get("changed"))
+            or bool(node["attributes"].get("dependency_impacted"))
+        )
+    ]
+    rows: list[dict[str, Any]] = []
+    for start in sorted(starts, key=lambda row: str(row.get("key"))):
+        queue: list[tuple[str, list[str], list[str]]] = [
+            (str(start["id"]), [str(start["id"])], [])
+        ]
+        seen: set[tuple[str, tuple[str, ...]]] = set()
+        while queue:
+            current, nodes, relations = queue.pop(0)
+            state = (current, tuple(relations))
+            if state in seen or len(nodes) > 7:
+                continue
+            seen.add(state)
+            current_node = builder.nodes.get(current, {})
+            if current_node.get("type") == "Evidence" and len(nodes) > 1:
+                start_attrs = (
+                    start.get("attributes")
+                    if isinstance(start.get("attributes"), dict)
+                    else {}
+                )
+                rows.append({
+                    "origin_file": str(start.get("key")),
+                    "origin_kind": (
+                        "CHANGED"
+                        if start_attrs.get("changed")
+                        else "DEPENDENCY_IMPACT"
+                    ),
+                    "node_ids": nodes,
+                    "relations": relations,
+                    "terminal_evidence": str(current_node.get("label")),
+                })
+                if len(rows) >= 128:
+                    return rows
+                continue
+            for edge in sorted(
+                adjacency.get(current, []),
+                key=lambda row: (str(row.get("type")), str(row.get("to"))),
+            ):
+                target = str(edge.get("to"))
+                if target in nodes:
+                    continue
+                queue.append(
+                    (
+                        target,
+                        nodes + [target],
+                        relations + [str(edge.get("type"))],
+                    )
+                )
+    return rows
+
+
+def _apply_evidence_freshness(
+    builder: GraphBuilder,
+    inputs: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    changed, impacted = _analysis_paths(inputs)
+    current_sha = _identity(inputs)[0].get("resolved_sha", "").lower()
+    file_by_path = {
+        _repo_path(row.get("key")): str(row.get("id"))
+        for row in builder.nodes.values()
+        if row.get("type") == "File" and _repo_path(row.get("key"))
+    }
+
+    counts = Counter()
+    invalidated: list[dict[str, Any]] = []
+    for node in builder.nodes.values():
+        if node.get("type") != "Evidence":
+            continue
+        attrs = node.get("attributes") if isinstance(node.get("attributes"), dict) else {}
+        kind = _safe(attrs.get("kind")).upper()
+        scope = _safe(attrs.get("observation_scope")).upper()
+        source_sha = _safe(attrs.get("source_sha") or attrs.get("observed_sha")).lower()
+        claim_status = _safe(attrs.get("claim_status")).upper()
+
+        if kind == "REPORT":
+            freshness = "CURRENT"
+        elif claim_status == "STALE":
+            freshness = "STALE"
+        elif source_sha and current_sha and source_sha != current_sha:
+            freshness = "STALE"
+        elif scope == "HISTORICAL":
+            freshness = "HISTORICAL"
+        elif scope == "CURRENT":
+            freshness = "CURRENT"
+        else:
+            freshness = "CURRENT"
+
+        path_value = _repo_path(node.get("label"))
+        affected = bool(path_value and path_value in (changed | impacted))
+        invalidated_by: list[str] = []
+        if affected and freshness in {"STALE", "HISTORICAL"}:
+            freshness = "INVALIDATED"
+            invalidated_by = [path_value]
+            file_node = file_by_path.get(path_value)
+            if file_node:
+                builder.add_edge(
+                    "CHANGE_INVALIDATES_EVIDENCE",
+                    file_node,
+                    str(node["id"]),
+                    attributes={
+                        "reason": "historical_or_stale_evidence_intersects_changed_or_impacted_file",
+                        "causal_blame": False,
+                    },
+                    provenance=[FILES["analysis_plan"]],
+                )
+
+        attrs["freshness"] = freshness
+        attrs["affected_by_current_change"] = affected
+        attrs["invalidated_by_files"] = invalidated_by
+        attrs["freshness_current_sha"] = current_sha
+        node["attributes"] = attrs
+        counts[freshness] += 1
+        if freshness == "INVALIDATED":
+            invalidated.append({
+                "evidence_id": str(node.get("id")),
+                "label": str(node.get("label")),
+                "invalidated_by_files": invalidated_by,
+            })
+
+    return {
+        "counts": dict(sorted(counts.items())),
+        "invalidated": invalidated,
+        "invalidated_count": len(invalidated),
+        "stale_or_historical_count": (
+            counts.get("STALE", 0)
+            + counts.get("HISTORICAL", 0)
+            + counts.get("INVALIDATED", 0)
+        ),
+    }
+
+
+def _summary(
+    builder: GraphBuilder,
+    inputs: dict[str, dict[str, Any]],
+    *,
+    lifecycle: dict[str, int] | None = None,
+    impact: dict[str, Any] | None = None,
+    freshness: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     counts = Counter(str(row["type"]) for row in builder.nodes.values())
     relation_counts = Counter(str(row["type"]) for row in builder.edges.values())
 
@@ -1204,6 +1985,14 @@ def _summary(builder: GraphBuilder, inputs: dict[str, dict[str, Any]]) -> dict[s
         "unverified_capabilities": len(unverified_capabilities),
         "recurring_findings": len(recurring_findings),
         "regression_candidates": len([row for row in regressions if isinstance(row, dict)]),
+        "finding_lifecycle": dict(sorted((lifecycle or {}).items())),
+        "changed_files": len((impact or {}).get("changed_files", [])),
+        "dependency_impacted_files": len((impact or {}).get("dependency_impacted_files", [])),
+        "impact_paths": len((impact or {}).get("paths", [])),
+        "invalidated_evidence": int((freshness or {}).get("invalidated_count", 0) or 0),
+        "stale_or_historical_evidence": int(
+            (freshness or {}).get("stale_or_historical_count", 0) or 0
+        ),
     }, {
         "unverified_capabilities": sorted(
             unverified_capabilities,
@@ -1223,6 +2012,9 @@ def _summary(builder: GraphBuilder, inputs: dict[str, dict[str, Any]]) -> dict[s
             for row in regressions
             if isinstance(row, dict)
         ],
+        "finding_lifecycle": dict(sorted((lifecycle or {}).items())),
+        "impact": impact or {},
+        "freshness": freshness or {},
     }
 
 
@@ -1236,11 +2028,20 @@ def build_graph(
     _add_surfaces(builder, inputs, reports, revision)
     _add_journeys(builder, inputs, reports, revision)
     _add_findings(builder, inputs, reports, revision)
+    lifecycle = _finding_lifecycle(builder, inputs, reports, revision)
     _add_claims(builder, inputs, reports, revision)
     _add_experiments(builder, inputs, reports, revision)
     _add_results(builder, inputs, reports, revision)
+    impact = _add_impact_graph(builder, inputs, reports, revision)
+    freshness = _apply_evidence_freshness(builder, inputs)
 
-    summary, insights = _summary(builder, inputs)
+    summary, insights = _summary(
+        builder,
+        inputs,
+        lifecycle=lifecycle,
+        impact=impact,
+        freshness=freshness,
+    )
     identity, _ = _identity(inputs)
     return {
         "schema_version": SCHEMA_VERSION,
@@ -1265,6 +2066,10 @@ def build_graph(
             "regression_candidate_is_not_automatic_defect": True,
             "no_numeric_product_quality_score": True,
             "trusted_runtime_boundary_unchanged": True,
+            "structural_component_edges_are_not_behavioral_proof": True,
+            "impact_path_is_not_root_cause_proof": True,
+            "resolution_observation_is_not_fix_causality": True,
+            "current_evidence_is_not_invalidated_only_because_its_source_file_changed": True,
         },
     }
 
@@ -1300,6 +2105,41 @@ def query_graph(graph: dict[str, Any], query: str, subject: str = "") -> dict[st
             "results": (graph.get("insights") or {}).get("regression_candidates", []),
         }
 
+    if query == "impact":
+        return {
+            "query": query,
+            "results": (graph.get("insights") or {}).get("impact", {}),
+        }
+    if query == "stale-evidence":
+        freshness = (graph.get("insights") or {}).get("freshness", {})
+        results = []
+        for row in by_id.values():
+            if row.get("type") != "Evidence":
+                continue
+            attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
+            if _safe(attrs.get("freshness")).upper() not in {
+                "STALE", "HISTORICAL", "INVALIDATED"
+            }:
+                continue
+            results.append(row)
+        results.sort(
+            key=lambda row: (
+                _safe((row.get("attributes") or {}).get("freshness")),
+                _safe(row.get("label")),
+                _safe(row.get("id")),
+            )
+        )
+        return {
+            "query": query,
+            "results": results,
+            "summary": freshness if isinstance(freshness, dict) else {},
+        }
+    if query == "lifecycle":
+        return {
+            "query": query,
+            "results": (graph.get("insights") or {}).get("finding_lifecycle", {}),
+        }
+
     token = _norm(subject)
     matched = []
     for row in by_id.values():
@@ -1328,7 +2168,10 @@ def query_graph(graph: dict[str, Any], query: str, subject: str = "") -> dict[st
                     "last_observed_sha": attrs.get("last_observed_sha"),
                     "seen_count": attrs.get("seen_count", 0),
                     "consecutive_seen": attrs.get("consecutive_seen", 0),
-                    "caveat": "first_observed_sha is evidence of first observation, not proof of the code-introducing commit",
+                    "lifecycle_state": attrs.get("lifecycle_state", "UNKNOWN"),
+                    "active": attrs.get("active"),
+                    "resolution_observed_sha": attrs.get("resolution_observed_sha", ""),
+                    "caveat": "first_observed_sha/resolution_observed_sha are observation boundaries, not proof of the code-introducing or code-fixing commit",
                 }
             )
         return {"query": query, "subject": subject, "results": results}
@@ -1353,9 +2196,46 @@ def query_graph(graph: dict[str, Any], query: str, subject: str = "") -> dict[st
             "relations": relations,
         }
 
+    if query == "subject":
+        matched_ids = {str(row.get("id")) for row in matched}
+        relations = [
+            edge for edge in edges
+            if _safe(edge.get("from")) in matched_ids
+            or _safe(edge.get("to")) in matched_ids
+        ]
+        evidence_ids: set[str] = set()
+        for edge in relations:
+            source = _safe(edge.get("from"))
+            target = _safe(edge.get("to"))
+            for candidate in (source, target):
+                if by_id.get(candidate, {}).get("type") == "Evidence":
+                    evidence_ids.add(candidate)
+        history_rows = []
+        for row in matched:
+            if row.get("type") != "Finding":
+                continue
+            attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
+            history_rows.append({
+                "id": row.get("id"),
+                "kind": attrs.get("kind"),
+                "subject": attrs.get("subject"),
+                "lifecycle_state": attrs.get("lifecycle_state"),
+                "first_observed_sha": attrs.get("first_observed_sha"),
+                "last_observed_sha": attrs.get("last_observed_sha"),
+                "resolution_observed_sha": attrs.get("resolution_observed_sha"),
+            })
+        return {
+            "query": query,
+            "subject": subject,
+            "matched_nodes": matched,
+            "relations": relations,
+            "evidence": [by_id[node_id] for node_id in sorted(evidence_ids)],
+            "history": history_rows,
+        }
+
     raise ValueError(
         "Unsupported query. Use one of: unverified-capabilities, recurring-findings, "
-        "regressions, history, evidence"
+        "regressions, impact, stale-evidence, lifecycle, history, evidence, subject"
     )
 
 
@@ -1363,7 +2243,7 @@ def markdown(graph: dict[str, Any]) -> str:
     summary = graph["summary"]
     identity = graph["identity"]
     lines = [
-        "# AppLab v4.2 — Evidence Graph",
+        "# AppLab v4.6 — Evidence Graph 2",
         "",
         f"- Project: **{identity.get('repository') or 'unknown'}**",
         f"- Revision: **{identity.get('resolved_sha') or 'unknown'}**",
@@ -1372,6 +2252,9 @@ def markdown(graph: dict[str, Any]) -> str:
         f"- Unverified capabilities: **{summary['unverified_capabilities']}**",
         f"- Recurring findings: **{summary['recurring_findings']}**",
         f"- Regression candidates: **{summary['regression_candidates']}**",
+        f"- Changed files mapped: **{summary.get('changed_files', 0)}**",
+        f"- Impact paths: **{summary.get('impact_paths', 0)}**",
+        f"- Invalidated evidence: **{summary.get('invalidated_evidence', 0)}**",
         "",
         "## Node model",
         "",
@@ -1387,6 +2270,12 @@ def markdown(graph: dict[str, Any]) -> str:
     )
     lines.append(
         "- Evidence Graph does not alter FAST/FULL/CERTIFICATION or trusted-runtime authority."
+    )
+    lines.append(
+        "- Impact edges are bounded structural observations, not root-cause proof."
+    )
+    lines.append(
+        "- Resolution timestamps are observation boundaries, not proof that a commit caused the fix."
     )
     return "\n".join(lines)
 
@@ -1408,7 +2297,10 @@ def self_test() -> None:
                 ]
             },
             "product_flow_graph": {
-                "nodes": [{"id": "home", "role": "home"}, {"id": "settings", "role": "settings"}]
+                "nodes": [
+                    {"id": "home", "path": "lib/auth.dart", "role": "home"},
+                    {"id": "settings", "path": "lib/settings.dart", "role": "settings"},
+                ]
             },
             "product_consistency": {
                 "findings": [
@@ -1445,6 +2337,17 @@ def self_test() -> None:
                     "evidence": ["README.md"],
                     "rationale": "docs only",
                 },
+                {
+                    "id": "state:legacy-doc",
+                    "domain": "state",
+                    "subject": "legacy-doc",
+                    "proposition": "historical-reference",
+                    "status": "STALE",
+                    "source_sha": sha1,
+                    "current_sha": sha2,
+                    "evidence": ["docs/old.md"],
+                    "rationale": "historical evidence outside current impact set",
+                },
             ],
             "contradictions": [],
         },
@@ -1461,6 +2364,32 @@ def self_test() -> None:
             "baseline": {"available": True, "repository": "owner/app", "resolved_sha": sha1, "run_id": "41"},
             "summary": {"history_snapshots": 2, "regression_candidates": 1},
             "findings": {
+                "new": [],
+                "returned": [
+                    {
+                        "key": "product_consistency|id:finding-save",
+                        "source": "product_consistency",
+                        "id": "finding-save",
+                        "kind": "SAVE_FAILURE",
+                        "subject": "save",
+                    }
+                ],
+                "persistent": [],
+                "resolved": [],
+                "resolved_history": [
+                    {
+                        "key": "product_consistency|id:old-gap",
+                        "source": "product_consistency",
+                        "id": "old-gap",
+                        "kind": "LEGACY_GAP",
+                        "subject": "legacy",
+                        "severity": "REVIEW",
+                        "evidence": ["lib/legacy.dart"],
+                        "last_seen_sha": sha1,
+                        "resolution_observed_sha": sha1,
+                    }
+                ],
+                "suppressed_resolved": [],
                 "history": [
                     {
                         "key": "product_consistency|id:finding-save",
@@ -1532,6 +2461,17 @@ def self_test() -> None:
                 "build_variant": "debug",
             },
         },
+        "analysis_plan": {
+            "schema_version": 1,
+            "mode": "fast",
+            "lane": "FAST_RUNTIME",
+            "changed_files": ["lib/auth.dart", "lib/legacy.dart"],
+            "changes": [
+                {"path": "lib/auth.dart", "status": "M"},
+                {"path": "lib/legacy.dart", "status": "M"},
+            ],
+            "impacted_files": ["lib/settings.dart"],
+        },
     }
 
     graph = build_graph(evidence)
@@ -1542,12 +2482,21 @@ def self_test() -> None:
     assert counts["Revision"] == 2
     assert counts["BuildArtifact"] == 1
     assert counts["Capability"] == 2
-    assert counts["Finding"] == 1
-    assert counts["Claim"] == 2
+    assert counts["Finding"] == 2
+    assert counts["Claim"] == 3
     assert counts["Experiment"] == 1
     assert graph["summary"]["unverified_capabilities"] == 1
     assert graph["summary"]["recurring_findings"] == 1
     assert graph["summary"]["regression_candidates"] == 1
+    assert counts["File"] >= 4
+    assert counts["Component"] >= 2
+    file_keys = {row.get("key") for row in graph["nodes"] if row.get("type") == "File"}
+    assert FILES["app"] not in file_keys
+    assert "docs/old.md" not in file_keys
+    assert graph["summary"]["finding_lifecycle"]["RETURNED"] == 1
+    assert graph["summary"]["finding_lifecycle"]["RESOLVED"] == 1
+    assert graph["summary"]["invalidated_evidence"] == 1
+    assert graph["summary"]["impact_paths"] >= 1
 
     recurring = query_graph(graph, "recurring-findings")
     assert recurring["results"][0]["first_observed_sha"] == sha1
@@ -1558,6 +2507,34 @@ def self_test() -> None:
     assert history["results"][0]["seen_count"] == 2
     evidence_query = query_graph(graph, "evidence", "backup")
     assert any(row.get("type") == "Evidence" for row in evidence_query["evidence"])
+
+    lifecycle_query = query_graph(graph, "lifecycle")
+    assert lifecycle_query["results"]["RETURNED"] == 1
+    stale_query = query_graph(graph, "stale-evidence")
+    stale_by_label = {
+        row["label"]: (row.get("attributes") or {}).get("freshness")
+        for row in stale_query["results"]
+    }
+    assert stale_by_label["lib/legacy.dart"] == "INVALIDATED"
+    assert stale_by_label["docs/old.md"] == "STALE"
+    assert stale_query["summary"]["invalidated_count"] == 1
+    current_auth = [
+        row for row in graph["nodes"]
+        if row.get("type") == "Evidence"
+        and row.get("label") == "lib/auth.dart"
+        and (row.get("attributes") or {}).get("observation_scope") == "CURRENT"
+    ]
+    assert current_auth
+    assert all((row.get("attributes") or {}).get("freshness") == "CURRENT" for row in current_auth)
+    assert all(not (row.get("attributes") or {}).get("invalidated_by_files") for row in current_auth)
+    impact_query = query_graph(graph, "impact")
+    relations = [relation for row in impact_query["results"]["paths"] for relation in row["relations"]]
+    assert "FILE_IN_COMPONENT" in relations
+    assert "COMPONENT_SUPPORTS_CAPABILITY" in relations
+    assert "CAPABILITY_OBSERVED_ON_SURFACE" in relations
+    assert "SURFACE_IN_JOURNEY" in relations
+    subject_query = query_graph(graph, "subject", "legacy")
+    assert subject_query["history"][0]["lifecycle_state"] == "RESOLVED"
 
     optional_inputs = dict(evidence)
     optional_inputs.pop("autonomous", None)
@@ -1578,7 +2555,7 @@ def self_test() -> None:
         write_outputs(graph, out)
         assert (out / "evidence-graph.json").is_file()
         assert (out / "evidence-graph.md").is_file()
-    print("AppLab Evidence Graph v4.2 self-test PASS")
+    print("AppLab Evidence Graph v4.6 self-test PASS")
 
 
 def main() -> int:
@@ -1593,8 +2570,12 @@ def main() -> int:
             "unverified-capabilities",
             "recurring-findings",
             "regressions",
+            "impact",
+            "stale-evidence",
+            "lifecycle",
             "history",
             "evidence",
+            "subject",
         ),
         default="",
     )

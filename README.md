@@ -1,3 +1,29 @@
+## v4.6.0 — Evidence Graph 2
+
+AppLab now understands not only **what evidence exists**, but also **when it was
+observed, whether it is still fresh and which product areas a change can reach**.
+
+- **Temporal finding lifecycle:** FIRST_OBSERVED, PERSISTENT, RETURNED and
+  RESOLVED findings remain queryable across revisions without treating an
+  observation boundary as causal blame.
+- **Selective evidence freshness:** current, historical, stale and invalidated
+  evidence are distinguished. Only historical/stale evidence actually touched
+  by the current changed/dependency-impact set is invalidated.
+- **Current evidence remains current:** changing a file does not invalidate a
+  fresh observation produced from that same current revision.
+- **Impact graph:** bounded paths can connect
+  `File → Component → Capability → Surface → Journey → Evidence`.
+- **No invented architecture:** Component is deterministic path grouping;
+  capability/surface/journey relations require explicit file provenance or exact
+  observed journey aliases.
+- **New queries:** `impact`, `stale-evidence`, `lifecycle` and `subject`.
+- **Studio integration:** Control Center exposes impact paths, invalidated
+  evidence and resolved finding counts without a synthetic product score.
+- **Authority preserved:** Smart Test Plan remains the FAST/FULL selection
+  authority; Evidence Graph remains derived query/index infrastructure.
+
+See `integration/intelligence/EVIDENCE_GRAPH_V46.md`.
+
 ## v4.5.0 — Physical Evidence Hub
 
 AppLab can now consume **real-device validation** without confusing it with

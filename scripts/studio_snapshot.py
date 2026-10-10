@@ -11,7 +11,7 @@ from typing import Any
 import studio_evidence_graph
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "4.5.0"
+STUDIO_VERSION = "4.6.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -748,6 +748,31 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
             ),
             "graph_recurring_findings": sum(
                 int((row.get("evidence_graph") or {}).get("recurring_findings", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "graph_changed_files": sum(
+                int((row.get("evidence_graph") or {}).get("changed_files", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "graph_impact_paths": sum(
+                int((row.get("evidence_graph") or {}).get("impact_paths", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "graph_invalidated_evidence": sum(
+                int((row.get("evidence_graph") or {}).get("invalidated_evidence", 0) or 0)
+                for row in projects
+                if isinstance(row.get("evidence_graph"), dict)
+            ),
+            "graph_resolved_findings": sum(
+                int(
+                    ((row.get("evidence_graph") or {}).get("finding_lifecycle") or {}).get(
+                        "RESOLVED", 0
+                    )
+                    or 0
+                )
                 for row in projects
                 if isinstance(row.get("evidence_graph"), dict)
             ),
