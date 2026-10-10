@@ -15,6 +15,8 @@ from pathlib import Path, PurePosixPath
 ALLOWED_EVIDENCE_SUFFIXES = {".yaml", ".yml", ".json"}
 MAX_FLOW_BYTES = 1_048_576
 MAX_EVIDENCE_BYTES = 10_485_760
+MAX_ADAPTER_CONFIG_BYTES = 64 * 1024
+PROJECT_ADAPTER_CONFIGS = ("applab.project.json", ".applab/project.json")
 VALID_CHECK_STATES = {"PASS", "FAIL", "NOT_RUN", "N/A"}
 DEFAULT_CERTIFICATION_POLICY = {
     "schema_version": 1,
@@ -88,6 +90,27 @@ def detect_build_variant(build_command: str, apk: Path) -> str:
         return "debug"
     return "unknown"
 
+def project_adapter_config_path(repo_root: Path) -> Path | None:
+    found = [
+        repo_root / relative
+        for relative in PROJECT_ADAPTER_CONFIGS
+        if (repo_root / relative).exists()
+    ]
+    if len(found) > 1:
+        raise ValueError(
+            "Multiple AppLab project adapter configs found; keep only one of "
+            + ", ".join(PROJECT_ADAPTER_CONFIGS)
+        )
+    if not found:
+        return None
+    path = found[0]
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"Invalid AppLab project adapter config: {path}")
+    if path.stat().st_size > MAX_ADAPTER_CONFIG_BYTES:
+        raise ValueError("AppLab project adapter config exceeds 64 KiB")
+    return path
+
+
 def load_certification_policy(repo_root: Path, working: PurePosixPath) -> dict[str, Any]:
     policy = dict(DEFAULT_CERTIFICATION_POLICY)
     candidates = [repo_root / ".maestro" / "applab-certification.json"]
@@ -106,6 +129,28 @@ def load_certification_policy(repo_root: Path, working: PurePosixPath) -> dict[s
         ):
             if key in payload:
                 policy[key] = payload[key]
+
+    adapter_path = project_adapter_config_path(repo_root)
+    if adapter_path is not None:
+        payload = json.loads(adapter_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+            raise ValueError(f"Invalid AppLab project adapter config: {adapter_path}")
+        physical = payload.get("physical_validation", {})
+        if physical is None:
+            physical = {}
+        if not isinstance(physical, dict):
+            raise ValueError("physical_validation must be an object")
+        required = physical.get("required", False)
+        capabilities = physical.get("capabilities", [])
+        if not isinstance(required, bool):
+            raise ValueError("physical_validation.required must be boolean")
+        if not isinstance(capabilities, list):
+            raise ValueError("physical_validation.capabilities must be an array")
+        if required or capabilities:
+            # Target-authored adapter metadata may only make certification stricter.
+            # It can never clear a requires_real_device=true certification policy.
+            policy["requires_real_device"] = True
+
     if not isinstance(policy["requires_real_device"], bool):
         raise ValueError("requires_real_device must be boolean")
     fingerprint = str(policy["expected_signing_certificate_sha256"]).strip().lower()
@@ -213,6 +258,14 @@ def package(args: argparse.Namespace) -> dict:
         if not (evidence_root / Path(flow)).is_file():
             raise ValueError(f"Configured Maestro flow is unavailable or unsupported: {flow}")
 
+    adapter_path = project_adapter_config_path(repo_root)
+    if adapter_path is not None:
+        relative_adapter = adapter_path.relative_to(repo_root)
+        total += copy_evidence_file(
+            adapter_path,
+            evidence_root / relative_adapter,
+        )
+
     if total > MAX_EVIDENCE_BYTES:
         raise ValueError("Journey evidence exceeds contract size limit")
 
@@ -230,7 +283,7 @@ def package(args: argparse.Namespace) -> dict:
 
     contract = {
         "schema_version": 1,
-        "applab_version": "4.1.0",
+        "applab_version": "4.3.0",
         "trusted_applab_sha": args.trusted_applab_sha.strip().lower(),
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
@@ -323,6 +376,18 @@ def self_test() -> None:
         flow = root / ".maestro" / "smoke.yaml"
         flow.parent.mkdir()
         flow.write_text("appId: example\n---\n- assertVisible: Home\n", encoding="utf-8")
+        (root / "applab.project.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "physical_validation": {
+                        "required": True,
+                        "capabilities": ["gps"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
         out = Path(raw) / "out"
         args = argparse.Namespace(
             repo_root=str(root), apk=str(apk), output=str(out),
@@ -340,6 +405,8 @@ def self_test() -> None:
         assert contract["apk"]["sha256"] == sha256(out / "app.apk")
         assert contract["trusted_applab_sha"] == "c" * 40
         assert (out / "target-evidence/.maestro/smoke.yaml").is_file()
+        assert (out / "target-evidence/applab.project.json").is_file()
+        assert contract["certification_policy"]["requires_real_device"] is True
         assert (out / "analysis-plan.json").is_file()
     print("AppLab build contract packager self-test PASS")
 
