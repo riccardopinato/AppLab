@@ -24,9 +24,15 @@ The Cockpit is a deterministic projection only.
 Authoritative inputs remain:
 
 1. `release-reality.json` for release ladder, artifact/source identity,
-   certification state, runtime and physical requirements;
-2. `evidence-graph.json` for derived freshness/recurrence views;
-3. `longitudinal-intelligence.json` for regression candidates.
+   runtime state and the pre/post-certification lifecycle;
+2. finalized `certification.json`, when present, for the authoritative final
+   certification status and compatibility-matrix blockers;
+3. `evidence-graph.json` for derived freshness/recurrence views;
+4. `longitudinal-intelligence.json` for regression candidates.
+
+When finalized certification exists, Studio accepts it only when repository,
+source SHA, package/version and APK SHA-256 reconcile with Release Reality.
+Mismatch or incomplete identity fails closed as BLOCKED.
 
 Studio MUST NOT:
 
@@ -48,7 +54,7 @@ containing:
 - package/version/build variant/APK SHA/signing identity;
 - exact-byte verification;
 - workflow run, trusted AppLab SHA and runtime state;
-- required physical capabilities and physical evidence state;
+- explicit real-device requirement, required physical capabilities and physical evidence state;
 - stale/historical and invalidated evidence counts;
 - recurring findings and regression candidates;
 - unresolved stages;
@@ -64,8 +70,11 @@ The drill-down is evidence-driven. It uses, in order:
 2. the next unresolved release gate;
 3. unresolved release stages.
 
-Rows are deduplicated. If no authoritative reason exists, Studio says the
-evidence is incomplete rather than inventing a cause.
+Rows are deduplicated and are not silently truncated. Only certification
+prerequisites through `PHYSICAL_DEVICE_VERIFIED` participate in this drill-down;
+distribution, store-readiness and production-release stages remain separate
+post-certification lifecycle evidence. If no authoritative reason exists,
+Studio says the evidence is incomplete rather than inventing a cause.
 
 ## Web Preview boundary
 
