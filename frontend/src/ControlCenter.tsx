@@ -360,6 +360,22 @@ type StudioProject = {
     unverified_capabilities?: number;
     recurring_findings?: number;
     regression_candidates?: number;
+    changed_files?: number;
+    dependency_impacted_files?: number;
+    impact_paths?: number;
+    invalidated_evidence?: number;
+    stale_or_historical_evidence?: number;
+    finding_lifecycle?: Record<string, number>;
+    top_invalidated_evidence?: Array<{
+      evidence_id?: string;
+      label?: string;
+      invalidated_by_files?: string[];
+    }>;
+    top_impact_paths?: Array<{
+      origin_file?: string;
+      relations?: string[];
+      terminal_evidence?: string;
+    }>;
     top_unverified_capabilities?: Array<{
       capability?: string;
       status?: string;
@@ -422,6 +438,10 @@ type StudioSnapshot = {
     evidence_graph_edges?: number;
     graph_unverified_capabilities?: number;
     graph_recurring_findings?: number;
+    graph_changed_files?: number;
+    graph_impact_paths?: number;
+    graph_invalidated_evidence?: number;
+    graph_resolved_findings?: number;
     autonomous_reviews?: number;
     autonomous_attention?: number;
     runtime_observed?: number;
@@ -672,7 +692,7 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                       <strong>{project.evidence_graph?.nodes ?? 0}</strong>
                       <small>
                         {project.evidence_graph
-                          ? `${project.evidence_graph.edges ?? 0} relations · ${project.evidence_graph.unverified_capabilities ?? 0} unverified capabilities · ${project.evidence_graph.recurring_findings ?? 0} recurring findings · ${project.evidence_graph.regression_candidates ?? 0} regressions`
+                          ? `${project.evidence_graph.edges ?? 0} relations · ${project.evidence_graph.impact_paths ?? 0} impact paths · ${project.evidence_graph.invalidated_evidence ?? 0} invalidated evidence · ${project.evidence_graph.finding_lifecycle?.RESOLVED ?? 0} resolved findings · ${project.evidence_graph.regression_candidates ?? 0} regressions`
                           : "no unified evidence graph"}
                       </small>
                     </div>
