@@ -236,7 +236,6 @@ jobs:
       maestro_flow: ${{ matrix.maestro_flow }}
       history_key: ${{ matrix.key }}
       cache_verification: true
-      contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
@@ -271,7 +270,6 @@ jobs:
       maestro_flow: ${{ matrix.maestro_flow }}
       history_key: ${{ matrix.key }}
       cache_verification: true
-      contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
@@ -291,7 +289,6 @@ jobs:
       run_maestro: true
       history_key: ${{ matrix.key }}
       cache_verification: true
-      contract_fingerprint: ${{ matrix.contract_fingerprint }}
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
