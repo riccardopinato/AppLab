@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import re
@@ -288,6 +289,17 @@ def build_profile(
     )
     if release_pattern:
         release_pattern = safe_relative(release_pattern, allow_glob=True)
+        autodetected_release = safe_relative(
+            str(base.get("certification_apk_path", "") or "")
+        )
+        if any(ch in release_pattern for ch in "*?["):
+            if not fnmatch.fnmatch(autodetected_release, release_pattern):
+                raise ValueError(
+                    "release_artifact_pattern does not match the auto-discovered "
+                    f"release APK path {autodetected_release!r}"
+                )
+        else:
+            base["certification_apk_path"] = release_pattern
     else:
         release_pattern = safe_relative(str(base.get("certification_apk_path", "") or ""))
 
@@ -435,6 +447,7 @@ def self_test() -> None:
         assert profile["version_name"] == "1.4.2"
         assert profile["version_code"] == "17"
         assert profile["java_version"] == "21"
+        assert profile["certification_apk_path"] == "build/app/outputs/flutter-apk/app-release.apk"
         assert profile["journeys"]["settings"] == ".maestro/settings.yaml"
         assert profile["journeys"]["critical"] == [".maestro/critical-export.yaml"]
         assert profile["physical_validation"]["required"] is True
