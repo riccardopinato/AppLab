@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v4.5.0 — Physical Evidence Hub**
+Current production baseline: **v4.6.0 — Evidence Graph 2**
 
 ## Product rule
 
@@ -19,6 +19,19 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v4.6.0 — Evidence Graph 2: Impact, Freshness & Temporal Intelligence
+
+- [x] Extend the canonical graph with deterministic File and Component nodes without inventing semantic architecture.
+- [x] Track finding lifecycle as FIRST_OBSERVED, PERSISTENT, RETURNED and RESOLVED while preserving non-causal observation semantics.
+- [x] Classify evidence as CURRENT / HISTORICAL / STALE / INVALIDATED.
+- [x] Invalidate only historical/stale evidence whose referenced file intersects the trusted changed/dependency-impact set.
+- [x] Preserve fresh current-revision evidence even when its source file changed.
+- [x] Build bounded impact paths File -> Component -> Capability -> Surface -> Journey -> Evidence from explicit provenance and exact observed journey aliases.
+- [x] Add impact, stale-evidence, lifecycle and subject queries with provenance/history.
+- [x] Surface changed files, impact paths, invalidated evidence and lifecycle counts in Studio / Control Center.
+- [x] Keep source reports authoritative and preserve trusted-runtime, Physical Evidence, Release Reality and Certification authority boundaries.
+- [x] Protect the new semantics with implementation-local self-tests, independent regression coverage and audit-contract invariants.
 
 ### v4.5.0 — Physical Evidence Hub
 
@@ -557,19 +570,16 @@ Simulated-human, design and market conclusions are advisory evidence. They must
 never be represented as real-user research, physical-device evidence or trusted
 runtime PASS.
 
-### v4.6 — Evidence Graph 2: Impact, Freshness & Temporal Intelligence
+### v4.6.1 — Graph-aware Planning Feedback
 
-Goal: use the v4.2 graph to understand which evidence is still valid after a
-change and which product areas are affected.
+Goal: feed prior trusted Evidence Graph impact/freshness into future Smart Test
+Plan decisions without creating a second test-selection authority.
 
 Planned:
-- [ ] Add evidence freshness and stale-evidence propagation.
-- [ ] Add impact paths from changed files/components to capabilities, surfaces, journeys and evidence.
-- [ ] Track finding lifecycle as first observed, persistent, resolved and returned without inventing causal blame.
-- [ ] Invalidate or downgrade only the evidence actually affected by a change.
-- [ ] Use graph impact to improve risk-based FAST/FULL selection.
-- [ ] Make graph subjects directly queryable from Studio with provenance and history.
-- [ ] Keep source reports authoritative and the graph as index/query infrastructure.
+- [ ] Define a versioned planner-feedback contract sourced only from prior trusted graph evidence.
+- [ ] Use prior graph impact to refine risk-based FAST/FULL selection only when lineage, source SHA and evidence freshness are compatible.
+- [ ] Fall back to the existing conservative Smart Test Plan whenever graph evidence is missing, stale, ambiguous or truncated.
+- [ ] Keep current-run Evidence Graph unable to retroactively change the lane that produced it.
 
 ### v4.7 — Certification Studio / Release Cockpit
 
