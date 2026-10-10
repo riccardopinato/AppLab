@@ -280,6 +280,9 @@ def check_project_adapter_contract() -> None:
 
 def check_release_reality_contract() -> None:
     reality = (ROOT / "scripts/release_reality.py").read_text(encoding="utf-8")
+    finalizer = (ROOT / "scripts/finalize_external_result.py").read_text(
+        encoding="utf-8"
+    )
     trusted = (ROOT / ".github/workflows/trusted-apk-verifier.yml").read_text(
         encoding="utf-8"
     )
@@ -309,6 +312,12 @@ def check_release_reality_contract() -> None:
         and "rebuilt_bytes_require_new_evidence" in reality
         and "sha256_file" in reality,
         "Release Reality must enforce same-artifact semantics",
+    )
+    require(
+        '"runtime_result"' in finalizer
+        and 'payload["runtime_result"]' in finalizer
+        and 'result.get("runtime_result") or result.get("result")' in reality,
+        "Release Reality must preserve runtime truth across downstream gate failures",
     )
     require(
         "Build Release Reality record" in trusted
