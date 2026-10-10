@@ -178,6 +178,7 @@ def make_snapshot(
     recorded_at: str = "",
     lineage_ref: str = "",
     base_sha: str = "",
+    resolved_tombstones: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     inferred = _metadata_from_review(review)
     return {
@@ -189,6 +190,11 @@ def make_snapshot(
         "run_id": run_id or inferred["run_id"],
         "lineage_ref": _safe_text(lineage_ref),
         "base_sha": _safe_text(base_sha),
+        "resolved_tombstones": [
+            dict(row)
+            for row in (resolved_tombstones or [])
+            if isinstance(row, dict) and _safe_text(row.get("key"))
+        ],
         "review": review,
     }
 
@@ -437,6 +443,38 @@ def build_report(
     returned_keys = sorted(key for key in new_keys if key in older_keys)
     first_seen_keys = sorted(key for key in new_keys if key not in older_keys)
 
+    inherited_tombstones: dict[str, dict[str, Any]] = {}
+    for snapshot in history:
+        rows = (
+            snapshot.get("resolved_tombstones")
+            if isinstance(snapshot.get("resolved_tombstones"), list)
+            else []
+        )
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            key = _safe_text(row.get("key"))
+            if key:
+                inherited_tombstones[key] = dict(row)
+
+    # A returned/current finding is active again and must not retain a resolved tombstone.
+    for key in current_keys:
+        inherited_tombstones.pop(key, None)
+
+    resolved_history = dict(inherited_tombstones)
+    for key in resolved_keys:
+        row = dict(previous_findings[key])
+        presence = _history_presence(
+            key,
+            historical_indexes,
+            history,
+        )
+        row.update(presence)
+        row["resolution_observed_sha"] = current_snapshot["resolved_sha"]
+        row["resolution_observed_at"] = current_snapshot["recorded_at"]
+        row["causal_attribution"] = "NOT_INFERRED"
+        resolved_history[key] = row
+
     severity_changes: list[dict[str, Any]] = []
     severity_escalations: list[dict[str, Any]] = []
     severity_deescalations: list[dict[str, Any]] = []
@@ -554,6 +592,7 @@ def build_report(
             "returned_findings": len(returned_keys),
             "persistent_findings": len(persistent_keys),
             "resolved_findings": len(resolved_keys),
+            "resolved_tombstones": len(resolved_history),
             "suppressed_resolved_findings": len(suppressed_resolved_keys),
             "severity_changes": len(severity_changes),
             "severity_escalations": len(severity_escalations),
@@ -573,6 +612,9 @@ def build_report(
             "returned": [current_findings[key] for key in returned_keys],
             "persistent": [current_findings[key] for key in persistent_keys],
             "resolved": [previous_findings[key] for key in resolved_keys],
+            "resolved_history": [
+                resolved_history[key] for key in sorted(resolved_history)
+            ],
             "suppressed_resolved": [previous_findings[key] for key in suppressed_resolved_keys],
             "severity_changes": severity_changes,
             "severity_escalations": severity_escalations,
@@ -611,6 +653,7 @@ def markdown(report: dict[str, Any]) -> str:
         f"- Returned: **{summary['returned_findings']}**",
         f"- Persistent: **{summary['persistent_findings']}**",
         f"- Resolved: **{summary['resolved_findings']}**",
+        f"- Resolved tombstones: **{summary.get('resolved_tombstones', 0)}**",
         f"- Severity escalations: **{summary['severity_escalations']}**",
         f"- Claim-status changes: **{summary['claim_status_changes']}**",
         f"- Regression candidates: **{summary['regression_candidates']}**",
@@ -757,10 +800,29 @@ def self_test() -> None:
         assert report["summary"]["returned_findings"] == 1
         assert report["summary"]["persistent_findings"] == 1
         assert report["summary"]["resolved_findings"] == 1
+        assert report["summary"]["resolved_tombstones"] == 1
         assert report["summary"]["severity_escalations"] == 1
         assert report["summary"]["claim_status_changes"] == 1
         assert report["summary"]["regression_candidates"] == 2
         assert report["findings"]["history"]
+        tombstone_snapshot = make_snapshot(
+            current,
+            repository="owner/app",
+            resolved_sha="3" * 40,
+            recorded_at="2026-01-03T00:00:00+00:00",
+            resolved_tombstones=report["findings"]["resolved_history"],
+        )
+        stable_after_resolution = build_report(
+            current,
+            [older, previous, tombstone_snapshot],
+            repository="owner/app",
+            resolved_sha="4" * 40,
+            run_id="124",
+        )
+        assert stable_after_resolution["summary"]["resolved_findings"] == 0
+        assert stable_after_resolution["summary"]["resolved_tombstones"] == 1
+        persisted = stable_after_resolution["findings"]["resolved_history"][0]
+        assert persisted["resolution_observed_sha"] == "3" * 40
 
         baseline_only = build_report(
             current,
@@ -1031,6 +1093,7 @@ def main() -> int:
                     run_id=args.run_id,
                     lineage_ref=args.lineage_ref,
                     base_sha=args.base_sha,
+                    resolved_tombstones=report["findings"].get("resolved_history", []),
                 ),
                 indent=2,
                 sort_keys=True,
