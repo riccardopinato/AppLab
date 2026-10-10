@@ -1,6 +1,14 @@
-# AppLab v0.5.2 — Universal Project Auto-Discovery
+# AppLab Universal Project Auto-Discovery
 
 AppLab can now start from only a public GitHub repository and a ref.
+
+Since v4.3, auto-discovery is the detection layer underneath the canonical
+External Project Certification Adapter. The detector proposes build metadata;
+`scripts/project_adapter.py` validates/normalizes it, binds it to the immutable
+checked-out SHA, merges the optional declarative `applab.project.json` contract,
+and produces the profile consumed by the existing trusted runners.
+
+See `integration/universal/PROJECT_ADAPTER_V43.md`.
 
 Input:
 
