@@ -32,12 +32,24 @@ def clean(value: object, label: str, max_length: int = 1000) -> str:
     return text
 
 
+def require_contract_version(value: object, label: str, expected: int = 1) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value != expected:
+        raise ValueError(f"{label} must equal integer {expected}")
+    return value
+
+
+def require_positive_revision(value: object, label: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError(f"{label} must be an integer >= 1")
+    return value
+
+
 def validate_protocol(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise ValueError("protocol must be an object")
     name = clean(raw.get("name"), "protocol.name", 128)
-    version = raw.get("version")
-    if name != CONTRACT_NAME or version != CONTRACT_VERSION:
+    version = require_contract_version(raw.get("version"), "protocol.version")
+    if name != CONTRACT_NAME:
         raise ValueError(
             "v4.8 canonical ecosystem verification requires Shared Ecosystem Core v1"
         )
@@ -84,8 +96,7 @@ def validate_envelope(
 ) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise ValueError("observed_contract must be an object")
-    if raw.get("schemaVersion") != 1:
-        raise ValueError("schemaVersion must equal 1")
+    require_contract_version(raw.get("schemaVersion"), "schemaVersion")
     if clean(raw.get("privacyScope"), "privacyScope", 64) != "explicitShare":
         raise ValueError("privacyScope must be explicitShare")
 
@@ -101,9 +112,7 @@ def validate_envelope(
     if expected_mode and transfer_mode != expected_mode:
         raise ValueError(f"Expected transferMode {expected_mode}, got {transfer_mode}")
 
-    revision = raw.get("revision")
-    if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
-        raise ValueError("revision must be an integer >= 1")
+    revision = require_positive_revision(raw.get("revision"), "revision")
     if clean(raw.get("sourceApp"), "sourceApp", 64) != source_app:
         raise ValueError("sourceApp does not match scenario direction")
 
@@ -117,7 +126,10 @@ def validate_envelope(
     owner_entity_id = clean(
         provenance.get("ownerEntityId"), "provenance.ownerEntityId", 256
     )
-    if provenance.get("ownerRevision") != revision:
+    owner_revision = require_positive_revision(
+        provenance.get("ownerRevision"), "provenance.ownerRevision"
+    )
+    if owner_revision != revision:
         raise ValueError("provenance.ownerRevision must match revision")
     if (owner_app, owner_entity_type, owner_entity_id) != (
         bridge_owner,
@@ -148,14 +160,15 @@ def validate_envelope(
     transport = raw.get("transport")
     if not isinstance(transport, dict):
         raise ValueError("observed_contract.transport must be an object")
-    if transport.get("transportVersion") != 1:
-        raise ValueError("transportVersion must equal 1")
+    require_contract_version(
+        transport.get("transportVersion"), "observed_contract.transport.transportVersion"
+    )
     if clean(transport.get("targetApp"), "transport.targetApp", 64) != target_app:
         raise ValueError("transport.targetApp does not match scenario destination")
 
     media = validate_media(raw.get("media", []))
     return {
-        "schema_version": 1,
+        "schema_version": CONTRACT_VERSION,
         "bridge_id": bridge_id,
         "transfer_mode": transfer_mode,
         "revision": revision,
@@ -212,6 +225,45 @@ def self_test() -> None:
     validate_envelope(
         link, source_app="wonderlog", target_app="annas_diary", expected_mode="link"
     )
+
+    for field, mutate in (
+        ("schemaVersion", lambda item: item.__setitem__("schemaVersion", True)),
+        (
+            "transportVersion",
+            lambda item: item["transport"].__setitem__("transportVersion", True),
+        ),
+        (
+            "ownerRevision",
+            lambda item: item["provenance"].__setitem__("ownerRevision", True),
+        ),
+    ):
+        malformed = json.loads(json.dumps(envelope))
+        mutate(malformed)
+        try:
+            validate_envelope(
+                malformed,
+                source_app="wonderlog",
+                target_app="annas_diary",
+                expected_mode="copy",
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"boolean {field} must fail closed")
+
+    try:
+        validate_protocol(
+            {
+                "name": CONTRACT_NAME,
+                "version": True,
+                "contract_ref": "App-Factory-Core@golden/ecosystem/core-v1",
+            }
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("boolean protocol.version must fail closed")
+
     print("Shared Ecosystem Core v1 verifier self-test PASS")
 
 
