@@ -34,6 +34,14 @@ ALLOWED_TOOLCHAIN = {
     "compile_sdk",
     "build_tools",
 }
+TOOLCHAIN_PATTERNS = {
+    "flutter_channel": re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"),
+    "flutter_version": re.compile(r"^[0-9]+(?:\\.[0-9]+){1,3}(?:[-+][A-Za-z0-9.]+)?$"),
+    "java_version": re.compile(r"^[0-9]{1,3}$"),
+    "gradle_version": re.compile(r"^[0-9]+(?:\\.[0-9]+){1,3}(?:[-+][A-Za-z0-9.]+)?$"),
+    "compile_sdk": re.compile(r"^[0-9]{2,3}$"),
+    "build_tools": re.compile(r"^[0-9]+(?:\\.[0-9]+){1,3}$"),
+}
 ALLOWED_JOURNEYS = {"primary", "settings", "critical"}
 ALLOWED_PHYSICAL = {"required", "capabilities"}
 FLOW_SUFFIXES = {".yaml", ".yml"}
@@ -57,6 +65,36 @@ def safe_relative(raw: str, *, allow_glob: bool = False) -> str:
     return normalized or "."
 
 
+def confined_repo_path(
+    repo_root: Path,
+    relative: str,
+    *,
+    label: str,
+    require_file: bool = False,
+    require_dir: bool = False,
+) -> Path:
+    root = repo_root.resolve()
+    normalized = safe_relative(relative)
+    pure = PurePosixPath(normalized)
+    candidate = root
+    for part in pure.parts:
+        if part == ".":
+            continue
+        candidate = candidate / part
+        if candidate.is_symlink():
+            raise ValueError(f"{label} traverses a symlink: {normalized}")
+    try:
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(root)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"{label} escapes or is missing from target repository: {normalized}") from exc
+    if require_file and not resolved.is_file():
+        raise ValueError(f"{label} must be a regular file: {normalized}")
+    if require_dir and not resolved.is_dir():
+        raise ValueError(f"{label} must be a directory: {normalized}")
+    return candidate
+
+
 def expect_dict(value: Any, label: str) -> dict[str, Any]:
     if value is None:
         return {}
@@ -75,8 +113,15 @@ def find_config(repo_root: Path) -> Path | None:
     found: list[Path] = []
     for relative in CONFIG_CANDIDATES:
         candidate = repo_root / relative
-        if candidate.exists():
-            found.append(candidate)
+        if candidate.is_symlink() or candidate.exists():
+            found.append(
+                confined_repo_path(
+                    repo_root,
+                    relative,
+                    label="adapter config",
+                    require_file=True,
+                )
+            )
     if len(found) > 1:
         raise ValueError(
             "Multiple AppLab project adapter configs found; keep only one of "
@@ -158,11 +203,9 @@ def validate_flow(repo_root: Path, raw: str, label: str) -> str:
     if not raw:
         return ""
     relative = safe_relative(raw)
-    path = repo_root / relative
+    path = confined_repo_path(repo_root, relative, label=label, require_file=True)
     if path.suffix.lower() not in FLOW_SUFFIXES:
         raise ValueError(f"{label} must point to a .yaml or .yml file")
-    if path.is_symlink() or not path.is_file():
-        raise ValueError(f"{label} does not exist as a regular file: {relative}")
     return relative
 
 
@@ -172,19 +215,21 @@ def auto_journeys(repo_root: Path, autodiscovery: dict[str, Any]) -> dict[str, A
     critical: list[str] = []
     candidates: list[Path] = []
     root_maestro = repo_root / ".maestro"
-    if root_maestro.is_dir():
+    if root_maestro.is_dir() and not root_maestro.is_symlink():
         candidates.extend(sorted(root_maestro.glob("*.y*ml")))
     working = safe_relative(str(autodiscovery.get("working_directory", ".") or "."))
     if working != ".":
         working_maestro = repo_root / working / ".maestro"
-        if working_maestro.is_dir():
+        if working_maestro.is_dir() and not working_maestro.is_symlink():
             candidates.extend(sorted(working_maestro.glob("*.y*ml")))
 
     seen: set[str] = set()
     for path in candidates:
-        if path.is_symlink() or not path.is_file():
-            continue
         relative = path.relative_to(repo_root).as_posix()
+        try:
+            confined_repo_path(repo_root, relative, label="auto-discovered journey", require_file=True)
+        except ValueError:
+            continue
         if relative in seen:
             continue
         seen.add(relative)
@@ -205,8 +250,15 @@ def load_certification_real_device(repo_root: Path, working_directory: str) -> b
         )
     required = False
     for path in candidates:
-        if not path.is_file() or path.is_symlink():
+        relative = path.relative_to(repo_root).as_posix()
+        if not path.exists() and not path.is_symlink():
             continue
+        path = confined_repo_path(
+            repo_root,
+            relative,
+            label="certification policy",
+            require_file=True,
+        )
         if path.stat().st_size > MAX_CONFIG_BYTES:
             raise ValueError(f"Certification policy too large: {path.relative_to(repo_root)}")
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -267,9 +319,12 @@ def build_profile(
                 f"Configured working_directory {asserted!r} does not match "
                 f"auto-discovered {working!r}; v1 adapter treats this field as an assertion"
             )
-    project_root = repo_root if working == "." else repo_root / working
-    if not project_root.is_dir():
-        raise ValueError(f"Auto-discovered working_directory does not exist: {working}")
+    project_root = confined_repo_path(
+        repo_root,
+        working,
+        label="working_directory",
+        require_dir=True,
+    )
 
     package_override = validate_string(config.get("package_id"), "package_id")
     if package_override:
@@ -282,6 +337,9 @@ def build_profile(
     for key, raw in toolchain.items():
         value = validate_string(raw, f"toolchain.{key}", max_length=64)
         if value:
+            pattern = TOOLCHAIN_PATTERNS[key]
+            if not pattern.fullmatch(value):
+                raise ValueError(f"toolchain.{key} has an unsafe or unsupported format")
             base[key] = value
 
     release_pattern = validate_string(
@@ -497,6 +555,56 @@ def self_test() -> None:
             assert "contradicts" in str(exc)
         else:
             raise AssertionError("project_type contradiction must fail")
+
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw)
+        (root / ".applab-test-head").write_text("d" * 40, encoding="utf-8")
+        (root / "pubspec.yaml").write_text("name: demo\nversion: 1.0.0+1\n")
+        outside = Path(raw).parent / (Path(raw).name + "-outside")
+        outside.mkdir(exist_ok=True)
+        try:
+            (outside / "secret.yaml").write_text("appId: com.example.demo\n", encoding="utf-8")
+            (root / "bridge").symlink_to(outside, target_is_directory=True)
+            (root / "applab.project.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "journeys": {"primary": "bridge/secret.yaml"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            try:
+                build_profile(root, base_flutter, "owner/demo", "main")
+            except ValueError as exc:
+                assert "symlink" in str(exc) or "escapes" in str(exc)
+            else:
+                raise AssertionError("journey symlink traversal must be rejected")
+        finally:
+            if outside.exists():
+                for child in outside.iterdir():
+                    child.unlink()
+                outside.rmdir()
+
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw)
+        (root / ".applab-test-head").write_text("e" * 40, encoding="utf-8")
+        (root / "pubspec.yaml").write_text("name: demo\nversion: 1.0.0+1\n")
+        (root / "applab.project.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "toolchain": {"compile_sdk": "$(touch /tmp/applab-pwned)"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        try:
+            build_profile(root, base_flutter, "owner/demo", "main")
+        except ValueError as exc:
+            assert "unsafe or unsupported format" in str(exc)
+        else:
+            raise AssertionError("unsafe toolchain shell syntax must be rejected")
 
     print("AppLab v4.3 project adapter self-test PASS")
 
