@@ -39,6 +39,14 @@ def check_version_alignment() -> None:
         f'"version":"{EXPECTED_VERSION}"' in ci,
         "CI backend health assertion version drift",
     )
+    emulator = (ROOT / ".github/workflows/emulator-self-test.yml").read_text(
+        encoding="utf-8"
+    )
+    require(
+        f'APPLAB_VERSION="{EXPECTED_VERSION}"' in emulator
+        and 'APPLAB_VERSION="4.1.0"' not in emulator,
+        "Emulator self-test report identity is stale",
+    )
 
 
 def check_local_controller_boundary() -> None:
