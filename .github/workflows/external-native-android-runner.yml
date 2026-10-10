@@ -100,11 +100,6 @@ on:
         required: false
         default: false
         type: boolean
-      contract_fingerprint:
-        description: Automatic AppLab verification contract fingerprint
-        required: false
-        default: "manual"
-        type: string
       config_fingerprint:
         description: Fingerprint of this target's watcher/build configuration
         required: false
@@ -209,10 +204,6 @@ on:
         required: false
         default: false
         type: boolean
-      contract_fingerprint:
-        required: false
-        default: "manual"
-        type: string
       config_fingerprint:
         required: false
         default: "manual"
