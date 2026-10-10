@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "4.4.0"
+EXPECTED_VERSION = "4.5.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
