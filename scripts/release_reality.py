@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-ENGINE_VERSION = "4.4.0"
+ENGINE_VERSION = "4.5.0"
 SCHEMA_VERSION = 1
 
 PASS = "PASS"
@@ -189,6 +189,82 @@ def artifact_identity(
     if not signing:
         reason += " Release signing identity is not yet verified and remains a later release/certification concern."
     return identity, PASS, reason
+
+
+def physical_evidence_summary(
+    report_dir: Path,
+    repository: str,
+    resolved_sha: str,
+    artifact: dict[str, Any],
+) -> dict[str, Any]:
+    path = report_dir / "physical-evidence.json"
+    if not path.is_file():
+        return {"present": False}
+
+    payload = read_json(path)
+    source = payload.get("source")
+    physical_artifact = payload.get("artifact")
+    device = payload.get("device")
+    scenario = payload.get("scenario")
+    verification = payload.get("verification")
+    if not all(
+        isinstance(value, dict)
+        for value in (source, physical_artifact, device, scenario, verification)
+    ):
+        raise ValueError("Physical evidence record is structurally incomplete")
+    if verification.get("state") != "VERIFIED":
+        raise ValueError("Physical evidence is not trusted-verifier validated")
+    if verification.get("exact_artifact_match") is not True:
+        raise ValueError("Physical evidence exact artifact match is not proven")
+    if device.get("physical") is not True:
+        raise ValueError("Physical evidence does not identify a physical device")
+
+    bindings = {
+        "repository": (str(source.get("repository", "")), repository),
+        "resolved_sha": (str(source.get("resolved_sha", "")).lower(), resolved_sha),
+        "artifact_sha256": (
+            str(physical_artifact.get("sha256", "")).lower(),
+            str(artifact.get("sha256", "")).lower(),
+        ),
+        "package_id": (
+            str(physical_artifact.get("package_id", "")),
+            str(artifact.get("package_id", "")),
+        ),
+        "version_name": (
+            str(physical_artifact.get("version_name", "")),
+            str(artifact.get("version_name", "")),
+        ),
+        "version_code": (
+            str(physical_artifact.get("version_code", "")),
+            str(artifact.get("version_code", "")),
+        ),
+    }
+    for label, (observed, expected) in bindings.items():
+        if not expected or observed != expected:
+            raise ValueError(f"Release Reality physical evidence {label} binding mismatch")
+
+    result = normalized(payload.get("result"))
+    if result not in {PASS, FAIL, BLOCKED}:
+        raise ValueError("Physical evidence result is invalid")
+    return {
+        "present": True,
+        "result": result,
+        "record_id": str(payload.get("record_id", "")),
+        "device": {
+            "manufacturer": str(device.get("manufacturer", "")),
+            "model": str(device.get("model", "")),
+            "os_name": str(device.get("os_name", "")),
+            "os_version": str(device.get("os_version", "")),
+            "os_build": str(device.get("os_build", "")),
+        },
+        "scenario": {
+            "id": str(scenario.get("id", "")),
+            "title": str(scenario.get("title", "")),
+            "capabilities": list(scenario.get("capabilities") or []),
+        },
+        "hub_run_id": str((payload.get("attestation") or {}).get("workflow_run_id", "")),
+        "verifier_run_id": str(verification.get("verifier_run_id", "")),
+    }
 
 
 def certification_summary(report_dir: Path, analysis_mode: str) -> dict[str, Any]:
@@ -380,25 +456,51 @@ def build_release_reality(
     if not isinstance(policy, dict):
         policy = {}
     requires_real_device = bool(policy.get("requires_real_device", False))
-    if requires_real_device:
-        physical_state = BLOCKED
+    physical = physical_evidence_summary(
+        report_dir,
+        repository,
+        resolved_sha,
+        artifact,
+    )
+    if physical.get("present"):
+        physical_state = str(physical["result"])
         physical_reason = (
-            "This release requires physical-device evidence, but v4.4 has no bound "
-            "Physical Evidence Hub record yet."
+            f"Trusted physical-device scenario {physical['scenario']['id']!r} "
+            f"reported {physical_state} on "
+            f"{physical['device']['manufacturer']} {physical['device']['model']}."
         )
         physical_applicable = True
+        physical_evidence_refs = [
+            "physical-evidence.json",
+            "physical-evidence.md",
+            "build-contract.json#certification_policy.requires_real_device",
+        ]
+    elif requires_real_device:
+        physical_state = BLOCKED
+        physical_reason = (
+            "This release requires physical-device evidence, but no trusted "
+            "Physical Evidence Hub record is bound to the exact APK."
+        )
+        physical_applicable = True
+        physical_evidence_refs = [
+            "build-contract.json#certification_policy.requires_real_device"
+        ]
     else:
         physical_state = NOT_APPLICABLE
         physical_reason = (
-            "The current certification policy does not require physical-device evidence."
+            "The current certification policy does not require physical-device evidence "
+            "and no optional trusted physical record is attached."
         )
         physical_applicable = False
+        physical_evidence_refs = [
+            "build-contract.json#certification_policy.requires_real_device"
+        ]
     levels.append(
         stage(
             "PHYSICAL_DEVICE_VERIFIED",
             physical_state,
             physical_reason,
-            ["build-contract.json#certification_policy.requires_real_device"],
+            physical_evidence_refs,
             applicable=physical_applicable,
         )
     )
@@ -522,6 +624,7 @@ def build_release_reality(
         "unresolved_stages": unresolved,
         "certification": certification,
         "certification_blockers": certification_blockers,
+        "physical_evidence": physical,
         "same_artifact_semantics": {
             "artifact_sha256_is_release_identity": True,
             "same_bytes_verified": bool(artifact.get("same_bytes_verified")),
@@ -739,6 +842,55 @@ def self_test() -> None:
         assert reality["certification"]["status"] == "BLOCKED"
         assert reality["certification_blockers"][0]["gate"] == "real_device"
         assert states["CI_GREEN"] == PASS
+
+        physical = {
+            "schema_version": 1,
+            "hub_version": "4.5.0",
+            "record_type": "PHYSICAL_DEVICE_EVIDENCE",
+            "record_id": "e" * 64,
+            "source": {"repository": "owner/demo", "resolved_sha": "a" * 40},
+            "artifact": {
+                "sha256": digest,
+                "package_id": "com.example.demo",
+                "version_name": "1.2.3",
+                "version_code": "12",
+            },
+            "device": {
+                "physical": True,
+                "manufacturer": "Samsung",
+                "model": "SM-S921B",
+                "os_name": "Android",
+                "os_version": "16",
+                "os_build": "test",
+            },
+            "scenario": {
+                "id": "gps-background",
+                "title": "GPS background",
+                "capabilities": ["gps", "background"],
+            },
+            "result": "PASS",
+            "attestation": {"workflow_run_id": "789"},
+            "verification": {
+                "state": "VERIFIED",
+                "exact_artifact_match": True,
+                "verifier_run_id": "123",
+            },
+        }
+        (report / "physical-evidence.json").write_text(
+            json.dumps(physical), encoding="utf-8"
+        )
+        reality = build_release_reality(
+            report,
+            apk,
+            workflow_run_id="123",
+            trusted_applab_sha="c" * 40,
+            runtime_outcome="success",
+        )
+        states = {row["key"]: row["state"] for row in reality["levels"]}
+        assert states["PHYSICAL_DEVICE_VERIFIED"] == PASS
+        assert reality["physical_evidence"]["present"] is True
+        (report / "physical-evidence.json").unlink()
+
         result["runtime_result"] = "PASS"
         result["result"] = "FAIL"
         result["pipeline_status"] = "failure"
