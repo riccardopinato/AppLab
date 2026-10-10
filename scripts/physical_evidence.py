@@ -305,6 +305,14 @@ def make_record(
             "captured_at": captured_at,
             "operator": clean_string(actor, "actor", 128),
         },
+        "evidence_reference_integrity": {
+            "operator_attested_hashes": True,
+            "reference_bytes_verified_by_hub": False,
+            "note": (
+                "The hub records operator-attested hashes/references; referenced external "
+                "bytes are not fetched or re-hashed by the v4.5 workflow."
+            ),
+        },
         "attestation": {
             "authority": AUTHORITY,
             "workflow_repository": workflow_repository,
@@ -524,6 +532,7 @@ def validate_against_artifact(
         "hub_head_sha": expected_hub_head_sha.lower(),
         "exact_artifact_sha256": actual_sha,
         "exact_artifact_match": True,
+        "evidence_reference_bytes_verified": False,
     }
     return verified
 
@@ -682,6 +691,7 @@ def self_test() -> None:
         )
         assert verified["verification"]["state"] == "VERIFIED"
         assert verified["verification"]["exact_artifact_match"] is True
+        assert verified["verification"]["evidence_reference_bytes_verified"] is False
 
         bad = json.loads(json.dumps(record))
         bad["artifact"]["sha256"] = "0" * 64
