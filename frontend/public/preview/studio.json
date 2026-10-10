@@ -28,10 +28,14 @@
     "ux_review_signals": 1,
     "ux_no_change_actions": 0,
     "with_evidence_graph": 1,
-    "evidence_graph_nodes": 31,
-    "evidence_graph_edges": 47,
+    "evidence_graph_nodes": 36,
+    "evidence_graph_edges": 53,
     "graph_unverified_capabilities": 1,
-    "graph_recurring_findings": 1
+    "graph_recurring_findings": 1,
+    "graph_changed_files": 1,
+    "graph_impact_paths": 1,
+    "graph_invalidated_evidence": 1,
+    "graph_resolved_findings": 1
   },
   "projects": [
     {
@@ -244,12 +248,14 @@
         "top_actions": []
       },
       "evidence_graph": {
-        "nodes": 31,
-        "edges": 47,
+        "nodes": 36,
+        "edges": 53,
         "nodes_by_type": {
           "Project": 1,
           "Revision": 2,
           "BuildArtifact": 1,
+          "File": 3,
+          "Component": 2,
           "Capability": 7,
           "Surface": 2,
           "Journey": 2,
@@ -265,11 +271,47 @@
           "REVISION_HAS_FINDING": 4,
           "REVISION_HAS_CLAIM": 3,
           "CLAIM_SUPPORTED_BY": 3,
-          "REVISION_PLANS_EXPERIMENT": 2
+          "REVISION_PLANS_EXPERIMENT": 2,
+          "FILE_IN_COMPONENT": 3,
+          "COMPONENT_SUPPORTS_CAPABILITY": 1,
+          "CAPABILITY_OBSERVED_ON_SURFACE": 1,
+          "SURFACE_IN_JOURNEY": 1,
+          "CHANGE_INVALIDATES_EVIDENCE": 1
         },
         "unverified_capabilities": 1,
         "recurring_findings": 1,
         "regression_candidates": 0,
+        "changed_files": 1,
+        "dependency_impacted_files": 1,
+        "impact_paths": 1,
+        "invalidated_evidence": 1,
+        "stale_or_historical_evidence": 1,
+        "finding_lifecycle": {
+          "FIRST_OBSERVED": 0,
+          "PERSISTENT": 1,
+          "RETURNED": 0,
+          "RESOLVED": 1
+        },
+        "top_invalidated_evidence": [
+          {
+            "evidence_id": "preview-historical",
+            "label": "lib/legacy.dart",
+            "invalidated_by_files": ["lib/legacy.dart"]
+          }
+        ],
+        "top_impact_paths": [
+          {
+            "origin_file": "lib/settings.dart",
+            "relations": [
+              "FILE_IN_COMPONENT",
+              "COMPONENT_SUPPORTS_CAPABILITY",
+              "CAPABILITY_OBSERVED_ON_SURFACE",
+              "SURFACE_IN_JOURNEY",
+              "DERIVED_FROM"
+            ],
+            "terminal_evidence": "user-journey.json"
+          }
+        ],
         "top_unverified_capabilities": [
           {
             "capability": "Web Preview runtime authority",
