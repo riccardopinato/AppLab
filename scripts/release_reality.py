@@ -241,12 +241,24 @@ def build_release_reality(
     contract = optional_json(report_dir / "build-contract.json")
     result = optional_json(report_dir / "result.json")
 
-    repository = str(contract.get("repository", "") or result.get("repository", "")).strip()
-    resolved_sha = str(
-        contract.get("resolved_sha", "") or result.get("resolved_sha", "")
-    ).strip().lower()
-    engine = str(contract.get("engine", "") or result.get("engine", "")).strip()
-    ref = str(result.get("ref", "")).strip()
+    contract_repository = str(contract.get("repository", "")).strip()
+    result_repository = str(result.get("repository", "")).strip()
+    contract_sha = str(contract.get("resolved_sha", "")).strip().lower()
+    result_sha = str(result.get("resolved_sha", "")).strip().lower()
+    contract_engine = str(contract.get("engine", "")).strip()
+    result_engine = str(result.get("engine", "")).strip()
+
+    if contract_repository and result_repository and contract_repository != result_repository:
+        raise ValueError("Release Reality repository binding mismatch")
+    if contract_sha and result_sha and contract_sha != result_sha:
+        raise ValueError("Release Reality source SHA binding mismatch")
+    if contract_engine and result_engine and contract_engine != result_engine:
+        raise ValueError("Release Reality engine binding mismatch")
+
+    repository = contract_repository or result_repository
+    resolved_sha = contract_sha or result_sha
+    engine = contract_engine or result_engine
+    ref = str(result.get("ref", "") or result.get("requested_ref", "")).strip()
     analysis_mode = str(
         result.get("analysis_mode", "") or contract.get("analysis_mode", "")
     ).strip().lower()
@@ -254,10 +266,17 @@ def build_release_reality(
     runtime_result = normalized(result.get("runtime_result") or result.get("result"))
     aggregate_result = normalized(result.get("result"))
     runtime_outcome = normalized(runtime_outcome)
-    workflow_run_id = str(workflow_run_id or result.get("workflow_run_id", "")).strip()
-    trusted_applab_sha = str(
-        trusted_applab_sha or contract.get("trusted_applab_sha", "")
-    ).strip().lower()
+    result_run_id = str(result.get("workflow_run_id", "")).strip()
+    requested_run_id = str(workflow_run_id).strip()
+    if requested_run_id and result_run_id and requested_run_id != result_run_id:
+        raise ValueError("Release Reality workflow run binding mismatch")
+    workflow_run_id = requested_run_id or result_run_id
+
+    contract_applab_sha = str(contract.get("trusted_applab_sha", "")).strip().lower()
+    requested_applab_sha = str(trusted_applab_sha).strip().lower()
+    if requested_applab_sha and contract_applab_sha and requested_applab_sha != contract_applab_sha:
+        raise ValueError("Release Reality trusted AppLab SHA binding mismatch")
+    trusted_applab_sha = requested_applab_sha or contract_applab_sha
 
     quality = contract.get("quality_evidence")
     if not isinstance(quality, dict):
@@ -751,6 +770,23 @@ def self_test() -> None:
         assert states["ARTIFACT_BUILT"] == FAIL
         assert states["TRUSTED_RUNTIME_VERIFIED"] == BLOCKED
         assert reality["artifact"]["same_bytes_verified"] is False
+
+        result["workflow_run_id"] = "999"
+        (report / "result.json").write_text(json.dumps(result), encoding="utf-8")
+        try:
+            build_release_reality(
+                report,
+                apk,
+                workflow_run_id="123",
+                trusted_applab_sha="c" * 40,
+                runtime_outcome="success",
+            )
+        except ValueError as exc:
+            assert "workflow run binding mismatch" in str(exc)
+        else:
+            raise AssertionError("workflow run binding mismatch must be rejected")
+        result["workflow_run_id"] = "123"
+        (report / "result.json").write_text(json.dumps(result), encoding="utf-8")
 
         write_outputs(report, reality)
         assert (report / "release-reality.json").is_file()
