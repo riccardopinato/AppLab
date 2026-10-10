@@ -712,6 +712,7 @@ def self_test() -> None:
                 apk,
                 expected_hub_repository="owner/AppLab",
                 expected_hub_run_id="123",
+                expected_hub_run_attempt="1",
                 expected_hub_head_sha="c" * 40,
                 verifier_run_id="456",
                 verifier_trusted_applab_sha="d" * 40,
@@ -720,6 +721,23 @@ def self_test() -> None:
             assert "artifact_sha256 binding mismatch" in str(exc)
         else:
             raise AssertionError("Physical evidence artifact mismatch must fail")
+
+        try:
+            validate_against_artifact(
+                record,
+                contract,
+                apk,
+                expected_hub_repository="owner/AppLab",
+                expected_hub_run_id="123",
+                expected_hub_run_attempt="2",
+                expected_hub_head_sha="c" * 40,
+                verifier_run_id="456",
+                verifier_trusted_applab_sha="d" * 40,
+            )
+        except ValueError as exc:
+            assert "run attempt binding mismatch" in str(exc)
+        else:
+            raise AssertionError("Physical evidence run-attempt mismatch must fail")
 
         forged = json.loads(json.dumps(record))
         forged["scenario"]["observed_result"] = "Tampered"
