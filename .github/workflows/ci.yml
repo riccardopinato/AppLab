@@ -57,6 +57,7 @@ jobs:
             scripts/prepare_upgrade_baseline.py \
             scripts/prepare_performance_baseline.py \
             scripts/project_autodiscover.py \
+            scripts/project_adapter.py \
             scripts/contract_fingerprint.py \
             scripts/prepare_visual_baseline.py \
             scripts/package_build_contract.py \
@@ -124,6 +125,7 @@ jobs:
           python scripts/prepare_upgrade_baseline.py --self-test
           python scripts/prepare_performance_baseline.py --self-test
           python scripts/project_autodiscover.py --self-test
+          python scripts/project_adapter.py --self-test
           python scripts/prepare_visual_baseline.py --self-test
           python scripts/release_artifact.py --self-test
           python scripts/certification_gate.py --self-test
@@ -182,7 +184,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"4.2.0"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"4.3.0"'; then
               healthy=true
               break
             fi
