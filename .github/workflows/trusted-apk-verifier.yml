@@ -196,6 +196,7 @@ jobs:
             --artifact "$GITHUB_WORKSPACE/.applab-build/app.apk" \
             --expected-hub-repository "${{ job.workflow_repository }}" \
             --expected-hub-run-id "${{ inputs.physical_evidence_run_id }}" \
+            --expected-hub-run-attempt "${{ steps.physical_run.outputs.run_attempt }}" \
             --expected-hub-head-sha "${{ steps.physical_run.outputs.head_sha }}" \
             --verifier-run-id "$GITHUB_RUN_ID" \
             --verifier-trusted-applab-sha "${{ job.workflow_sha }}" \
@@ -586,7 +587,7 @@ jobs:
           PY
 
       - name: Bind trusted runtime evidence
-        if: steps.verify.outcome == 'success'
+        if: always() && steps.verify.outcome == 'success'
         shell: bash
         run: |
           set -Eeuo pipefail
