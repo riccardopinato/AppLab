@@ -8,8 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import certification_studio
-import studio_evidence_graph
+import certification_studio, studio_evidence_graph
 
 SCHEMA_VERSION = 1
 STUDIO_VERSION = "4.7.0"
@@ -61,14 +60,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     experiment = read_json(project_dir / "experiment-plan.json")
     analyst = read_json(project_dir / "analyst-report.json")
     evidence_graph = read_json(project_dir / "evidence-graph.json")
-    release_reality = read_json(project_dir / "release-reality.json")
+    release_cockpit = certification_studio.project_from_directory(project_dir, evidence_graph, longitudinal)
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, evidence_graph, release_reality, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, evidence_graph, release_cockpit, contract, brief, autonomous)
     ):
         return None
 
@@ -87,7 +86,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "experiment_plan": None,
         "analyst": None,
         "evidence_graph": None,
-        "release_cockpit": None,
+        "release_cockpit": release_cockpit,
         "autonomous_review": None,
     }
 
@@ -454,13 +453,6 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
 
     if evidence_graph:
         row["evidence_graph"] = studio_evidence_graph.project_summary(evidence_graph)
-
-    if release_reality:
-        row["release_cockpit"] = certification_studio.project_summary(
-            release_reality,
-            evidence_graph=evidence_graph,
-            longitudinal=longitudinal,
-        )
 
     if user_journey:
         journey_summary = (
@@ -1191,10 +1183,6 @@ def self_test() -> None:
             json.dumps(studio_evidence_graph.self_test_payload()),
             encoding="utf-8",
         )
-        (project / "release-reality.json").write_text(
-            json.dumps(certification_studio.self_test_release_reality()),
-            encoding="utf-8",
-        )
         (project / "audit-plan.json").write_text(
             json.dumps(
                 {
@@ -1260,15 +1248,6 @@ def self_test() -> None:
         assert snapshot["summary"]["evidence_graph_edges"] == 38
         assert snapshot["summary"]["graph_unverified_capabilities"] == 1
         assert snapshot["summary"]["graph_recurring_findings"] == 1
-        assert snapshot["summary"]["with_release_reality"] == 1
-        assert snapshot["summary"]["certified_releases"] == 0
-        assert snapshot["summary"]["certification_blocked"] == 1
-        assert snapshot["summary"]["physical_required"] == 1
-        assert snapshot["projects"][0]["release_cockpit"]["read_only"] is True
-        assert snapshot["projects"][0]["release_cockpit"]["current_level"] == "TRUSTED_RUNTIME_VERIFIED"
-        assert snapshot["projects"][0]["release_cockpit"]["artifact"]["same_bytes_verified"] is True
-        assert snapshot["projects"][0]["release_cockpit"]["runtime"]["runtime_result"] == "PASS"
-        assert snapshot["projects"][0]["release_cockpit"]["why_not_certified"][0]["gate"] == "real_device"
         assert snapshot["projects"][0]["autonomous_review"]["review_state"] == "REVIEW_REQUIRED"
         assert snapshot["projects"][0]["autonomous_review"]["runtime_confirmed"] == 1
         assert snapshot["summary"]["autonomous_reviews"] == 1
