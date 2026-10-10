@@ -314,6 +314,12 @@ def check_release_reality_contract() -> None:
         "Release Reality must enforce same-artifact semantics",
     )
     require(
+        '"signing_identity_state"' in reality
+        and "Release signing identity is not yet verified" in reality
+        and "required_build_identity" in reality,
+        "ARTIFACT_BUILT must remain distinct from later release-signing proof",
+    )
+    require(
         '"runtime_result"' in finalizer
         and 'payload["runtime_result"]' in finalizer
         and 'result.get("runtime_result") or result.get("result")' in reality,
