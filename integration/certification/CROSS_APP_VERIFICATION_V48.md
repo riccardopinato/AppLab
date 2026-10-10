@@ -94,7 +94,7 @@ The paired physical record binds:
 - physical device manufacturer/model/OS/build;
 - every installed-app-dependent scenario id;
 - PASS/FAIL/BLOCKED result;
-- hashed screenshot/log/video/file/trace/report references.
+- **at least one** hashed screenshot/log/video/file/trace/report reference.
 
 The v4.8 workflow is an operator-attested evidence path, following the existing
 Physical Evidence Hub trust model. Evidence-reference hashes are recorded, but
@@ -109,6 +109,9 @@ Cross-app PASS is impossible when any of these applies:
 - a supplied Release Reality identity disagrees with the pair session;
 - the Shared Ecosystem Core contract is malformed/incompatible;
 - required semantic or transport scenarios are missing;
+- the selected transport is unsupported or its physical-requirement declaration is contradictory;
+- COPY/LINK/idempotency/provenance/ownership observations do not share one coherent lineage;
+- producer and consumer claim identical APK bytes;
 - required assertions are absent/false in a claimed PASS scenario;
 - installed-app transport lacks paired physical evidence;
 - paired physical evidence does not bind both exact APK hashes;
