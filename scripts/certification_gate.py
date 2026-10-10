@@ -672,6 +672,19 @@ def self_test() -> None:
         assert hardware_certified["status"] == "CERTIFIED"
         assert hardware_certified["real_device"]["status"] == "PASS"
 
+        partial_physical = {
+            **physical_record,
+            "scenario": {"capabilities": ["gps"]},
+        }
+        hardware_partial = evaluate(
+            pass_result, hardware_contract, apk,
+            api_level="35", emulator_profile="pixel_7_pro",
+            target="google_apis", arch="x86_64",
+            physical_evidence=partial_physical,
+        )
+        assert hardware_partial["status"] == "BLOCKED"
+        assert hardware_partial["real_device"]["status"] == "BLOCKED"
+
         failed_physical = {**physical_record, "result": "FAIL"}
         hardware_rejected = evaluate(
             pass_result, hardware_contract, apk,
