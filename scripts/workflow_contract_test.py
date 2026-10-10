@@ -45,6 +45,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "project-profile.json",
         "resolved_sha:",
         "profile_fingerprint:",
+        "physical_evidence_run_id:",
         "ref: ${{ needs.discover.outputs.resolved_sha }}",
     ),
     ".github/workflows/project-adapter-integration.yml": (
@@ -72,6 +73,11 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "Build Release Reality record",
         "scripts/release_reality.py",
         "release-reality.md",
+        "physical_evidence_run_id",
+        "Verify physical evidence hub run provenance",
+        "Download trusted physical evidence attestation",
+        "Bind physical evidence to exact APK",
+        "physical-evidence.md",
         "AppLab v4.4.0 Trusted APK Verification",
         "BASELINE_FALLBACK",
         "effective FULL fallback",
@@ -82,6 +88,13 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "analysis_mode: certification",
         "source_ref: ${{ inputs.ref }}",
         "production-certification-v1.0.0",
+    ),
+    ".github/workflows/physical-evidence-hub.yml": (
+        "Require trusted main",
+        "refs/heads/main",
+        "scripts/physical_evidence.py create",
+        "applab-physical-evidence-",
+        "retention-days: 90",
     ),
 }
 
