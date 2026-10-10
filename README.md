@@ -1,3 +1,28 @@
+## v4.8.0 — Cross-App Verification
+
+AppLab can now verify **one exact producer/consumer pair** without treating two
+individually green apps as proof that their interaction works.
+
+- **Paired artifact identity:** repository, immutable source SHA, package/version,
+  canonical app id and exact APK SHA-256 are bound independently for both sides.
+- **Shared Ecosystem Core v1:** COPY/LINK, bridge identity, revision, provenance,
+  ownership, idempotency, privacy and media boundaries reuse the Factory contract
+  instead of creating a parallel AppLab protocol.
+- **Executed scenario matrix:** COPY, LINK, IDEMPOTENCY, PROVENANCE, OWNERSHIP and
+  FAIL_CLOSED are explicit, plus deep-link or documented fallback transport.
+- **Fail closed:** incompatible contract/media, identity mismatch, missing
+  scenario coverage or missing paired evidence cannot become PASS.
+- **Paired physical evidence:** installed-app transports require a real-device
+  record bound to both exact artifact hashes and the executed pair scenarios.
+- **Authority separation:** single-app Release Reality/CERTIFICATION remains
+  informative context only; cross-app round-trip PASS is a distinct authority.
+- **Trusted workflow:** operator-attested pair evidence is evaluated from AppLab
+  `main` and retained for 90 days without overstating external-media integrity.
+- **No opaque score:** the output is PASS / FAIL / BLOCKED / NOT_VERIFIED with
+  explicit blockers and a deterministic pair digest.
+
+See `integration/certification/CROSS_APP_VERIFICATION_V48.md`.
+
 ## v4.7.0 — Certification Studio / Release Cockpit
 
 AppLab Studio now exposes the **real release state of the exact artifact** without
