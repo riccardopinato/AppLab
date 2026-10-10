@@ -29,6 +29,11 @@ def check_version_alignment() -> None:
         (lock.get("packages") or {}).get("", {}).get("version") == EXPECTED_VERSION,
         "frontend root lock package version drift",
     )
+    package_contract = (ROOT / "scripts/package_build_contract.py").read_text(encoding="utf-8")
+    require(
+        f'"applab_version": "{EXPECTED_VERSION}"' in package_contract,
+        "packaged build contract version drift",
+    )
     studio = (ROOT / "scripts/studio_snapshot.py").read_text(encoding="utf-8")
     studio_graph = (ROOT / "scripts/studio_evidence_graph.py").read_text(encoding="utf-8")
     require(
