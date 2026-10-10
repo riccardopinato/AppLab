@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import smart_test_plan
 import domain_fingerprint
+import physical_evidence
 from pathlib import Path, PurePosixPath
 
 ALLOWED_EVIDENCE_SUFFIXES = {".yaml", ".yml", ".json"}
@@ -21,6 +22,7 @@ VALID_CHECK_STATES = {"PASS", "FAIL", "NOT_RUN", "N/A"}
 DEFAULT_CERTIFICATION_POLICY = {
     "schema_version": 1,
     "requires_real_device": False,
+    "required_physical_capabilities": [],
     "expected_signing_certificate_sha256": "",
     "max_apk_bytes": 600 * 1024 * 1024,
 }
@@ -127,6 +129,7 @@ def load_certification_policy(repo_root: Path, working: PurePosixPath) -> dict[s
             raise ValueError(f"Invalid certification policy: {path}")
         for key in (
             "requires_real_device",
+            "required_physical_capabilities",
             "expected_signing_certificate_sha256",
             "max_apk_bytes",
         ):
@@ -149,13 +152,45 @@ def load_certification_policy(repo_root: Path, working: PurePosixPath) -> dict[s
             raise ValueError("physical_validation.required must be boolean")
         if not isinstance(capabilities, list):
             raise ValueError("physical_validation.capabilities must be an array")
-        if required or capabilities:
+        normalized_capabilities = []
+        for raw in capabilities:
+            value = str(raw or "").strip().lower()
+            if value not in physical_evidence.CAPABILITIES:
+                raise ValueError(f"Unsupported physical_validation capability: {value!r}")
+            if value not in normalized_capabilities:
+                normalized_capabilities.append(value)
+        existing = policy.get("required_physical_capabilities", [])
+        if not isinstance(existing, list):
+            raise ValueError("required_physical_capabilities must be an array")
+        merged = []
+        for raw in [*existing, *normalized_capabilities]:
+            value = str(raw or "").strip().lower()
+            if value not in physical_evidence.CAPABILITIES:
+                raise ValueError(f"Unsupported required physical capability: {value!r}")
+            if value not in merged:
+                merged.append(value)
+        policy["required_physical_capabilities"] = merged
+        if required or merged:
             # Target-authored adapter metadata may only make certification stricter.
             # It can never clear a requires_real_device=true certification policy.
             policy["requires_real_device"] = True
 
     if not isinstance(policy["requires_real_device"], bool):
         raise ValueError("requires_real_device must be boolean")
+    required_caps = policy.get("required_physical_capabilities", [])
+    if not isinstance(required_caps, list):
+        raise ValueError("required_physical_capabilities must be an array")
+    normalized_required = []
+    for raw in required_caps:
+        value = str(raw or "").strip().lower()
+        if value not in physical_evidence.CAPABILITIES:
+            raise ValueError(f"Unsupported required physical capability: {value!r}")
+        if value not in normalized_required:
+            normalized_required.append(value)
+    policy["required_physical_capabilities"] = normalized_required
+    if normalized_required:
+        policy["requires_real_device"] = True
+
     fingerprint = str(policy["expected_signing_certificate_sha256"]).strip().lower()
     fingerprint = re.sub(r"[^0-9a-f]", "", fingerprint)
     if fingerprint and len(fingerprint) != 64:
