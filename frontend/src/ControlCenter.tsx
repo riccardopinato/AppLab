@@ -373,6 +373,7 @@ type StudioProject = {
     }>;
     top_impact_paths?: Array<{
       origin_file?: string;
+      origin_kind?: string;
       relations?: string[];
       terminal_evidence?: string;
     }>;
