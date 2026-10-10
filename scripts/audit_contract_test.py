@@ -417,7 +417,8 @@ def check_physical_evidence_contract() -> None:
     )
     require(
         "physical_evidence_summary" in reality
-        and '"physical_evidence": physical' in reality,
+        and '"physical_evidence": {' in reality
+        and '"required_capabilities": sorted(required_physical_capabilities)' in reality,
         "Release Reality must surface trusted physical evidence",
     )
     require(
