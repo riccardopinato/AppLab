@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v4.2.0 — Evidence Graph**
+Current production baseline: **v4.3.0 — External Project Certification Adapter**
 
 ## Product rule
 
@@ -19,6 +19,17 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v4.3.0 — External Project Certification Adapter
+
+- [x] Define one small per-project integration contract for repository/ref, package ID, project type, toolchain, release artifact pattern and critical journeys.
+- [x] Auto-detect Flutter versus native Android structure where safely possible.
+- [x] Resolve package/version/build identity and expected artifact automatically.
+- [x] Declare primary, settings and critical journeys in a reusable project profile.
+- [x] Declare whether physical-device validation is required for each critical capability.
+- [x] Keep AppLab as the external trusted authority instead of copying verifier logic into target repositories.
+- [x] Validate the adapter on pinned CamperBoss and Battery Guard revisions through the real-project integration workflow.
+- [x] Preserve FAST / FULL / CERTIFICATION semantics and all existing trust boundaries.
 
 ### v4.2.0 — Evidence Graph
 
@@ -522,21 +533,6 @@ Release decision support
 Simulated-human, design and market conclusions are advisory evidence. They must
 never be represented as real-user research, physical-device evidence or trusted
 runtime PASS.
-
-### v4.3 — External Project Certification Adapter
-
-Goal: make any App Factory project easy to connect to AppLab without duplicating
-AppLab logic inside the target repository.
-
-Planned:
-- [ ] Define one small per-project integration contract for repository/ref, package ID, project type, toolchain, release artifact pattern and critical journeys.
-- [ ] Auto-detect Flutter versus native Android structure where safely possible.
-- [ ] Resolve package/version/build identity and expected artifact automatically.
-- [ ] Declare primary, settings and critical journeys in a reusable project profile.
-- [ ] Declare whether physical-device validation is required for each critical capability.
-- [ ] Keep AppLab as the external trusted authority instead of copying verifier logic into target repositories.
-- [ ] Validate the adapter on at least one real Flutter project and one second App Factory project.
-- [ ] Preserve FAST / FULL / CERTIFICATION semantics and all existing trust boundaries.
 
 ### v4.4 — Release Reality Engine
 
