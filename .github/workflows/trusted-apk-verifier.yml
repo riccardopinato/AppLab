@@ -206,7 +206,7 @@ jobs:
       - name: Cache pinned Maestro
         id: maestro_cache
         if: inputs.run_maestro
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.maestro
           key: applab-maestro-${{ runner.os }}-2.10.0
