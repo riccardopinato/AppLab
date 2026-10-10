@@ -291,26 +291,24 @@ def build_release_reality(
 
     required_quality = [static_key, "unit_tests", "build"]
     required_states = [quality_state(quality, key) for key in required_quality]
-    if any(value in FAIL_STATES for value in required_states) or pipeline_status in {
-        "FAIL",
-        "FAILED",
-        "FAILURE",
-        "ERROR",
-    }:
+    if any(value in FAIL_STATES for value in required_states):
         ci_state = FAIL
-        ci_reason = "The bound AppLab CI/build pipeline contains a hard failure."
-    elif all(value == PASS for value in required_states) and pipeline_status == "SUCCESS":
+        ci_reason = "At least one required CI/build-quality check failed."
+    elif all(value == PASS for value in required_states):
         ci_state = PASS
-        ci_reason = "Required build-quality checks and the bound pipeline are green."
+        ci_reason = (
+            "Required static/test/build checks passed in the sealed build contract. "
+            "Runtime and certification outcomes are tracked separately."
+        )
     else:
         ci_state = NOT_VERIFIED
-        ci_reason = "A complete green CI/build-quality result is not proven for this artifact."
+        ci_reason = "Complete PASS evidence for the required CI/build-quality checks is missing."
     levels.append(
         stage(
             "CI_GREEN",
             ci_state,
             ci_reason,
-            ["build-contract.json#quality_evidence", "result.json#pipeline_status"],
+            ["build-contract.json#quality_evidence"],
         )
     )
 
@@ -688,6 +686,7 @@ def self_test() -> None:
         assert states["PHYSICAL_DEVICE_VERIFIED"] == BLOCKED
         assert reality["certification"]["status"] == "BLOCKED"
         assert reality["certification_blockers"][0]["gate"] == "real_device"
+        assert states["CI_GREEN"] == PASS
 
         apk.write_bytes(b"rebuilt-different-bytes")
         reality = build_release_reality(
