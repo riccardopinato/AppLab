@@ -77,6 +77,8 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "Verify physical evidence hub run provenance",
         "Download trusted physical evidence attestation",
         "Bind physical evidence to exact APK",
+        "--expected-hub-run-attempt",
+        "if: always() && steps.verify.outcome == 'success'",
         "physical-evidence.md",
         "AppLab v4.5.0 Trusted APK Verification",
         "BASELINE_FALLBACK",
@@ -93,7 +95,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "Require trusted main",
         "refs/heads/main",
         "scripts/physical_evidence.py create",
-        "applab-physical-evidence-",
+        "applab-physical-evidence-${{ github.run_id }}-${{ github.run_attempt }}",
         "retention-days: 90",
     ),
 }
