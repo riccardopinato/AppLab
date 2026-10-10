@@ -12,9 +12,9 @@ from typing import Any
 
 from product_review_common import write_report
 
-SCHEMA_VERSION = 1
-ENGINE_VERSION = "4.2.0"
-GRAPH_VERSION = "1.0"
+SCHEMA_VERSION = 2
+ENGINE_VERSION = "4.6.0"
+GRAPH_VERSION = "2.0"
 
 FILES = {
     "app": "app-intelligence.json",
@@ -28,12 +28,15 @@ FILES = {
     "experiment": "experiment-plan.json",
     "analyst": "analyst-report.json",
     "autonomous": "autonomous-review.json",
+    "analysis_plan": "analysis-plan.json",
 }
 
 NODE_TYPES = (
     "Project",
     "Revision",
     "BuildArtifact",
+    "File",
+    "Component",
     "Capability",
     "Surface",
     "Journey",
@@ -90,6 +93,7 @@ def load_inputs(evidence_dir: Path, trusted_runtime_dir: Path | None = None) -> 
             ("trusted_manifest", "trusted-evidence-manifest.json"),
             ("build_contract", "build-contract.json"),
             ("trusted_result", "result.json"),
+            ("analysis_plan", "analysis-plan.json"),
         ):
             payload = read_json(trusted_runtime_dir / filename)
             if payload is not None:
