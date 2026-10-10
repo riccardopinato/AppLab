@@ -378,11 +378,17 @@ def _reference_evidence(
     text = _safe(value)
     if not text:
         return None
+    metadata = attributes or {}
+    scope = _safe(metadata.get("observation_scope")).upper()
+    source_sha = _safe(metadata.get("source_sha") or metadata.get("observed_sha")).lower()
+    reference_key = f"reference:{text}"
+    if scope == "HISTORICAL":
+        reference_key += f"@{source_sha or 'historical'}"
     node_id = builder.add_node(
         "Evidence",
-        f"reference:{text}",
+        reference_key,
         text,
-        attributes={"kind": "REFERENCE", **(attributes or {})},
+        attributes={"kind": "REFERENCE", **metadata},
         provenance=[source_file],
     )
     if report_node:
