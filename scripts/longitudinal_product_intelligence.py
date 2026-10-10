@@ -444,7 +444,12 @@ def build_report(
     first_seen_keys = sorted(key for key in new_keys if key not in older_keys)
 
     inherited_tombstones: dict[str, dict[str, Any]] = {}
-    for snapshot in history:
+    # v4.6 snapshots store the complete tombstone set. The newest snapshot that
+    # carries this field is authoritative even when the array is empty, so a
+    # returned finding can retire an older tombstone deterministically.
+    for snapshot in reversed(history):
+        if "resolved_tombstones" not in snapshot:
+            continue
         rows = (
             snapshot.get("resolved_tombstones")
             if isinstance(snapshot.get("resolved_tombstones"), list)
@@ -456,6 +461,7 @@ def build_report(
             key = _safe_text(row.get("key"))
             if key:
                 inherited_tombstones[key] = dict(row)
+        break
 
     # A returned/current finding is active again and must not retain a resolved tombstone.
     for key in current_keys:
@@ -823,6 +829,29 @@ def self_test() -> None:
         assert stable_after_resolution["summary"]["resolved_tombstones"] == 1
         persisted = stable_after_resolution["findings"]["resolved_history"][0]
         assert persisted["resolution_observed_sha"] == "3" * 40
+
+        returned_review = review([
+            {"kind": "A", "subject": "alpha", "severity": "REVIEW"},
+            {"kind": "B", "subject": "beta", "severity": "REVIEW"},
+            {"kind": "C", "subject": "gamma", "severity": "INFO"},
+            {"kind": "D", "subject": "delta", "severity": "REVIEW"},
+        ], [{"id": "claim-1", "subject": "beta", "status": "CONFIRMED"}])
+        stable_snapshot = make_snapshot(
+            current,
+            repository="owner/app",
+            resolved_sha="4" * 40,
+            recorded_at="2026-01-04T00:00:00+00:00",
+            resolved_tombstones=stable_after_resolution["findings"]["resolved_history"],
+        )
+        returned_report = build_report(
+            returned_review,
+            [older, previous, tombstone_snapshot, stable_snapshot],
+            repository="owner/app",
+            resolved_sha="5" * 40,
+            run_id="125",
+        )
+        assert returned_report["summary"]["returned_findings"] >= 1
+        assert returned_report["summary"]["resolved_tombstones"] == 0
 
         baseline_only = build_report(
             current,
