@@ -566,7 +566,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v4.2.0 Trusted APK Verification"
+            echo "## AppLab v4.3.0 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"
