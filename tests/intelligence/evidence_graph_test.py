@@ -194,7 +194,8 @@ def main() -> int:
                         "subject": "draft",
                     }
                 ],
-                "resolved": [
+                "resolved": [],
+                "resolved_history": [
                     {
                         "key": "product_consistency|id:legacy-gap",
                         "source": "product_consistency",
@@ -203,6 +204,8 @@ def main() -> int:
                         "subject": "legacy",
                         "severity": "REVIEW",
                         "evidence": ["lib/legacy.dart"],
+                        "last_seen_sha": sha_old,
+                        "resolution_observed_sha": sha_old,
                     }
                 ],
                 "suppressed_resolved": [],
@@ -321,12 +324,11 @@ def main() -> int:
             "schema_version": 1,
             "mode": "fast",
             "lane": "FAST_RUNTIME",
-            "changed_files": ["ui/settings.dart", "lib/legacy.dart"],
+            "changed_files": ["lib/legacy.dart"],
             "changes": [
-                {"path": "ui/settings.dart", "status": "M"},
                 {"path": "lib/legacy.dart", "status": "M"},
             ],
-            "impacted_files": ["lib/store.dart"],
+            "impacted_files": ["ui/settings.dart", "lib/store.dart"],
         },
     }
 
@@ -399,6 +401,15 @@ def main() -> int:
             "SURFACE_IN_JOURNEY",
         }.issubset(impact_relations),
         "full file-to-journey impact chain missing",
+    )
+
+    require(
+        any(
+            row.get("origin_file") == "ui/settings.dart"
+            and row.get("origin_kind") == "DEPENDENCY_IMPACT"
+            for row in impact.get("paths", [])
+        ),
+        "dependency-impacted consumer was not used as an impact root",
     )
 
     surface_nodes = {
