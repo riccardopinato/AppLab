@@ -85,6 +85,11 @@ The record is generated inside the Trusted Verifier before the Trusted Evidence
 Manifest. The manifest therefore hashes and covers the Release Reality record
 when trusted runtime succeeds.
 
+The finalizer also preserves the original Android verifier verdict as
+`runtime_result` before any later certification/pipeline failure can rewrite the
+aggregate `result`. Release Reality therefore keeps a successful trusted-runtime
+stage as PASS even when a downstream certification gate is BLOCKED.
+
 ## Post-runtime stages
 
 v4.4 deliberately does **not** pretend to have evidence that does not yet exist.
