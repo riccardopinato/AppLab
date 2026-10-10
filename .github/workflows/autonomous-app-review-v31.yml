@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v4.3.0
+name: AppLab True Autonomous App Review v4.4.0
 
 on:
   schedule:
@@ -304,7 +304,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v4.3.0"
+            echo "## AppLab True Autonomous App Review v4.4.0"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
@@ -329,6 +329,7 @@ jobs:
           cp "$GITHUB_WORKSPACE/applab-autonomous-review/"*.json "$PROJECT_DIR/"
           cp "$GITHUB_WORKSPACE/trusted-runtime/trusted-evidence-manifest.json" "$PROJECT_DIR/"
           cp "$GITHUB_WORKSPACE/trusted-runtime/result.json" "$PROJECT_DIR/trusted-runtime-result.json"
+          cp "$GITHUB_WORKSPACE/trusted-runtime/release-reality.json" "$PROJECT_DIR/"
           cp "$GITHUB_WORKSPACE/trusted-runtime-validation.json" "$PROJECT_DIR/"
 
       - name: Build Studio snapshot
