@@ -729,7 +729,8 @@ def check_cross_app_verification_contract() -> None:
     require(
         'CONTRACT_NAME = "Shared Ecosystem Core"' in core
         and 'PRIVATE_MEDIA_MARKERS' in core
-        and 'validate_envelope' in core,
+        and 'validate_envelope' in core
+        and 'def exact_v1' in core,
         "v4.8 must reuse and fail-close the Shared Ecosystem Core contract",
     )
     for needle in (
@@ -740,6 +741,13 @@ def check_cross_app_verification_contract() -> None:
         '"physical_evidence_required_when_transport_depends_on_installed_apps":True',
         'producer Release Reality identity mismatch',
         'consumer Release Reality identity mismatch',
+        'SUPPORTED_TRANSPORTS',
+        'installed=kind in INSTALLED_APP_TRANSPORTS',
+        'producer and consumer cannot use identical APK bytes',
+        'semantic contract lineage mismatch',
+        'paired physical evidence requires at least one hashed evidence reference',
+        'if result!=FAIL: result=BLOCKED',
+        'return 0 if r["cross_app_round_trip"]["state"]==PASS else 1',
     ):
         require(needle in verifier, f"cross-app verifier missing invariant: {needle}")
     require(
