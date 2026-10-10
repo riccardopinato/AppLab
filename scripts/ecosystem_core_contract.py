@@ -18,11 +18,19 @@ CANONICAL_APP_SCHEMES = {
 ALLOWED_TRANSFER_MODES = {"copy", "link"}
 ALLOWED_MEDIA_HANDOFFS = {"omitted", "shareToken", "cloudObject"}
 PRIVATE_MEDIA_MARKERS = ("file://", "content://", "media://", "/data/", "/private/")
+PRIVATE_MEDIA_SCHEMES = {"file", "content", "media"}
+PRIVATE_PATH_PREFIXES = ("/", "sdcard/", "storage/", "data/", "private/")
+CANONICAL_CONTRACT_REFS = {
+    "App-Factory-Core@golden/ecosystem/GOLDEN_ECOSYSTEM_BRIDGE_FLUTTER_v1_DRAFT.txt",
+    "App-Factory-Core@a4a97ca79e85d2faebcdcc9a3ae4a9644f5caf03:golden/ecosystem/GOLDEN_ECOSYSTEM_BRIDGE_FLUTTER_v1_DRAFT.txt",
+}
 BRIDGE_ID_RE = re.compile(r"^ecosystem:v1:([a-z0-9_]+):([A-Za-z0-9_.-]+):(.+)$")
 
 
 def clean(value: object, label: str, max_length: int = 1000) -> str:
-    text = str(value or "").strip()
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be a string")
+    text = value.strip()
     if not text:
         raise ValueError(f"{label} is required")
     if len(text) > max_length:
@@ -53,12 +61,42 @@ def validate_protocol(raw: Any) -> dict[str, Any]:
         raise ValueError(
             "v4.8 canonical ecosystem verification requires Shared Ecosystem Core v1"
         )
+    contract_ref = clean(raw.get("contract_ref"), "protocol.contract_ref", 500)
+    if contract_ref not in CANONICAL_CONTRACT_REFS:
+        raise ValueError("protocol.contract_ref is not the canonical Shared Ecosystem Core v1 Golden")
     return {
         "name": name,
         "version": version,
-        "contract_ref": clean(raw.get("contract_ref"), "protocol.contract_ref", 500),
+        "contract_ref": contract_ref,
         "transport_independent": True,
     }
+
+
+def _string_values(value: Any):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for nested in value.values():
+            yield from _string_values(nested)
+    elif isinstance(value, list):
+        for nested in value:
+            yield from _string_values(nested)
+
+
+def _private_media_reference(value: str) -> bool:
+    normalized = value.strip().lower().replace("\\", "/")
+    if not normalized:
+        return False
+    if any(marker in normalized for marker in PRIVATE_MEDIA_MARKERS):
+        return True
+    scheme = normalized.split(":", 1)[0] if ":" in normalized else ""
+    if scheme in PRIVATE_MEDIA_SCHEMES:
+        return True
+    if normalized.startswith(PRIVATE_PATH_PREFIXES):
+        return True
+    if re.match(r"^[a-z]:/", normalized):
+        return True
+    return False
 
 
 def validate_media(values: Any) -> list[dict[str, Any]]:
@@ -76,13 +114,16 @@ def validate_media(values: Any) -> list[dict[str, Any]]:
         kind = clean(handoff.get("kind"), f"media[{index}].handoff.kind", 32)
         if kind not in ALLOWED_MEDIA_HANDOFFS:
             raise ValueError(f"Unsupported media handoff kind: {kind}")
-        wire = json.dumps(item, sort_keys=True).lower()
-        if any(marker in wire for marker in PRIVATE_MEDIA_MARKERS):
+        if any(_private_media_reference(value) for value in _string_values(item)):
             raise ValueError("Private/local media reference is forbidden cross-app")
-        if kind == "shareToken" and not str(handoff.get("token", "")).strip():
-            raise ValueError("shareToken handoff requires token")
-        if kind == "cloudObject" and not str(handoff.get("locator", "")).strip():
-            raise ValueError("cloudObject handoff requires locator")
+        if kind == "shareToken":
+            token = clean(handoff.get("token"), f"media[{index}].handoff.token", 2000)
+            if _private_media_reference(token):
+                raise ValueError("Private/local media reference is forbidden cross-app")
+        if kind == "cloudObject":
+            locator = clean(handoff.get("locator"), f"media[{index}].handoff.locator", 2000)
+            if _private_media_reference(locator):
+                raise ValueError("Private/local media reference is forbidden cross-app")
         out.append(item)
     return out
 
@@ -256,13 +297,57 @@ def self_test() -> None:
             {
                 "name": CONTRACT_NAME,
                 "version": True,
-                "contract_ref": "App-Factory-Core@golden/ecosystem/core-v1",
+                "contract_ref": "App-Factory-Core@golden/ecosystem/GOLDEN_ECOSYSTEM_BRIDGE_FLUTTER_v1_DRAFT.txt",
             }
         )
     except ValueError:
         pass
     else:
         raise AssertionError("boolean protocol.version must fail closed")
+
+    malformed_text = json.loads(json.dumps(envelope))
+    malformed_text["provenance"]["ownerEntityId"] = {"id": "journey-42"}
+    malformed_text["bridgeId"] = "ecosystem:v1:wonderlog:journey:{'id': 'journey-42'}"
+    malformed_text["idempotencyKey"] = malformed_text["bridgeId"] + ":7:copy"
+    try:
+        validate_envelope(
+            malformed_text,
+            source_app="wonderlog",
+            target_app="annas_diary",
+            expected_mode="copy",
+        )
+    except ValueError as exc:
+        assert "must be a string" in str(exc)
+    else:
+        raise AssertionError("non-string contract text must fail closed")
+
+    for locator in ("file:/sdcard/DCIM/a.jpg", "content:media/external/images/1", "/sdcard/DCIM/a.jpg"):
+        malformed_media = json.loads(json.dumps(envelope))
+        malformed_media["media"] = [{"handoff": {"kind": "cloudObject", "locator": locator}}]
+        try:
+            validate_envelope(
+                malformed_media,
+                source_app="wonderlog",
+                target_app="annas_diary",
+                expected_mode="copy",
+            )
+        except ValueError as exc:
+            assert "Private/local media" in str(exc)
+        else:
+            raise AssertionError(f"local media locator must fail closed: {locator}")
+
+    try:
+        validate_protocol(
+            {
+                "name": CONTRACT_NAME,
+                "version": 1,
+                "contract_ref": "unrelated-contract",
+            }
+        )
+    except ValueError as exc:
+        assert "canonical Shared Ecosystem Core v1 Golden" in str(exc)
+    else:
+        raise AssertionError("unrelated protocol.contract_ref must fail closed")
 
     print("Shared Ecosystem Core v1 verifier self-test PASS")
 
