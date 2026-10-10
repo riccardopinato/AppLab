@@ -1,3 +1,26 @@
+## v4.4.0 — Release Reality Engine
+
+AppLab now records how far the **exact APK bytes** have really progressed through
+the release lifecycle instead of collapsing build/runtime/release concepts into
+one green status.
+
+- Canonical ladder from `IMPLEMENTED` through `PRODUCTION_RELEASED`.
+- Per-stage `PASS`, `FAIL`, `BLOCKED`, `NOT_VERIFIED` and policy-driven
+  `N/A`.
+- Canonical release identity bound to repository, immutable SHA, package,
+  version/build, APK SHA-256, signing certificate and workflow run.
+- Same-artifact enforcement: rebuilt bytes are a new artifact and cannot inherit
+  release evidence silently.
+- Exact certification blockers are preserved without a synthetic score.
+- Trusted runtime PASS remains distinct from physical-device, distribution,
+  store-readiness and production evidence.
+- `release-reality.json/.md` is generated inside the Trusted APK Verifier and
+  covered by the Trusted Evidence Manifest on successful trusted runtime runs.
+- Autonomous Review carries the machine-readable record forward for the future
+  v4.7 Release Cockpit.
+
+See `integration/certification/RELEASE_REALITY_V44.md`.
+
 ## v4.3.0 — External Project Certification Adapter
 
 AppLab now has one canonical, declarative integration layer for external App

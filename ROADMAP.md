@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v4.3.0 — External Project Certification Adapter**
+Current production baseline: **v4.4.0 — Release Reality Engine**
 
 ## Product rule
 
@@ -19,6 +19,17 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v4.4.0 — Release Reality Engine
+
+- [x] Track the release-evidence ladder from IMPLEMENTED through PRODUCTION_RELEASED.
+- [x] Create a canonical release record bound to source SHA, package, version/build, APK SHA-256, signing identity and workflow run.
+- [x] Distinguish PASS, FAIL, BLOCKED and NOT_VERIFIED at every applicable stage, with policy-driven N/A where a stage is genuinely irrelevant.
+- [x] Enforce same-artifact semantics by recomputing the exact APK SHA-256/size before release-state promotion.
+- [x] Surface exact certification blockers/failures without a synthetic numeric product score.
+- [x] Preserve risk-based validation and keep emulator, physical-device, distribution, store and production evidence as separate authorities.
+- [x] Generate release-reality.json / release-reality.md inside the Trusted APK Verifier before Trusted Evidence Manifest hashing.
+- [x] Carry Release Reality into Autonomous Review Studio-ready evidence for the future Release Cockpit.
 
 ### v4.3.0 — External Project Certification Adapter
 
@@ -533,19 +544,6 @@ Release decision support
 Simulated-human, design and market conclusions are advisory evidence. They must
 never be represented as real-user research, physical-device evidence or trusted
 runtime PASS.
-
-### v4.4 — Release Reality Engine
-
-Goal: make AppLab state exactly how far a release has really progressed instead
-of treating a green build or emulator run as "finished".
-
-Planned:
-- [ ] Track the release-evidence ladder: IMPLEMENTED -> STATICALLY CHECKED -> TESTED -> CI GREEN -> ARTIFACT BUILT -> TRUSTED RUNTIME VERIFIED -> PHYSICAL DEVICE VERIFIED -> DISTRIBUTION VERIFIED -> STORE READY -> PRODUCTION RELEASED.
-- [ ] Create a canonical release evidence record bound to source SHA, package, version/build, artifact SHA-256, signing identity and workflow run.
-- [ ] Distinguish PASS, FAIL, BLOCKED and NOT VERIFIED at every applicable stage.
-- [ ] Enforce same-artifact semantics: rebuilt bytes are a new artifact unless provenance is explicitly re-established.
-- [ ] Surface exact certification blockers instead of a synthetic numeric product score.
-- [ ] Preserve risk-based validation so projects are not forced through irrelevant checks.
 
 ### v4.5 — Physical Evidence Hub
 

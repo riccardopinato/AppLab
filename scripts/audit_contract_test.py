@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "4.3.0"
+EXPECTED_VERSION = "4.4.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -278,6 +278,86 @@ def check_project_adapter_contract() -> None:
     )
 
 
+def check_release_reality_contract() -> None:
+    reality = (ROOT / "scripts/release_reality.py").read_text(encoding="utf-8")
+    finalizer = (ROOT / "scripts/finalize_external_result.py").read_text(
+        encoding="utf-8"
+    )
+    trusted = (ROOT / ".github/workflows/trusted-apk-verifier.yml").read_text(
+        encoding="utf-8"
+    )
+    autonomous = (ROOT / ".github/workflows/autonomous-app-review-v31.yml").read_text(
+        encoding="utf-8"
+    )
+    contract = (ROOT / "scripts/contract_fingerprint.py").read_text(encoding="utf-8")
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    for level in (
+        "IMPLEMENTED",
+        "STATICALLY_CHECKED",
+        "TESTED",
+        "CI_GREEN",
+        "ARTIFACT_BUILT",
+        "TRUSTED_RUNTIME_VERIFIED",
+        "PHYSICAL_DEVICE_VERIFIED",
+        "DISTRIBUTION_VERIFIED",
+        "STORE_READY",
+        "PRODUCTION_RELEASED",
+    ):
+        require(level in reality, f"Release Reality missing ladder level {level}")
+    for state in ("PASS", "FAIL", "BLOCKED", "NOT_VERIFIED"):
+        require(state in reality, f"Release Reality missing state {state}")
+    require(
+        "same_bytes_verified" in reality
+        and "rebuilt_bytes_require_new_evidence" in reality
+        and "sha256_file" in reality,
+        "Release Reality must enforce same-artifact semantics",
+    )
+    require(
+        '"signing_identity_state"' in reality
+        and "Release signing identity is not yet verified" in reality
+        and "required_build_identity" in reality,
+        "ARTIFACT_BUILT must remain distinct from later release-signing proof",
+    )
+    require(
+        '"runtime_result"' in finalizer
+        and 'payload["runtime_result"]' in finalizer
+        and 'result.get("runtime_result") or result.get("result")' in reality,
+        "Release Reality must preserve runtime truth across downstream gate failures",
+    )
+    require(
+        "Release Reality repository binding mismatch" in reality
+        and "Release Reality source SHA binding mismatch" in reality
+        and "Release Reality workflow run binding mismatch" in reality
+        and "Release Reality trusted AppLab SHA binding mismatch" in reality,
+        "Release Reality must fail closed on provenance binding mismatches",
+    )
+    require(
+        "Build Release Reality record" in trusted
+        and "scripts/release_reality.py" in trusted
+        and "release-reality.md" in trusted,
+        "trusted verifier must generate and publish Release Reality",
+    )
+    require(
+        trusted.index("Build Release Reality record")
+        < trusted.index("Bind trusted runtime evidence"),
+        "Release Reality must be generated before Trusted Evidence Manifest hashing",
+    )
+    require(
+        'cp "$GITHUB_WORKSPACE/trusted-runtime/release-reality.json" "$PROJECT_DIR/"'
+        in autonomous,
+        "Autonomous Review must preserve Release Reality for downstream Studio evidence",
+    )
+    require(
+        '"scripts/release_reality.py"' in contract,
+        "Release Reality must participate in verification contract fingerprints",
+    )
+    require(
+        "python scripts/release_reality.py --self-test" in ci,
+        "CI must gate Release Reality self-test",
+    )
+
+
 def check_execution_acceleration_contract() -> None:
     fixture = (ROOT / ".github/workflows/runtime-fixture-build.yml").read_text(
         encoding="utf-8"
@@ -454,6 +534,7 @@ def main() -> int:
     check_residual_hardening_contract()
     check_evidence_graph_contract()
     check_project_adapter_contract()
+    check_release_reality_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
     return 0

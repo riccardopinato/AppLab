@@ -9,6 +9,7 @@ on:
       - "scripts/watch_*.py"
       - "scripts/finalize_external_result.py"
       - "scripts/certification_gate.py"
+      - "scripts/release_reality.py"
       - "scripts/run_external_android_gate.sh"
       - "scripts/dismiss_foreign_anr.py"
       - "scripts/install_maestro.sh"

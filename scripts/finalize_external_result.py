@@ -88,6 +88,12 @@ def main() -> int:
         else:
             build_contract = value
 
+    # Preserve the Android verifier verdict before later pipeline/certification
+    # failures can rewrite the aggregate result. Release Reality treats these as
+    # separate authorities.
+    if "runtime_result" not in payload:
+        payload["runtime_result"] = str(payload.get("result", "") or "")
+
     payload.update(
         {
             "repository": args.repository,
