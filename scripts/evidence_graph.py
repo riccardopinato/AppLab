@@ -2483,13 +2483,16 @@ def self_test() -> None:
     assert counts["BuildArtifact"] == 1
     assert counts["Capability"] == 2
     assert counts["Finding"] == 2
-    assert counts["Claim"] == 2
+    assert counts["Claim"] == 3
     assert counts["Experiment"] == 1
     assert graph["summary"]["unverified_capabilities"] == 1
     assert graph["summary"]["recurring_findings"] == 1
     assert graph["summary"]["regression_candidates"] == 1
     assert counts["File"] >= 4
     assert counts["Component"] >= 2
+    file_keys = {row.get("key") for row in graph["nodes"] if row.get("type") == "File"}
+    assert FILES["app"] not in file_keys
+    assert "docs/old.md" not in file_keys
     assert graph["summary"]["finding_lifecycle"]["RETURNED"] == 1
     assert graph["summary"]["finding_lifecycle"]["RESOLVED"] == 1
     assert graph["summary"]["invalidated_evidence"] == 1
