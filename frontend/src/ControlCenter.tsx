@@ -390,6 +390,88 @@ type StudioProject = {
       last_observed_sha?: string;
     }>;
   } | null;
+  release_cockpit?: {
+    read_only?: boolean;
+    release_id?: string;
+    current_level?: string;
+    highest_observed_pass?: string;
+    certification_status?: string;
+    certification_authority?: string;
+    certified?: boolean;
+    identity_complete?: boolean;
+    source?: {
+      repository?: string;
+      ref?: string;
+      resolved_sha?: string;
+      engine?: string;
+    };
+    artifact?: {
+      package_id?: string;
+      version_name?: string;
+      version_code?: string;
+      build_variant?: string;
+      sha256?: string;
+      signing_cert_sha256?: string;
+      signing_identity_state?: string;
+      same_bytes_verified?: boolean;
+    };
+    runtime?: {
+      workflow_run_id?: string;
+      trusted_applab_sha?: string;
+      analysis_mode?: string;
+      pipeline_status?: string;
+      aggregate_result?: string;
+      runtime_result?: string;
+      runtime_step_outcome?: string;
+    };
+    physical?: {
+      required?: boolean;
+      required_capabilities?: string[];
+      present?: boolean;
+      result?: string;
+      device?: Record<string, unknown>;
+      scenario?: Record<string, unknown>;
+    };
+    freshness?: {
+      stale_or_historical_evidence?: number;
+      invalidated_evidence?: number;
+      top_invalidated?: Array<{
+        evidence_id?: string;
+        label?: string;
+        invalidated_by_files?: string[];
+      }>;
+    };
+    recurrence?: {
+      recurring_findings?: number;
+      regression_candidates?: number;
+      top_recurring?: Array<{
+        kind?: string;
+        subject?: string;
+        seen_count?: number;
+      }>;
+      top_regressions?: Array<{
+        source?: string;
+        kind?: string;
+        subject?: string;
+        reason?: string;
+      }>;
+    };
+    missing_evidence?: Array<{
+      key?: string;
+      label?: string;
+      state?: string;
+      reason?: string;
+      evidence?: string[];
+    }>;
+    why_not_certified?: Array<{
+      type?: string;
+      gate?: string;
+      label?: string;
+      observed?: string;
+    }>;
+    why_not_certified_total?: number;
+    why_not_certified_truncated?: boolean;
+  } | null;
   autonomous_review?: {
     review_state?: string;
     runtime_evidence_state?: string;
@@ -443,6 +525,11 @@ type StudioSnapshot = {
     graph_impact_paths?: number;
     graph_invalidated_evidence?: number;
     graph_resolved_findings?: number;
+    with_release_reality?: number;
+    certified_releases?: number;
+    certification_blocked?: number;
+    physical_required?: number;
+    stale_release_evidence?: number;
     autonomous_reviews?: number;
     autonomous_attention?: number;
     runtime_observed?: number;
@@ -474,7 +561,7 @@ type StudioSnapshot = {
 function badgeClass(value: string) {
   if (value === "PASS" || value === "CERTIFIED" || value === "CERTIFIED_CURRENT") return "cc-badge good";
   if (value === "CERTIFIED_STALE") return "cc-badge warn";
-  if (value === "FAIL" || value === "ERROR" || value === "NOT_CERTIFIED")
+  if (value === "FAIL" || value === "FAILURE" || value === "ERROR" || value === "NOT_CERTIFIED")
     return "cc-badge bad";
   if (value === "WARN" || value === "BLOCKED") return "cc-badge warn";
   return "cc-badge neutral";
@@ -602,6 +689,11 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
               <div><span>Review attention</span><strong>{studio.summary.autonomous_attention ?? 0}</strong></div>
               <div><span>Runtime observed</span><strong>{studio.summary.runtime_observed ?? 0}</strong></div>
               <div><span>Trusted runtime</span><strong>{studio.summary.trusted_runtime_reviews ?? 0}</strong></div>
+              <div><span>Release Reality</span><strong>{studio.summary.with_release_reality ?? 0}</strong></div>
+              <div><span>CERTIFIED</span><strong>{studio.summary.certified_releases ?? 0}</strong></div>
+              <div><span>Certification blocked</span><strong>{studio.summary.certification_blocked ?? 0}</strong></div>
+              <div><span>Physical required</span><strong>{studio.summary.physical_required ?? 0}</strong></div>
+              <div><span>Stale release evidence</span><strong>{studio.summary.stale_release_evidence ?? 0}</strong></div>
               <div><span>Evidence contradictions</span><strong>{studio.summary.evidence_contradictions ?? 0}</strong></div>
               <div><span>Unverified evidence</span><strong>{studio.summary.evidence_unverified ?? 0}</strong></div>
               <div><span>Runtime journeys</span><strong>{studio.summary.journeys_observed ?? 0}</strong></div>
@@ -617,6 +709,20 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                     <strong>{project.project_id}</strong>
                     <span className="cc-badge neutral">{project.product?.engine ?? "unknown"}</span>
                   </div>
+                  {project.release_cockpit ? (
+                    <div className="release-cockpit-head">
+                      <div>
+                        <span>Release Reality</span>
+                        <strong>{project.release_cockpit.current_level ?? "NOT_VERIFIED"}</strong>
+                        <small>
+                          source {shortSha(project.release_cockpit.source?.resolved_sha ?? "")} · artifact {shortSha(project.release_cockpit.artifact?.sha256 ?? "")} · {project.release_cockpit.certification_authority ?? "RELEASE_REALITY"}
+                        </small>
+                      </div>
+                      <span className={badgeClass(project.release_cockpit.certification_status ?? "NOT_VERIFIED")}>
+                        {project.release_cockpit.certification_status ?? "NOT_VERIFIED"}
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="studio-dimensions">
                     <div>
                       <span>Product</span>
@@ -753,6 +859,71 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                       <small>{project.audit?.manual_review_required ? "manual review required" : "automated evidence only"}</small>
                     </div>
                   </div>
+                  {project.release_cockpit ? (
+                    <details className="release-cockpit-drilldown">
+                      <summary>
+                        {project.release_cockpit.certified ? "Certification evidence" : "Why is this not CERTIFIED?"}
+                      </summary>
+                      <div className="release-cockpit-grid">
+                        <div>
+                          <span>Source / artifact identity</span>
+                          <strong>{project.release_cockpit.artifact?.package_id || "UNKNOWN"}</strong>
+                          <small>
+                            {project.release_cockpit.artifact?.version_name || "?"} ({project.release_cockpit.artifact?.version_code || "?"}) · source {shortSha(project.release_cockpit.source?.resolved_sha ?? "")} · APK {shortSha(project.release_cockpit.artifact?.sha256 ?? "")}
+                          </small>
+                          <small>
+                            exact bytes {project.release_cockpit.artifact?.same_bytes_verified ? "VERIFIED" : "NOT VERIFIED"} · signing {project.release_cockpit.artifact?.signing_identity_state ?? "NOT_VERIFIED"}
+                          </small>
+                        </div>
+                        <div>
+                          <span>Trusted runtime</span>
+                          <strong>{project.release_cockpit.runtime?.runtime_result ?? "UNKNOWN"}</strong>
+                          <small>
+                            run {project.release_cockpit.runtime?.workflow_run_id || "—"} · AppLab {shortSha(project.release_cockpit.runtime?.trusted_applab_sha ?? "")} · {project.release_cockpit.runtime?.analysis_mode || "unknown"} mode
+                          </small>
+                        </div>
+                        <div>
+                          <span>Evidence freshness</span>
+                          <strong>{project.release_cockpit.freshness?.invalidated_evidence ?? 0} invalidated</strong>
+                          <small>{project.release_cockpit.freshness?.stale_or_historical_evidence ?? 0} stale/historical · read-only projection</small>
+                        </div>
+                        <div>
+                          <span>Physical evidence</span>
+                          <strong>{project.release_cockpit.physical?.required ? "REQUIRED" : "NOT REQUIRED"}</strong>
+                          <small>
+                            {project.release_cockpit.physical?.required_capabilities?.length
+                              ? project.release_cockpit.physical.required_capabilities.join(", ")
+                              : "no required physical capabilities"} · {project.release_cockpit.physical?.present ? project.release_cockpit.physical.result ?? "PRESENT" : "not present"}
+                          </small>
+                        </div>
+                        <div>
+                          <span>Regression / recurrence</span>
+                          <strong>{project.release_cockpit.recurrence?.regression_candidates ?? 0} regressions</strong>
+                          <small>{project.release_cockpit.recurrence?.recurring_findings ?? 0} recurring findings</small>
+                        </div>
+                      </div>
+                      {!project.release_cockpit.certified ? (
+                        <div className="release-cockpit-blockers">
+                          {(project.release_cockpit.why_not_certified?.length ?? 0) > 0 ? (
+                            project.release_cockpit.why_not_certified?.map((item, index) => (
+                              <div key={`cockpit-blocker-${item.gate}-${index}`}>
+                                <span className={badgeClass(item.type ?? "BLOCKED")}>{item.type || "BLOCKER"}</span>
+                                <strong>{item.label || item.gate || "Unresolved certification gate"}</strong>
+                                <small>{item.observed || "Evidence missing or unresolved."}</small>
+                              </div>
+                            ))
+                          ) : (
+                            <small>No explicit blocker was emitted; certification evidence is incomplete.</small>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="release-cockpit-certified">
+                          <span className="cc-badge good">CERTIFIED</span>
+                          <small>Certification status is projected from Release Reality; Studio did not create or mutate this evidence.</small>
+                        </div>
+                      )}
+                    </details>
+                  ) : null}
                   {project.analyst?.top_actions?.length ? (
                     <div className="studio-labs">
                       {project.analyst.top_actions.slice(0, 6).map((item, index) => (

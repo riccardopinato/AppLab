@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "studio_version": "4.6.0",
+  "studio_version": "4.7.0",
   "generated_at": "2026-10-04T00:00:00Z",
   "preview": true,
   "summary": {
@@ -35,7 +35,12 @@
     "graph_changed_files": 1,
     "graph_impact_paths": 1,
     "graph_invalidated_evidence": 1,
-    "graph_resolved_findings": 1
+    "graph_resolved_findings": 1,
+    "with_release_reality": 1,
+    "certified_releases": 0,
+    "certification_blocked": 1,
+    "physical_required": 1,
+    "stale_release_evidence": 1
   },
   "projects": [
     {
@@ -50,14 +55,15 @@
           "Longitudinal Intelligence",
           "Experiment Planner",
           "AppLab Analyst",
-          "Evidence Graph"
+          "Evidence Graph",
+          "Release Cockpit"
         ],
         "screen_like_files": 0,
         "entity_count": 0,
         "surface_count": 0,
         "lifecycle_review_signals": 0,
         "documentation_drift_signals": 0,
-        "code_confirmed_capabilities": 6,
+        "code_confirmed_capabilities": 7,
         "doc_only_capabilities": 0,
         "flow_nodes": 0,
         "flow_edges": 0,
@@ -296,7 +302,9 @@
           {
             "evidence_id": "preview-historical",
             "label": "lib/legacy.dart",
-            "invalidated_by_files": ["lib/legacy.dart"]
+            "invalidated_by_files": [
+              "lib/legacy.dart"
+            ]
           }
         ],
         "top_impact_paths": [
@@ -326,6 +334,101 @@
             "seen_count": 3,
             "first_observed_sha": "",
             "last_observed_sha": ""
+          }
+        ]
+      },
+      "release_cockpit": {
+        "studio_version": "4.7.0",
+        "read_only": true,
+        "release_id": "preview-fixture",
+        "current_level": "NOT_VERIFIED",
+        "highest_observed_pass": "NOT_VERIFIED",
+        "certification_status": "BLOCKED",
+        "certified": false,
+        "identity_complete": false,
+        "source": {
+          "repository": "preview/fixture",
+          "ref": "v4.7.0",
+          "resolved_sha": "",
+          "engine": "preview"
+        },
+        "artifact": {
+          "package_id": "com.example.preview",
+          "version_name": "4.7.0-preview",
+          "version_code": "0",
+          "build_variant": "preview",
+          "sha256": "",
+          "signing_cert_sha256": "",
+          "signing_identity_state": "NOT_VERIFIED",
+          "same_bytes_verified": false
+        },
+        "runtime": {
+          "workflow_run_id": "preview",
+          "trusted_applab_sha": "",
+          "analysis_mode": "preview",
+          "pipeline_status": "PREVIEW",
+          "aggregate_result": "BLOCKED",
+          "runtime_result": "NOT_OBSERVED",
+          "runtime_step_outcome": "NOT_OBSERVED"
+        },
+        "physical": {
+          "required": true,
+          "required_capabilities": [
+            "real-device-evidence"
+          ],
+          "present": false,
+          "result": "NOT_VERIFIED",
+          "device": {},
+          "scenario": {}
+        },
+        "freshness": {
+          "stale_or_historical_evidence": 1,
+          "invalidated_evidence": 1,
+          "top_invalidated": [
+            {
+              "evidence_id": "preview:stale",
+              "label": "preview-only evidence",
+              "invalidated_by_files": [
+                "fixture"
+              ]
+            }
+          ]
+        },
+        "recurrence": {
+          "recurring_findings": 1,
+          "regression_candidates": 1,
+          "top_recurring": [
+            {
+              "kind": "PREVIEW_ONLY",
+              "subject": "Release Cockpit",
+              "seen_count": 1
+            }
+          ],
+          "top_regressions": [
+            {
+              "source": "preview",
+              "kind": "NON_LIVE_DATA",
+              "subject": "Web Preview",
+              "reason": "Fixture only; no trusted release evidence."
+            }
+          ]
+        },
+        "levels": [],
+        "missing_evidence": [
+          {
+            "key": "TRUSTED_RUNTIME_VERIFIED",
+            "label": "Trusted runtime verified",
+            "state": "BLOCKED",
+            "reason": "Web Preview contains no trusted runtime evidence.",
+            "evidence": []
+          }
+        ],
+        "why_not_certified": [
+          {
+            "type": "BLOCKED",
+            "gate": "preview_boundary",
+            "label": "Preview contains no trusted release evidence",
+            "observed": "PREVIEW_ONLY"
           }
         ]
       }

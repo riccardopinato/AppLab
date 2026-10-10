@@ -8,10 +8,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import studio_evidence_graph
+import certification_studio, studio_evidence_graph
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "4.6.0"
+STUDIO_VERSION = "4.7.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -60,13 +60,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     experiment = read_json(project_dir / "experiment-plan.json")
     analyst = read_json(project_dir / "analyst-report.json")
     evidence_graph = read_json(project_dir / "evidence-graph.json")
+    release_cockpit = certification_studio.project_from_directory(project_dir, evidence_graph, longitudinal)
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, evidence_graph, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, evidence_graph, release_cockpit, contract, brief, autonomous)
     ):
         return None
 
@@ -85,6 +86,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "experiment_plan": None,
         "analyst": None,
         "evidence_graph": None,
+        "release_cockpit": release_cockpit,
         "autonomous_review": None,
     }
 
@@ -731,6 +733,7 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
             "with_evidence_graph": sum(
                 1 for row in projects if row.get("evidence_graph") is not None
             ),
+            **certification_studio.portfolio_summary(projects),
             "evidence_graph_nodes": sum(
                 int((row.get("evidence_graph") or {}).get("nodes", 0) or 0)
                 for row in projects

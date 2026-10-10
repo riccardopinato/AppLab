@@ -80,7 +80,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "--expected-hub-run-attempt",
         "if: always() && steps.verify.outcome == 'success'",
         "physical-evidence.md",
-        "AppLab v4.6.0 Trusted APK Verification",
+        "AppLab v4.7.0 Trusted APK Verification",
         "BASELINE_FALLBACK",
         "effective FULL fallback",
         "Evaluate verification cache eligibility",
