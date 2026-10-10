@@ -300,7 +300,7 @@ jobs:
           include-hidden-files: true
           retention-days: 90
 
-      - name: Publish v4.2 review
+      - name: Publish v4.4 review
         shell: bash
         run: |
           {
