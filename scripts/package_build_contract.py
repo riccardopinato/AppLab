@@ -103,9 +103,12 @@ def project_adapter_config_path(repo_root: Path) -> Path | None:
         )
     if not found:
         return None
-    path = found[0]
-    if path.is_symlink() or not path.is_file():
-        raise ValueError(f"Invalid AppLab project adapter config: {path}")
+    path = confined_repo_source(
+        repo_root,
+        found[0],
+        label="AppLab project adapter config",
+        require_file=True,
+    )
     if path.stat().st_size > MAX_ADAPTER_CONFIG_BYTES:
         raise ValueError("AppLab project adapter config exceeds 64 KiB")
     return path
@@ -176,6 +179,45 @@ def safe_relative(raw: str) -> PurePosixPath:
         raise ValueError(f"Unsafe relative path: {raw!r}")
     return path
 
+def confined_repo_source(
+    repo_root: Path,
+    source: Path,
+    *,
+    label: str,
+    require_file: bool = False,
+    require_dir: bool = False,
+    allow_missing: bool = False,
+) -> Path:
+    root = repo_root.resolve()
+    try:
+        relative = source.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"{label} is outside target repository: {source}") from exc
+
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError(f"{label} traverses a symlink: {relative.as_posix()}")
+
+    if not current.exists():
+        if allow_missing:
+            return current
+        raise ValueError(f"{label} is missing: {relative.as_posix()}")
+
+    try:
+        resolved = current.resolve(strict=True)
+        resolved.relative_to(root)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"{label} escapes target repository: {relative.as_posix()}") from exc
+
+    if require_file and not resolved.is_file():
+        raise ValueError(f"{label} must be a regular file: {relative.as_posix()}")
+    if require_dir and not resolved.is_dir():
+        raise ValueError(f"{label} must be a directory: {relative.as_posix()}")
+    return current
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -183,11 +225,25 @@ def sha256(path: Path) -> str:
             digest.update(chunk)
     return digest.hexdigest()
 
-def copy_evidence_file(source: Path, destination: Path) -> int:
-    if source.is_symlink():
-        raise ValueError(f"Symlink is not allowed in build contract: {source}")
-    if not source.is_file():
+def copy_evidence_file(
+    repo_root: Path,
+    source: Path,
+    destination: Path,
+) -> int:
+    source = confined_repo_source(
+        repo_root,
+        source,
+        label="build contract evidence",
+        allow_missing=True,
+    )
+    if not source.exists():
         return 0
+    source = confined_repo_source(
+        repo_root,
+        source,
+        label="build contract evidence",
+        require_file=True,
+    )
     if source.suffix.lower() not in ALLOWED_EVIDENCE_SUFFIXES:
         return 0
     size = source.stat().st_size
@@ -197,21 +253,31 @@ def copy_evidence_file(source: Path, destination: Path) -> int:
     shutil.copy2(source, destination)
     return size
 
+
 def copy_maestro_tree(repo_root: Path, relative_root: PurePosixPath, output_root: Path) -> int:
     source_root = repo_root / Path(relative_root) / ".maestro"
-    if not source_root.is_dir():
+    if not source_root.exists() and not source_root.is_symlink():
         return 0
+    source_root = confined_repo_source(
+        repo_root,
+        source_root,
+        label=".maestro evidence root",
+        require_dir=True,
+    )
     total = 0
     for source in sorted(source_root.rglob("*")):
+        if source.is_dir() and not source.is_symlink():
+            continue
         if source.is_symlink():
             raise ValueError(f"Symlink is not allowed in .maestro: {source}")
         if not source.is_file():
             continue
         relative = source.relative_to(repo_root)
-        total += copy_evidence_file(source, output_root / relative)
+        total += copy_evidence_file(repo_root, source, output_root / relative)
         if total > MAX_EVIDENCE_BYTES:
             raise ValueError("Journey evidence exceeds contract size limit")
     return total
+
 
 def package(args: argparse.Namespace) -> dict:
     repo_root = Path(args.repo_root).resolve()
@@ -254,7 +320,7 @@ def package(args: argparse.Namespace) -> dict:
 
     if flow:
         source = repo_root / Path(flow)
-        total += copy_evidence_file(source, evidence_root / Path(flow))
+        total += copy_evidence_file(repo_root, source, evidence_root / Path(flow))
         if not (evidence_root / Path(flow)).is_file():
             raise ValueError(f"Configured Maestro flow is unavailable or unsupported: {flow}")
 
@@ -262,6 +328,7 @@ def package(args: argparse.Namespace) -> dict:
     if adapter_path is not None:
         relative_adapter = adapter_path.relative_to(repo_root)
         total += copy_evidence_file(
+            repo_root,
             adapter_path,
             evidence_root / relative_adapter,
         )
@@ -408,6 +475,19 @@ def self_test() -> None:
         assert (out / "target-evidence/applab.project.json").is_file()
         assert contract["certification_policy"]["requires_real_device"] is True
         assert (out / "analysis-plan.json").is_file()
+
+        outside = Path(raw) / "outside"
+        outside.mkdir()
+        secret = outside / "secret.yaml"
+        secret.write_text("appId: outside\n", encoding="utf-8")
+        linked = root / "linked"
+        linked.symlink_to(outside, target_is_directory=True)
+        try:
+            copy_evidence_file(root, linked / "secret.yaml", out / "escape.yaml")
+        except ValueError as exc:
+            assert "symlink" in str(exc) or "outside" in str(exc)
+        else:
+            raise AssertionError("evidence symlink traversal must be rejected")
     print("AppLab build contract packager self-test PASS")
 
 def main() -> int:
