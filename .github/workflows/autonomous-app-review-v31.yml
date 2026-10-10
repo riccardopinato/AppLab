@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v4.4.0
+name: AppLab True Autonomous App Review v4.5.0
 
 on:
   schedule:
@@ -304,7 +304,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v4.4.0"
+            echo "## AppLab True Autonomous App Review v4.5.0"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
