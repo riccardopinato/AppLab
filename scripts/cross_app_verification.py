@@ -15,6 +15,8 @@ REPO_RE=re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 PACKAGE_RE=re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$")
 REQUIRED_KINDS={"COPY","LINK","IDEMPOTENCY","PROVENANCE","OWNERSHIP","FAIL_CLOSED"}
 TRANSPORT_KINDS={"DEEP_LINK_HANDOFF","FALLBACK_TRANSPORT"}
+SUPPORTED_TRANSPORTS={"deep_link","android_intent","clipboard","fallback"}
+INSTALLED_APP_TRANSPORTS=set(SUPPORTED_TRANSPORTS)
 ASSERTIONS={
 "COPY":{"explicit_review","materialized_once","provenance_preserved","source_ownership_preserved"},
 "LINK":{"explicit_review","canonical_deep_link_present","source_ownership_preserved","no_background_sync"},
@@ -96,8 +98,14 @@ def physical(raw:Any,required:bool,p:dict[str,str],c:dict[str,str],rows:list[dic
     if not isinstance(ids,list): raise ValueError("physical_evidence.scenario_ids must be an array")
     covered={clean(x,"physical scenario id",128) for x in ids}; needed={r["id"] for r in rows if r["transport"] in {"deep_link","android_intent","clipboard","fallback"}}
     reason=clean(raw.get("observed_result"),"physical_evidence.observed_result",4000)
-    if required and not needed.issubset(covered): result=BLOCKED; reason="paired physical evidence does not cover all installed-app transport scenarios"
-    return {"required":required,"state":result,"device":{"manufacturer":clean(raw.get("device_manufacturer"),"device manufacturer",128),"model":clean(raw.get("device_model"),"device model",128),"os_version":clean(raw.get("os_version"),"os version",128),"os_build":clean(raw.get("os_build"),"os build",256)},"scenario_ids":sorted(covered),"evidence_refs":evidence(raw.get("evidence_refs",[])),"reason":reason}
+    refs=evidence(raw.get("evidence_refs",[])); missing_coverage=required and not needed.issubset(covered); missing_refs=required and not refs
+    problems=[]
+    if missing_coverage: problems.append("paired physical evidence does not cover all installed-app transport scenarios")
+    if missing_refs: problems.append("paired physical evidence requires at least one hashed evidence reference")
+    if problems:
+        reason=reason+"; "+"; ".join(problems)
+        if result!=FAIL: result=BLOCKED
+    return {"required":required,"state":result,"device":{"manufacturer":clean(raw.get("device_manufacturer"),"device manufacturer",128),"model":clean(raw.get("device_model"),"device model",128),"os_version":clean(raw.get("os_version"),"os version",128),"os_build":clean(raw.get("os_build"),"os build",256)},"scenario_ids":sorted(covered),"evidence_refs":refs,"reason":reason}
 
 def reality(raw:Any,i:dict[str,str])->dict[str,Any]:
     if raw is None: return {"provided":False,"status":NOT_VERIFIED,"current_level":"UNKNOWN","identity_match":False}
@@ -118,16 +126,23 @@ def build_report(session:dict[str,Any],producer_release_reality:dict[str,Any]|No
     if session.get("schema_version",1)!=1: raise ValueError("session.schema_version must equal 1")
     protocol=validate_protocol(session.get("protocol")); p=identity(session.get("producer"),"producer"); c=identity(session.get("consumer"),"consumer")
     if (p["repository"],p["resolved_sha"])==(c["repository"],c["resolved_sha"]): raise ValueError("producer and consumer must be distinct app identities")
+    if p["artifact_sha256"]==c["artifact_sha256"]: raise ValueError("producer and consumer cannot use identical APK bytes")
     if p["app_id"] not in CANONICAL_APP_SCHEMES or c["app_id"] not in CANONICAL_APP_SCHEMES or p["app_id"]==c["app_id"]: raise ValueError("producer/consumer app ids must be distinct registered Shared Ecosystem Core v1 ids")
     t=session.get("transport")
     if not isinstance(t,dict): raise ValueError("transport must be an object")
-    kind=clean(t.get("kind"),"transport.kind",64).lower(); installed=t.get("requires_installed_apps")
-    if not isinstance(installed,bool) or t.get("protocol_transport_separated") is not True: raise ValueError("transport must declare boolean requires_installed_apps and preserve protocol/transport separation")
+    kind=clean(t.get("kind"),"transport.kind",64).lower()
+    if kind not in SUPPORTED_TRANSPORTS: raise ValueError(f"unsupported cross-app transport: {kind}")
+    installed=kind in INSTALLED_APP_TRANSPORTS; declared=t.get("requires_installed_apps")
+    if not isinstance(declared,bool) or declared is not installed: raise ValueError("transport.requires_installed_apps must match the validated transport requirement")
+    if t.get("protocol_transport_separated") is not True: raise ValueError("transport must preserve protocol/transport separation")
     raw=session.get("scenarios")
     if not isinstance(raw,list) or not raw: raise ValueError("scenarios must be non-empty")
     rows=[scenario(x,p,c) for x in raw]; ids=[r["id"] for r in rows]
     if len(ids)!=len(set(ids)): raise ValueError("scenario ids must be unique")
     kinds={r["kind"] for r in rows}; errors=[]
+    semantic=[r for r in rows if r["kind"] in {"COPY","LINK","IDEMPOTENCY","PROVENANCE","OWNERSHIP"}]
+    lineage={(r["direction"],r["observed_contract"]["bridge_id"],r["observed_contract"]["revision"],r["observed_contract"]["owner_app"],r["observed_contract"]["owner_entity_type"],r["observed_contract"]["owner_entity_id"],r["observed_contract"]["target_app"]) for r in semantic}
+    if len(lineage)>1: errors.append("semantic contract lineage mismatch across COPY/LINK/idempotency/provenance/ownership")
     missing=sorted(REQUIRED_KINDS-kinds)
     if missing: errors.append("missing required scenarios: "+", ".join(missing))
     if not kinds & TRANSPORT_KINDS: errors.append("missing explicit transport scenario")
@@ -178,7 +193,7 @@ def main()->int:
     ap=argparse.ArgumentParser(); ap.add_argument("--session"); ap.add_argument("--producer-release-reality"); ap.add_argument("--consumer-release-reality"); ap.add_argument("--output-dir",default="applab-cross-app-verification"); ap.add_argument("--self-test",action="store_true"); ap.add_argument("--workflow-repository",default=""); ap.add_argument("--workflow-run-id",default=""); ap.add_argument("--workflow-run-attempt",default=""); ap.add_argument("--trusted-applab-sha",default=""); ap.add_argument("--actor",default=""); args=ap.parse_args()
     if args.self_test: self_test(); return 0
     if not args.session: ap.error("--session is required unless --self-test is used")
-    r=build_report(load_json(Path(args.session)),load_json(Path(args.producer_release_reality)) if args.producer_release_reality else None,load_json(Path(args.consumer_release_reality)) if args.consumer_release_reality else None,attestation(args)); write_outputs(r,Path(args.output_dir)); print(json.dumps({"applab_version":APPLAB_VERSION,"state":r["cross_app_round_trip"]["state"],"pair_sha256":r["pair_identity"]["pair_sha256"]},sort_keys=True)); return 0
+    r=build_report(load_json(Path(args.session)),load_json(Path(args.producer_release_reality)) if args.producer_release_reality else None,load_json(Path(args.consumer_release_reality)) if args.consumer_release_reality else None,attestation(args)); write_outputs(r,Path(args.output_dir)); print(json.dumps({"applab_version":APPLAB_VERSION,"state":r["cross_app_round_trip"]["state"],"pair_sha256":r["pair_identity"]["pair_sha256"]},sort_keys=True)); return 0 if r["cross_app_round_trip"]["state"]==PASS else 1
 if __name__=="__main__":
     try: raise SystemExit(main())
     except (ValueError,OSError,AssertionError) as exc: raise SystemExit(f"AppLab Cross-App Verification failed: {exc}") from exc
