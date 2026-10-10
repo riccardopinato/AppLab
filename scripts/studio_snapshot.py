@@ -1216,6 +1216,90 @@ def self_test() -> None:
             json.dumps(studio_evidence_graph.self_test_payload()),
             encoding="utf-8",
         )
+        (project / "release-reality.json").write_text(
+            json.dumps(
+                {
+                    "release_id": "studio-demo-release",
+                    "source": {
+                        "repository": "owner/demo",
+                        "ref": "main",
+                        "resolved_sha": "a" * 40,
+                        "engine": "flutter",
+                    },
+                    "artifact": {
+                        "package_id": "com.example.demo",
+                        "version_name": "1.0.0",
+                        "version_code": "1",
+                        "build_variant": "release",
+                        "sha256": "b" * 64,
+                        "signing_cert_sha256": "c" * 64,
+                        "signing_identity_state": "VERIFIED",
+                        "same_bytes_verified": True,
+                    },
+                    "workflow": {
+                        "workflow_run_id": "123",
+                        "trusted_applab_sha": "d" * 40,
+                        "analysis_mode": "certification",
+                        "pipeline_status": "SUCCESS",
+                        "aggregate_result": "BLOCKED",
+                        "runtime_result": "PASS",
+                        "runtime_step_outcome": "SUCCESS",
+                    },
+                    "identity_complete": True,
+                    "current_level": "TRUSTED_RUNTIME_VERIFIED",
+                    "highest_observed_pass": "TRUSTED_RUNTIME_VERIFIED",
+                    "levels": [
+                        {
+                            "key": "TRUSTED_RUNTIME_VERIFIED",
+                            "label": "Trusted runtime verified",
+                            "state": "PASS",
+                            "reason": "Trusted runtime PASS.",
+                            "evidence": ["trusted-evidence-manifest.json"],
+                        },
+                        {
+                            "key": "PHYSICAL_DEVICE_VERIFIED",
+                            "label": "Physical device verified",
+                            "state": "BLOCKED",
+                            "reason": "Physical validation is required.",
+                            "evidence": [],
+                        },
+                    ],
+                    "next_gate": {
+                        "key": "PHYSICAL_DEVICE_VERIFIED",
+                        "label": "Physical device verified",
+                        "state": "BLOCKED",
+                        "reason": "Physical validation is required.",
+                    },
+                    "unresolved_stages": [
+                        {
+                            "key": "PHYSICAL_DEVICE_VERIFIED",
+                            "label": "Physical device verified",
+                            "state": "BLOCKED",
+                            "reason": "Physical validation is required.",
+                            "evidence": [],
+                        }
+                    ],
+                    "certification": {
+                        "attempted": True,
+                        "status": "BLOCKED",
+                        "certified": False,
+                    },
+                    "certification_blockers": [
+                        {
+                            "type": "BLOCKER",
+                            "gate": "real_device",
+                            "label": "Required physical-device evidence",
+                            "observed": "NOT_TESTED",
+                        }
+                    ],
+                    "physical_evidence": {
+                        "present": False,
+                        "required_capabilities": ["gps"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
         (project / "audit-plan.json").write_text(
             json.dumps(
                 {
@@ -1281,6 +1365,15 @@ def self_test() -> None:
         assert snapshot["summary"]["evidence_graph_edges"] == 38
         assert snapshot["summary"]["graph_unverified_capabilities"] == 1
         assert snapshot["summary"]["graph_recurring_findings"] == 1
+        assert snapshot["summary"]["with_release_reality"] == 1
+        assert snapshot["summary"]["certified_releases"] == 0
+        assert snapshot["summary"]["certification_blocked"] == 1
+        assert snapshot["summary"]["physical_required"] == 1
+        assert snapshot["projects"][0]["release_cockpit"]["read_only"] is True
+        assert snapshot["projects"][0]["release_cockpit"]["current_level"] == "TRUSTED_RUNTIME_VERIFIED"
+        assert snapshot["projects"][0]["release_cockpit"]["artifact"]["same_bytes_verified"] is True
+        assert snapshot["projects"][0]["release_cockpit"]["runtime"]["runtime_result"] == "PASS"
+        assert snapshot["projects"][0]["release_cockpit"]["why_not_certified"][0]["gate"] == "real_device"
         assert snapshot["projects"][0]["autonomous_review"]["review_state"] == "REVIEW_REQUIRED"
         assert snapshot["projects"][0]["autonomous_review"]["runtime_confirmed"] == 1
         assert snapshot["summary"]["autonomous_reviews"] == 1
