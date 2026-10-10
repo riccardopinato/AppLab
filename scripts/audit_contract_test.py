@@ -681,6 +681,39 @@ def check_execution_acceleration_contract() -> None:
         "CI must gate acceleration, hermetic build reuse eligibility and doctor self-tests",
     )
 
+
+def check_certification_studio_contract() -> None:
+    cockpit = (ROOT / "scripts/certification_studio.py").read_text(encoding="utf-8")
+    studio = (ROOT / "scripts/studio_snapshot.py").read_text(encoding="utf-8")
+    frontend = (ROOT / "frontend/src/ControlCenter.tsx").read_text(encoding="utf-8")
+    require(
+        'STUDIO_VERSION = "4.7.0"' in cockpit
+        and '"read_only": True' in cockpit
+        and '"why_not_certified"' in cockpit,
+        "Certification Studio must expose an explicit read-only why-not-certified projection",
+    )
+    require(
+        "release-reality.json" in studio
+        and 'row["release_cockpit"] = certification_studio.project_summary' in studio,
+        "Studio snapshot must source Release Cockpit from Release Reality",
+    )
+    require(
+        "Why is this not CERTIFIED?" in frontend
+        and "release_cockpit.certification_status" in frontend
+        and "release_cockpit.artifact?.same_bytes_verified" in frontend,
+        "Control Center must expose release blockers and exact-artifact state",
+    )
+    forbidden = (
+        "certification_score",
+        "overall_release_score",
+        "release_health_score",
+    )
+    require(
+        not any(token in cockpit for token in forbidden),
+        "Certification Studio must not introduce an opaque release/certification score",
+    )
+
+
 def main() -> int:
     check_version_alignment()
     check_local_controller_boundary()
@@ -692,6 +725,7 @@ def main() -> int:
     check_evidence_graph_contract()
     check_project_adapter_contract()
     check_release_reality_contract()
+    check_certification_studio_contract()
     check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
