@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import change_intelligence
+import longitudinal_finding_lifecycle as finding_lifecycle
 from product_review_common import write_report
 
 SCHEMA_VERSION = 1
@@ -321,39 +322,6 @@ def _claim_transition(before: dict[str, Any], after: dict[str, Any]) -> dict[str
     }
 
 
-def _history_presence(
-    key: str,
-    historical_indexes: list[dict[str, dict[str, Any]]],
-    snapshots: list[dict[str, Any]],
-) -> dict[str, Any]:
-    seen_positions = [
-        index
-        for index, values in enumerate(historical_indexes)
-        if key in values
-    ]
-    if not seen_positions:
-        return {
-            "seen_count": 0,
-            "consecutive_seen": 0,
-            "first_seen_sha": "",
-            "last_seen_sha": "",
-        }
-    consecutive = 0
-    for values in reversed(historical_indexes):
-        if key in values:
-            consecutive += 1
-        else:
-            break
-    first = snapshots[seen_positions[0]]
-    last = snapshots[seen_positions[-1]]
-    return {
-        "seen_count": len(seen_positions),
-        "consecutive_seen": consecutive,
-        "first_seen_sha": _safe_text(first.get("resolved_sha")),
-        "last_seen_sha": _safe_text(last.get("resolved_sha")),
-    }
-
-
 def _scan_comparable(before_app: dict[str, Any], after_app: dict[str, Any]) -> tuple[bool, str]:
     before = before_app.get("scan") if isinstance(before_app.get("scan"), dict) else {}
     after = after_app.get("scan") if isinstance(after_app.get("scan"), dict) else {}
@@ -443,43 +411,14 @@ def build_report(
     returned_keys = sorted(key for key in new_keys if key in older_keys)
     first_seen_keys = sorted(key for key in new_keys if key not in older_keys)
 
-    inherited_tombstones: dict[str, dict[str, Any]] = {}
-    # v4.6 snapshots store the complete tombstone set. The newest snapshot that
-    # carries this field is authoritative even when the array is empty, so a
-    # returned finding can retire an older tombstone deterministically.
-    for snapshot in reversed(history):
-        if "resolved_tombstones" not in snapshot:
-            continue
-        rows = (
-            snapshot.get("resolved_tombstones")
-            if isinstance(snapshot.get("resolved_tombstones"), list)
-            else []
-        )
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            key = _safe_text(row.get("key"))
-            if key:
-                inherited_tombstones[key] = dict(row)
-        break
-
-    # A returned/current finding is active again and must not retain a resolved tombstone.
-    for key in current_keys:
-        inherited_tombstones.pop(key, None)
-
-    resolved_history = dict(inherited_tombstones)
-    for key in resolved_keys:
-        row = dict(previous_findings[key])
-        presence = _history_presence(
-            key,
-            historical_indexes,
-            history,
-        )
-        row.update(presence)
-        row["resolution_observed_sha"] = current_snapshot["resolved_sha"]
-        row["resolution_observed_at"] = current_snapshot["recorded_at"]
-        row["causal_attribution"] = "NOT_INFERRED"
-        resolved_history[key] = row
+    resolved_history = finding_lifecycle.resolved_history(
+        history=history,
+        current_keys=current_keys,
+        resolved_keys=resolved_keys,
+        previous_findings=previous_findings,
+        historical_indexes=historical_indexes,
+        current_snapshot=current_snapshot,
+    )
 
     severity_changes: list[dict[str, Any]] = []
     severity_escalations: list[dict[str, Any]] = []
@@ -537,7 +476,7 @@ def build_report(
 
     finding_history = []
     for key in sorted(current_findings):
-        history_view = _history_presence(
+        history_view = finding_lifecycle.history_presence(
             key,
             historical_indexes + [current_findings],
             history + [current_snapshot],
