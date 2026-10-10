@@ -147,7 +147,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
-          ref: ${{ needs.discover.outputs.resolved_sha }}
+          ref: ${{ inputs.ref }}
           path: target
           persist-credentials: false
 
@@ -180,7 +180,7 @@ jobs:
             echo "## AppLab Universal Auto-Discovery"
             echo
             echo "Repository: ${{ inputs.repository }}"
-            echo "Requested ref: ${{ needs.discover.outputs.resolved_sha }}"
+            echo "Requested ref: ${{ inputs.ref }}"
             echo "Resolved SHA: ${{ steps.adapt.outputs.resolved_sha }}"
             echo "Detected engine: ${{ steps.adapt.outputs.engine }}"
             echo "Profile fingerprint: ${{ steps.adapt.outputs.profile_fingerprint }}"
