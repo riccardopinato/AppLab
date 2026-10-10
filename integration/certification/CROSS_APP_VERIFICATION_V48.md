@@ -110,7 +110,9 @@ Cross-app PASS is impossible when any of these applies:
 
 - producer/consumer identity is incomplete or contradictory;
 - a supplied Release Reality identity disagrees with the pair session;
-- the Shared Ecosystem Core contract is malformed/incompatible;
+- the Shared Ecosystem Core contract is malformed/incompatible, uses non-string text fields, or does not reference the canonical Golden;
+- media handoff contains local/private schemes or paths, including non-canonical forms such as `file:/...`, `content:...` or bare absolute device paths;
+- Android package identity is not syntactically installable (every package segment starts with a letter);
 - required semantic or transport scenarios are missing;
 - the selected transport is unsupported or its physical-requirement declaration is contradictory;
 - COPY/LINK/idempotency/provenance/ownership observations do not share one coherent lineage;
