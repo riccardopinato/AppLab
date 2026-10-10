@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "4.7.0"
+EXPECTED_VERSION = "4.8.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -719,6 +719,37 @@ def check_certification_studio_contract() -> None:
     )
 
 
+
+def check_cross_app_verification_contract() -> None:
+    core = (ROOT / "scripts/ecosystem_core_contract.py").read_text(encoding="utf-8")
+    verifier = (ROOT / "scripts/cross_app_verification.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/cross-app-verification.yml").read_text(
+        encoding="utf-8"
+    )
+    require(
+        'CONTRACT_NAME = "Shared Ecosystem Core"' in core
+        and 'PRIVATE_MEDIA_MARKERS' in core
+        and 'validate_envelope' in core,
+        "v4.8 must reuse and fail-close the Shared Ecosystem Core contract",
+    )
+    for needle in (
+        'APPLAB_VERSION="4.8.0"',
+        '"independent_from_single_app_pass":True',
+        '"requires_installed_apps"',
+        '"missing_pair_evidence_never_becomes_pass":True',
+        '"physical_evidence_required_when_transport_depends_on_installed_apps":True',
+        'producer Release Reality identity mismatch',
+        'consumer Release Reality identity mismatch',
+    ):
+        require(needle in verifier, f"cross-app verifier missing invariant: {needle}")
+    require(
+        'refs/heads/main' in workflow
+        and 'scripts/cross_app_verification.py' in workflow
+        and 'retention-days: 90' in workflow
+        and 'persist-credentials: false' in workflow,
+        "cross-app trusted workflow boundary drift",
+    )
+
 def main() -> int:
     check_version_alignment()
     check_local_controller_boundary()
@@ -731,6 +762,7 @@ def main() -> int:
     check_project_adapter_contract()
     check_release_reality_contract()
     check_certification_studio_contract()
+    check_cross_app_verification_contract()
     check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
