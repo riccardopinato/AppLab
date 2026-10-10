@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v4.4.0 — Release Reality Engine**
+Current production baseline: **v4.5.0 — Physical Evidence Hub**
 
 ## Product rule
 
@@ -19,6 +19,18 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v4.5.0 — Physical Evidence Hub
+
+- [x] Define a trusted physical-validation record bound to the exact artifact SHA-256.
+- [x] Record device model/manufacturer, OS version/build, scenario, preconditions, steps, observed result and hashed evidence references.
+- [x] Support capability-labelled evidence for GPS/background, sensors, camera/scanner, biometrics/Keystore, notifications, storage/file flows, OEM battery behavior, OAuth, billing, Play/model delivery and cross-app scenarios.
+- [x] Preserve required physical capabilities in the certification policy and require trusted evidence coverage before physical PASS.
+- [x] Mark required-but-missing or incomplete physical validation BLOCKED, never PASS.
+- [x] Keep physical evidence separate from emulator, Web Preview, simulated-human and distribution/store evidence.
+- [x] Retrieve physical evidence by trusted AppLab workflow run id rather than accepting target-authored PASS metadata.
+- [x] Revalidate repository/SHA/package/version/exact APK bytes in Trusted APK Verifier before certification or Release Reality consumes the record.
+- [x] Keep v4.5 focused on operator-driven real devices already available to the App Factory instead of introducing a device farm.
 
 ### v4.4.0 — Release Reality Engine
 
@@ -544,19 +556,6 @@ Release decision support
 Simulated-human, design and market conclusions are advisory evidence. They must
 never be represented as real-user research, physical-device evidence or trusted
 runtime PASS.
-
-### v4.5 — Physical Evidence Hub
-
-Goal: extend AppLab beyond hosted emulator evidence without pretending that
-emulator PASS proves hardware/OEM behavior.
-
-Planned:
-- [ ] Define a trusted physical-validation record bound to the exact artifact SHA-256.
-- [ ] Record device model, OS version, scenario, preconditions, observed result, logs and screenshots.
-- [ ] Support evidence ingestion for GPS/background, sensors, camera/scanner, biometrics/Keystore, notifications, file/storage flows, OEM battery behavior, OAuth release callbacks, billing and Play-delivered assets/models.
-- [ ] Mark required-but-missing physical validation as BLOCKED, never PASS.
-- [ ] Keep physical-device evidence separate from emulator, Web Preview and simulated-human evidence.
-- [ ] Design the first version for real devices already available to the App Factory before considering a large device farm.
 
 ### v4.6 — Evidence Graph 2: Impact, Freshness & Temporal Intelligence
 
