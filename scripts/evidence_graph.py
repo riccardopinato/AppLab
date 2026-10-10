@@ -2434,6 +2434,15 @@ def self_test() -> None:
     stale_query = query_graph(graph, "stale-evidence")
     assert len(stale_query["results"]) == 1
     assert stale_query["results"][0]["label"] == "lib/legacy.dart"
+    current_auth = [
+        row for row in graph["nodes"]
+        if row.get("type") == "Evidence"
+        and row.get("label") == "lib/auth.dart"
+        and (row.get("attributes") or {}).get("observation_scope") == "CURRENT"
+    ]
+    assert current_auth
+    assert all((row.get("attributes") or {}).get("freshness") == "CURRENT" for row in current_auth)
+    assert all(not (row.get("attributes") or {}).get("invalidated_by_files") for row in current_auth)
     impact_query = query_graph(graph, "impact")
     relations = [relation for row in impact_query["results"]["paths"] for relation in row["relations"]]
     assert "FILE_IN_COMPONENT" in relations
