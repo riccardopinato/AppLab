@@ -693,9 +693,9 @@ def check_certification_studio_contract() -> None:
         "Certification Studio must expose an explicit read-only why-not-certified projection",
     )
     require(
-        "release-reality.json" in studio
-        and 'row["release_cockpit"] = certification_studio.project_summary' in studio,
-        "Studio snapshot must source Release Cockpit from Release Reality",
+        "certification_studio.project_from_directory" in studio
+        and '"release_cockpit": release_cockpit' in studio,
+        "Studio snapshot must source Release Cockpit from the read-only Release Reality loader",
     )
     require(
         "Why is this not CERTIFIED?" in frontend
