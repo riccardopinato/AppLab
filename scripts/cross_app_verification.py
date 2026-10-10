@@ -13,6 +13,7 @@ STATES={PASS,FAIL,BLOCKED,NOT_VERIFIED}
 SHA40_RE=re.compile(r"^[0-9a-f]{40}$"); SHA256_RE=re.compile(r"^[0-9a-f]{64}$")
 REPO_RE=re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 PACKAGE_RE=re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
+VERSION_CODE_RE=re.compile(r"^[1-9][0-9]*$"); MAX_ANDROID_VERSION_CODE=2_100_000_000
 REQUIRED_KINDS={"COPY","LINK","IDEMPOTENCY","PROVENANCE","OWNERSHIP","FAIL_CLOSED"}
 TRANSPORT_KINDS={"DEEP_LINK_HANDOFF","FALLBACK_TRANSPORT"}
 SUPPORTED_TRANSPORTS={"deep_link","android_intent","clipboard","fallback"}
@@ -49,13 +50,16 @@ def identity(raw:Any,role:str)->dict[str,str]:
     sha=clean(raw.get("resolved_sha"),f"{role}.resolved_sha",40).lower()
     apk=clean(raw.get("artifact_sha256"),f"{role}.artifact_sha256",64).lower()
     pkg=clean(raw.get("package_id"),f"{role}.package_id",250)
+    version_code=clean(raw.get("version_code"),f"{role}.version_code",64)
     if not REPO_RE.fullmatch(repo): raise ValueError(f"{role}.repository must use owner/name format")
     if not SHA40_RE.fullmatch(sha): raise ValueError(f"{role}.resolved_sha must be 40 lowercase hex")
     if not SHA256_RE.fullmatch(apk): raise ValueError(f"{role}.artifact_sha256 must be 64 lowercase hex")
     if not PACKAGE_RE.fullmatch(pkg): raise ValueError(f"{role}.package_id is invalid")
+    if not VERSION_CODE_RE.fullmatch(version_code) or int(version_code)>MAX_ANDROID_VERSION_CODE:
+        raise ValueError(f"{role}.version_code must be an Android positive integer <= {MAX_ANDROID_VERSION_CODE}")
     return {"repository":repo,"resolved_sha":sha,"artifact_sha256":apk,"package_id":pkg,
             "version_name":clean(raw.get("version_name"),f"{role}.version_name",128),
-            "version_code":clean(raw.get("version_code"),f"{role}.version_code",64),
+            "version_code":version_code,
             "app_id":clean(raw.get("app_id"),f"{role}.app_id",64)}
 
 def evidence(values:Any)->list[dict[str,str]]:
@@ -241,6 +245,15 @@ def self_test()->None:
         assert "package_id is invalid" in str(exc)
     else:
         raise AssertionError("Android package segments must begin with a letter")
+
+    for bad_version_code in ("not-a-number", "0", "-1", "2100000001"):
+        bad_version=json.loads(json.dumps(session)); bad_version["consumer"]["version_code"]=bad_version_code
+        try:
+            build_report(bad_version)
+        except ValueError as exc:
+            assert "version_code must be an Android positive integer" in str(exc)
+        else:
+            raise AssertionError(f"invalid Android versionCode must fail closed: {bad_version_code}")
 
     unsupported=json.loads(json.dumps(session)); unsupported["transport"]["kind"]="telepathy"; unsupported["transport"]["requires_installed_apps"]=False
     try:
