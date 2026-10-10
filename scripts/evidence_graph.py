@@ -373,6 +373,7 @@ def _reference_evidence(
     *,
     source_file: str,
     report_node: str | None,
+    attributes: dict[str, Any] | None = None,
 ) -> str | None:
     text = _safe(value)
     if not text:
@@ -381,7 +382,7 @@ def _reference_evidence(
         "Evidence",
         f"reference:{text}",
         text,
-        attributes={"kind": "REFERENCE"},
+        attributes={"kind": "REFERENCE", **(attributes or {})},
         provenance=[source_file],
     )
     if report_node:
