@@ -123,7 +123,8 @@ def attestation(args:argparse.Namespace)->dict[str,Any]|None:
     return {"authority":AUTHORITY,"workflow_repository":repo,"workflow_path":WORKFLOW_PATH,"workflow_run_id":run,"workflow_run_attempt":attempt,"trusted_applab_sha":sha,"actor":clean(args.actor,"actor",128),"event":"workflow_dispatch","operator_attested_pair_evidence":True,"artifact_bytes_reverified_by_cross_app_hub":False}
 
 def build_report(session:dict[str,Any],producer_release_reality:dict[str,Any]|None=None,consumer_release_reality:dict[str,Any]|None=None,attestation_record:dict[str,Any]|None=None)->dict[str,Any]:
-    if session.get("schema_version",1)!=1: raise ValueError("session.schema_version must equal 1")
+    session_version=session.get("schema_version",1)
+    if not isinstance(session_version,int) or isinstance(session_version,bool) or session_version!=1: raise ValueError("session.schema_version must be integer 1")
     protocol=validate_protocol(session.get("protocol")); p=identity(session.get("producer"),"producer"); c=identity(session.get("consumer"),"consumer")
     if (p["repository"],p["resolved_sha"])==(c["repository"],c["resolved_sha"]): raise ValueError("producer and consumer must be distinct app identities")
     if p["artifact_sha256"]==c["artifact_sha256"]: raise ValueError("producer and consumer cannot use identical APK bytes")
@@ -180,13 +181,62 @@ def self_test()->None:
         bridge="ecosystem:v1:wonderlog:journey:j42"; return {"schemaVersion":1,"bridgeId":bridge,"sourceApp":"wonderlog","privacyScope":"explicitShare","transferMode":mode,"revision":7,"idempotencyKey":f"{bridge}:7:{mode}","sourceDeepLink":"wonderlog://journey/j42","provenance":{"ownerApp":"wonderlog","ownerEntityType":"journey","ownerEntityId":"j42","ownerRevision":7,"canonicalDeepLink":"wonderlog://journey/j42"},"transport":{"transportVersion":1,"targetApp":"annas_diary"},"media":[{"handoff":{"kind":"omitted"}}]}
     def sc(k:str,contract:dict[str,Any]|None=None,result:str=PASS)->dict[str,Any]: return {"id":k.lower(),"kind":k,"direction":"producer_to_consumer","transport":"deep_link","result":result,"assertions":{x:True for x in ASSERTIONS[k]},**({"observed_contract":contract} if contract else {}),"evidence_refs":[]}
     rows=[sc("COPY",env("copy")),sc("LINK",env("link")),sc("IDEMPOTENCY",env("copy")),sc("PROVENANCE",env("copy")),sc("OWNERSHIP",env("copy")),sc("FAIL_CLOSED"),sc("DEEP_LINK_HANDOFF")]
-    session={"schema_version":1,"protocol":{"name":"Shared Ecosystem Core","version":1,"contract_ref":"App-Factory-Core@golden/ecosystem/GOLDEN_ECOSYSTEM_BRIDGE_FLUTTER_v1_DRAFT.txt"},"producer":p,"consumer":c,"transport":{"kind":"deep_link","requires_installed_apps":True,"protocol_transport_separated":True},"scenarios":rows,"physical_evidence":{"physical":True,"result":PASS,"producer_artifact_sha256":p["artifact_sha256"],"consumer_artifact_sha256":c["artifact_sha256"],"device_manufacturer":"Test","device_model":"Device","os_version":"13","os_build":"test/build","scenario_ids":[x["id"] for x in rows],"observed_result":"Round trip observed on exact pair","evidence_refs":[]}}
+    session={"schema_version":1,"protocol":{"name":"Shared Ecosystem Core","version":1,"contract_ref":"App-Factory-Core@golden/ecosystem/GOLDEN_ECOSYSTEM_BRIDGE_FLUTTER_v1_DRAFT.txt"},"producer":p,"consumer":c,"transport":{"kind":"deep_link","requires_installed_apps":True,"protocol_transport_separated":True},"scenarios":rows,"physical_evidence":{"physical":True,"result":PASS,"producer_artifact_sha256":p["artifact_sha256"],"consumer_artifact_sha256":c["artifact_sha256"],"device_manufacturer":"Test","device_model":"Device","os_version":"13","os_build":"test/build","scenario_ids":[x["id"] for x in rows],"observed_result":"Round trip observed on exact pair","evidence_refs":[{"kind":"screenshot","uri":"artifact://pair-round-trip.png","sha256":"3"*64}]}}
     assert build_report(session)["cross_app_round_trip"]["state"]==PASS
-    no_ph=json.loads(json.dumps(session)); no_ph.pop("physical_evidence"); assert build_report(no_ph)["cross_app_round_trip"]["state"]==BLOCKED
-    bad=json.loads(json.dumps(session)); bad["scenarios"][2]["assertions"]["duplicate_noop"]=False; bad["scenarios"][2]["result"]=FAIL; assert build_report(bad)["cross_app_round_trip"]["state"]==FAIL
+
+    no_ph=json.loads(json.dumps(session)); no_ph.pop("physical_evidence")
+    assert build_report(no_ph)["cross_app_round_trip"]["state"]==BLOCKED
+
+    no_refs=json.loads(json.dumps(session)); no_refs["physical_evidence"]["evidence_refs"]=[]
+    assert build_report(no_refs)["cross_app_round_trip"]["state"]==BLOCKED
+
+    bad=json.loads(json.dumps(session)); bad["scenarios"][2]["assertions"]["duplicate_noop"]=False; bad["scenarios"][2]["result"]=FAIL
+    assert build_report(bad)["cross_app_round_trip"]["state"]==FAIL
+
+    physical_fail=json.loads(json.dumps(session)); physical_fail["physical_evidence"]["result"]=FAIL; physical_fail["physical_evidence"]["scenario_ids"]=["copy"]
+    assert build_report(physical_fail)["cross_app_round_trip"]["state"]==FAIL
+
+    lineage=json.loads(json.dumps(session))
+    observed=lineage["scenarios"][3]["observed_contract"]
+    observed["bridgeId"]="ecosystem:v1:wonderlog:journey:other"
+    observed["idempotencyKey"]="ecosystem:v1:wonderlog:journey:other:7:copy"
+    observed["sourceDeepLink"]="wonderlog://journey/other"
+    observed["provenance"]["ownerEntityId"]="other"
+    observed["provenance"]["canonicalDeepLink"]="wonderlog://journey/other"
+    lineage_report=build_report(lineage)
+    assert lineage_report["cross_app_round_trip"]["state"]==BLOCKED
+    assert any("lineage mismatch" in x for x in lineage_report["cross_app_round_trip"]["blockers"])
+
+    same_apk=json.loads(json.dumps(session)); same_apk["consumer"]["artifact_sha256"]=same_apk["producer"]["artifact_sha256"]; same_apk["physical_evidence"]["consumer_artifact_sha256"]=same_apk["producer"]["artifact_sha256"]
+    try:
+        build_report(same_apk)
+    except ValueError as exc:
+        assert "identical APK bytes" in str(exc)
+    else:
+        raise AssertionError("identical producer/consumer APK bytes must fail closed")
+
+    unsupported=json.loads(json.dumps(session)); unsupported["transport"]["kind"]="telepathy"; unsupported["transport"]["requires_installed_apps"]=False
+    try:
+        build_report(unsupported)
+    except ValueError as exc:
+        assert "unsupported cross-app transport" in str(exc)
+    else:
+        raise AssertionError("unsupported transport must fail closed")
+
+    bad_schema=json.loads(json.dumps(session)); bad_schema["schema_version"]=True
+    try:
+        build_report(bad_schema)
+    except ValueError as exc:
+        assert "schema_version" in str(exc)
+    else:
+        raise AssertionError("boolean session schema version must fail closed")
+
     def rr(i:dict[str,str])->dict[str,Any]: return {"source":{"repository":i["repository"],"resolved_sha":i["resolved_sha"]},"artifact":{"actual_sha256":i["artifact_sha256"],"package_id":i["package_id"],"version_name":i["version_name"],"version_code":i["version_code"]},"current_level":"CERTIFIED","certification":{"status":"CERTIFIED"}}
     blocked=build_report(no_ph,rr(p),rr(c)); assert blocked["single_app_release_reality"]["producer"]["status"]=="CERTIFIED" and blocked["cross_app_round_trip"]["state"]==BLOCKED
-    with tempfile.TemporaryDirectory() as d: write_outputs(build_report(session),Path(d)); assert (Path(d)/"cross-app-verification.json").is_file()
+
+    with tempfile.TemporaryDirectory() as d:
+        write_outputs(build_report(session),Path(d))
+        assert (Path(d)/"cross-app-verification.json").is_file()
     print("AppLab Cross-App Verification v4.8 self-test PASS")
 
 def main()->int:
