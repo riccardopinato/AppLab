@@ -489,6 +489,191 @@ publish a certified release artifact.
 - [x] Repo Watcher and Control Center.
 - [x] Browser-controlled live emulator stack.
 
+## Planned direction after v4.2
+
+The next phase is not to add more isolated analyzers for their own sake. AppLab
+must evolve from a strong autonomous technical QA platform into the central
+release-assurance and virtual product-review system of the App Factory.
+
+The long-term direction is:
+
+```
+Source / Product intent
+        ↓
+Technical analysis
+        ↓
+Trusted runtime verification
+        ↓
+Evidence Graph
+        ↓
+Release Reality
+        ↓
+Physical / distribution evidence
+        ↓
+Simulated human review
+        ↓
+UX / design / product review
+        ↓
+Competitive intelligence
+        ↓
+Release decision support
+```
+
+Simulated-human, design and market conclusions are advisory evidence. They must
+never be represented as real-user research, physical-device evidence or trusted
+runtime PASS.
+
+### v4.3 — External Project Certification Adapter
+
+Goal: make any App Factory project easy to connect to AppLab without duplicating
+AppLab logic inside the target repository.
+
+Planned:
+- [ ] Define one small per-project integration contract for repository/ref, package ID, project type, toolchain, release artifact pattern and critical journeys.
+- [ ] Auto-detect Flutter versus native Android structure where safely possible.
+- [ ] Resolve package/version/build identity and expected artifact automatically.
+- [ ] Declare primary, settings and critical journeys in a reusable project profile.
+- [ ] Declare whether physical-device validation is required for each critical capability.
+- [ ] Keep AppLab as the external trusted authority instead of copying verifier logic into target repositories.
+- [ ] Validate the adapter on at least one real Flutter project and one second App Factory project.
+- [ ] Preserve FAST / FULL / CERTIFICATION semantics and all existing trust boundaries.
+
+### v4.4 — Release Reality Engine
+
+Goal: make AppLab state exactly how far a release has really progressed instead
+of treating a green build or emulator run as "finished".
+
+Planned:
+- [ ] Track the release-evidence ladder: IMPLEMENTED -> STATICALLY CHECKED -> TESTED -> CI GREEN -> ARTIFACT BUILT -> TRUSTED RUNTIME VERIFIED -> PHYSICAL DEVICE VERIFIED -> DISTRIBUTION VERIFIED -> STORE READY -> PRODUCTION RELEASED.
+- [ ] Create a canonical release evidence record bound to source SHA, package, version/build, artifact SHA-256, signing identity and workflow run.
+- [ ] Distinguish PASS, FAIL, BLOCKED and NOT VERIFIED at every applicable stage.
+- [ ] Enforce same-artifact semantics: rebuilt bytes are a new artifact unless provenance is explicitly re-established.
+- [ ] Surface exact certification blockers instead of a synthetic numeric product score.
+- [ ] Preserve risk-based validation so projects are not forced through irrelevant checks.
+
+### v4.5 — Physical Evidence Hub
+
+Goal: extend AppLab beyond hosted emulator evidence without pretending that
+emulator PASS proves hardware/OEM behavior.
+
+Planned:
+- [ ] Define a trusted physical-validation record bound to the exact artifact SHA-256.
+- [ ] Record device model, OS version, scenario, preconditions, observed result, logs and screenshots.
+- [ ] Support evidence ingestion for GPS/background, sensors, camera/scanner, biometrics/Keystore, notifications, file/storage flows, OEM battery behavior, OAuth release callbacks, billing and Play-delivered assets/models.
+- [ ] Mark required-but-missing physical validation as BLOCKED, never PASS.
+- [ ] Keep physical-device evidence separate from emulator, Web Preview and simulated-human evidence.
+- [ ] Design the first version for real devices already available to the App Factory before considering a large device farm.
+
+### v4.6 — Evidence Graph 2: Impact, Freshness & Temporal Intelligence
+
+Goal: use the v4.2 graph to understand which evidence is still valid after a
+change and which product areas are affected.
+
+Planned:
+- [ ] Add evidence freshness and stale-evidence propagation.
+- [ ] Add impact paths from changed files/components to capabilities, surfaces, journeys and evidence.
+- [ ] Track finding lifecycle as first observed, persistent, resolved and returned without inventing causal blame.
+- [ ] Invalidate or downgrade only the evidence actually affected by a change.
+- [ ] Use graph impact to improve risk-based FAST/FULL selection.
+- [ ] Make graph subjects directly queryable from Studio with provenance and history.
+- [ ] Keep source reports authoritative and the graph as index/query infrastructure.
+
+### v4.7 — Certification Studio / Release Cockpit
+
+Goal: make the real state of each app understandable at a glance.
+
+Planned:
+- [ ] Show current Release Reality level per project/release.
+- [ ] Show exact certification blockers and missing evidence.
+- [ ] Show artifact identity, source SHA, runtime state, evidence freshness and physical requirements.
+- [ ] Add "Why is this not CERTIFIED?" drill-down.
+- [ ] Surface regression candidates, recurring findings and stale evidence without opaque scoring.
+- [ ] Keep Studio read-only for trust-sensitive evidence unless an explicit trusted action path exists.
+
+### v4.8 — Cross-App Verification
+
+Goal: verify real interactions between two App Factory apps rather than proving
+each side independently.
+
+Planned:
+- [ ] Define paired-artifact verification with producer and consumer source/artifact identities.
+- [ ] Execute explicit cross-app scenarios such as COPY, LINK, deep-link handoff and documented fallback transport.
+- [ ] Verify idempotency, provenance, ownership and fail-closed behavior across the pair.
+- [ ] Record paired physical-device evidence when the transport depends on installed apps.
+- [ ] Keep single-app AppLab PASS distinct from cross-app round-trip PASS.
+- [ ] Use Shared Ecosystem Core contracts where applicable instead of inventing parallel protocols.
+
+### v5.0 — Simulated Human QA
+
+Goal: add a human-like review layer that tries to use the app as different types
+of users and identifies usability problems that technical PASS cannot detect.
+
+Planned:
+- [ ] Add task-driven simulated usability sessions over trusted screenshots, UI hierarchy, product flows and runtime journeys.
+- [ ] Define bounded personas such as beginner, power user, older user, accessibility-focused user, privacy-conscious user, impatient user and offline user.
+- [ ] Let each persona attempt explicit goals and record friction, confusion, dead ends, excess taps and recovery problems.
+- [ ] Add cognitive walkthrough and heuristic UX review.
+- [ ] Aggregate multi-persona consensus while preserving disagreements and evidence.
+- [ ] Classify findings as SIMULATED USER REVIEW, never REAL USER VALIDATION.
+- [ ] Route strong recurring simulated findings into VERIFY_NEXT / IMPROVE rather than automatic product defects.
+- [ ] Preserve deterministic technical gates independently from model-based human simulation.
+
+### v5.1 — Design System & UI Library Advisor
+
+Goal: judge whether the visual language and component library fit the type of
+product instead of applying one design system to every app.
+
+Planned:
+- [ ] Infer product context and interaction style before reviewing visual-system fit.
+- [ ] Review hierarchy, typography, spacing, density, component consistency, feedback, empty/loading/error states and interaction affordances.
+- [ ] Compare current Material, Cupertino, custom or third-party component choices against product needs.
+- [ ] Recommend keeping, adapting or replacing a UI library only when evidence shows a concrete product-fit benefit.
+- [ ] Evaluate accessibility, responsive behavior, dark mode and localization impact together with visual fit.
+- [ ] Avoid style churn: a different library is not automatically an improvement.
+- [ ] Keep aesthetic/product recommendations advisory and traceable to observed evidence.
+
+### v5.2 — Competitive Product Intelligence
+
+Goal: use competitors as evidence for product decisions without turning AppLab
+into a feature-copying engine.
+
+Planned:
+- [ ] Maintain source-traceable competitor sets per app/category.
+- [ ] Compare product capabilities, workflows, onboarding, pricing, visual patterns and recurring user pain points.
+- [ ] Separate common market expectations from genuine differentiation opportunities.
+- [ ] Highlight missing parity only when it is relevant to the Product Bible and target user.
+- [ ] Identify competitor weaknesses that create an opportunity for a simpler or better App Factory implementation.
+- [ ] Track market evidence freshness and provenance.
+- [ ] Never auto-add a feature merely because competitors have it.
+
+### v5.3 — Virtual Product Review Council
+
+Goal: combine technical QA, simulated users, UX, design and competitor evidence
+into one review meeting-like output without collapsing authorities.
+
+Planned:
+- [ ] Run specialized virtual reviewers for QA, UX, accessibility, product, design and market context.
+- [ ] Preserve each reviewer's evidence, uncertainty and scope instead of producing an opaque consensus score.
+- [ ] Detect cross-review agreement, contradiction and missing evidence.
+- [ ] Produce a prioritized Product Review Brief: FIX_NOW, VERIFY_NEXT, IMPROVE, CONSIDER and NO_ACTION.
+- [ ] Distinguish technical defects, usability risks, design-fit questions and product opportunities.
+- [ ] Keep real-user validation, physical-device validation and release certification as separate evidence classes.
+- [ ] Use the council to reduce manual triage, not to replace final product ownership.
+
+### v5.x ongoing technical hardening
+
+The strategic roadmap above does not postpone technical quality. Every version
+may include targeted hardening when real AppLab evidence demonstrates a need.
+
+Continuous priorities:
+- [ ] Reduce runtime/browser E2E flakiness without weakening assertions.
+- [ ] Improve diagnostics for WebRTC/frame/codec/runtime infrastructure failures.
+- [ ] Add schema/version contracts for new evidence producers and consumers.
+- [ ] Add evidence retention/garbage-collection policy while pinning release-critical evidence.
+- [ ] Improve delta execution so small changes rerun only the evidence that can actually be invalidated.
+- [ ] Tune heuristics from real multi-project data rather than speculative complexity.
+- [ ] Keep performance, security, dependency, artifact-provenance and maintainability gates healthy as AppLab grows.
+
 ## v1.0 evidence contract
 
 Every adaptive plan records:
@@ -533,19 +718,12 @@ These are explicit engineering boundaries, not hidden assumptions:
    Projects declaring `requires_real_device=true` remain BLOCKED for production
    certification until trusted device evidence exists.
 
-## Next validation targets
+## Current validation priorities
 
-- Integrate App Intelligence summaries into the Control Center after enough real-project reports exist.
-- Use real audits to refine heuristics and reduce false-positive review signals.
-- Calibrate the v1.4 capability taxonomy against real competitor evidence before broadening aliases or automating acquisition.
-- Calibrate Cross-App recurrence thresholds against real multi-project corpus runs.
-- Design v1.6 Autonomous Audit Orchestrator so audit selection follows project type, evidence and risk rather than a fixed checklist.
-
-- Accumulate enough real watcher samples for statistically meaningful p50/p95.
-- Measure shadow false-negative, missed-WARN and over-selection rates over a meaningful sample.
-- Compare per-lane wall-clock p50/p95 and setup overhead after enough watcher samples.
-- Tune risk thresholds only from measured calibration evidence.
-- Expand dependency adapters when real projects demonstrate a repeatable blind
-  spot; do not add speculative complexity.
-- Evaluate trusted physical ARM64/device lanes independently from emulator FAST
-  optimization.
+- Validate the v4.3 external-project adapter first on a real Flutter app, then on a second App Factory project.
+- Promote AppLab QA/certification process only from real trusted evidence, not from AppLab self-tests alone.
+- Accumulate multi-project runtime/evidence samples to calibrate heuristics, FAST/FULL selection and recurrence thresholds.
+- Measure and reduce Browser E2E / emulator infrastructure flakiness without converting transient uncertainty into PASS.
+- Introduce physical-device evidence incrementally for capabilities that materially depend on real hardware, OEM behavior or store services.
+- Use v4.2 Evidence Graph data to drive freshness/impact work before adding additional standalone intelligence engines.
+- Treat simulated-human, design and competitor review as advisory layers that complement rather than replace deterministic QA and real-user validation.
