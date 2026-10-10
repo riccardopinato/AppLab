@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v4.7.0 — Certification Studio / Release Cockpit**
+Current production baseline: **v4.8.0 — Cross-App Verification**
 
 ## Product rule
 
@@ -19,6 +19,17 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v4.8.0 — Cross-App Verification
+
+- [x] Define paired-artifact verification with producer and consumer source/artifact identities.
+- [x] Execute and evaluate explicit COPY, LINK, deep-link handoff and documented fallback transport scenarios.
+- [x] Verify idempotency, provenance, ownership and fail-closed behavior across the pair.
+- [x] Require paired physical-device evidence when the transport depends on installed apps.
+- [x] Keep single-app AppLab PASS/CERTIFICATION distinct from cross-app round-trip PASS.
+- [x] Reuse Shared Ecosystem Core v1 instead of inventing a parallel cross-app protocol.
+- [x] Reconcile optional Release Reality identities and fail closed on source/artifact mismatch.
+- [x] Add trusted-main workflow attestation, deterministic pair digest, 90-day evidence retention and CI/audit-contract gates.
 
 ### v4.7.0 — Certification Studio / Release Cockpit
 
@@ -591,19 +602,6 @@ Planned:
 - [ ] Use prior graph impact to refine risk-based FAST/FULL selection only when lineage, source SHA and evidence freshness are compatible.
 - [ ] Fall back to the existing conservative Smart Test Plan whenever graph evidence is missing, stale, ambiguous or truncated.
 - [ ] Keep current-run Evidence Graph unable to retroactively change the lane that produced it.
-
-### v4.8 — Cross-App Verification
-
-Goal: verify real interactions between two App Factory apps rather than proving
-each side independently.
-
-Planned:
-- [ ] Define paired-artifact verification with producer and consumer source/artifact identities.
-- [ ] Execute explicit cross-app scenarios such as COPY, LINK, deep-link handoff and documented fallback transport.
-- [ ] Verify idempotency, provenance, ownership and fail-closed behavior across the pair.
-- [ ] Record paired physical-device evidence when the transport depends on installed apps.
-- [ ] Keep single-app AppLab PASS distinct from cross-app round-trip PASS.
-- [ ] Use Shared Ecosystem Core contracts where applicable instead of inventing parallel protocols.
 
 ### v5.0 — Simulated Human QA
 

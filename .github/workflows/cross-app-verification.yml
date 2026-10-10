@@ -1,0 +1,92 @@
+name: AppLab Cross-App Verification v4.8.0
+
+on:
+  workflow_dispatch:
+    inputs:
+      session_json:
+        description: "Executed cross-app pair session JSON (producer/consumer identities, scenarios, paired physical evidence)."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-cross-app-verification-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  attest:
+    name: Verify cross-app pair evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Require trusted AppLab main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Cross-app pair attestation is trusted only from AppLab main." >&2
+            exit 1
+          fi
+
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Materialize operator-attested pair session
+        shell: bash
+        env:
+          CROSS_APP_SESSION_JSON: ${{ inputs.session_json }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p cross-app-verification
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          raw = os.environ["CROSS_APP_SESSION_JSON"]
+          payload = json.loads(raw)
+          if not isinstance(payload, dict):
+              raise SystemExit("session_json must contain one JSON object")
+          Path("cross-app-verification/session.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Verify pair contract and executed scenario matrix
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python scripts/cross_app_verification.py \
+            --session cross-app-verification/session.json \
+            --workflow-repository "$GITHUB_REPOSITORY" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --workflow-run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --trusted-applab-sha "$GITHUB_SHA" \
+            --actor "$GITHUB_ACTOR" \
+            --output-dir cross-app-verification
+
+      - name: Publish cross-app verification summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f cross-app-verification/cross-app-verification.md ]]; then
+            cat cross-app-verification/cross-app-verification.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload paired verification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-cross-app-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            cross-app-verification/session.json
+            cross-app-verification/cross-app-verification.json
+            cross-app-verification/cross-app-verification.md
+          if-no-files-found: error
+          retention-days: 90
