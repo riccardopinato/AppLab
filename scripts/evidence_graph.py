@@ -1461,6 +1461,423 @@ def _add_results(
             builder.add_edge("DERIVED_FROM", node, reports["longitudinal"], provenance=[FILES["longitudinal"]])
 
 
+def _ensure_component(
+    builder: GraphBuilder,
+    file_node: str,
+    path: str,
+    *,
+    provenance: list[str] | None = None,
+) -> str | None:
+    key = _component_key(path)
+    if not key:
+        return None
+    node = builder.add_node(
+        "Component",
+        key,
+        key,
+        attributes={
+            "structural_only": True,
+            "derivation": "PATH_GROUP",
+        },
+        provenance=provenance or [],
+    )
+    builder.add_edge(
+        "FILE_IN_COMPONENT",
+        file_node,
+        node,
+        attributes={"structural_only": True},
+        provenance=provenance or [],
+    )
+    return node
+
+
+def _surface_aliases(row: dict[str, Any]) -> set[str]:
+    attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
+    values = [
+        row.get("key"),
+        row.get("label"),
+        attrs.get("id"),
+        attrs.get("name"),
+        attrs.get("label"),
+        attrs.get("route"),
+        attrs.get("path"),
+        attrs.get("source"),
+    ]
+    aliases: set[str] = set()
+    for value in values:
+        text = _safe(value)
+        if not text:
+            continue
+        aliases.add(_norm(text))
+        path = _repo_path(text)
+        if path:
+            aliases.add(_norm(Path(path).stem))
+    return {value for value in aliases if value}
+
+
+def _add_impact_graph(
+    builder: GraphBuilder,
+    inputs: dict[str, dict[str, Any]],
+    reports: dict[str, str],
+    revision: str,
+) -> dict[str, Any]:
+    changed, impacted = _analysis_paths(inputs)
+    provenance = [FILES["analysis_plan"]] if "analysis_plan" in inputs else []
+
+    file_nodes: dict[str, str] = {}
+    component_nodes: dict[str, str] = {}
+
+    def ensure_file(path: str, extra_provenance: list[str] | None = None) -> str | None:
+        normalized = _repo_path(path)
+        if not normalized:
+            return None
+        node = _file_node(
+            builder,
+            normalized,
+            changed=changed,
+            impacted=impacted,
+            provenance=sorted(set(provenance + (extra_provenance or []))),
+        )
+        if not node:
+            return None
+        file_nodes[normalized] = node
+        component = _ensure_component(
+            builder,
+            node,
+            normalized,
+            provenance=sorted(set(provenance + (extra_provenance or []))),
+        )
+        if component:
+            component_nodes[_component_key(normalized)] = component
+        if normalized in changed:
+            builder.add_edge(
+                "REVISION_CHANGED_FILE",
+                revision,
+                node,
+                provenance=provenance,
+            )
+        elif normalized in impacted:
+            builder.add_edge(
+                "REVISION_IMPACTS_FILE",
+                revision,
+                node,
+                attributes={"dependency_impact": True},
+                provenance=provenance,
+            )
+        return node
+
+    for path in sorted(changed | impacted):
+        ensure_file(path)
+
+    capability_files: dict[str, set[str]] = {}
+    app = inputs.get("app", {})
+    truth = app.get("feature_truth") if isinstance(app.get("feature_truth"), dict) else {}
+    capability_rows = truth.get("capabilities") if isinstance(truth.get("capabilities"), list) else []
+    for row in capability_rows:
+        if not isinstance(row, dict):
+            continue
+        capability = _safe(row.get("capability"))
+        capability_node = _match_node_key(builder, capability, ("Capability",))
+        if not capability_node:
+            continue
+        paths: set[str] = set()
+        provenance_map = row.get("provenance") if isinstance(row.get("provenance"), dict) else {}
+        for values in provenance_map.values():
+            if not isinstance(values, list):
+                continue
+            for value in values:
+                path_value = _repo_path(value)
+                if path_value:
+                    paths.add(path_value)
+        for path_value in sorted(paths):
+            file_node = ensure_file(path_value, [FILES["app"]])
+            if not file_node:
+                continue
+            capability_files.setdefault(capability_node, set()).add(path_value)
+            builder.add_edge(
+                "FILE_SUPPORTS_CAPABILITY",
+                file_node,
+                capability_node,
+                attributes={"bounded_static_provenance": True},
+                provenance=[FILES["app"]],
+            )
+            component = _ensure_component(
+                builder,
+                file_node,
+                path_value,
+                provenance=[FILES["app"]],
+            )
+            if component:
+                builder.add_edge(
+                    "COMPONENT_SUPPORTS_CAPABILITY",
+                    component,
+                    capability_node,
+                    attributes={
+                        "structural_only": True,
+                        "basis": "member_file_provenance",
+                    },
+                    provenance=[FILES["app"]],
+                )
+
+    surface_files: dict[str, set[str]] = {}
+    flow = app.get("product_flow_graph") if isinstance(app.get("product_flow_graph"), dict) else {}
+    surface_rows = flow.get("nodes") if isinstance(flow.get("nodes"), list) else []
+    for row in surface_rows:
+        if not isinstance(row, dict):
+            continue
+        surface_key = _safe(row.get("id")) or _safe(row.get("path"))
+        surface_node = _match_node_key(builder, surface_key, ("Surface",))
+        path_value = _repo_path(row.get("path") or row.get("id"))
+        if not surface_node or not path_value:
+            continue
+        file_node = ensure_file(path_value, [FILES["app"]])
+        if not file_node:
+            continue
+        surface_files.setdefault(surface_node, set()).add(path_value)
+        builder.add_edge(
+            "FILE_IMPLEMENTS_SURFACE",
+            file_node,
+            surface_node,
+            attributes={"bounded_static_provenance": True},
+            provenance=[FILES["app"]],
+        )
+        component = _ensure_component(
+            builder,
+            file_node,
+            path_value,
+            provenance=[FILES["app"]],
+        )
+        if component:
+            builder.add_edge(
+                "COMPONENT_IMPLEMENTS_SURFACE",
+                component,
+                surface_node,
+                attributes={
+                    "structural_only": True,
+                    "basis": "member_file_surface",
+                },
+                provenance=[FILES["app"]],
+            )
+
+    for capability_node, cap_paths in capability_files.items():
+        for surface_node, surf_paths in surface_files.items():
+            shared = sorted(cap_paths & surf_paths)
+            if not shared:
+                continue
+            builder.add_edge(
+                "CAPABILITY_OBSERVED_ON_SURFACE",
+                capability_node,
+                surface_node,
+                attributes={
+                    "basis": "shared_static_file",
+                    "shared_files": shared[:16],
+                    "behavioral_claim": False,
+                },
+                provenance=[FILES["app"]],
+            )
+
+    surfaces = [
+        row for row in builder.nodes.values()
+        if row.get("type") == "Surface"
+    ]
+    journeys = [
+        row for row in builder.nodes.values()
+        if row.get("type") == "Journey"
+    ]
+    aliases_by_surface = {
+        str(row.get("id")): _surface_aliases(row)
+        for row in surfaces
+    }
+    for journey in journeys:
+        attrs = journey.get("attributes") if isinstance(journey.get("attributes"), dict) else {}
+        observations = list(attrs.get("steps", [])) if isinstance(attrs.get("steps"), list) else []
+        observations.extend(
+            value
+            for value in (attrs.get("start_state"), attrs.get("end_state"))
+            if _safe(value)
+        )
+        tokens = {_norm(value) for value in observations if _norm(value)}
+        for surface in surfaces:
+            aliases = aliases_by_surface.get(str(surface.get("id")), set())
+            matched = sorted(tokens & aliases)
+            if not matched:
+                continue
+            builder.add_edge(
+                "SURFACE_IN_JOURNEY",
+                str(surface["id"]),
+                str(journey["id"]),
+                attributes={
+                    "basis": "exact_observed_step_alias",
+                    "matched_tokens": matched[:8],
+                },
+                provenance=[FILES["journey"], FILES["app"]],
+            )
+
+    for node in list(builder.nodes.values()):
+        if node.get("type") != "Evidence":
+            continue
+        path_value = _repo_path(node.get("label"))
+        if not path_value:
+            continue
+        file_node = ensure_file(path_value, list(node.get("provenance", [])))
+        if file_node:
+            builder.add_edge(
+                "EVIDENCE_REFERENCES_FILE",
+                str(node["id"]),
+                file_node,
+                provenance=list(node.get("provenance", [])),
+            )
+
+    impact_paths = _collect_impact_paths(builder)
+    return {
+        "changed_files": sorted(changed),
+        "dependency_impacted_files": sorted(impacted),
+        "mapped_files": len(file_nodes),
+        "mapped_components": len(component_nodes),
+        "paths": impact_paths,
+    }
+
+
+def _collect_impact_paths(builder: GraphBuilder) -> list[dict[str, Any]]:
+    allowed = {
+        "FILE_IN_COMPONENT",
+        "COMPONENT_SUPPORTS_CAPABILITY",
+        "CAPABILITY_OBSERVED_ON_SURFACE",
+        "SURFACE_IN_JOURNEY",
+        "DERIVED_FROM",
+    }
+    adjacency: dict[str, list[dict[str, Any]]] = {}
+    for edge in builder.edges.values():
+        if edge.get("type") not in allowed:
+            continue
+        adjacency.setdefault(str(edge.get("from")), []).append(edge)
+
+    starts = [
+        node for node in builder.nodes.values()
+        if node.get("type") == "File"
+        and isinstance(node.get("attributes"), dict)
+        and bool(node["attributes"].get("changed"))
+    ]
+    rows: list[dict[str, Any]] = []
+    for start in sorted(starts, key=lambda row: str(row.get("key"))):
+        queue: list[tuple[str, list[str], list[str]]] = [
+            (str(start["id"]), [str(start["id"])], [])
+        ]
+        seen: set[tuple[str, tuple[str, ...]]] = set()
+        while queue:
+            current, nodes, relations = queue.pop(0)
+            state = (current, tuple(relations))
+            if state in seen or len(nodes) > 7:
+                continue
+            seen.add(state)
+            current_node = builder.nodes.get(current, {})
+            if current_node.get("type") == "Evidence" and len(nodes) > 1:
+                rows.append({
+                    "origin_file": str(start.get("key")),
+                    "node_ids": nodes,
+                    "relations": relations,
+                    "terminal_evidence": str(current_node.get("label")),
+                })
+                if len(rows) >= 128:
+                    return rows
+                continue
+            for edge in sorted(
+                adjacency.get(current, []),
+                key=lambda row: (str(row.get("type")), str(row.get("to"))),
+            ):
+                target = str(edge.get("to"))
+                if target in nodes:
+                    continue
+                queue.append(
+                    (
+                        target,
+                        nodes + [target],
+                        relations + [str(edge.get("type"))],
+                    )
+                )
+    return rows
+
+
+def _apply_evidence_freshness(
+    builder: GraphBuilder,
+    inputs: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    changed, impacted = _analysis_paths(inputs)
+    current_sha = _identity(inputs)[0].get("resolved_sha", "").lower()
+    file_by_path = {
+        _repo_path(row.get("key")): str(row.get("id"))
+        for row in builder.nodes.values()
+        if row.get("type") == "File" and _repo_path(row.get("key"))
+    }
+
+    counts = Counter()
+    invalidated: list[dict[str, Any]] = []
+    for node in builder.nodes.values():
+        if node.get("type") != "Evidence":
+            continue
+        attrs = node.get("attributes") if isinstance(node.get("attributes"), dict) else {}
+        kind = _safe(attrs.get("kind")).upper()
+        scope = _safe(attrs.get("observation_scope")).upper()
+        source_sha = _safe(attrs.get("source_sha") or attrs.get("observed_sha")).lower()
+        claim_status = _safe(attrs.get("claim_status")).upper()
+
+        if kind == "REPORT":
+            freshness = "CURRENT"
+        elif claim_status == "STALE":
+            freshness = "STALE"
+        elif source_sha and current_sha and source_sha != current_sha:
+            freshness = "STALE"
+        elif scope == "HISTORICAL":
+            freshness = "HISTORICAL"
+        elif scope == "CURRENT":
+            freshness = "CURRENT"
+        else:
+            freshness = "CURRENT"
+
+        path_value = _repo_path(node.get("label"))
+        affected = bool(path_value and path_value in (changed | impacted))
+        invalidated_by: list[str] = []
+        if affected and freshness in {"STALE", "HISTORICAL"}:
+            freshness = "INVALIDATED"
+            invalidated_by = [path_value]
+            file_node = file_by_path.get(path_value)
+            if file_node:
+                builder.add_edge(
+                    "CHANGE_INVALIDATES_EVIDENCE",
+                    file_node,
+                    str(node["id"]),
+                    attributes={
+                        "reason": "historical_or_stale_evidence_intersects_changed_or_impacted_file",
+                        "causal_blame": False,
+                    },
+                    provenance=[FILES["analysis_plan"]],
+                )
+
+        attrs["freshness"] = freshness
+        attrs["affected_by_current_change"] = affected
+        attrs["invalidated_by_files"] = invalidated_by
+        attrs["freshness_current_sha"] = current_sha
+        node["attributes"] = attrs
+        counts[freshness] += 1
+        if freshness == "INVALIDATED":
+            invalidated.append({
+                "evidence_id": str(node.get("id")),
+                "label": str(node.get("label")),
+                "invalidated_by_files": invalidated_by,
+            })
+
+    return {
+        "counts": dict(sorted(counts.items())),
+        "invalidated": invalidated,
+        "invalidated_count": len(invalidated),
+        "stale_or_historical_count": (
+            counts.get("STALE", 0)
+            + counts.get("HISTORICAL", 0)
+            + counts.get("INVALIDATED", 0)
+        ),
+    }
+
+
 def _summary(builder: GraphBuilder, inputs: dict[str, dict[str, Any]]) -> dict[str, Any]:
     counts = Counter(str(row["type"]) for row in builder.nodes.values())
     relation_counts = Counter(str(row["type"]) for row in builder.edges.values())
