@@ -385,7 +385,8 @@ def check_physical_evidence_contract() -> None:
     )
     require(
         "exact_artifact_match" in physical
-        and "Physical evidence artifact_sha256 binding mismatch" in physical
+        and '"artifact_sha256": (' in physical
+        and "Physical evidence exact APK bytes do not match build contract" in physical
         and "record digest mismatch" in physical,
         "physical evidence must be byte-bound and tamper-evident",
     )
