@@ -646,6 +646,7 @@ def build_release_reality(
         "certification_blockers": certification_blockers,
         "physical_evidence": {
             **physical,
+            "required": requires_real_device,
             "required_capabilities": sorted(required_physical_capabilities),
         },
         "same_artifact_semantics": {
@@ -810,6 +811,7 @@ def self_test() -> None:
         assert states["ARTIFACT_BUILT"] == PASS
         assert states["TRUSTED_RUNTIME_VERIFIED"] == PASS
         assert states["PHYSICAL_DEVICE_VERIFIED"] == NOT_APPLICABLE
+        assert reality["physical_evidence"]["required"] is False
         assert states["DISTRIBUTION_VERIFIED"] == NOT_VERIFIED
         assert reality["artifact"]["same_bytes_verified"] is True
 
@@ -863,6 +865,7 @@ def self_test() -> None:
         )
         states = {row["key"]: row["state"] for row in reality["levels"]}
         assert states["PHYSICAL_DEVICE_VERIFIED"] == BLOCKED
+        assert reality["physical_evidence"]["required"] is True
         assert reality["certification"]["status"] == "BLOCKED"
         assert reality["certification_blockers"][0]["gate"] == "real_device"
         assert states["CI_GREEN"] == PASS
