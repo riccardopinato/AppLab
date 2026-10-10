@@ -1716,15 +1716,22 @@ def _add_impact_graph(
     for node in list(builder.nodes.values()):
         if node.get("type") != "Evidence":
             continue
+        attrs = node.get("attributes") if isinstance(node.get("attributes"), dict) else {}
+        if _safe(attrs.get("kind")).upper() != "REFERENCE":
+            continue
         path_value = _repo_path(node.get("label"))
         if not path_value:
             continue
-        file_node = ensure_file(path_value, list(node.get("provenance", [])))
+        # Evidence labels may also be generated reports/screenshots/runtime artifacts.
+        # Only connect references to File nodes whose repository identity was already
+        # established by the trusted change plan or bounded app provenance.
+        file_node = file_nodes.get(path_value)
         if file_node:
             builder.add_edge(
                 "EVIDENCE_REFERENCES_FILE",
                 str(node["id"]),
                 file_node,
+                attributes={"repository_path_prevalidated": True},
                 provenance=list(node.get("provenance", [])),
             )
 
@@ -1756,7 +1763,10 @@ def _collect_impact_paths(builder: GraphBuilder) -> list[dict[str, Any]]:
         node for node in builder.nodes.values()
         if node.get("type") == "File"
         and isinstance(node.get("attributes"), dict)
-        and bool(node["attributes"].get("changed"))
+        and (
+            bool(node["attributes"].get("changed"))
+            or bool(node["attributes"].get("dependency_impacted"))
+        )
     ]
     rows: list[dict[str, Any]] = []
     for start in sorted(starts, key=lambda row: str(row.get("key"))):
@@ -1772,8 +1782,18 @@ def _collect_impact_paths(builder: GraphBuilder) -> list[dict[str, Any]]:
             seen.add(state)
             current_node = builder.nodes.get(current, {})
             if current_node.get("type") == "Evidence" and len(nodes) > 1:
+                start_attrs = (
+                    start.get("attributes")
+                    if isinstance(start.get("attributes"), dict)
+                    else {}
+                )
                 rows.append({
                     "origin_file": str(start.get("key")),
+                    "origin_kind": (
+                        "CHANGED"
+                        if start_attrs.get("changed")
+                        else "DEPENDENCY_IMPACT"
+                    ),
                     "node_ids": nodes,
                     "relations": relations,
                     "terminal_evidence": str(current_node.get("label")),
@@ -2067,9 +2087,26 @@ def query_graph(graph: dict[str, Any], query: str, subject: str = "") -> dict[st
         }
     if query == "stale-evidence":
         freshness = (graph.get("insights") or {}).get("freshness", {})
+        results = []
+        for row in by_id.values():
+            if row.get("type") != "Evidence":
+                continue
+            attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
+            if _safe(attrs.get("freshness")).upper() not in {
+                "STALE", "HISTORICAL", "INVALIDATED"
+            }:
+                continue
+            results.append(row)
+        results.sort(
+            key=lambda row: (
+                _safe((row.get("attributes") or {}).get("freshness")),
+                _safe(row.get("label")),
+                _safe(row.get("id")),
+            )
+        )
         return {
             "query": query,
-            "results": freshness.get("invalidated", []) if isinstance(freshness, dict) else [],
+            "results": results,
             "summary": freshness if isinstance(freshness, dict) else {},
         }
     if query == "lifecycle":
