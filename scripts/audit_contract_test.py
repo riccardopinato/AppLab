@@ -186,6 +186,7 @@ def check_residual_hardening_contract() -> None:
 def check_evidence_graph_contract() -> None:
     graph = (ROOT / "scripts/evidence_graph.py").read_text(encoding="utf-8")
     studio = (ROOT / "scripts/studio_snapshot.py").read_text(encoding="utf-8")
+    studio_graph = (ROOT / "scripts/studio_evidence_graph.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github/workflows/autonomous-app-review-v31.yml").read_text(
         encoding="utf-8"
     )
