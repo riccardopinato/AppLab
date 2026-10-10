@@ -57,6 +57,11 @@ on:
         required: false
         default: true
         type: boolean
+      physical_evidence_run_id:
+        description: Optional trusted AppLab Physical Evidence Hub run id
+        required: false
+        default: ""
+        type: string
   workflow_call:
     inputs:
       repository:
@@ -119,6 +124,10 @@ on:
         required: false
         default: true
         type: boolean
+      physical_evidence_run_id:
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -223,12 +232,12 @@ jobs:
       maestro_flow: ${{ fromJSON(needs.discover.outputs.profile).maestro_flow }}
       history_key: ${{ inputs.history_key }}
       cache_verification: ${{ inputs.cache_verification }}
-      contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint != '' && inputs.config_fingerprint != 'manual' && inputs.config_fingerprint || needs.discover.outputs.profile_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
+      physical_evidence_run_id: ${{ inputs.physical_evidence_run_id }}
 
   verify_native:
     name: Auto native Android verification
@@ -257,7 +266,7 @@ jobs:
       maestro_flow: ${{ fromJSON(needs.discover.outputs.profile).maestro_flow }}
       history_key: ${{ inputs.history_key }}
       cache_verification: ${{ inputs.cache_verification }}
-      contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint != '' && inputs.config_fingerprint != 'manual' && inputs.config_fingerprint || needs.discover.outputs.profile_fingerprint }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
+      physical_evidence_run_id: ${{ inputs.physical_evidence_run_id }}

@@ -92,11 +92,6 @@ on:
         required: false
         default: false
         type: boolean
-      contract_fingerprint:
-        description: Automatic AppLab verification contract fingerprint
-        required: false
-        default: "manual"
-        type: string
       approve_visual_baseline:
         description: Explicitly accept a visual WARN as the new baseline
         required: false
@@ -122,6 +117,11 @@ on:
         required: false
         default: true
         type: boolean
+      physical_evidence_run_id:
+        description: Optional trusted AppLab Physical Evidence Hub run id
+        required: false
+        default: ""
+        type: string
   workflow_call:
     inputs:
       repository:
@@ -218,11 +218,6 @@ on:
         required: false
         default: false
         type: boolean
-      contract_fingerprint:
-        description: Automatic AppLab verification contract fingerprint
-        required: false
-        default: "manual"
-        type: string
       approve_visual_baseline:
         description: Explicitly accept a visual WARN as the new baseline
         required: false
@@ -248,6 +243,11 @@ on:
         required: false
         default: true
         type: boolean
+      physical_evidence_run_id:
+        description: Optional trusted AppLab Physical Evidence Hub run id
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -795,6 +795,7 @@ jobs:
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
+      physical_evidence_run_id: ${{ inputs.physical_evidence_run_id }}
       run_maestro: ${{ inputs.run_maestro }}
       android_prepare_command: ${{ inputs.android_prepare_command }}
       api_level: ${{ inputs.api_level }}

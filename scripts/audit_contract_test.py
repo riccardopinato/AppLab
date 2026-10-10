@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "4.4.0"
+EXPECTED_VERSION = "4.5.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -358,6 +358,88 @@ def check_release_reality_contract() -> None:
     )
 
 
+def check_physical_evidence_contract() -> None:
+    physical = (ROOT / "scripts/physical_evidence.py").read_text(encoding="utf-8")
+    hub = (ROOT / ".github/workflows/physical-evidence-hub.yml").read_text(
+        encoding="utf-8"
+    )
+    trusted = (ROOT / ".github/workflows/trusted-apk-verifier.yml").read_text(
+        encoding="utf-8"
+    )
+    certification = (ROOT / "scripts/certification_gate.py").read_text(
+        encoding="utf-8"
+    )
+    reality = (ROOT / "scripts/release_reality.py").read_text(encoding="utf-8")
+    universal = (ROOT / ".github/workflows/universal-project-runner.yml").read_text(
+        encoding="utf-8"
+    )
+    contract = (ROOT / "scripts/contract_fingerprint.py").read_text(encoding="utf-8")
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    require(
+        'AUTHORITY = "APPLAB_PHYSICAL_EVIDENCE_HUB"' in physical
+        and 'WORKFLOW_PATH = ".github/workflows/physical-evidence-hub.yml"' in physical
+        and "verify_hub_run" in physical
+        and 'head_branch != "main"' in physical,
+        "physical evidence must originate from the trusted AppLab main workflow",
+    )
+    require(
+        "exact_artifact_match" in physical
+        and '"artifact_sha256": (' in physical
+        and "Physical evidence exact APK bytes do not match build contract" in physical
+        and "Physical evidence hub run attempt binding mismatch" in physical
+        and 'artifact_name": f"applab-physical-evidence-{run_id}-{run_attempt}"' in physical
+        and "record digest mismatch" in physical,
+        "physical evidence must be byte-bound, rerun-bound and tamper-evident",
+    )
+    require(
+        "operator_attested_hashes" in physical
+        and "reference_bytes_verified_by_hub" in physical
+        and "evidence_reference_bytes_verified" in physical,
+        "physical evidence must disclose reference-byte verification limits",
+    )
+    require(
+        "Require trusted main" in hub
+        and "refs/heads/main" in hub
+        and "applab-physical-evidence-" in hub
+        and "github.run_attempt" in hub,
+        "Physical Evidence Hub workflow must only attest from main and publish a rerun-safe artifact",
+    )
+    require(
+        "Verify physical evidence hub run provenance" in trusted
+        and "Download trusted physical evidence attestation" in trusted
+        and "Bind physical evidence to exact APK" in trusted
+        and "physical_evidence_run_id" in trusted
+        and "--expected-hub-run-attempt" in trusted
+        and "if: always() && steps.verify.outcome == 'success'" in trusted,
+        "Trusted APK Verifier must independently retrieve physical evidence, bind the exact rerun attempt and preserve negative evidence manifests",
+    )
+    require(
+        "physical_evidence=physical_evidence" in certification
+        and '"real_device": {' in certification
+        and '"record_id": physical_record_id' in certification,
+        "certification must consume bound physical-device evidence",
+    )
+    require(
+        "physical_evidence_summary" in reality
+        and '"physical_evidence": {' in reality
+        and '"required_capabilities": sorted(required_physical_capabilities)' in reality,
+        "Release Reality must surface trusted physical evidence",
+    )
+    require(
+        "physical_evidence_run_id" in universal,
+        "Universal Runner must expose the physical evidence run id",
+    )
+    require(
+        '"scripts/physical_evidence.py"' in contract,
+        "Physical Evidence Hub must participate in verification fingerprints",
+    )
+    require(
+        "python scripts/physical_evidence.py --self-test" in ci,
+        "CI must gate Physical Evidence Hub self-test",
+    )
+
+
 def check_execution_acceleration_contract() -> None:
     fixture = (ROOT / ".github/workflows/runtime-fixture-build.yml").read_text(
         encoding="utf-8"
@@ -535,6 +617,7 @@ def main() -> int:
     check_evidence_graph_contract()
     check_project_adapter_contract()
     check_release_reality_contract()
+    check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
     return 0

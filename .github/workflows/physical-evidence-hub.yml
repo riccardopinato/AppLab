@@ -1,0 +1,188 @@
+name: Physical Evidence Hub
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Target repository in owner/name format
+        required: true
+        type: string
+      resolved_sha:
+        description: Exact target source SHA tested on the physical device
+        required: true
+        type: string
+      artifact_sha256:
+        description: Exact tested APK SHA-256
+        required: true
+        type: string
+      package_id:
+        description: Android package id
+        required: true
+        type: string
+      version_name:
+        description: App version name
+        required: true
+        type: string
+      version_code:
+        description: App version code
+        required: true
+        type: string
+      device_manufacturer:
+        description: Physical device manufacturer
+        required: true
+        type: string
+      device_model:
+        description: Physical device model
+        required: true
+        type: string
+      os_version:
+        description: Android version
+        required: true
+        type: string
+      os_build:
+        description: Android build/fingerprint label
+        required: true
+        type: string
+      scenario_id:
+        description: Stable physical scenario id
+        required: true
+        type: string
+      scenario_title:
+        description: Human-readable physical scenario title
+        required: true
+        type: string
+      capabilities_json:
+        description: JSON array, e.g. ["gps","background"]
+        required: true
+        type: string
+      preconditions_json:
+        description: JSON string array of preconditions
+        required: false
+        default: "[]"
+        type: string
+      steps_json:
+        description: JSON array of {action,expected,observed}
+        required: true
+        type: string
+      expected_result:
+        description: Expected scenario outcome
+        required: true
+        type: string
+      observed_result:
+        description: Observed physical-device outcome
+        required: true
+        type: string
+      result:
+        description: Physical scenario verdict
+        required: true
+        type: choice
+        options:
+          - PASS
+          - FAIL
+          - BLOCKED
+      evidence_refs_json:
+        description: JSON array of hashed screenshot/log/video/file references
+        required: true
+        type: string
+      captured_at:
+        description: Optional ISO-8601 capture time; empty uses workflow time
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: applab-physical-evidence-${{ inputs.repository }}-${{ inputs.resolved_sha }}-${{ inputs.scenario_id }}
+  cancel-in-progress: false
+
+jobs:
+  attest:
+    name: Attest physical-device evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Require trusted main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Physical evidence attestation is trusted only from AppLab main." >&2
+            exit 1
+          fi
+
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Create physical evidence record
+        shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+          TARGET_SHA: ${{ inputs.resolved_sha }}
+          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+          PACKAGE_ID: ${{ inputs.package_id }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          DEVICE_MANUFACTURER: ${{ inputs.device_manufacturer }}
+          DEVICE_MODEL: ${{ inputs.device_model }}
+          OS_VERSION: ${{ inputs.os_version }}
+          OS_BUILD: ${{ inputs.os_build }}
+          SCENARIO_ID: ${{ inputs.scenario_id }}
+          SCENARIO_TITLE: ${{ inputs.scenario_title }}
+          CAPABILITIES_JSON: ${{ inputs.capabilities_json }}
+          PRECONDITIONS_JSON: ${{ inputs.preconditions_json }}
+          STEPS_JSON: ${{ inputs.steps_json }}
+          EXPECTED_RESULT: ${{ inputs.expected_result }}
+          OBSERVED_RESULT: ${{ inputs.observed_result }}
+          PHYSICAL_RESULT: ${{ inputs.result }}
+          EVIDENCE_REFS_JSON: ${{ inputs.evidence_refs_json }}
+          CAPTURED_AT: ${{ inputs.captured_at }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p physical-evidence
+          python scripts/physical_evidence.py create \
+            --repository "$TARGET_REPOSITORY" \
+            --resolved-sha "$TARGET_SHA" \
+            --artifact-sha256 "$ARTIFACT_SHA256" \
+            --package-id "$PACKAGE_ID" \
+            --version-name "$VERSION_NAME" \
+            --version-code "$VERSION_CODE" \
+            --device-manufacturer "$DEVICE_MANUFACTURER" \
+            --device-model "$DEVICE_MODEL" \
+            --os-name "Android" \
+            --os-version "$OS_VERSION" \
+            --os-build "$OS_BUILD" \
+            --scenario-id "$SCENARIO_ID" \
+            --scenario-title "$SCENARIO_TITLE" \
+            --capabilities-json "$CAPABILITIES_JSON" \
+            --preconditions-json "$PRECONDITIONS_JSON" \
+            --steps-json "$STEPS_JSON" \
+            --expected-result "$EXPECTED_RESULT" \
+            --observed-result "$OBSERVED_RESULT" \
+            --result "$PHYSICAL_RESULT" \
+            --evidence-refs-json "$EVIDENCE_REFS_JSON" \
+            --captured-at "$CAPTURED_AT" \
+            --workflow-repository "$GITHUB_REPOSITORY" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --workflow-run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --trusted-applab-sha "$GITHUB_SHA" \
+            --actor "$GITHUB_ACTOR" \
+            --output physical-evidence/physical-session.json \
+            --summary physical-evidence/physical-session.md
+
+      - name: Publish physical evidence summary
+        shell: bash
+        run: cat physical-evidence/physical-session.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload physical evidence attestation
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-physical-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: physical-evidence/
+          if-no-files-found: error
+          retention-days: 90

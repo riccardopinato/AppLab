@@ -100,11 +100,6 @@ on:
         required: false
         default: false
         type: boolean
-      contract_fingerprint:
-        description: Automatic AppLab verification contract fingerprint
-        required: false
-        default: "manual"
-        type: string
       config_fingerprint:
         description: Fingerprint of this target's watcher/build configuration
         required: false
@@ -117,6 +112,11 @@ on:
         type: string
       baseline_sha:
         description: Last verified SHA used for FAST changed-file planning
+        required: false
+        default: ""
+        type: string
+      physical_evidence_run_id:
+        description: Optional trusted AppLab Physical Evidence Hub run id
         required: false
         default: ""
         type: string
@@ -204,10 +204,6 @@ on:
         required: false
         default: false
         type: boolean
-      contract_fingerprint:
-        required: false
-        default: "manual"
-        type: string
       config_fingerprint:
         required: false
         default: "manual"
@@ -217,6 +213,10 @@ on:
         default: full
         type: string
       baseline_sha:
+        required: false
+        default: ""
+        type: string
+      physical_evidence_run_id:
         required: false
         default: ""
         type: string
@@ -788,6 +788,7 @@ jobs:
       approve_visual_baseline: false
       analysis_mode: ${{ inputs.analysis_mode }}
       publish_release_artifact: false
+      physical_evidence_run_id: ${{ inputs.physical_evidence_run_id }}
       run_maestro: ${{ inputs.run_maestro }}
       android_prepare_command: ${{ inputs.android_prepare_command }}
       api_level: ${{ inputs.api_level }}

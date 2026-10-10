@@ -87,6 +87,5 @@ jobs:
       maestro_flow: ${{ inputs.maestro_flow }}
       history_key: reusable-flutter
       cache_verification: false
-      contract_fingerprint: reusable-v063
       start_timeout: ${{ inputs.start_timeout }}
       settle_seconds: ${{ inputs.settle_seconds }}

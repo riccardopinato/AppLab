@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v4.4.0
+name: AppLab True Autonomous App Review v4.5.0
 
 on:
   schedule:
@@ -79,7 +79,7 @@ jobs:
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/applab-changed-files.txt"
-          if grep -Eq '(^\.github/workflows/(autonomous-app-review-v31|trusted-apk-verifier|universal-project-runner)\.yml$|^scripts/(trusted_evidence_manifest|project_autodiscover|autonomous_app_review|behavioral_product_lab|state_edge_case_lab|evidence_calibration|evidence_confidence_engine|journey_crawler|user_journey_intelligence|ux_friction_lab|longitudinal_product_intelligence|autonomous_experiment_planner|applab_analyst|evidence_graph|release_reality|product_contract_audit|decision_brief)\.py$|^scripts/verify_apk\.sh$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
+          if grep -Eq '(^\.github/workflows/(autonomous-app-review-v31|trusted-apk-verifier|universal-project-runner)\.yml$|^scripts/(trusted_evidence_manifest|project_autodiscover|autonomous_app_review|behavioral_product_lab|state_edge_case_lab|evidence_calibration|evidence_confidence_engine|journey_crawler|user_journey_intelligence|ux_friction_lab|longitudinal_product_intelligence|autonomous_experiment_planner|applab_analyst|evidence_graph|release_reality|physical_evidence|product_contract_audit|decision_brief)\.py$|^scripts/verify_apk\.sh$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -304,7 +304,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v4.4.0"
+            echo "## AppLab True Autonomous App Review v4.5.0"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
@@ -330,6 +330,8 @@ jobs:
           cp "$GITHUB_WORKSPACE/trusted-runtime/trusted-evidence-manifest.json" "$PROJECT_DIR/"
           cp "$GITHUB_WORKSPACE/trusted-runtime/result.json" "$PROJECT_DIR/trusted-runtime-result.json"
           cp "$GITHUB_WORKSPACE/trusted-runtime/release-reality.json" "$PROJECT_DIR/"
+          cp "$GITHUB_WORKSPACE/trusted-runtime/physical-evidence.json" "$PROJECT_DIR/" 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/trusted-runtime/physical-evidence.md" "$PROJECT_DIR/" 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/trusted-runtime-validation.json" "$PROJECT_DIR/"
 
       - name: Build Studio snapshot

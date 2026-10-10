@@ -69,6 +69,11 @@ on:
         required: false
         default: true
         type: boolean
+      physical_evidence_run_id:
+        description: Optional trusted AppLab Physical Evidence Hub workflow run id
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -157,6 +162,46 @@ jobs:
              "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/.applab-build/execution-plan.json" \
              "$GITHUB_WORKSPACE/applab-report/execution-plan.json" 2>/dev/null || true
+
+      - name: Verify physical evidence hub run provenance
+        id: physical_run
+        if: inputs.physical_evidence_run_id != ''
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/physical_evidence.py verify-run \
+            --repository "${{ job.workflow_repository }}" \
+            --run-id "${{ inputs.physical_evidence_run_id }}"
+
+      - name: Download trusted physical evidence attestation
+        if: inputs.physical_evidence_run_id != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: ${{ steps.physical_run.outputs.artifact_name }}
+          path: .applab-physical
+          github-token: ${{ github.token }}
+          repository: ${{ job.workflow_repository }}
+          run-id: ${{ inputs.physical_evidence_run_id }}
+
+      - name: Bind physical evidence to exact APK
+        if: inputs.physical_evidence_run_id != ''
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/physical_evidence.py validate \
+            --record "$GITHUB_WORKSPACE/.applab-physical/physical-session.json" \
+            --contract "$GITHUB_WORKSPACE/.applab-build/contract.json" \
+            --artifact "$GITHUB_WORKSPACE/.applab-build/app.apk" \
+            --expected-hub-repository "${{ job.workflow_repository }}" \
+            --expected-hub-run-id "${{ inputs.physical_evidence_run_id }}" \
+            --expected-hub-run-attempt "${{ steps.physical_run.outputs.run_attempt }}" \
+            --expected-hub-head-sha "${{ steps.physical_run.outputs.head_sha }}" \
+            --verifier-run-id "$GITHUB_RUN_ID" \
+            --verifier-trusted-applab-sha "${{ job.workflow_sha }}" \
+            --output "$GITHUB_WORKSPACE/applab-report/physical-evidence.json" \
+            --summary "$GITHUB_WORKSPACE/applab-report/physical-evidence.md"
 
       - name: Cache pinned Maestro
         id: maestro_cache
@@ -542,7 +587,7 @@ jobs:
           PY
 
       - name: Bind trusted runtime evidence
-        if: steps.verify.outcome == 'success'
+        if: always() && steps.verify.outcome == 'success'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -594,7 +639,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v4.4.0 Trusted APK Verification"
+            echo "## AppLab v4.5.0 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"
@@ -616,6 +661,10 @@ jobs:
               if [[ -f "$GITHUB_WORKSPACE/applab-report/release-reality.md" ]]; then
                 echo
                 cat "$GITHUB_WORKSPACE/applab-report/release-reality.md"
+              fi
+              if [[ -f "$GITHUB_WORKSPACE/applab-report/physical-evidence.md" ]]; then
+                echo
+                cat "$GITHUB_WORKSPACE/applab-report/physical-evidence.md"
               fi
             else
               echo "Trusted verification ended before a runtime report was produced."

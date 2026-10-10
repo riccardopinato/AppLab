@@ -10,6 +10,7 @@ CONTRACT_FILES = (
     "scripts/certification_gate.py",
     "scripts/finalize_external_result.py",
     "scripts/release_reality.py",
+    "scripts/physical_evidence.py",
     "scripts/finalize_certification_matrix.py",
     "scripts/run_external_android_gate.sh",
     "scripts/dismiss_foreign_anr.py",

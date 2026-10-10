@@ -27,6 +27,11 @@ on:
         required: false
         default: pixel_7_pro
         type: string
+      physical_evidence_run_id:
+        description: Optional AppLab Physical Evidence Hub run id for the exact primary release APK
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -143,6 +148,7 @@ jobs:
       api_level_override: ${{ inputs.api_level }}
       emulator_profile_override: ${{ inputs.emulator_profile }}
       publish_release_artifact: false
+      physical_evidence_run_id: ${{ inputs.physical_evidence_run_id }}
 
   compatibility:
     name: Compatibility release smoke · API ${{ needs.resolve.outputs.compatibility_api }}
