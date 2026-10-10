@@ -59,6 +59,7 @@ jobs:
             scripts/project_autodiscover.py \
             scripts/project_adapter.py \
             scripts/release_reality.py \
+            scripts/physical_evidence.py \
             scripts/contract_fingerprint.py \
             scripts/prepare_visual_baseline.py \
             scripts/package_build_contract.py \
@@ -128,6 +129,7 @@ jobs:
           python scripts/project_autodiscover.py --self-test
           python scripts/project_adapter.py --self-test
           python scripts/release_reality.py --self-test
+          python scripts/physical_evidence.py --self-test
           python scripts/prepare_visual_baseline.py --self-test
           python scripts/release_artifact.py --self-test
           python scripts/certification_gate.py --self-test
