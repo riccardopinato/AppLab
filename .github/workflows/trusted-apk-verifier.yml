@@ -516,6 +516,10 @@ jobs:
       - name: Build Release Reality record
         if: always()
         shell: bash
+        env:
+          RR_REPOSITORY: ${{ inputs.repository }}
+          RR_SHA: ${{ inputs.resolved_sha }}
+          RR_RUNTIME_OUTCOME: ${{ steps.verify.outcome }}
         run: |
           set -Eeuo pipefail
           python .applab/scripts/release_reality.py \
@@ -524,6 +528,18 @@ jobs:
             --workflow-run-id "$GITHUB_RUN_ID" \
             --trusted-applab-sha "${{ job.workflow_sha }}" \
             --runtime-outcome "${{ steps.verify.outcome }}"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          payload = json.loads(Path("applab-report/release-reality.json").read_text())
+          assert payload["source"]["repository"] == os.environ["RR_REPOSITORY"], payload
+          assert payload["source"]["resolved_sha"] == os.environ["RR_SHA"], payload
+          assert payload["workflow"]["workflow_run_id"] == os.environ["GITHUB_RUN_ID"], payload
+          states = {row["key"]: row["state"] for row in payload["levels"]}
+          if os.environ["RR_RUNTIME_OUTCOME"] == "success":
+              assert states["ARTIFACT_BUILT"] == "PASS", payload
+              assert states["TRUSTED_RUNTIME_VERIFIED"] == "PASS", payload
+          PY
 
       - name: Bind trusted runtime evidence
         if: steps.verify.outcome == 'success'
