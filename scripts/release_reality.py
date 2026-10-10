@@ -913,6 +913,21 @@ def self_test() -> None:
         states = {row["key"]: row["state"] for row in reality["levels"]}
         assert states["PHYSICAL_DEVICE_VERIFIED"] == PASS
         assert reality["physical_evidence"]["present"] is True
+
+        physical["scenario"]["capabilities"] = ["gps"]
+        (report / "physical-evidence.json").write_text(
+            json.dumps(physical), encoding="utf-8"
+        )
+        reality = build_release_reality(
+            report,
+            apk,
+            workflow_run_id="123",
+            trusted_applab_sha="c" * 40,
+            runtime_outcome="success",
+        )
+        states = {row["key"]: row["state"] for row in reality["levels"]}
+        assert states["PHYSICAL_DEVICE_VERIFIED"] == BLOCKED
+        physical["scenario"]["capabilities"] = ["gps", "background"]
         (report / "physical-evidence.json").unlink()
 
         result["runtime_result"] = "PASS"
