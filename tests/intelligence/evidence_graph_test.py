@@ -22,15 +22,15 @@ def main() -> int:
         "app": {
             "feature_truth": {
                 "capabilities": [
-                    {"capability": "offline", "truth": "CODE_CONFIRMED"},
-                    {"capability": "cloud_backup", "truth": "DOC_ONLY_SIGNAL"},
-                    {"capability": "settings", "truth": "CODE_CONFIRMED"},
+                    {"capability": "offline", "truth": "CODE_CONFIRMED", "provenance": {"CODE": ["lib/store.dart"]}},
+                    {"capability": "cloud_backup", "truth": "DOC_ONLY_SIGNAL", "provenance": {"DOCUMENTATION": ["README.md"]}},
+                    {"capability": "settings", "truth": "CODE_CONFIRMED", "provenance": {"CODE": ["ui/settings.dart"]}},
                 ]
             },
             "product_flow_graph": {
                 "nodes": [
-                    {"id": "home", "roles": ["home", "entry"]},
-                    {"id": "settings", "roles": ["settings"]}
+                    {"id": "home", "path": "ui/home.dart", "roles": ["home", "entry"]},
+                    {"id": "settings", "path": "ui/settings.dart", "roles": ["settings"]}
                 ]
             },
             "product_consistency": {
@@ -175,6 +175,37 @@ def main() -> int:
             },
             "summary": {"history_snapshots": 3, "regression_candidates": 1},
             "findings": {
+                "new": [],
+                "returned": [
+                    {
+                        "key": "user_journey|id:persist-gap-journey",
+                        "source": "user_journey",
+                        "id": "persist-gap-journey",
+                        "kind": "PERSISTENCE_GAP",
+                        "subject": "draft",
+                    }
+                ],
+                "persistent": [
+                    {
+                        "key": "product_consistency|id:persist-gap",
+                        "source": "product_consistency",
+                        "id": "persist-gap",
+                        "kind": "PERSISTENCE_GAP",
+                        "subject": "draft",
+                    }
+                ],
+                "resolved": [
+                    {
+                        "key": "product_consistency|id:legacy-gap",
+                        "source": "product_consistency",
+                        "id": "legacy-gap",
+                        "kind": "LEGACY_GAP",
+                        "subject": "legacy",
+                        "severity": "REVIEW",
+                        "evidence": ["lib/legacy.dart"],
+                    }
+                ],
+                "suppressed_resolved": [],
                 "history": [
                     {
                         "key": "product_consistency|id:persist-gap",
@@ -286,6 +317,17 @@ def main() -> int:
                 },
             }
         },
+        "analysis_plan": {
+            "schema_version": 1,
+            "mode": "fast",
+            "lane": "FAST_RUNTIME",
+            "changed_files": ["ui/settings.dart", "lib/legacy.dart"],
+            "changes": [
+                {"path": "ui/settings.dart", "status": "M"},
+                {"path": "lib/legacy.dart", "status": "M"},
+            ],
+            "impacted_files": ["lib/store.dart"],
+        },
     }
 
     payload = graph.build_graph(inputs)
@@ -299,17 +341,50 @@ def main() -> int:
     require(payload["summary"]["nodes_by_type"]["Capability"] == 3, "capability nodes missing")
     require(payload["summary"]["nodes_by_type"]["Surface"] == 2, "surface nodes missing")
     require(payload["summary"]["nodes_by_type"]["Journey"] == 2, "state-distinct journeys collapsed")
-    require(payload["summary"]["nodes_by_type"]["Finding"] == 7, "canonical finding identity mismatch")
+    require(payload["summary"]["nodes_by_type"]["Finding"] == 8, "canonical finding identity mismatch")
     require(payload["summary"]["nodes_by_type"]["Claim"] == 6, "claim nodes missing")
     require(payload["summary"]["nodes_by_type"]["Experiment"] == 1, "experiment node missing")
     require(payload["summary"]["nodes_by_type"]["Result"] == 3, "trusted runtime result missing")
     require(payload["summary"]["recurring_findings"] == 5, "recurrence not imported")
     require(payload["summary"]["unverified_capabilities"] == 1, "unverified capability not surfaced")
 
+    require(payload["summary"]["finding_lifecycle"].get("RETURNED") == 1, "returned lifecycle missing")
+    require(payload["summary"]["finding_lifecycle"].get("RESOLVED") == 1, "resolved lifecycle missing")
+    require(payload["summary"]["invalidated_evidence"] == 1, "historical changed evidence was not invalidated")
+    require(payload["summary"]["impact_paths"] >= 1, "impact path was not generated")
+
     history = graph.query_graph(payload, "history", "draft")
     require(len(history["results"]) == 3, "canonical same-subject findings collapsed")
     require(all(row["first_observed_sha"] == sha_old for row in history["results"]), "first observed SHA mismatch")
     require(all("not proof" in row["caveat"] for row in history["results"]), "causal caveat missing")
+
+    legacy_history = graph.query_graph(payload, "history", "legacy")
+    require(
+        len(legacy_history["results"]) == 1
+        and legacy_history["results"][0]["lifecycle_state"] == "RESOLVED",
+        "resolved finding history missing",
+    )
+    stale = graph.query_graph(payload, "stale-evidence")
+    require(
+        len(stale["results"]) == 1
+        and stale["results"][0]["label"] == "lib/legacy.dart",
+        "selective stale-evidence invalidation mismatch",
+    )
+    impact = graph.query_graph(payload, "impact")["results"]
+    impact_relations = {
+        relation
+        for row in impact.get("paths", [])
+        for relation in row.get("relations", [])
+    }
+    require(
+        {
+            "FILE_IN_COMPONENT",
+            "COMPONENT_SUPPORTS_CAPABILITY",
+            "CAPABILITY_OBSERVED_ON_SURFACE",
+            "SURFACE_IN_JOURNEY",
+        }.issubset(impact_relations),
+        "full file-to-journey impact chain missing",
+    )
 
     surface_nodes = {
         row["key"]: row
