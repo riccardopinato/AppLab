@@ -370,6 +370,21 @@ def main() -> int:
         and stale["results"][0]["label"] == "lib/legacy.dart",
         "selective stale-evidence invalidation mismatch",
     )
+    current_settings_evidence = [
+        row for row in nodes
+        if row.get("type") == "Evidence"
+        and row.get("label") == "ui/settings.dart"
+        and (row.get("attributes") or {}).get("observation_scope") == "CURRENT"
+    ]
+    require(current_settings_evidence, "current changed-file evidence missing")
+    require(
+        all(
+            (row.get("attributes") or {}).get("freshness") == "CURRENT"
+            and not (row.get("attributes") or {}).get("invalidated_by_files")
+            for row in current_settings_evidence
+        ),
+        "current changed-file evidence was incorrectly invalidated",
+    )
     impact = graph.query_graph(payload, "impact")["results"]
     impact_relations = {
         relation
