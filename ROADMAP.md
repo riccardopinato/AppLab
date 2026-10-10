@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v4.6.0 — Evidence Graph 2**
+Current production baseline: **v4.7.0 — Certification Studio / Release Cockpit**
 
 ## Product rule
 
@@ -19,6 +19,17 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v4.7.0 — Certification Studio / Release Cockpit
+
+- [x] Show current Release Reality level per project/release.
+- [x] Show exact certification blockers and missing evidence.
+- [x] Show artifact identity, source SHA, runtime state, evidence freshness and physical requirements.
+- [x] Add "Why is this not CERTIFIED?" evidence-driven drill-down.
+- [x] Surface regression candidates, recurring findings and stale evidence without opaque scoring.
+- [x] Keep Studio read-only for trust-sensitive evidence.
+- [x] Add deterministic preview fixture that cannot masquerade as trusted evidence.
+- [x] Add implementation self-test, Studio integration, frontend build and CI/version gates.
 
 ### v4.6.0 — Evidence Graph 2: Impact, Freshness & Temporal Intelligence
 
@@ -580,18 +591,6 @@ Planned:
 - [ ] Use prior graph impact to refine risk-based FAST/FULL selection only when lineage, source SHA and evidence freshness are compatible.
 - [ ] Fall back to the existing conservative Smart Test Plan whenever graph evidence is missing, stale, ambiguous or truncated.
 - [ ] Keep current-run Evidence Graph unable to retroactively change the lane that produced it.
-
-### v4.7 — Certification Studio / Release Cockpit
-
-Goal: make the real state of each app understandable at a glance.
-
-Planned:
-- [ ] Show current Release Reality level per project/release.
-- [ ] Show exact certification blockers and missing evidence.
-- [ ] Show artifact identity, source SHA, runtime state, evidence freshness and physical requirements.
-- [ ] Add "Why is this not CERTIFIED?" drill-down.
-- [ ] Surface regression candidates, recurring findings and stale evidence without opaque scoring.
-- [ ] Keep Studio read-only for trust-sensitive evidence unless an explicit trusted action path exists.
 
 ### v4.8 — Cross-App Verification
 
