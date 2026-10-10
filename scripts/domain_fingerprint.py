@@ -106,6 +106,7 @@ def self_test(root: Path) -> None:
     required_core = {
         "scripts/certification_gate.py",
         "scripts/release_reality.py",
+        "scripts/physical_evidence.py",
         "scripts/install_maestro.sh",
         "scripts/project_autodiscover.py",
         "scripts/project_adapter.py",
