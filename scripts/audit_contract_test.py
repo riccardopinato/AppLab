@@ -748,6 +748,7 @@ def check_cross_app_verification_contract() -> None:
         'EVIDENCE_URI_PREFIXES',
         'kind in {"deep_link","android_intent"}',
         'producer and consumer cannot use identical APK bytes',
+        'producer and consumer must use distinct Android package ids',
         'semantic contract lineage mismatch',
         'paired physical evidence requires at least one hashed evidence reference',
         'if result!=FAIL: result=BLOCKED',
