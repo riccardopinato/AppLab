@@ -509,6 +509,7 @@ def self_test() -> None:
         assert (out / "target-evidence/.maestro/smoke.yaml").is_file()
         assert (out / "target-evidence/applab.project.json").is_file()
         assert contract["certification_policy"]["requires_real_device"] is True
+        assert contract["certification_policy"]["required_physical_capabilities"] == ["gps"]
         assert (out / "analysis-plan.json").is_file()
 
         outside = Path(raw) / "outside"
