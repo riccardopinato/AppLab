@@ -8,10 +8,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import certification_studio
 import studio_evidence_graph
 
 SCHEMA_VERSION = 1
-STUDIO_VERSION = "4.6.0"
+STUDIO_VERSION = "4.7.0"
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -60,13 +61,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     experiment = read_json(project_dir / "experiment-plan.json")
     analyst = read_json(project_dir / "analyst-report.json")
     evidence_graph = read_json(project_dir / "evidence-graph.json")
+    release_reality = read_json(project_dir / "release-reality.json")
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, evidence_graph, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, evidence_graph, release_reality, contract, brief, autonomous)
     ):
         return None
 
@@ -85,6 +87,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "experiment_plan": None,
         "analyst": None,
         "evidence_graph": None,
+        "release_cockpit": None,
         "autonomous_review": None,
     }
 
@@ -452,6 +455,13 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     if evidence_graph:
         row["evidence_graph"] = studio_evidence_graph.project_summary(evidence_graph)
 
+    if release_reality:
+        row["release_cockpit"] = certification_studio.project_summary(
+            release_reality,
+            evidence_graph=evidence_graph,
+            longitudinal=longitudinal,
+        )
+
     if user_journey:
         journey_summary = (
             user_journey.get("summary")
@@ -730,6 +740,32 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
             ),
             "with_evidence_graph": sum(
                 1 for row in projects if row.get("evidence_graph") is not None
+            ),
+            "with_release_reality": sum(
+                1 for row in projects if row.get("release_cockpit") is not None
+            ),
+            "certified_releases": sum(
+                1
+                for row in projects
+                if isinstance(row.get("release_cockpit"), dict)
+                and bool(row["release_cockpit"].get("certified", False))
+            ),
+            "certification_blocked": sum(
+                1
+                for row in projects
+                if isinstance(row.get("release_cockpit"), dict)
+                and row["release_cockpit"].get("certification_status") == "BLOCKED"
+            ),
+            "physical_required": sum(
+                1
+                for row in projects
+                if isinstance(row.get("release_cockpit"), dict)
+                and bool((row["release_cockpit"].get("physical") or {}).get("required", False))
+            ),
+            "stale_release_evidence": sum(
+                int(((row.get("release_cockpit") or {}).get("freshness") or {}).get("stale_or_historical_evidence", 0) or 0)
+                for row in projects
+                if isinstance(row.get("release_cockpit"), dict)
             ),
             "evidence_graph_nodes": sum(
                 int((row.get("evidence_graph") or {}).get("nodes", 0) or 0)
