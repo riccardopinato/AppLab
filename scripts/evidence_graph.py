@@ -2511,8 +2511,13 @@ def self_test() -> None:
     lifecycle_query = query_graph(graph, "lifecycle")
     assert lifecycle_query["results"]["RETURNED"] == 1
     stale_query = query_graph(graph, "stale-evidence")
-    assert len(stale_query["results"]) == 1
-    assert stale_query["results"][0]["label"] == "lib/legacy.dart"
+    stale_by_label = {
+        row["label"]: (row.get("attributes") or {}).get("freshness")
+        for row in stale_query["results"]
+    }
+    assert stale_by_label["lib/legacy.dart"] == "INVALIDATED"
+    assert stale_by_label["docs/old.md"] == "STALE"
+    assert stale_query["summary"]["invalidated_count"] == 1
     current_auth = [
         row for row in graph["nodes"]
         if row.get("type") == "Evidence"
