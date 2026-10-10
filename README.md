@@ -1,3 +1,27 @@
+## v4.7.0 — Certification Studio / Release Cockpit
+
+AppLab Studio now exposes the **real release state of the exact artifact** without
+creating another certification authority.
+
+- **Release Reality at a glance:** current contiguous release level and
+  certification state are visible per project/release.
+- **Why is this not CERTIFIED?:** the Cockpit shows exact certification blockers,
+  the next unresolved gate and missing evidence instead of a synthetic score.
+- **Identity visible:** source SHA, package/version, APK SHA-256, signing state and
+  exact-byte verification remain explicit.
+- **Runtime vs physical:** trusted runtime state and physical-device requirements
+  stay separate; emulator PASS cannot become physical PASS.
+- **Evidence freshness:** stale/historical and selectively invalidated evidence
+  from Evidence Graph 2 is surfaced directly.
+- **Regression context:** recurring findings and longitudinal regression
+  candidates are shown without changing technical PASS/FAIL.
+- **Read-only trust boundary:** Studio projects trusted evidence but does not
+  mutate, promote or self-certify it.
+- **Safe Web Preview:** the static fixture is deliberately BLOCKED/PREVIEW_ONLY
+  so UI verification cannot be mistaken for trusted certification evidence.
+
+See `integration/certification/CERTIFICATION_STUDIO_V47.md`.
+
 ## v4.6.0 — Evidence Graph 2
 
 AppLab now understands not only **what evidence exists**, but also **when it was
