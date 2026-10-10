@@ -1,3 +1,30 @@
+## v4.5.0 — Physical Evidence Hub
+
+AppLab can now consume **real-device validation** without confusing it with
+emulator/runtime evidence.
+
+- Trusted physical sessions are emitted only by the AppLab Physical Evidence Hub
+  workflow running from `main`.
+- Every session is bound to repository, immutable source SHA, package,
+  version/build and exact APK SHA-256.
+- Device manufacturer/model, Android version/build, scenario, preconditions,
+  steps, expected/observed outcome and hashed screenshot/log/video/report
+  references are recorded.
+- Physical evidence is retrieved by AppLab workflow run ID; a target repository
+  cannot self-declare trusted physical PASS.
+- Required physical capabilities are preserved in the build/certification
+  policy, and a PASS must cover all required capabilities.
+- Physical FAIL becomes a real certification failure; missing required evidence
+  remains BLOCKED.
+- Release Reality can now promote `PHYSICAL_DEVICE_VERIFIED` only from trusted,
+  exact-artifact evidence.
+- External evidence-reference hashes are operator-attested in v4.5; AppLab does
+  not falsely claim it re-downloaded and re-hashed arbitrary external media.
+- No device farm is introduced yet: v4.5 is designed first for real devices
+  already available to the App Factory.
+
+See `integration/certification/PHYSICAL_EVIDENCE_HUB_V45.md`.
+
 ## v4.4.0 — Release Reality Engine
 
 AppLab now records how far the **exact APK bytes** have really progressed through
