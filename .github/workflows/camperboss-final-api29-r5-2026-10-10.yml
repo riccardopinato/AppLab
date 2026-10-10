@@ -1,0 +1,43 @@
+name: CamperBoss Final RC API29 Retry 2026-10-10
+
+on:
+  push:
+    branches:
+      - audit-camperboss-2026-10-07
+    paths:
+      - ".github/workflows/camperboss-final-api29-r5-2026-10-10.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  release_api29:
+    name: CamperBoss final RC 0.2.2+18 / API 29
+    uses: ./.github/workflows/external-project-runner.yml
+    with:
+      repository: riccardopinato/CamperBoss
+      ref: 96160067803c975beb9cca89974d730f3afbd3fe
+      source_ref: fix/step16q-product-truth-remediation
+      working_directory: "."
+      flutter_channel: stable
+      flutter_version: "3.47.6"
+      java_version: "21"
+      prepare_command: ""
+      post_pub_get_command: ""
+      android_prepare_command: ""
+      api_level: "29"
+      emulator_profile: pixel_7_pro
+      apk_path: build/app/outputs/flutter-apk/app-release.apk
+      package_id: com.camperboss.camperboss
+      build_command: flutter build apk --release
+      run_maestro: true
+      maestro_flow: ".maestro/applab-release-core-final.yaml"
+      history_key: camperboss-final-rc-api29-r5-2026-10-10
+      cache_verification: false
+      contract_fingerprint: camperboss-final-rc-api29-r5-2026-10-10
+      config_fingerprint: camperboss-final-rc-api29-r5-2026-10-10
+      approve_visual_baseline: false
+      analysis_mode: full
+      baseline_sha: ""
+      publish_release_artifact: false
