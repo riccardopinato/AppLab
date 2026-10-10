@@ -185,11 +185,20 @@ def check_residual_hardening_contract() -> None:
 
 def check_evidence_graph_contract() -> None:
     graph = (ROOT / "scripts/evidence_graph.py").read_text(encoding="utf-8")
+    longitudinal = (ROOT / "scripts/longitudinal_product_intelligence.py").read_text(
+        encoding="utf-8"
+    )
     studio = (ROOT / "scripts/studio_snapshot.py").read_text(encoding="utf-8")
     studio_graph = (ROOT / "scripts/studio_evidence_graph.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github/workflows/autonomous-app-review-v31.yml").read_text(
         encoding="utf-8"
     )
+    flutter_runner = (ROOT / ".github/workflows/external-project-runner.yml").read_text(
+        encoding="utf-8"
+    )
+    native_runner = (
+        ROOT / ".github/workflows/external-native-android-runner.yml"
+    ).read_text(encoding="utf-8")
     for node_type in (
         "Project",
         "Revision",
@@ -243,9 +252,41 @@ def check_evidence_graph_contract() -> None:
         "Evidence Graph 2 must expose selective freshness invalidation",
     )
     require(
+        '"STALE", "HISTORICAL", "INVALIDATED"' in graph
+        and "results.append(row)" in graph,
+        "stale-evidence query must return every inspectable non-current evidence node",
+    )
+    require(
+        "repository_path_prevalidated" in graph
+        and "file_node = file_nodes.get(path_value)" in graph,
+        "generated report/runtime paths must not manufacture repository File nodes",
+    )
+    require(
+        'or bool(node["attributes"].get("dependency_impacted"))' in graph
+        and '"origin_kind"' in graph,
+        "dependency-impacted files must participate as explicit impact roots",
+    )
+    require(
+        '"resolved_history"' in longitudinal
+        and '"resolved_tombstones"' in longitudinal
+        and "resolved_tombstones=report" in longitudinal
+        and '"REVISION_CONFIRMS_RESOLVED_FINDING"' in graph,
+        "resolved findings must persist as longitudinal tombstones and remain queryable",
+    )
+    require(
         "Build Evidence Graph" in workflow and "evidence-graph.md" in workflow,
         "trusted review must build and publish Evidence Graph",
     )
+    require(
+        'baseline_sha: ${{ needs.resolve.outputs.base_sha }}' in workflow,
+        "Autonomous Review must provide the trusted PR base SHA to change planning",
+    )
+    for runner in (flutter_runner, native_runner):
+        require(
+            "Fetch change baseline commit" in runner
+            and "if: inputs.baseline_sha != ''" in runner,
+            "FULL/FAST runners must fetch an explicitly supplied change baseline",
+        )
     require(
         'evidence-graph.json' in studio,
         "Studio must ingest Evidence Graph summary evidence",
