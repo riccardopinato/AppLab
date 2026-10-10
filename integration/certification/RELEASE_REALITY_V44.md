@@ -43,6 +43,10 @@ The Trusted APK Verifier now writes:
 
 The JSON record contains:
 
+The engine also cross-checks repository, immutable SHA, engine, workflow run and
+trusted AppLab SHA across the sealed build contract and finalized runtime result.
+A provenance mismatch fails closed instead of producing a release-state record.
+
 - repository and immutable source SHA;
 - engine/ref;
 - package id;
