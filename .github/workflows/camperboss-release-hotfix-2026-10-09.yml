@@ -7,7 +7,7 @@ on:
     paths:
       - ".github/workflows/camperboss-release-hotfix-2026-10-09.yml"
 
-# Retry after targeting Flutter NavigationBar semantic tab nodes.
+# Final STEP 16Q release-candidate verification on the exact PR head.
 permissions:
   contents: read
   actions: read
@@ -18,8 +18,8 @@ jobs:
     uses: ./.github/workflows/external-project-runner.yml
     with:
       repository: riccardopinato/CamperBoss
-      ref: dca585edb4d057ffde5a4e623e82092683ce9b5a
-      source_ref: fix/applab-notification-icon-runtime
+      ref: 96160067803c975beb9cca89974d730f3afbd3fe
+      source_ref: fix/step16q-product-truth-remediation
       working_directory: "."
       flutter_channel: stable
       flutter_version: "3.47.6"
@@ -34,10 +34,10 @@ jobs:
       build_command: flutter build apk --release
       run_maestro: true
       maestro_flow: ".maestro/applab-release-core-final.yaml"
-      history_key: camperboss-release-hotfix-api35-r3-2026-10-09
+      history_key: camperboss-final-rc-api35-r4-2026-10-10
       cache_verification: false
-      contract_fingerprint: camperboss-release-hotfix-api35-r3-2026-10-09
-      config_fingerprint: camperboss-release-hotfix-api35-r3-2026-10-09
+      contract_fingerprint: camperboss-final-rc-api35-r4-2026-10-10
+      config_fingerprint: camperboss-final-rc-api35-r4-2026-10-10
       approve_visual_baseline: false
       analysis_mode: full
       baseline_sha: ""
@@ -48,8 +48,8 @@ jobs:
     uses: ./.github/workflows/external-project-runner.yml
     with:
       repository: riccardopinato/CamperBoss
-      ref: dca585edb4d057ffde5a4e623e82092683ce9b5a
-      source_ref: fix/applab-notification-icon-runtime
+      ref: 96160067803c975beb9cca89974d730f3afbd3fe
+      source_ref: fix/step16q-product-truth-remediation
       working_directory: "."
       flutter_channel: stable
       flutter_version: "3.47.6"
@@ -64,10 +64,10 @@ jobs:
       build_command: flutter build apk --release
       run_maestro: true
       maestro_flow: ".maestro/applab-release-core-final.yaml"
-      history_key: camperboss-release-hotfix-api29-r3-2026-10-09
+      history_key: camperboss-final-rc-api29-r4-2026-10-10
       cache_verification: false
-      contract_fingerprint: camperboss-release-hotfix-api29-r3-2026-10-09
-      config_fingerprint: camperboss-release-hotfix-api29-r3-2026-10-09
+      contract_fingerprint: camperboss-final-rc-api29-r4-2026-10-10
+      config_fingerprint: camperboss-final-rc-api29-r4-2026-10-10
       approve_visual_baseline: false
       analysis_mode: full
       baseline_sha: ""
