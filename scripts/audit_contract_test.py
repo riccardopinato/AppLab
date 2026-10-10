@@ -387,8 +387,10 @@ def check_physical_evidence_contract() -> None:
         "exact_artifact_match" in physical
         and '"artifact_sha256": (' in physical
         and "Physical evidence exact APK bytes do not match build contract" in physical
+        and "Physical evidence hub run attempt binding mismatch" in physical
+        and 'artifact_name": f"applab-physical-evidence-{run_id}-{run_attempt}"' in physical
         and "record digest mismatch" in physical,
-        "physical evidence must be byte-bound and tamper-evident",
+        "physical evidence must be byte-bound, rerun-bound and tamper-evident",
     )
     require(
         "operator_attested_hashes" in physical
@@ -399,15 +401,18 @@ def check_physical_evidence_contract() -> None:
     require(
         "Require trusted main" in hub
         and "refs/heads/main" in hub
-        and "applab-physical-evidence-" in hub,
-        "Physical Evidence Hub workflow must only attest from main and publish a run-bound artifact",
+        and "applab-physical-evidence-" in hub
+        and "github.run_attempt" in hub,
+        "Physical Evidence Hub workflow must only attest from main and publish a rerun-safe artifact",
     )
     require(
         "Verify physical evidence hub run provenance" in trusted
         and "Download trusted physical evidence attestation" in trusted
         and "Bind physical evidence to exact APK" in trusted
-        and "physical_evidence_run_id" in trusted,
-        "Trusted APK Verifier must independently retrieve and bind physical evidence",
+        and "physical_evidence_run_id" in trusted
+        and "--expected-hub-run-attempt" in trusted
+        and "if: always() && steps.verify.outcome == 'success'" in trusted,
+        "Trusted APK Verifier must independently retrieve physical evidence, bind the exact rerun attempt and preserve negative evidence manifests",
     )
     require(
         "physical_evidence=physical_evidence" in certification
