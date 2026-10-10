@@ -741,32 +741,7 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
             "with_evidence_graph": sum(
                 1 for row in projects if row.get("evidence_graph") is not None
             ),
-            "with_release_reality": sum(
-                1 for row in projects if row.get("release_cockpit") is not None
-            ),
-            "certified_releases": sum(
-                1
-                for row in projects
-                if isinstance(row.get("release_cockpit"), dict)
-                and bool(row["release_cockpit"].get("certified", False))
-            ),
-            "certification_blocked": sum(
-                1
-                for row in projects
-                if isinstance(row.get("release_cockpit"), dict)
-                and row["release_cockpit"].get("certification_status") == "BLOCKED"
-            ),
-            "physical_required": sum(
-                1
-                for row in projects
-                if isinstance(row.get("release_cockpit"), dict)
-                and bool((row["release_cockpit"].get("physical") or {}).get("required", False))
-            ),
-            "stale_release_evidence": sum(
-                int(((row.get("release_cockpit") or {}).get("freshness") or {}).get("stale_or_historical_evidence", 0) or 0)
-                for row in projects
-                if isinstance(row.get("release_cockpit"), dict)
-            ),
+            **certification_studio.portfolio_summary(projects),
             "evidence_graph_nodes": sum(
                 int((row.get("evidence_graph") or {}).get("nodes", 0) or 0)
                 for row in projects
@@ -1217,87 +1192,7 @@ def self_test() -> None:
             encoding="utf-8",
         )
         (project / "release-reality.json").write_text(
-            json.dumps(
-                {
-                    "release_id": "studio-demo-release",
-                    "source": {
-                        "repository": "owner/demo",
-                        "ref": "main",
-                        "resolved_sha": "a" * 40,
-                        "engine": "flutter",
-                    },
-                    "artifact": {
-                        "package_id": "com.example.demo",
-                        "version_name": "1.0.0",
-                        "version_code": "1",
-                        "build_variant": "release",
-                        "sha256": "b" * 64,
-                        "signing_cert_sha256": "c" * 64,
-                        "signing_identity_state": "VERIFIED",
-                        "same_bytes_verified": True,
-                    },
-                    "workflow": {
-                        "workflow_run_id": "123",
-                        "trusted_applab_sha": "d" * 40,
-                        "analysis_mode": "certification",
-                        "pipeline_status": "SUCCESS",
-                        "aggregate_result": "BLOCKED",
-                        "runtime_result": "PASS",
-                        "runtime_step_outcome": "SUCCESS",
-                    },
-                    "identity_complete": True,
-                    "current_level": "TRUSTED_RUNTIME_VERIFIED",
-                    "highest_observed_pass": "TRUSTED_RUNTIME_VERIFIED",
-                    "levels": [
-                        {
-                            "key": "TRUSTED_RUNTIME_VERIFIED",
-                            "label": "Trusted runtime verified",
-                            "state": "PASS",
-                            "reason": "Trusted runtime PASS.",
-                            "evidence": ["trusted-evidence-manifest.json"],
-                        },
-                        {
-                            "key": "PHYSICAL_DEVICE_VERIFIED",
-                            "label": "Physical device verified",
-                            "state": "BLOCKED",
-                            "reason": "Physical validation is required.",
-                            "evidence": [],
-                        },
-                    ],
-                    "next_gate": {
-                        "key": "PHYSICAL_DEVICE_VERIFIED",
-                        "label": "Physical device verified",
-                        "state": "BLOCKED",
-                        "reason": "Physical validation is required.",
-                    },
-                    "unresolved_stages": [
-                        {
-                            "key": "PHYSICAL_DEVICE_VERIFIED",
-                            "label": "Physical device verified",
-                            "state": "BLOCKED",
-                            "reason": "Physical validation is required.",
-                            "evidence": [],
-                        }
-                    ],
-                    "certification": {
-                        "attempted": True,
-                        "status": "BLOCKED",
-                        "certified": False,
-                    },
-                    "certification_blockers": [
-                        {
-                            "type": "BLOCKER",
-                            "gate": "real_device",
-                            "label": "Required physical-device evidence",
-                            "observed": "NOT_TESTED",
-                        }
-                    ],
-                    "physical_evidence": {
-                        "present": False,
-                        "required_capabilities": ["gps"],
-                    },
-                }
-            ),
+            json.dumps(certification_studio.self_test_release_reality()),
             encoding="utf-8",
         )
         (project / "audit-plan.json").write_text(
