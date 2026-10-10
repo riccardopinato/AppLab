@@ -15,6 +15,8 @@ from pathlib import Path, PurePosixPath
 ALLOWED_EVIDENCE_SUFFIXES = {".yaml", ".yml", ".json"}
 MAX_FLOW_BYTES = 1_048_576
 MAX_EVIDENCE_BYTES = 10_485_760
+MAX_ADAPTER_CONFIG_BYTES = 64 * 1024
+PROJECT_ADAPTER_CONFIGS = ("applab.project.json", ".applab/project.json")
 VALID_CHECK_STATES = {"PASS", "FAIL", "NOT_RUN", "N/A"}
 DEFAULT_CERTIFICATION_POLICY = {
     "schema_version": 1,
@@ -88,6 +90,30 @@ def detect_build_variant(build_command: str, apk: Path) -> str:
         return "debug"
     return "unknown"
 
+def project_adapter_config_path(repo_root: Path) -> Path | None:
+    found = [
+        repo_root / relative
+        for relative in PROJECT_ADAPTER_CONFIGS
+        if (repo_root / relative).exists()
+    ]
+    if len(found) > 1:
+        raise ValueError(
+            "Multiple AppLab project adapter configs found; keep only one of "
+            + ", ".join(PROJECT_ADAPTER_CONFIGS)
+        )
+    if not found:
+        return None
+    path = confined_repo_source(
+        repo_root,
+        found[0],
+        label="AppLab project adapter config",
+        require_file=True,
+    )
+    if path.stat().st_size > MAX_ADAPTER_CONFIG_BYTES:
+        raise ValueError("AppLab project adapter config exceeds 64 KiB")
+    return path
+
+
 def load_certification_policy(repo_root: Path, working: PurePosixPath) -> dict[str, Any]:
     policy = dict(DEFAULT_CERTIFICATION_POLICY)
     candidates = [repo_root / ".maestro" / "applab-certification.json"]
@@ -106,6 +132,28 @@ def load_certification_policy(repo_root: Path, working: PurePosixPath) -> dict[s
         ):
             if key in payload:
                 policy[key] = payload[key]
+
+    adapter_path = project_adapter_config_path(repo_root)
+    if adapter_path is not None:
+        payload = json.loads(adapter_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+            raise ValueError(f"Invalid AppLab project adapter config: {adapter_path}")
+        physical = payload.get("physical_validation", {})
+        if physical is None:
+            physical = {}
+        if not isinstance(physical, dict):
+            raise ValueError("physical_validation must be an object")
+        required = physical.get("required", False)
+        capabilities = physical.get("capabilities", [])
+        if not isinstance(required, bool):
+            raise ValueError("physical_validation.required must be boolean")
+        if not isinstance(capabilities, list):
+            raise ValueError("physical_validation.capabilities must be an array")
+        if required or capabilities:
+            # Target-authored adapter metadata may only make certification stricter.
+            # It can never clear a requires_real_device=true certification policy.
+            policy["requires_real_device"] = True
+
     if not isinstance(policy["requires_real_device"], bool):
         raise ValueError("requires_real_device must be boolean")
     fingerprint = str(policy["expected_signing_certificate_sha256"]).strip().lower()
@@ -131,6 +179,45 @@ def safe_relative(raw: str) -> PurePosixPath:
         raise ValueError(f"Unsafe relative path: {raw!r}")
     return path
 
+def confined_repo_source(
+    repo_root: Path,
+    source: Path,
+    *,
+    label: str,
+    require_file: bool = False,
+    require_dir: bool = False,
+    allow_missing: bool = False,
+) -> Path:
+    root = repo_root.resolve()
+    try:
+        relative = source.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"{label} is outside target repository: {source}") from exc
+
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError(f"{label} traverses a symlink: {relative.as_posix()}")
+
+    if not current.exists():
+        if allow_missing:
+            return current
+        raise ValueError(f"{label} is missing: {relative.as_posix()}")
+
+    try:
+        resolved = current.resolve(strict=True)
+        resolved.relative_to(root)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"{label} escapes target repository: {relative.as_posix()}") from exc
+
+    if require_file and not resolved.is_file():
+        raise ValueError(f"{label} must be a regular file: {relative.as_posix()}")
+    if require_dir and not resolved.is_dir():
+        raise ValueError(f"{label} must be a directory: {relative.as_posix()}")
+    return current
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -138,11 +225,25 @@ def sha256(path: Path) -> str:
             digest.update(chunk)
     return digest.hexdigest()
 
-def copy_evidence_file(source: Path, destination: Path) -> int:
-    if source.is_symlink():
-        raise ValueError(f"Symlink is not allowed in build contract: {source}")
-    if not source.is_file():
+def copy_evidence_file(
+    repo_root: Path,
+    source: Path,
+    destination: Path,
+) -> int:
+    source = confined_repo_source(
+        repo_root,
+        source,
+        label="build contract evidence",
+        allow_missing=True,
+    )
+    if not source.exists():
         return 0
+    source = confined_repo_source(
+        repo_root,
+        source,
+        label="build contract evidence",
+        require_file=True,
+    )
     if source.suffix.lower() not in ALLOWED_EVIDENCE_SUFFIXES:
         return 0
     size = source.stat().st_size
@@ -152,21 +253,31 @@ def copy_evidence_file(source: Path, destination: Path) -> int:
     shutil.copy2(source, destination)
     return size
 
+
 def copy_maestro_tree(repo_root: Path, relative_root: PurePosixPath, output_root: Path) -> int:
     source_root = repo_root / Path(relative_root) / ".maestro"
-    if not source_root.is_dir():
+    if not source_root.exists() and not source_root.is_symlink():
         return 0
+    source_root = confined_repo_source(
+        repo_root,
+        source_root,
+        label=".maestro evidence root",
+        require_dir=True,
+    )
     total = 0
     for source in sorted(source_root.rglob("*")):
+        if source.is_dir() and not source.is_symlink():
+            continue
         if source.is_symlink():
             raise ValueError(f"Symlink is not allowed in .maestro: {source}")
         if not source.is_file():
             continue
         relative = source.relative_to(repo_root)
-        total += copy_evidence_file(source, output_root / relative)
+        total += copy_evidence_file(repo_root, source, output_root / relative)
         if total > MAX_EVIDENCE_BYTES:
             raise ValueError("Journey evidence exceeds contract size limit")
     return total
+
 
 def package(args: argparse.Namespace) -> dict:
     repo_root = Path(args.repo_root).resolve()
@@ -209,9 +320,18 @@ def package(args: argparse.Namespace) -> dict:
 
     if flow:
         source = repo_root / Path(flow)
-        total += copy_evidence_file(source, evidence_root / Path(flow))
+        total += copy_evidence_file(repo_root, source, evidence_root / Path(flow))
         if not (evidence_root / Path(flow)).is_file():
             raise ValueError(f"Configured Maestro flow is unavailable or unsupported: {flow}")
+
+    adapter_path = project_adapter_config_path(repo_root)
+    if adapter_path is not None:
+        relative_adapter = adapter_path.relative_to(repo_root)
+        total += copy_evidence_file(
+            repo_root,
+            adapter_path,
+            evidence_root / relative_adapter,
+        )
 
     if total > MAX_EVIDENCE_BYTES:
         raise ValueError("Journey evidence exceeds contract size limit")
@@ -230,7 +350,7 @@ def package(args: argparse.Namespace) -> dict:
 
     contract = {
         "schema_version": 1,
-        "applab_version": "4.1.0",
+        "applab_version": "4.3.0",
         "trusted_applab_sha": args.trusted_applab_sha.strip().lower(),
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,
@@ -323,6 +443,18 @@ def self_test() -> None:
         flow = root / ".maestro" / "smoke.yaml"
         flow.parent.mkdir()
         flow.write_text("appId: example\n---\n- assertVisible: Home\n", encoding="utf-8")
+        (root / "applab.project.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "physical_validation": {
+                        "required": True,
+                        "capabilities": ["gps"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
         out = Path(raw) / "out"
         args = argparse.Namespace(
             repo_root=str(root), apk=str(apk), output=str(out),
@@ -340,7 +472,22 @@ def self_test() -> None:
         assert contract["apk"]["sha256"] == sha256(out / "app.apk")
         assert contract["trusted_applab_sha"] == "c" * 40
         assert (out / "target-evidence/.maestro/smoke.yaml").is_file()
+        assert (out / "target-evidence/applab.project.json").is_file()
+        assert contract["certification_policy"]["requires_real_device"] is True
         assert (out / "analysis-plan.json").is_file()
+
+        outside = Path(raw) / "outside"
+        outside.mkdir()
+        secret = outside / "secret.yaml"
+        secret.write_text("appId: outside\n", encoding="utf-8")
+        linked = root / "linked"
+        linked.symlink_to(outside, target_is_directory=True)
+        try:
+            copy_evidence_file(root, linked / "secret.yaml", out / "escape.yaml")
+        except ValueError as exc:
+            assert "symlink" in str(exc) or "outside" in str(exc)
+        else:
+            raise AssertionError("evidence symlink traversal must be rejected")
     print("AppLab build contract packager self-test PASS")
 
 def main() -> int:

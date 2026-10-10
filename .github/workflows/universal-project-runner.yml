@@ -129,8 +129,10 @@ jobs:
     name: Auto-discover project
     runs-on: ubuntu-latest
     outputs:
-      engine: ${{ steps.detect.outputs.engine }}
-      profile: ${{ steps.detect.outputs.profile }}
+      engine: ${{ steps.adapt.outputs.engine }}
+      resolved_sha: ${{ steps.adapt.outputs.resolved_sha }}
+      profile_fingerprint: ${{ steps.adapt.outputs.profile_fingerprint }}
+      profile: ${{ steps.adapt.outputs.profile }}
 
     steps:
       - name: Checkout trusted AppLab
@@ -150,14 +152,25 @@ jobs:
           persist-credentials: false
 
       - name: Detect project engine and build profile
-        id: detect
         shell: bash
         run: |
           set -Eeuo pipefail
           mkdir -p "$GITHUB_WORKSPACE/applab-autodiscovery"
           python .applab/scripts/project_autodiscover.py \
             --repo-root "$GITHUB_WORKSPACE/target" \
-            --output "$GITHUB_WORKSPACE/applab-autodiscovery/profile.json" \
+            --output "$GITHUB_WORKSPACE/applab-autodiscovery/autodiscovery.json"
+
+      - name: Build canonical v4.3 project profile
+        id: adapt
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/project_adapter.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --autodiscovery "$GITHUB_WORKSPACE/applab-autodiscovery/autodiscovery.json" \
+            --repository "${{ inputs.repository }}" \
+            --target-ref "${{ inputs.ref }}" \
+            --output "$GITHUB_WORKSPACE/applab-autodiscovery/project-profile.json" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Publish discovery summary
@@ -167,19 +180,23 @@ jobs:
             echo "## AppLab Universal Auto-Discovery"
             echo
             echo "Repository: ${{ inputs.repository }}"
-            echo "Ref: ${{ inputs.ref }}"
-            echo "Detected engine: ${{ steps.detect.outputs.engine }}"
+            echo "Requested ref: ${{ inputs.ref }}"
+            echo "Resolved SHA: ${{ steps.adapt.outputs.resolved_sha }}"
+            echo "Detected engine: ${{ steps.adapt.outputs.engine }}"
+            echo "Profile fingerprint: ${{ steps.adapt.outputs.profile_fingerprint }}"
             echo
-            cat "$GITHUB_WORKSPACE/applab-autodiscovery/profile.json"
+            cat "$GITHUB_WORKSPACE/applab-autodiscovery/project-profile.json"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload discovery profile
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-autodiscovery-${{ github.run_id }}
-          path: applab-autodiscovery/profile.json
+          path: |
+            applab-autodiscovery/autodiscovery.json
+            applab-autodiscovery/project-profile.json
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
 
   verify_flutter:
     name: Auto Flutter verification
@@ -188,8 +205,8 @@ jobs:
     uses: ./.github/workflows/external-project-runner.yml
     with:
       repository: ${{ inputs.repository }}
-      ref: ${{ inputs.ref }}
-      source_ref: ${{ inputs.source_ref }}
+      ref: ${{ needs.discover.outputs.resolved_sha }}
+      source_ref: ${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}
       working_directory: ${{ fromJSON(needs.discover.outputs.profile).working_directory }}
       flutter_channel: ${{ fromJSON(needs.discover.outputs.profile).flutter_channel }}
       flutter_version: ${{ fromJSON(needs.discover.outputs.profile).flutter_version }}
@@ -207,7 +224,7 @@ jobs:
       history_key: ${{ inputs.history_key }}
       cache_verification: ${{ inputs.cache_verification }}
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
-      config_fingerprint: ${{ inputs.config_fingerprint }}
+      config_fingerprint: ${{ inputs.config_fingerprint != '' && inputs.config_fingerprint != 'manual' && inputs.config_fingerprint || needs.discover.outputs.profile_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
@@ -220,8 +237,8 @@ jobs:
     uses: ./.github/workflows/external-native-android-runner.yml
     with:
       repository: ${{ inputs.repository }}
-      ref: ${{ inputs.ref }}
-      source_ref: ${{ inputs.source_ref }}
+      ref: ${{ needs.discover.outputs.resolved_sha }}
+      source_ref: ${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}
       working_directory: ${{ fromJSON(needs.discover.outputs.profile).working_directory }}
       java_version: ${{ fromJSON(needs.discover.outputs.profile).java_version }}
       gradle_version: ${{ fromJSON(needs.discover.outputs.profile).gradle_version }}
@@ -241,6 +258,6 @@ jobs:
       history_key: ${{ inputs.history_key }}
       cache_verification: ${{ inputs.cache_verification }}
       contract_fingerprint: ${{ inputs.contract_fingerprint }}
-      config_fingerprint: ${{ inputs.config_fingerprint }}
+      config_fingerprint: ${{ inputs.config_fingerprint != '' && inputs.config_fingerprint != 'manual' && inputs.config_fingerprint || needs.discover.outputs.profile_fingerprint }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}

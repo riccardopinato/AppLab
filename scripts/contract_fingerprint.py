@@ -42,6 +42,7 @@ CONTRACT_FILES = (
     "scripts/prepare_upgrade_baseline.py",
     "scripts/prepare_performance_baseline.py",
     "scripts/project_autodiscover.py",
+    "scripts/project_adapter.py",
     ".github/workflows/external-project-runner.yml",
     ".github/workflows/external-native-android-runner.yml",
     ".github/workflows/universal-project-runner.yml",

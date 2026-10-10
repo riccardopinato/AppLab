@@ -1,0 +1,105 @@
+name: Project Adapter Integration
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/project_adapter.py"
+      - "scripts/project_autodiscover.py"
+      - "scripts/package_build_contract.py"
+      - "scripts/validate_build_contract.py"
+      - "scripts/contract_fingerprint.py"
+      - "scripts/domain_fingerprint.py"
+      - ".github/workflows/universal-project-runner.yml"
+      - ".github/workflows/project-adapter-integration.yml"
+      - "integration/universal/PROJECT_ADAPTER_V43.md"
+
+permissions:
+  contents: read
+
+jobs:
+  real-project-adapter:
+    name: Real App Factory projects
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: applab
+          persist-credentials: false
+
+      - name: Checkout CamperBoss fixture
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: riccardopinato/CamperBoss
+          ref: 6c866bf8884b78703401db8ce08dbcf97d3f893c
+          path: camperboss
+          persist-credentials: false
+
+      - name: Checkout Battery Guard fixture
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: riccardopinato/Battery_Guard
+          ref: 7d3e0b8257628dea65cedcf174357f9bc06d21bc
+          path: battery-guard
+          persist-credentials: false
+
+      - name: Build CamperBoss adapter profile
+        run: |
+          set -Eeuo pipefail
+          python applab/scripts/project_autodiscover.py \
+            --repo-root camperboss \
+            --output "$RUNNER_TEMP/camper-autodiscovery.json"
+          python applab/scripts/project_adapter.py \
+            --repo-root camperboss \
+            --autodiscovery "$RUNNER_TEMP/camper-autodiscovery.json" \
+            --repository riccardopinato/CamperBoss \
+            --target-ref 6c866bf8884b78703401db8ce08dbcf97d3f893c \
+            --output "$RUNNER_TEMP/camper-profile.json"
+
+      - name: Build Battery Guard adapter profile
+        run: |
+          set -Eeuo pipefail
+          python applab/scripts/project_autodiscover.py \
+            --repo-root battery-guard \
+            --output "$RUNNER_TEMP/battery-autodiscovery.json"
+          python applab/scripts/project_adapter.py \
+            --repo-root battery-guard \
+            --autodiscovery "$RUNNER_TEMP/battery-autodiscovery.json" \
+            --repository riccardopinato/Battery_Guard \
+            --target-ref 7d3e0b8257628dea65cedcf174357f9bc06d21bc \
+            --output "$RUNNER_TEMP/battery-profile.json"
+
+      - name: Assert real project profiles
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          tmp = Path(os.environ["RUNNER_TEMP"])
+          camper = json.loads((tmp / "camper-profile.json").read_text())
+          battery = json.loads((tmp / "battery-profile.json").read_text())
+
+          assert camper["adapter_version"] == "4.3.0"
+          assert camper["engine"] == "flutter"
+          assert camper["resolved_sha"] == "6c866bf8884b78703401db8ce08dbcf97d3f893c"
+          assert camper["package_id"] == "com.camperboss.camperboss"
+          assert camper["version_name"]
+          assert camper["version_code"]
+          assert camper["release_artifact_pattern"]
+          assert len(camper["profile_fingerprint"]) == 64
+
+          assert battery["adapter_version"] == "4.3.0"
+          assert battery["engine"] == "flutter"
+          assert battery["resolved_sha"] == "7d3e0b8257628dea65cedcf174357f9bc06d21bc"
+          assert battery["package_id"] == "com.riccardopinato.batteryguard"
+          assert battery["version_name"]
+          assert battery["version_code"]
+          assert battery["release_artifact_pattern"]
+          assert len(battery["profile_fingerprint"]) == 64
+
+          print("AppLab v4.3 real-project adapter integration PASS")
+          PY

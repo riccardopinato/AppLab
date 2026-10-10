@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "4.2.0"
+EXPECTED_VERSION = "4.3.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -38,6 +38,14 @@ def check_version_alignment() -> None:
     require(
         f'"version":"{EXPECTED_VERSION}"' in ci,
         "CI backend health assertion version drift",
+    )
+    emulator = (ROOT / ".github/workflows/emulator-self-test.yml").read_text(
+        encoding="utf-8"
+    )
+    require(
+        f'APPLAB_VERSION="{EXPECTED_VERSION}"' in emulator
+        and 'APPLAB_VERSION="4.1.0"' not in emulator,
+        "Emulator self-test report identity is stale",
     )
 
 
@@ -216,6 +224,60 @@ def check_evidence_graph_contract() -> None:
     )
 
 
+def check_project_adapter_contract() -> None:
+    adapter = (ROOT / "scripts/project_adapter.py").read_text(encoding="utf-8")
+    universal = (ROOT / ".github/workflows/universal-project-runner.yml").read_text(
+        encoding="utf-8"
+    )
+    packager = (ROOT / "scripts/package_build_contract.py").read_text(encoding="utf-8")
+    validator = (ROOT / "scripts/validate_build_contract.py").read_text(encoding="utf-8")
+    integration = (ROOT / ".github/workflows/project-adapter-integration.yml").read_text(
+        encoding="utf-8"
+    )
+    for needle in (
+        'ADAPTER_VERSION = "4.3.0"',
+        '"release_artifact_pattern"',
+        '"journeys"',
+        '"physical_validation"',
+        '"profile_fingerprint"',
+        "resolved_sha",
+    ):
+        require(needle in adapter, f"v4.3 project adapter missing contract: {needle}")
+    require(
+        "scripts/project_adapter.py" in universal
+        and "project-profile.json" in universal
+        and "needs.discover.outputs.resolved_sha" in universal
+        and "profile_fingerprint" in universal,
+        "Universal Runner must freeze and route the v4.3 canonical project profile",
+    )
+    require(
+        "Target-authored adapter metadata may only make certification stricter" in packager
+        and "applab.project.json" in packager,
+        "target adapter metadata must not weaken certification policy",
+    )
+    require(
+        "confined_repo_path" in adapter
+        and "TOOLCHAIN_PATTERNS" in adapter
+        and "unsafe or unsupported format" in adapter,
+        "adapter paths and toolchain metadata must remain declarative and repository-confined",
+    )
+    require(
+        "confined_repo_source" in packager
+        and "traverses a symlink" in packager,
+        "target evidence packaging must reject symlink traversal",
+    )
+    require(
+        "Declared package id does not match APK package id" in validator
+        and "APK package id is unavailable" in validator,
+        "trusted contract validation must bind configured package to available built APK identity",
+    )
+    require(
+        "riccardopinato/CamperBoss" in integration
+        and "riccardopinato/Battery_Guard" in integration,
+        "v4.3 adapter must keep real App Factory integration coverage",
+    )
+
+
 def check_execution_acceleration_contract() -> None:
     fixture = (ROOT / ".github/workflows/runtime-fixture-build.yml").read_text(
         encoding="utf-8"
@@ -391,6 +453,7 @@ def main() -> int:
     check_no_floating_self_reference()
     check_residual_hardening_contract()
     check_evidence_graph_contract()
+    check_project_adapter_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
     return 0

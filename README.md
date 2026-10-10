@@ -1,3 +1,29 @@
+## v4.3.0 — External Project Certification Adapter
+
+AppLab now has one canonical, declarative integration layer for external App
+Factory projects.
+
+- **Zero-config first:** repository + ref remain enough for standard Flutter and
+  native Android projects; existing auto-discovery still detects the build.
+- **Canonical project profile:** v4.3 adds immutable resolved SHA, package/version
+  identity, release artifact metadata, primary/settings/critical journeys,
+  physical-validation requirements and a deterministic profile fingerprint.
+- **Optional target contract:** `applab.project.json` or
+  `.applab/project.json` can assert bounded metadata without adding arbitrary
+  target-authored commands or a second verifier.
+- **Immutable downstream execution:** Universal Runner freezes the discovery
+  checkout SHA and sends that exact revision to build/runtime verification.
+- **Artifact identity wins:** a configured package id that disagrees with the
+  built APK package id fails trusted contract validation.
+- **Physical requirements only escalate:** target adapter metadata may require
+  real-device validation but cannot weaken an existing certification policy.
+- **Cache-safe:** adapter/profile changes participate in configuration and
+  verification fingerprints.
+- **Real-project coverage:** the adapter integration workflow validates pinned
+  CamperBoss and Battery Guard revisions on every relevant adapter change.
+
+See `integration/universal/PROJECT_ADAPTER_V43.md`.
+
 ## v4.2.0 — Evidence Graph
 
 AppLab now has a deterministic, queryable evidence model above the existing
