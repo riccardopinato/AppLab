@@ -78,7 +78,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "Download trusted physical evidence attestation",
         "Bind physical evidence to exact APK",
         "physical-evidence.md",
-        "AppLab v4.4.0 Trusted APK Verification",
+        "AppLab v4.5.0 Trusted APK Verification",
         "BASELINE_FALLBACK",
         "effective FULL fallback",
         "Evaluate verification cache eligibility",
