@@ -12,7 +12,7 @@ PASS="PASS"; FAIL="FAIL"; BLOCKED="BLOCKED"; NOT_VERIFIED="NOT_VERIFIED"
 STATES={PASS,FAIL,BLOCKED,NOT_VERIFIED}
 SHA40_RE=re.compile(r"^[0-9a-f]{40}$"); SHA256_RE=re.compile(r"^[0-9a-f]{64}$")
 REPO_RE=re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-PACKAGE_RE=re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$")
+PACKAGE_RE=re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
 REQUIRED_KINDS={"COPY","LINK","IDEMPOTENCY","PROVENANCE","OWNERSHIP","FAIL_CLOSED"}
 TRANSPORT_KINDS={"DEEP_LINK_HANDOFF","FALLBACK_TRANSPORT"}
 SUPPORTED_TRANSPORTS={"deep_link","android_intent","clipboard","fallback"}
@@ -233,6 +233,14 @@ def self_test()->None:
         assert "distinct Android package ids" in str(exc)
     else:
         raise AssertionError("same Android package id cannot represent an installed pair")
+
+    bad_package=json.loads(json.dumps(session)); bad_package["consumer"]["package_id"]="com.123app"
+    try:
+        build_report(bad_package)
+    except ValueError as exc:
+        assert "package_id is invalid" in str(exc)
+    else:
+        raise AssertionError("Android package segments must begin with a letter")
 
     unsupported=json.loads(json.dumps(session)); unsupported["transport"]["kind"]="telepathy"; unsupported["transport"]["requires_installed_apps"]=False
     try:
