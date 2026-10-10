@@ -240,7 +240,8 @@ def build_release_reality(
         result.get("analysis_mode", "") or contract.get("analysis_mode", "")
     ).strip().lower()
     pipeline_status = normalized(result.get("pipeline_status"))
-    runtime_result = normalized(result.get("result"))
+    runtime_result = normalized(result.get("runtime_result") or result.get("result"))
+    aggregate_result = normalized(result.get("result"))
     runtime_outcome = normalized(runtime_outcome)
     workflow_run_id = str(workflow_run_id or result.get("workflow_run_id", "")).strip()
     trusted_applab_sha = str(
@@ -479,6 +480,8 @@ def build_release_reality(
             "trusted_applab_sha": trusted_applab_sha,
             "analysis_mode": analysis_mode,
             "pipeline_status": pipeline_status or "UNKNOWN",
+            "aggregate_result": aggregate_result or "UNKNOWN",
+            "runtime_result": runtime_result or "UNKNOWN",
             "runtime_step_outcome": runtime_outcome or "UNKNOWN",
         },
         "identity_complete": identity_complete,
@@ -687,6 +690,24 @@ def self_test() -> None:
         assert reality["certification"]["status"] == "BLOCKED"
         assert reality["certification_blockers"][0]["gate"] == "real_device"
         assert states["CI_GREEN"] == PASS
+        result["runtime_result"] = "PASS"
+        result["result"] = "FAIL"
+        result["pipeline_status"] = "failure"
+        (report / "result.json").write_text(json.dumps(result), encoding="utf-8")
+        reality = build_release_reality(
+            report,
+            apk,
+            workflow_run_id="123",
+            trusted_applab_sha="c" * 40,
+            runtime_outcome="success",
+        )
+        states = {row["key"]: row["state"] for row in reality["levels"]}
+        assert states["TRUSTED_RUNTIME_VERIFIED"] == PASS
+        assert states["CI_GREEN"] == PASS
+        assert reality["workflow"]["aggregate_result"] == "FAIL"
+        result["result"] = "PASS"
+        result["pipeline_status"] = "success"
+        (report / "result.json").write_text(json.dumps(result), encoding="utf-8")
 
         apk.write_bytes(b"rebuilt-different-bytes")
         reality = build_release_reality(
