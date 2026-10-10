@@ -94,6 +94,7 @@ jobs:
             scripts/cross_app_intelligence.py \
             scripts/audit_orchestrator.py \
             scripts/studio_snapshot.py \
+            scripts/certification_studio.py \
             scripts/studio_evidence_graph.py \
             scripts/control_center_snapshot.py \
             scripts/execution_acceleration.py \
@@ -165,6 +166,7 @@ jobs:
           python scripts/cross_app_intelligence.py --self-test
           python scripts/audit_orchestrator.py --self-test
           python scripts/studio_snapshot.py --self-test
+          python scripts/certification_studio.py
           python scripts/studio_evidence_graph.py
           python scripts/control_center_snapshot.py --self-test
           python scripts/execution_acceleration.py --self-test
@@ -189,7 +191,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"4.6.0"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"4.7.0"'; then
               healthy=true
               break
             fi
