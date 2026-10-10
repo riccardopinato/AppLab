@@ -80,9 +80,11 @@ rejection, no domain mutation, and private-media rejection.
 
 ## Transport and physical-device evidence
 
-Protocol and transport stay separate. Each scenario declares its transport. The
-pair-level `transport` record declares whether the selected transport depends on
-both apps being installed.
+Protocol and transport stay separate. Each scenario declares its transport. Both
+the pair-level transport and every scenario transport must use a supported
+`deep_link` / `android_intent` / `clipboard` / `fallback` value. AppLab derives
+the installed-app requirement from that validated transport class; the submitted
+boolean cannot weaken the requirement.
 
 When `requires_installed_apps=true`, **paired physical-device evidence is required**.
 Emulator evidence or two independent single-app physical sessions cannot be
