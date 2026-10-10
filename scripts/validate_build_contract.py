@@ -133,7 +133,9 @@ def validate(
     if package_id and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package_id):
         raise ValueError("Invalid package id in build contract")
     apk_package_id = str(expected_apk.get("package_id", "")).strip()
-    if package_id and apk_package_id and package_id != apk_package_id:
+    if package_id and not apk_package_id:
+        raise ValueError("Declared package id cannot be verified because APK package id is unavailable")
+    if package_id and package_id != apk_package_id:
         raise ValueError("Declared package id does not match APK package id")
 
     certification_policy = payload.get("certification_policy")
@@ -331,6 +333,17 @@ def self_test() -> None:
         assert result["package_id"] == "com.example.app"
         assert result["analysis_mode"] == "fast"
         assert result["trusted_applab_sha"] == "c" * 40
+        payload["apk"]["package_id"] = ""
+        (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
+        try:
+            validate(root, "owner/repo", "a"*40, "flutter", "fast", "c"*40)
+        except ValueError as exc:
+            assert "APK package id is unavailable" in str(exc)
+        else:
+            raise AssertionError("missing APK package identity must be rejected")
+        payload["apk"]["package_id"] = "com.example.app"
+        (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
+
         payload["package_id"] = "com.example.other"
         (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
         try:
