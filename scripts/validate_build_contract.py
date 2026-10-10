@@ -132,6 +132,9 @@ def validate(
         raise ValueError("Analysis plan baseline SHA mismatch")
     if package_id and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package_id):
         raise ValueError("Invalid package id in build contract")
+    apk_package_id = str(expected_apk.get("package_id", "")).strip()
+    if package_id and apk_package_id and package_id != apk_package_id:
+        raise ValueError("Declared package id does not match APK package id")
 
     certification_policy = payload.get("certification_policy")
     if not isinstance(certification_policy, dict) or certification_policy.get("schema_version") != 1:
@@ -328,6 +331,16 @@ def self_test() -> None:
         assert result["package_id"] == "com.example.app"
         assert result["analysis_mode"] == "fast"
         assert result["trusted_applab_sha"] == "c" * 40
+        payload["package_id"] = "com.example.other"
+        (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
+        try:
+            validate(root, "owner/repo", "a"*40, "flutter", "fast", "c"*40)
+        except ValueError as exc:
+            assert "does not match APK package id" in str(exc)
+        else:
+            raise AssertionError("declared package mismatch must be rejected")
+        payload["package_id"] = "com.example.app"
+        (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
         flow.write_text("appId: x\n---\n- runScript: evil.js\n", encoding="utf-8")
         try:
             validate(root, "owner/repo", "a"*40, "flutter")
