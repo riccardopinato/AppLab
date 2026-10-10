@@ -179,9 +179,21 @@ def validate_envelope(
     ):
         raise ValueError("bridgeId must derive from canonical provenance ownership")
 
-    canonical_deep_link = str(
-        provenance.get("canonicalDeepLink") or raw.get("sourceDeepLink") or ""
-    ).strip()
+    provenance_deep_link = (
+        clean(
+            provenance.get("canonicalDeepLink"),
+            "provenance.canonicalDeepLink",
+            2000,
+        )
+        if "canonicalDeepLink" in provenance
+        else ""
+    )
+    source_deep_link = (
+        clean(raw.get("sourceDeepLink"), "sourceDeepLink", 2000)
+        if "sourceDeepLink" in raw
+        else ""
+    )
+    canonical_deep_link = provenance_deep_link or source_deep_link
     if transfer_mode == "link" and not canonical_deep_link:
         raise ValueError("LINK requires canonicalDeepLink")
     if canonical_deep_link:
@@ -348,6 +360,34 @@ def self_test() -> None:
         assert "canonical Shared Ecosystem Core v1 Golden" in str(exc)
     else:
         raise AssertionError("unrelated protocol.contract_ref must fail closed")
+
+    malformed_link = json.loads(json.dumps(link))
+    malformed_link["provenance"]["canonicalDeepLink"] = {}
+    try:
+        validate_envelope(
+            malformed_link,
+            source_app="wonderlog",
+            target_app="annas_diary",
+            expected_mode="link",
+        )
+    except ValueError as exc:
+        assert "must be a string" in str(exc)
+    else:
+        raise AssertionError("non-string provenance deep link must fail closed")
+
+    malformed_source_link = json.loads(json.dumps(link))
+    malformed_source_link["sourceDeepLink"] = {}
+    try:
+        validate_envelope(
+            malformed_source_link,
+            source_app="wonderlog",
+            target_app="annas_diary",
+            expected_mode="link",
+        )
+    except ValueError as exc:
+        assert "must be a string" in str(exc)
+    else:
+        raise AssertionError("non-string source deep link must fail closed")
 
     print("Shared Ecosystem Core v1 verifier self-test PASS")
 
