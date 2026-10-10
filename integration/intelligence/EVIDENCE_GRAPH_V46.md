@@ -32,7 +32,11 @@ represents findings as:
 - `RESOLVED`
 - `ACTIVE` when no stronger lifecycle classification is available
 
-Resolved findings remain queryable as historical graph nodes.
+Resolved findings remain queryable as historical graph nodes. v4.6 persists
+resolved tombstones in repository-wide longitudinal snapshots, so a finding
+does not disappear from history merely because it stays resolved for more than
+one comparison. If the finding returns, the tombstone is retired and the active
+finding is classified RETURNED.
 
 Temporal relations include:
 
@@ -79,7 +83,11 @@ with the exact affected file and a non-causal reason.
 ## Impact graph
 
 The current trusted `analysis-plan.json` supplies the changed and
-dependency-impacted file set.
+dependency-impacted file set. For pull-request Autonomous Review, the immutable
+PR base SHA is passed into Smart Test Plan and fetched even for FULL analysis,
+so the graph receives a real trusted diff instead of an empty synthetic change
+set. When no compatible baseline exists, AppLab remains conservative and does
+not invent changed files.
 
 Evidence Graph 2 maps only bounded, observed relationships.
 
@@ -110,6 +118,10 @@ Supporting relations also include:
 
 ### Bounded derivation rules
 
+- File nodes come only from the trusted change plan or bounded application
+  source provenance. Generated AppLab reports, screenshots and runtime artifacts
+  are not promoted into repository File nodes merely because their label looks
+  like a path.
 - File → Component comes only from deterministic repository-path grouping.
 - File → Capability comes from Feature Truth file provenance.
 - File → Surface comes from Product Flow surface source/path identity.
@@ -118,6 +130,9 @@ Supporting relations also include:
 - Journey → Evidence reuses the existing authoritative report relation.
 
 No fuzzy semantic similarity is used to manufacture the canonical impact chain.
+
+Both directly CHANGED files and trusted DEPENDENCY_IMPACT files are valid,
+explicitly labelled impact roots.
 
 An impact path means **this observed evidence chain may be affected by the
 change**. It is not proof of root cause.
@@ -135,7 +150,8 @@ Existing v4.2 queries remain supported:
 v4.6 adds:
 
 - `impact`
-- `stale-evidence`
+- `stale-evidence` — returns inspectable STALE, HISTORICAL and INVALIDATED
+  Evidence nodes, not only invalidated rows;
 - `lifecycle`
 - `subject`
 
