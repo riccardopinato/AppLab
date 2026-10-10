@@ -326,6 +326,13 @@ def check_release_reality_contract() -> None:
         "Release Reality must preserve runtime truth across downstream gate failures",
     )
     require(
+        "Release Reality repository binding mismatch" in reality
+        and "Release Reality source SHA binding mismatch" in reality
+        and "Release Reality workflow run binding mismatch" in reality
+        and "Release Reality trusted AppLab SHA binding mismatch" in reality,
+        "Release Reality must fail closed on provenance binding mismatches",
+    )
+    require(
         "Build Release Reality record" in trusted
         and "scripts/release_reality.py" in trusted
         and "release-reality.md" in trusted,
