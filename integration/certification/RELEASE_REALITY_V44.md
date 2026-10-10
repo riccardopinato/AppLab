@@ -76,8 +76,8 @@ v4.4 can prove the existing AppLab stages through trusted runtime:
 - IMPLEMENTED from repository/SHA/engine binding;
 - STATICALLY_CHECKED from the bound build quality evidence;
 - TESTED from the bound unit-test evidence;
-- CI_GREEN from required build-quality evidence plus the finalized pipeline
-  status;
+- CI_GREEN from the required static/test/build checks in the sealed build
+  contract; runtime and certification outcomes remain separate stages;
 - ARTIFACT_BUILT from the exact APK bytes and canonical artifact identity;
 - TRUSTED_RUNTIME_VERIFIED from runtime PASS on those exact bytes.
 
