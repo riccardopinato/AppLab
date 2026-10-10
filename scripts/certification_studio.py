@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
+import tempfile
+from pathlib import Path
 from typing import Any
 
 STUDIO_VERSION = "4.7.0"
@@ -240,6 +243,23 @@ def project_summary(
     }
 
 
+def project_from_directory(
+    project_dir: Path,
+    evidence_graph: dict[str, Any] | None = None,
+    longitudinal: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    path = project_dir / "release-reality.json"
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return project_summary(payload, evidence_graph=evidence_graph, longitudinal=longitudinal)
+
+
 def portfolio_summary(projects: list[dict[str, Any]]) -> dict[str, int]:
     cockpit_rows = [
         row["release_cockpit"]
@@ -337,6 +357,11 @@ def self_test() -> None:
     assert any(item["gate"] == "real_device" for item in row["why_not_certified"])
     assert any(item["gate"] == "PHYSICAL_DEVICE_VERIFIED" for item in row["why_not_certified"])
     assert row["missing_evidence"][0]["state"] == "BLOCKED"
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw)
+        (root / "release-reality.json").write_text(json.dumps(reality), encoding="utf-8")
+        loaded = project_from_directory(root, graph, longitudinal)
+        assert loaded is not None and loaded["release_id"] == "release-1"
     summary = portfolio_summary([{"release_cockpit": row}, {"release_cockpit": None}])
     assert summary["with_release_reality"] == 1
     assert summary["certification_blocked"] == 1
