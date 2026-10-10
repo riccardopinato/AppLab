@@ -178,10 +178,13 @@ It produces:
 
 as:
 
-`applab-physical-evidence-<workflow-run-id>`
+`applab-physical-evidence-<workflow-run-id>-<run-attempt>`
 
 The trusted verifier consumes that run id through
-`physical_evidence_run_id`.
+`physical_evidence_run_id`, resolves the successful run's current
+`run_attempt` through the GitHub Actions API, downloads that exact attempt's
+artifact and requires the record's `workflow_run_attempt` to match. This keeps
+manual re-runs retry-safe without accepting evidence from an earlier attempt.
 
 This first version does not introduce a device farm and does not pretend to
 automate hardware behavior that has not actually been executed on a real phone.
