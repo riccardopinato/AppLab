@@ -94,6 +94,7 @@ def evaluate(
     emulator_profile: str,
     target: str,
     arch: str,
+    physical_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     failures: list[dict[str, str]] = []
     blockers: list[dict[str, str]] = []
@@ -205,12 +206,83 @@ def evaluate(
     elif apk_size > max_apk_bytes:
         failures.append({"gate": "apk_size", "label": "APK size audit", "observed": f"{apk_size}_BYTES_EXCEEDS_{max_apk_bytes}"})
 
-    if requires_real_device:
-        blockers.append({
-            "gate": "real_device",
-            "label": "Required physical-device evidence",
-            "observed": "NOT_TESTED",
-        })
+    physical_status = "NOT_REQUIRED"
+    physical_reason = (
+        "Physical-device evidence is not required by the current project certification policy."
+    )
+    physical_record_id = ""
+    if physical_evidence:
+        source = physical_evidence.get("source")
+        physical_apk = physical_evidence.get("artifact")
+        verification = physical_evidence.get("verification")
+        if not all(isinstance(value, dict) for value in (source, physical_apk, verification)):
+            failures.append({
+                "gate": "real_device_evidence",
+                "label": "Physical-device evidence integrity",
+                "observed": "INVALID_STRUCTURE",
+            })
+            physical_status = "FAIL"
+            physical_reason = "Trusted physical-device record is structurally invalid."
+        else:
+            binding_ok = (
+                verification.get("state") == "VERIFIED"
+                and verification.get("exact_artifact_match") is True
+                and str(source.get("repository", "")) == repository
+                and str(source.get("resolved_sha", "")).lower() == resolved_sha
+                and str(physical_apk.get("sha256", "")).lower() == expected_hash
+                and str(physical_apk.get("package_id", "")) == package_id
+                and str(physical_apk.get("version_name", "")) == version_name
+                and str(physical_apk.get("version_code", "")) == version_code
+            )
+            physical_record_id = str(physical_evidence.get("record_id", ""))
+            observed_physical = str(physical_evidence.get("result", "")).strip().upper()
+            if not binding_ok:
+                failures.append({
+                    "gate": "real_device_evidence",
+                    "label": "Physical-device evidence binding",
+                    "observed": "BINDING_MISMATCH",
+                })
+                physical_status = "FAIL"
+                physical_reason = "Physical evidence is not bound to the exact certified APK/source identity."
+            elif observed_physical == "PASS":
+                physical_status = "PASS"
+                physical_reason = "Trusted Physical Evidence Hub record passed on the exact APK."
+            elif observed_physical == "FAIL":
+                failures.append({
+                    "gate": "real_device",
+                    "label": "Physical-device validation",
+                    "observed": "FAIL",
+                })
+                physical_status = "FAIL"
+                physical_reason = "Trusted physical-device validation failed."
+            elif observed_physical == "BLOCKED":
+                physical_status = "BLOCKED"
+                physical_reason = "Physical-device session was blocked before a PASS could be established."
+                if requires_real_device:
+                    blockers.append({
+                        "gate": "real_device",
+                        "label": "Required physical-device evidence",
+                        "observed": "BLOCKED",
+                    })
+            else:
+                failures.append({
+                    "gate": "real_device_evidence",
+                    "label": "Physical-device evidence verdict",
+                    "observed": observed_physical or "MISSING",
+                })
+                physical_status = "FAIL"
+                physical_reason = "Physical evidence verdict is invalid."
+
+    if requires_real_device and physical_status != "PASS":
+        if not any(item.get("gate") == "real_device" for item in failures + blockers):
+            blockers.append({
+                "gate": "real_device",
+                "label": "Required physical-device evidence",
+                "observed": "NOT_TESTED",
+            })
+        if physical_status == "NOT_REQUIRED":
+            physical_status = "NOT_TESTED"
+            physical_reason = "Physical-device evidence is required by project certification policy."
 
     actual_hash = ""
     if not source_apk.is_file():
@@ -286,13 +358,10 @@ def evaluate(
         },
         "applab_controls": controls,
         "real_device": {
-            "status": "NOT_TESTED",
+            "status": physical_status,
             "required": requires_real_device,
-            "reason": (
-                "Physical-device evidence is required by project certification policy."
-                if requires_real_device
-                else "Hosted CI certification uses the controlled Android emulator lane; physical-device evidence is recorded separately when required."
-            ),
+            "record_id": physical_record_id,
+            "reason": physical_reason,
         },
         "apk_sha256": actual_hash,
         "expected_apk_sha256": expected_hash,
@@ -546,6 +615,39 @@ def self_test() -> None:
         )
         assert hardware_blocked["status"] == "BLOCKED"
 
+        physical_record = {
+            "record_id": "p" * 64,
+            "source": {"repository": "owner/repo", "resolved_sha": "a" * 40},
+            "artifact": {
+                "sha256": sha256(apk),
+                "package_id": "com.example.app",
+                "version_name": "1.0.0",
+                "version_code": "1",
+            },
+            "result": "PASS",
+            "verification": {
+                "state": "VERIFIED",
+                "exact_artifact_match": True,
+            },
+        }
+        hardware_certified = evaluate(
+            pass_result, hardware_contract, apk,
+            api_level="35", emulator_profile="pixel_7_pro",
+            target="google_apis", arch="x86_64",
+            physical_evidence=physical_record,
+        )
+        assert hardware_certified["status"] == "CERTIFIED"
+        assert hardware_certified["real_device"]["status"] == "PASS"
+
+        failed_physical = {**physical_record, "result": "FAIL"}
+        hardware_rejected = evaluate(
+            pass_result, hardware_contract, apk,
+            api_level="35", emulator_profile="pixel_7_pro",
+            target="google_apis", arch="x86_64",
+            physical_evidence=failed_physical,
+        )
+        assert hardware_rejected["status"] == "NOT_CERTIFIED"
+
         bad_contract = {
             **contract,
             "apk": {**contract["apk"], "sha256": "0" * 64},
@@ -617,6 +719,15 @@ def main() -> int:
             "apk": {},
         }
 
+    physical_path = report_dir / "physical-evidence.json"
+    if physical_path.is_file():
+        try:
+            physical_evidence = load_json(physical_path)
+        except (OSError, json.JSONDecodeError, ValueError):
+            physical_evidence = {"invalid": True}
+    else:
+        physical_evidence = None
+
     report = evaluate(
         result,
         contract,
@@ -625,6 +736,7 @@ def main() -> int:
         emulator_profile=args.emulator_profile,
         target=args.target,
         arch=args.arch,
+        physical_evidence=physical_evidence,
     )
 
     write_json(report_dir / "certification.json", report)
