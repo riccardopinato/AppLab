@@ -1026,7 +1026,15 @@ def _finding_lifecycle(
                 baseline_revision = node_id
                 break
 
-    resolved = findings.get("resolved") if isinstance(findings.get("resolved"), list) else []
+    resolved_rows: dict[str, dict[str, Any]] = {}
+    for bucket in ("resolved_history", "resolved"):
+        rows = findings.get(bucket) if isinstance(findings.get(bucket), list) else []
+        for index, row in enumerate(rows):
+            if not isinstance(row, dict):
+                continue
+            key = _finding_row_key(row) or f"{bucket}:{index}:{_safe(row.get('kind'))}:{_safe(row.get('subject'))}"
+            resolved_rows[key] = row
+    resolved = [resolved_rows[key] for key in sorted(resolved_rows)]
     for index, row in enumerate(resolved):
         if not isinstance(row, dict):
             continue
@@ -1062,14 +1070,22 @@ def _finding_lifecycle(
             )
             attrs = builder.nodes[node_id]["attributes"]
 
+        resolution_observed_sha = (
+            _safe(row.get("resolution_observed_sha")).lower() or current_sha
+        )
+        last_seen_sha = (
+            _safe(row.get("last_seen_sha")).lower()
+            or _safe(attrs.get("last_observed_sha")).lower()
+            or baseline_sha
+        )
         attrs["lifecycle_state"] = "RESOLVED"
         attrs["active"] = False
-        attrs["resolution_observed_sha"] = current_sha
+        attrs["resolution_observed_sha"] = resolution_observed_sha
         attrs["causal_attribution"] = "NOT_INFERRED"
         builder.nodes[node_id]["attributes"] = attrs
         counts["RESOLVED"] += 1
 
-        if baseline_revision:
+        if baseline_revision and last_seen_sha == baseline_sha:
             builder.add_edge(
                 "REVISION_HAD_FINDING",
                 baseline_revision,
@@ -1077,13 +1093,22 @@ def _finding_lifecycle(
                 attributes={"historical_observation": True},
                 provenance=[FILES["longitudinal"]],
             )
+        resolution_relation = (
+            "REVISION_OBSERVED_RESOLUTION"
+            if resolution_observed_sha == current_sha
+            else "REVISION_CONFIRMS_RESOLVED_FINDING"
+        )
         builder.add_edge(
-            "REVISION_OBSERVED_RESOLUTION",
+            resolution_relation,
             revision,
             node_id,
             attributes={
                 "causal_blame": False,
-                "caveat": "resolution is an observed absence versus baseline, not proof that this revision caused the fix",
+                "first_resolution_observed_sha": resolution_observed_sha,
+                "caveat": (
+                    "resolution is an observed absence versus trusted history, "
+                    "not proof that this revision caused the fix"
+                ),
             },
             provenance=[FILES["longitudinal"]],
         )
@@ -1096,7 +1121,7 @@ def _finding_lifecycle(
                 report_node=reports.get("longitudinal"),
                 attributes={
                     "observation_scope": "HISTORICAL",
-                    "source_sha": baseline_sha,
+                    "source_sha": last_seen_sha,
                     "current_sha": current_sha,
                 },
             )
