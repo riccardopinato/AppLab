@@ -2364,7 +2364,8 @@ def self_test() -> None:
                     }
                 ],
                 "persistent": [],
-                "resolved": [
+                "resolved": [],
+                "resolved_history": [
                     {
                         "key": "product_consistency|id:old-gap",
                         "source": "product_consistency",
@@ -2373,6 +2374,8 @@ def self_test() -> None:
                         "subject": "legacy",
                         "severity": "REVIEW",
                         "evidence": ["lib/legacy.dart"],
+                        "last_seen_sha": sha1,
+                        "resolution_observed_sha": sha1,
                     }
                 ],
                 "suppressed_resolved": [],
