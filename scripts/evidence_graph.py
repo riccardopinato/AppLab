@@ -125,6 +125,105 @@ def _scalars(row: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
     return result
 
 
+_PATH_SUFFIXES = {
+    ".dart", ".kt", ".java", ".kts", ".gradle", ".xml", ".json", ".yaml",
+    ".yml", ".properties", ".md", ".txt", ".rst", ".swift", ".m", ".mm",
+    ".cpp", ".c", ".h", ".hpp", ".js", ".jsx", ".ts", ".tsx", ".css",
+    ".html", ".sql", ".toml",
+}
+
+
+def _repo_path(value: Any) -> str:
+    text = _safe(value).replace("\\", "/").strip()
+    if not text or "\n" in text or "\r" in text:
+        return ""
+    if text.startswith(("http://", "https://", "artifact://", "file-sha256://")):
+        return ""
+    while text.startswith("./"):
+        text = text[2:]
+    text = re.sub(r"/+", "/", text).strip("/")
+    if not text or text.startswith("../") or "/../" in f"/{text}/":
+        return ""
+    suffix = Path(text).suffix.lower()
+    if "/" not in text and suffix not in _PATH_SUFFIXES and text not in {
+        "README", "LICENSE", "Dockerfile", "Makefile",
+    }:
+        return ""
+    if any(char in text for char in (" ", "\t", "|", "<", ">")):
+        return ""
+    return text
+
+
+def _component_key(path: str) -> str:
+    normalized = _repo_path(path)
+    if not normalized:
+        return ""
+    parts = normalized.split("/")
+    if parts[0] == "lib":
+        return "/".join(parts[:2]) if len(parts) >= 3 else "lib"
+    if "src" in parts:
+        index = parts.index("src")
+        prefix = parts[:index]
+        if prefix:
+            return "/".join(prefix)
+    if len(parts) > 1:
+        return parts[0]
+    return "root"
+
+
+def _analysis_paths(inputs: dict[str, dict[str, Any]]) -> tuple[set[str], set[str]]:
+    plan = inputs.get("analysis_plan", {})
+    changed: set[str] = set()
+    impacted: set[str] = set()
+    if not isinstance(plan, dict):
+        return changed, impacted
+    for value in plan.get("changed_files", []) if isinstance(plan.get("changed_files"), list) else []:
+        path = _repo_path(value)
+        if path:
+            changed.add(path)
+    changes = plan.get("changes") if isinstance(plan.get("changes"), list) else []
+    for row in changes:
+        if not isinstance(row, dict):
+            continue
+        for key in ("path", "previous_path"):
+            path = _repo_path(row.get(key))
+            if path:
+                changed.add(path)
+    for value in plan.get("impacted_files", []) if isinstance(plan.get("impacted_files"), list) else []:
+        path = _repo_path(value)
+        if path and path not in changed:
+            impacted.add(path)
+    return changed, impacted
+
+
+def _file_node(
+    builder: "GraphBuilder",
+    path: str,
+    *,
+    changed: set[str],
+    impacted: set[str],
+    provenance: list[str] | None = None,
+) -> str | None:
+    normalized = _repo_path(path)
+    if not normalized:
+        return None
+    state = "CHANGED" if normalized in changed else (
+        "DEPENDENCY_IMPACT" if normalized in impacted else "OBSERVED"
+    )
+    return builder.add_node(
+        "File",
+        normalized,
+        normalized,
+        attributes={
+            "path": normalized,
+            "change_state": state,
+            "changed": normalized in changed,
+            "dependency_impacted": normalized in impacted,
+        },
+        provenance=provenance or [],
+    )
+
+
 class GraphBuilder:
     def __init__(self) -> None:
         self.nodes: dict[str, dict[str, Any]] = {}
