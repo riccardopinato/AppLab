@@ -85,8 +85,11 @@ def scenario(raw:Any,p:dict[str,str],c:dict[str,str])->dict[str,Any]:
         expected="copy" if kind=="COPY" else "link" if kind=="LINK" else None
         observed=validate_envelope(raw["observed_contract"],source_app=source["app_id"],target_app=target["app_id"],expected_mode=expected)
     elif kind in {"COPY","LINK","IDEMPOTENCY","PROVENANCE","OWNERSHIP"}: raise ValueError(f"{kind} requires observed_contract evidence")
+    scenario_transport=clean(raw.get("transport"),f"{kind}.transport",64).lower()
+    if scenario_transport not in SUPPORTED_TRANSPORTS:
+        raise ValueError(f"unsupported cross-app scenario transport: {scenario_transport}")
     return {"id":clean(raw.get("id"),f"{kind}.id",128),"kind":kind,"direction":direction,
-            "transport":clean(raw.get("transport"),f"{kind}.transport",64).lower(),"result":result,
+            "transport":scenario_transport,"result":result,
             "assertions":dict(sorted(a.items())),"observed_contract":observed,"evidence_refs":evidence(raw.get("evidence_refs",[]))}
 
 def physical(raw:Any,required:bool,p:dict[str,str],c:dict[str,str],rows:list[dict[str,Any]])->dict[str,Any]:
@@ -147,7 +150,7 @@ def build_report(session:dict[str,Any],producer_release_reality:dict[str,Any]|No
     missing=sorted(REQUIRED_KINDS-kinds)
     if missing: errors.append("missing required scenarios: "+", ".join(missing))
     if not kinds & TRANSPORT_KINDS: errors.append("missing explicit transport scenario")
-    if kind=="deep_link" and "DEEP_LINK_HANDOFF" not in kinds: errors.append("deep_link transport requires DEEP_LINK_HANDOFF scenario")
+    if kind in {"deep_link","android_intent"} and "DEEP_LINK_HANDOFF" not in kinds: errors.append(f"{kind} transport requires DEEP_LINK_HANDOFF scenario")
     if kind in {"clipboard","fallback"} and "FALLBACK_TRANSPORT" not in kinds: errors.append("fallback transport requires FALLBACK_TRANSPORT scenario")
     ph=physical(session.get("physical_evidence"),installed,p,c,rows); pr=reality(producer_release_reality,p); cr=reality(consumer_release_reality,c)
     if pr["provided"] and not pr["identity_match"]: errors.append("producer Release Reality identity mismatch")
@@ -222,6 +225,17 @@ def self_test()->None:
         assert "unsupported cross-app transport" in str(exc)
     else:
         raise AssertionError("unsupported transport must fail closed")
+
+    unsupported_scenario=json.loads(json.dumps(session)); unsupported_scenario["scenarios"][0]["transport"]="telepathy"
+    try:
+        build_report(unsupported_scenario)
+    except ValueError as exc:
+        assert "unsupported cross-app scenario transport" in str(exc)
+    else:
+        raise AssertionError("unsupported scenario transport must fail closed")
+
+    android_intent_without_handoff=json.loads(json.dumps(session)); android_intent_without_handoff["transport"]["kind"]="android_intent"; android_intent_without_handoff["scenarios"]=[row for row in android_intent_without_handoff["scenarios"] if row["kind"]!="DEEP_LINK_HANDOFF"]
+    assert build_report(android_intent_without_handoff)["cross_app_round_trip"]["state"]==BLOCKED
 
     bad_schema=json.loads(json.dumps(session)); bad_schema["schema_version"]=True
     try:
