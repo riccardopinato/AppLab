@@ -730,7 +730,10 @@ def check_cross_app_verification_contract() -> None:
         'CONTRACT_NAME = "Shared Ecosystem Core"' in core
         and 'PRIVATE_MEDIA_MARKERS' in core
         and 'validate_envelope' in core
-        and 'require_contract_version' in core,
+        and 'require_contract_version' in core
+        and 'if not isinstance(value, str)' in core
+        and 'CANONICAL_CONTRACT_REFS' in core
+        and '_private_media_reference' in core,
         "v4.8 must reuse and fail-close the Shared Ecosystem Core contract",
     )
     for needle in (
@@ -749,6 +752,7 @@ def check_cross_app_verification_contract() -> None:
         'kind in {"deep_link","android_intent"}',
         'producer and consumer cannot use identical APK bytes',
         'producer and consumer must use distinct Android package ids',
+        'PACKAGE_RE=re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)+$")',
         'semantic contract lineage mismatch',
         'paired physical evidence requires at least one hashed evidence reference',
         'if result!=FAIL: result=BLOCKED',
