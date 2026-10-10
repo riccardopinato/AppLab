@@ -181,6 +181,11 @@ def evaluate(
     signing_subject = str(apk_contract.get("signing_subject", "")).strip()
     expected_signer = str(policy.get("expected_signing_certificate_sha256", "")).strip().lower()
     requires_real_device = bool(policy.get("requires_real_device", False))
+    required_physical_capabilities = {
+        str(value or "").strip().lower()
+        for value in (policy.get("required_physical_capabilities") or [])
+        if str(value or "").strip()
+    }
     max_apk_bytes = int(policy.get("max_apk_bytes", MAX_CERTIFIED_APK_BYTES) or MAX_CERTIFIED_APK_BYTES)
     if not package_id:
         blockers.append({"gate": "apk_package", "label": "APK package id", "observed": "MISSING"})
@@ -236,6 +241,17 @@ def evaluate(
             )
             physical_record_id = str(physical_evidence.get("record_id", ""))
             observed_physical = str(physical_evidence.get("result", "")).strip().upper()
+            scenario = physical_evidence.get("scenario")
+            covered_capabilities = {
+                str(value or "").strip().lower()
+                for value in (
+                    scenario.get("capabilities", [])
+                    if isinstance(scenario, dict)
+                    else []
+                )
+                if str(value or "").strip()
+            }
+            missing_capabilities = sorted(required_physical_capabilities - covered_capabilities)
             if not binding_ok:
                 failures.append({
                     "gate": "real_device_evidence",
@@ -244,6 +260,17 @@ def evaluate(
                 })
                 physical_status = "FAIL"
                 physical_reason = "Physical evidence is not bound to the exact certified APK/source identity."
+            elif observed_physical == "PASS" and missing_capabilities:
+                blockers.append({
+                    "gate": "real_device_capability_coverage",
+                    "label": "Required physical capability coverage",
+                    "observed": "MISSING_" + ",".join(missing_capabilities),
+                })
+                physical_status = "BLOCKED"
+                physical_reason = (
+                    "Trusted physical evidence passed but does not cover all required "
+                    "capabilities: " + ", ".join(missing_capabilities)
+                )
             elif observed_physical == "PASS":
                 physical_status = "PASS"
                 physical_reason = "Trusted Physical Evidence Hub record passed on the exact APK."
@@ -361,6 +388,7 @@ def evaluate(
             "status": physical_status,
             "required": requires_real_device,
             "record_id": physical_record_id,
+            "required_capabilities": sorted(required_physical_capabilities),
             "reason": physical_reason,
         },
         "apk_sha256": actual_hash,
@@ -606,7 +634,11 @@ def self_test() -> None:
 
         hardware_contract = {
             **contract,
-            "certification_policy": {**contract["certification_policy"], "requires_real_device": True},
+            "certification_policy": {
+                **contract["certification_policy"],
+                "requires_real_device": True,
+                "required_physical_capabilities": ["gps", "background"],
+            },
         }
         hardware_blocked = evaluate(
             pass_result, hardware_contract, apk,
@@ -625,6 +657,7 @@ def self_test() -> None:
                 "version_code": "1",
             },
             "result": "PASS",
+            "scenario": {"capabilities": ["gps", "background"]},
             "verification": {
                 "state": "VERIFIED",
                 "exact_artifact_match": True,
