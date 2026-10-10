@@ -136,6 +136,7 @@ def build_report(session:dict[str,Any],producer_release_reality:dict[str,Any]|No
     protocol=validate_protocol(session.get("protocol")); p=identity(session.get("producer"),"producer"); c=identity(session.get("consumer"),"consumer")
     if (p["repository"],p["resolved_sha"])==(c["repository"],c["resolved_sha"]): raise ValueError("producer and consumer must be distinct app identities")
     if p["artifact_sha256"]==c["artifact_sha256"]: raise ValueError("producer and consumer cannot use identical APK bytes")
+    if p["package_id"]==c["package_id"]: raise ValueError("producer and consumer must use distinct Android package ids")
     if p["app_id"] not in CANONICAL_APP_SCHEMES or c["app_id"] not in CANONICAL_APP_SCHEMES or p["app_id"]==c["app_id"]: raise ValueError("producer/consumer app ids must be distinct registered Shared Ecosystem Core v1 ids")
     t=session.get("transport")
     if not isinstance(t,dict): raise ValueError("transport must be an object")
@@ -225,6 +226,14 @@ def self_test()->None:
     else:
         raise AssertionError("identical producer/consumer APK bytes must fail closed")
 
+    same_package=json.loads(json.dumps(session)); same_package["consumer"]["package_id"]=same_package["producer"]["package_id"]
+    try:
+        build_report(same_package)
+    except ValueError as exc:
+        assert "distinct Android package ids" in str(exc)
+    else:
+        raise AssertionError("same Android package id cannot represent an installed pair")
+
     unsupported=json.loads(json.dumps(session)); unsupported["transport"]["kind"]="telepathy"; unsupported["transport"]["requires_installed_apps"]=False
     try:
         build_report(unsupported)
@@ -258,6 +267,7 @@ def self_test()->None:
         raise AssertionError("unsupported evidence URI must fail closed")
 
     android_intent_without_handoff=json.loads(json.dumps(session)); android_intent_without_handoff["transport"]["kind"]="android_intent"; android_intent_without_handoff["scenarios"]=[row for row in android_intent_without_handoff["scenarios"] if row["kind"]!="DEEP_LINK_HANDOFF"]
+    for row in android_intent_without_handoff["scenarios"]: row["transport"]="android_intent"
     assert build_report(android_intent_without_handoff)["cross_app_round_trip"]["state"]==BLOCKED
 
     bad_schema=json.loads(json.dumps(session)); bad_schema["schema_version"]=True
