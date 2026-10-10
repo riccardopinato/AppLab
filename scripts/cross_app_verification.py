@@ -17,6 +17,8 @@ REQUIRED_KINDS={"COPY","LINK","IDEMPOTENCY","PROVENANCE","OWNERSHIP","FAIL_CLOSE
 TRANSPORT_KINDS={"DEEP_LINK_HANDOFF","FALLBACK_TRANSPORT"}
 SUPPORTED_TRANSPORTS={"deep_link","android_intent","clipboard","fallback"}
 INSTALLED_APP_TRANSPORTS=set(SUPPORTED_TRANSPORTS)
+EVIDENCE_KINDS={"screenshot","log","video","file","trace","report"}
+EVIDENCE_URI_PREFIXES=("https://","artifact://","file-sha256://")
 ASSERTIONS={
 "COPY":{"explicit_review","materialized_once","provenance_preserved","source_ownership_preserved"},
 "LINK":{"explicit_review","canonical_deep_link_present","source_ownership_preserved","no_background_sync"},
@@ -64,7 +66,10 @@ def evidence(values:Any)->list[dict[str,str]]:
         if not isinstance(x,dict): raise ValueError(f"evidence_refs[{i}] must be an object")
         sha=clean(x.get("sha256"),f"evidence_refs[{i}].sha256",64).lower()
         if not SHA256_RE.fullmatch(sha): raise ValueError(f"evidence_refs[{i}].sha256 must be 64 lowercase hex")
-        out.append({"kind":clean(x.get("kind"),f"evidence_refs[{i}].kind",32).lower(),"uri":clean(x.get("uri"),f"evidence_refs[{i}].uri",2000),"sha256":sha})
+        kind=clean(x.get("kind"),f"evidence_refs[{i}].kind",32).lower(); uri=clean(x.get("uri"),f"evidence_refs[{i}].uri",2000)
+        if kind not in EVIDENCE_KINDS: raise ValueError(f"unsupported evidence kind: {kind}")
+        if not uri.startswith(EVIDENCE_URI_PREFIXES): raise ValueError(f"unsupported evidence URI scheme: {uri}")
+        out.append({"kind":kind,"uri":uri,"sha256":sha})
     return out
 
 def scenario(raw:Any,p:dict[str,str],c:dict[str,str])->dict[str,Any]:
@@ -126,7 +131,7 @@ def attestation(args:argparse.Namespace)->dict[str,Any]|None:
     return {"authority":AUTHORITY,"workflow_repository":repo,"workflow_path":WORKFLOW_PATH,"workflow_run_id":run,"workflow_run_attempt":attempt,"trusted_applab_sha":sha,"actor":clean(args.actor,"actor",128),"event":"workflow_dispatch","operator_attested_pair_evidence":True,"artifact_bytes_reverified_by_cross_app_hub":False}
 
 def build_report(session:dict[str,Any],producer_release_reality:dict[str,Any]|None=None,consumer_release_reality:dict[str,Any]|None=None,attestation_record:dict[str,Any]|None=None)->dict[str,Any]:
-    session_version=session.get("schema_version",1)
+    session_version=session.get("schema_version")
     if not isinstance(session_version,int) or isinstance(session_version,bool) or session_version!=1: raise ValueError("session.schema_version must be integer 1")
     protocol=validate_protocol(session.get("protocol")); p=identity(session.get("producer"),"producer"); c=identity(session.get("consumer"),"consumer")
     if (p["repository"],p["resolved_sha"])==(c["repository"],c["resolved_sha"]): raise ValueError("producer and consumer must be distinct app identities")
@@ -143,6 +148,8 @@ def build_report(session:dict[str,Any],producer_release_reality:dict[str,Any]|No
     if not isinstance(raw,list) or not raw: raise ValueError("scenarios must be non-empty")
     rows=[scenario(x,p,c) for x in raw]; ids=[r["id"] for r in rows]
     if len(ids)!=len(set(ids)): raise ValueError("scenario ids must be unique")
+    mismatched_transports=sorted({r["transport"] for r in rows if r["transport"]!=kind})
+    if mismatched_transports: raise ValueError("scenario transport must match pair transport: "+", ".join(mismatched_transports))
     kinds={r["kind"] for r in rows}; errors=[]
     semantic=[r for r in rows if r["kind"] in {"COPY","LINK","IDEMPOTENCY","PROVENANCE","OWNERSHIP"}]
     lineage={(r["direction"],r["observed_contract"]["bridge_id"],r["observed_contract"]["revision"],r["observed_contract"]["owner_app"],r["observed_contract"]["owner_entity_type"],r["observed_contract"]["owner_entity_id"],r["observed_contract"]["target_app"]) for r in semantic}
@@ -233,6 +240,22 @@ def self_test()->None:
         assert "unsupported cross-app scenario transport" in str(exc)
     else:
         raise AssertionError("unsupported scenario transport must fail closed")
+
+    mixed_transport=json.loads(json.dumps(session)); mixed_transport["scenarios"][0]["transport"]="clipboard"
+    try:
+        build_report(mixed_transport)
+    except ValueError as exc:
+        assert "scenario transport must match pair transport" in str(exc)
+    else:
+        raise AssertionError("mixed pair/scenario transports must fail closed")
+
+    bad_ref=json.loads(json.dumps(session)); bad_ref["physical_evidence"]["evidence_refs"][0]["uri"]="javascript:alert(1)"
+    try:
+        build_report(bad_ref)
+    except ValueError as exc:
+        assert "unsupported evidence URI scheme" in str(exc)
+    else:
+        raise AssertionError("unsupported evidence URI must fail closed")
 
     android_intent_without_handoff=json.loads(json.dumps(session)); android_intent_without_handoff["transport"]["kind"]="android_intent"; android_intent_without_handoff["scenarios"]=[row for row in android_intent_without_handoff["scenarios"] if row["kind"]!="DEEP_LINK_HANDOFF"]
     assert build_report(android_intent_without_handoff)["cross_app_round_trip"]["state"]==BLOCKED
