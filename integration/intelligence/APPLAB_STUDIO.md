@@ -20,6 +20,7 @@ evidence/
     app-intelligence.json
     market-intelligence.json
     audit-plan.json
+    release-reality.json
   project-b/
     app-intelligence.json
     audit-plan.json
@@ -65,6 +66,7 @@ Studio shows per project:
 4. Missing Studio evidence leaves the runtime Control Center usable.
 5. No opaque overall app score is generated.
 6. Certification remains owned exclusively by the trusted certification pipeline.
+7. Release Cockpit is read-only and cannot promote or mutate trusted evidence.
 
 
 ## Evidence Graph v4.2
@@ -81,3 +83,18 @@ project directory and runs `studio_snapshot.py` in the same workflow. The review
 artifact therefore includes both the source evidence and a ready-to-consume
 `studio.json` snapshot. Backend adapters preserve unknown/new summary fields so
 producer metrics added by later AppLab versions are not silently discarded.
+
+
+## Certification Studio / Release Cockpit v4.7
+
+When `release-reality.json` is present, Studio adds a bounded
+`release_cockpit` projection. It shows the real release ladder level,
+certification status, exact blockers, artifact/source identity, trusted runtime,
+physical requirements, freshness and regression/recurrence context.
+
+The "Why is this not CERTIFIED?" drill-down is derived from authoritative
+Release Reality blockers and unresolved gates. It never manufactures a score or
+a PASS. Evidence Graph and longitudinal data only add freshness/recurrence
+context; they cannot override Release Reality.
+
+See `integration/certification/CERTIFICATION_STUDIO_V47.md`.
