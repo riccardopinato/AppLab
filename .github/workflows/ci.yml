@@ -82,6 +82,7 @@ jobs:
             scripts/user_journey_intelligence.py \
             scripts/ux_friction_lab.py \
             scripts/longitudinal_product_intelligence.py \
+            scripts/longitudinal_finding_lifecycle.py \
             scripts/autonomous_experiment_planner.py \
             scripts/applab_analyst.py \
             scripts/evidence_graph.py \
