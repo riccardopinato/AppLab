@@ -109,6 +109,7 @@ def project_summary(evidence_graph: dict[str, Any]) -> dict[str, Any]:
         "top_impact_paths": [
             {
                 "origin_file": str(item.get("origin_file", "")),
+                "origin_kind": str(item.get("origin_kind", "")),
                 "relations": [
                     str(value) for value in item.get("relations", [])[:8]
                 ] if isinstance(item.get("relations"), list) else [],
@@ -189,6 +190,7 @@ def self_test_payload() -> dict[str, Any]:
                 "paths": [
                     {
                         "origin_file": "lib/settings.dart",
+                        "origin_kind": "DEPENDENCY_IMPACT",
                         "relations": [
                             "FILE_IN_COMPONENT",
                             "COMPONENT_SUPPORTS_CAPABILITY",
