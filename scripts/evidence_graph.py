@@ -826,11 +826,20 @@ def _add_finding_rows(
 
         evidence_values = row.get("evidence") if isinstance(row.get("evidence"), list) else []
         for value in evidence_values[:16]:
+            revision_attrs = (
+                builder.nodes.get(revision, {}).get("attributes", {})
+                if isinstance(builder.nodes.get(revision, {}).get("attributes", {}), dict)
+                else {}
+            )
             evidence_node = _reference_evidence(
                 builder,
                 value,
                 source_file=source_file,
                 report_node=report_node,
+                attributes={
+                    "observation_scope": "CURRENT",
+                    "observed_sha": _safe(revision_attrs.get("resolved_sha")),
+                },
             )
             if evidence_node:
                 builder.add_edge("FINDING_SUPPORTED_BY", node, evidence_node, provenance=[source_file])
@@ -921,6 +930,185 @@ def _add_findings(
     )
 
 
+def _finding_row_key(row: dict[str, Any]) -> str:
+    key = _safe(row.get("key"))
+    if key:
+        return key
+    source = _safe(row.get("source"))
+    explicit_id = _safe(row.get("id"))
+    if source and explicit_id:
+        return f"{source}|id:{explicit_id}"
+    kind = _safe(row.get("kind") or row.get("category"))
+    subject = _safe(row.get("subject") or row.get("capability"))
+    if source and (kind or subject):
+        return f"{source}|{kind}|{subject}"
+    return ""
+
+
+def _finding_lifecycle(
+    builder: GraphBuilder,
+    inputs: dict[str, dict[str, Any]],
+    reports: dict[str, str],
+    revision: str,
+) -> dict[str, int]:
+    longitudinal = inputs.get("longitudinal", {})
+    findings = (
+        longitudinal.get("findings")
+        if isinstance(longitudinal.get("findings"), dict)
+        else {}
+    )
+    current = (
+        longitudinal.get("current")
+        if isinstance(longitudinal.get("current"), dict)
+        else {}
+    )
+    baseline = (
+        longitudinal.get("baseline")
+        if isinstance(longitudinal.get("baseline"), dict)
+        else {}
+    )
+    current_sha = _safe(current.get("resolved_sha")).lower()
+    baseline_sha = _safe(baseline.get("resolved_sha")).lower()
+
+    states: dict[str, str] = {}
+    for bucket, state in (
+        ("new", "FIRST_OBSERVED"),
+        ("persistent", "PERSISTENT"),
+        ("returned", "RETURNED"),
+    ):
+        rows = findings.get(bucket) if isinstance(findings.get(bucket), list) else []
+        for row in rows:
+            if isinstance(row, dict):
+                key = _finding_row_key(row)
+                if key:
+                    states[key] = state
+
+    counts = Counter()
+    for node_id, node in list(builder.nodes.items()):
+        if node.get("type") != "Finding":
+            continue
+        key = _safe(node.get("key"))
+        attrs = node.get("attributes") if isinstance(node.get("attributes"), dict) else {}
+        state = states.get(key, "ACTIVE")
+        attrs["lifecycle_state"] = state
+        attrs["active"] = True
+        attrs["resolution_observed_sha"] = ""
+        attrs["causal_attribution"] = "NOT_INFERRED"
+        node["attributes"] = attrs
+        counts[state] += 1
+        relation = {
+            "FIRST_OBSERVED": "REVISION_FIRST_OBSERVED_FINDING",
+            "RETURNED": "REVISION_RETURNED_FINDING",
+            "PERSISTENT": "REVISION_PERSISTS_FINDING",
+        }.get(state)
+        if relation:
+            builder.add_edge(
+                relation,
+                revision,
+                node_id,
+                attributes={"causal_blame": False},
+                provenance=[FILES["longitudinal"]],
+            )
+
+    baseline_revision = None
+    if baseline_sha:
+        for node_id, node in builder.nodes.items():
+            if node.get("type") != "Revision":
+                continue
+            attrs = node.get("attributes") if isinstance(node.get("attributes"), dict) else {}
+            if _safe(attrs.get("resolved_sha")).lower() == baseline_sha:
+                baseline_revision = node_id
+                break
+
+    resolved = findings.get("resolved") if isinstance(findings.get("resolved"), list) else []
+    for index, row in enumerate(resolved):
+        if not isinstance(row, dict):
+            continue
+        key = _finding_row_key(row) or f"resolved:{index}:{_safe(row.get('kind'))}:{_safe(row.get('subject'))}"
+        existing = _match_node_key(builder, key, ("Finding",))
+        kind = _safe(row.get("kind") or row.get("category")) or "FINDING"
+        subject = _safe(row.get("subject") or row.get("capability") or row.get("id")) or key
+        if existing:
+            node_id = existing
+            attrs = builder.nodes[node_id].get("attributes")
+            attrs = attrs if isinstance(attrs, dict) else {}
+        else:
+            node_id = builder.add_node(
+                "Finding",
+                key,
+                f"{kind}: {subject}",
+                attributes={
+                    **_scalars(
+                        row,
+                        (
+                            "id", "domain", "category", "kind", "severity",
+                            "subject", "capability", "message", "reason", "source",
+                        ),
+                    ),
+                    "finding_source": _safe(row.get("source")),
+                    "source_file": FILES["longitudinal"],
+                    "first_observed_sha": _safe(row.get("first_seen_sha")),
+                    "last_observed_sha": _safe(row.get("last_seen_sha")) or baseline_sha,
+                    "seen_count": int(row.get("seen_count", 0) or 0),
+                    "consecutive_seen": 0,
+                },
+                provenance=[FILES["longitudinal"]],
+            )
+            attrs = builder.nodes[node_id]["attributes"]
+
+        attrs["lifecycle_state"] = "RESOLVED"
+        attrs["active"] = False
+        attrs["resolution_observed_sha"] = current_sha
+        attrs["causal_attribution"] = "NOT_INFERRED"
+        builder.nodes[node_id]["attributes"] = attrs
+        counts["RESOLVED"] += 1
+
+        if baseline_revision:
+            builder.add_edge(
+                "REVISION_HAD_FINDING",
+                baseline_revision,
+                node_id,
+                attributes={"historical_observation": True},
+                provenance=[FILES["longitudinal"]],
+            )
+        builder.add_edge(
+            "REVISION_OBSERVED_RESOLUTION",
+            revision,
+            node_id,
+            attributes={
+                "causal_blame": False,
+                "caveat": "resolution is an observed absence versus baseline, not proof that this revision caused the fix",
+            },
+            provenance=[FILES["longitudinal"]],
+        )
+        evidence_values = row.get("evidence") if isinstance(row.get("evidence"), list) else []
+        for value in evidence_values[:16]:
+            evidence_node = _reference_evidence(
+                builder,
+                value,
+                source_file=FILES["longitudinal"],
+                report_node=reports.get("longitudinal"),
+                attributes={
+                    "observation_scope": "HISTORICAL",
+                    "source_sha": baseline_sha,
+                    "current_sha": current_sha,
+                },
+            )
+            if evidence_node:
+                builder.add_edge(
+                    "FINDING_SUPPORTED_BY",
+                    node_id,
+                    evidence_node,
+                    provenance=[FILES["longitudinal"]],
+                )
+
+    suppressed = findings.get("suppressed_resolved")
+    counts["RESOLUTION_SUPPRESSED"] = len(
+        [row for row in suppressed if isinstance(row, dict)]
+    ) if isinstance(suppressed, list) else 0
+    return dict(counts)
+
+
 def _add_claims(
     builder: GraphBuilder,
     inputs: dict[str, dict[str, Any]],
@@ -991,11 +1179,25 @@ def _add_claims(
 
         values = row.get("evidence") if isinstance(row.get("evidence"), list) else []
         for value in values[:16]:
+            claim_status = _safe(row.get("status")).upper()
+            source_sha = _safe(row.get("source_sha")).lower()
+            current_sha = _safe(row.get("current_sha")).lower()
             evidence_node = _reference_evidence(
                 builder,
                 value,
                 source_file=FILES["confidence"],
                 report_node=reports.get("confidence"),
+                attributes={
+                    "observation_scope": (
+                        "HISTORICAL"
+                        if claim_status == "STALE"
+                        or (source_sha and current_sha and source_sha != current_sha)
+                        else "CURRENT"
+                    ),
+                    "claim_status": claim_status,
+                    "source_sha": source_sha,
+                    "current_sha": current_sha,
+                },
             )
             if evidence_node:
                 builder.add_edge("CLAIM_SUPPORTED_BY", node, evidence_node, provenance=[FILES["confidence"]])
