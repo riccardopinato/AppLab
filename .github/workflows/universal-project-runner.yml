@@ -232,7 +232,6 @@ jobs:
       maestro_flow: ${{ fromJSON(needs.discover.outputs.profile).maestro_flow }}
       history_key: ${{ inputs.history_key }}
       cache_verification: ${{ inputs.cache_verification }}
-      contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint != '' && inputs.config_fingerprint != 'manual' && inputs.config_fingerprint || needs.discover.outputs.profile_fingerprint }}
       approve_visual_baseline: ${{ inputs.approve_visual_baseline }}
       analysis_mode: ${{ inputs.analysis_mode }}
@@ -267,7 +266,6 @@ jobs:
       maestro_flow: ${{ fromJSON(needs.discover.outputs.profile).maestro_flow }}
       history_key: ${{ inputs.history_key }}
       cache_verification: ${{ inputs.cache_verification }}
-      contract_fingerprint: ${{ inputs.contract_fingerprint }}
       config_fingerprint: ${{ inputs.config_fingerprint != '' && inputs.config_fingerprint != 'manual' && inputs.config_fingerprint || needs.discover.outputs.profile_fingerprint }}
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
