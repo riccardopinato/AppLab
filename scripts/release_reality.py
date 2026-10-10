@@ -153,6 +153,11 @@ def artifact_identity(
         "actual_sha256": actual_sha,
         "signing_cert_sha256": str(apk.get("signing_cert_sha256", "")).strip().lower(),
         "signing_subject": str(apk.get("signing_subject", "")).strip(),
+        "signing_identity_state": (
+            "VERIFIED"
+            if re.fullmatch(r"[0-9a-f]{64}", str(apk.get("signing_cert_sha256", "")).strip().lower())
+            else "NOT_VERIFIED"
+        ),
         "same_bytes_verified": same_bytes,
     }
 
@@ -164,20 +169,26 @@ def artifact_identity(
         return identity, FAIL, "The available APK bytes do not match the build-contract SHA-256."
     if expected_size <= 0 or actual_size != expected_size:
         return identity, FAIL, "The available APK size does not match the build contract."
-    required_identity = {
+    required_build_identity = {
         "package_id": identity["package_id"],
         "version_name": identity["version_name"],
         "version_code": identity["version_code"],
-        "signing_cert_sha256": identity["signing_cert_sha256"],
     }
-    missing = [name for name, value in required_identity.items() if not value]
+    missing = [name for name, value in required_build_identity.items() if not value]
     if missing:
         return identity, BLOCKED, (
-            "Artifact identity is incomplete: " + ", ".join(sorted(missing))
+            "Artifact build identity is incomplete: " + ", ".join(sorted(missing))
         )
-    if not re.fullmatch(r"[0-9a-f]{64}", identity["signing_cert_sha256"]):
+
+    signing = identity["signing_cert_sha256"]
+    if signing and not re.fullmatch(r"[0-9a-f]{64}", signing):
         return identity, BLOCKED, "Artifact signing certificate is not a valid SHA-256 digest."
-    return identity, PASS, "Exact APK bytes and canonical artifact identity are bound."
+
+    identity["signing_identity_state"] = "VERIFIED" if signing else "NOT_VERIFIED"
+    reason = "Exact APK bytes and build identity are bound."
+    if not signing:
+        reason += " Release signing identity is not yet verified and remains a later release/certification concern."
+    return identity, PASS, reason
 
 
 def certification_summary(report_dir: Path, analysis_mode: str) -> dict[str, Any]:
@@ -656,6 +667,25 @@ def self_test() -> None:
         assert states["PHYSICAL_DEVICE_VERIFIED"] == NOT_APPLICABLE
         assert states["DISTRIBUTION_VERIFIED"] == NOT_VERIFIED
         assert reality["artifact"]["same_bytes_verified"] is True
+
+        contract["apk"]["signing_cert_sha256"] = ""
+        contract["apk"]["signing_subject"] = ""
+        (report / "build-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+        reality = build_release_reality(
+            report,
+            apk,
+            workflow_run_id="123",
+            trusted_applab_sha="c" * 40,
+            runtime_outcome="success",
+        )
+        states = {row["key"]: row["state"] for row in reality["levels"]}
+        assert states["ARTIFACT_BUILT"] == PASS
+        assert states["TRUSTED_RUNTIME_VERIFIED"] == PASS
+        assert reality["artifact"]["signing_identity_state"] == NOT_VERIFIED
+        assert reality["identity_complete"] is False
+        contract["apk"]["signing_cert_sha256"] = "b" * 64
+        contract["apk"]["signing_subject"] = "CN=Release"
+        (report / "build-contract.json").write_text(json.dumps(contract), encoding="utf-8")
 
         contract["analysis_mode"] = "certification"
         contract["certification_policy"]["requires_real_device"] = True
