@@ -69,6 +69,14 @@ A rebuilt APK with different bytes is a new artifact even when repository,
 source SHA, package and human-readable version labels are unchanged. Evidence
 from the previous APK is not silently inherited.
 
+ARTIFACT_BUILT proves that the exact APK bytes, size, package and version/build
+identity are bound. It does **not** require release-signing proof merely to
+acknowledge that the artifact exists and was the artifact tested. Signing
+identity is recorded separately as VERIFIED or NOT_VERIFIED and remains a
+certification/store concern when policy requires it. This prevents a debug or
+internal test artifact from erasing truthful build/runtime evidence while still
+preventing it from being mistaken for a store-ready release.
+
 ## Current evidence authority
 
 v4.4 can prove the existing AppLab stages through trusted runtime:
