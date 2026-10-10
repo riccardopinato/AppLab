@@ -555,6 +555,85 @@ pre {
 }
 .studio-dimensions strong { display: block; margin: 4px 0 2px; font-size: 17px; }
 .studio-dimensions small { display: block; color: #778397; font-size: 10px; overflow-wrap: anywhere; }
+.release-cockpit-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+  padding: 11px 12px;
+  border: 1px solid #36435a;
+  border-radius: 12px;
+  background: rgba(20, 29, 45, .5);
+}
+.release-cockpit-head > div { min-width: 0; }
+.release-cockpit-head span:first-child,
+.release-cockpit-grid span {
+  display: block;
+  color: #7d899c;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.release-cockpit-head strong { display: block; margin: 4px 0 2px; font-size: 16px; }
+.release-cockpit-head small { display: block; color: #8a96aa; font-size: 10px; overflow-wrap: anywhere; }
+.release-cockpit-drilldown {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #303b50;
+  border-radius: 12px;
+  background: rgba(7, 10, 16, .72);
+}
+.release-cockpit-drilldown > summary {
+  cursor: pointer;
+  color: #d8e0ee;
+  font-size: 12px;
+  font-weight: 800;
+}
+.release-cockpit-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.release-cockpit-grid > div {
+  padding: 10px;
+  border: 1px solid #293245;
+  border-radius: 10px;
+  background: rgba(10, 14, 22, .66);
+}
+.release-cockpit-grid strong { display: block; margin: 4px 0 2px; font-size: 13px; overflow-wrap: anywhere; }
+.release-cockpit-grid small { display: block; color: #7f8ba0; font-size: 10px; overflow-wrap: anywhere; }
+.release-cockpit-blockers {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+.release-cockpit-blockers > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 9px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid #3b3340;
+  border-radius: 10px;
+  background: rgba(55, 23, 35, .22);
+}
+.release-cockpit-blockers strong { font-size: 11px; }
+.release-cockpit-blockers small {
+  grid-column: 2;
+  color: #9aa4b5;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.release-cockpit-certified {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 10px;
+}
+.release-cockpit-certified small { color: #8a96aa; font-size: 10px; }
 .studio-labs {
   display: flex;
   flex-wrap: wrap;
