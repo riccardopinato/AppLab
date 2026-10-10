@@ -30,6 +30,7 @@ def check_version_alignment() -> None:
         "frontend root lock package version drift",
     )
     studio = (ROOT / "scripts/studio_snapshot.py").read_text(encoding="utf-8")
+    studio_graph = (ROOT / "scripts/studio_evidence_graph.py").read_text(encoding="utf-8")
     require(
         f'STUDIO_VERSION = "{EXPECTED_VERSION}"' in studio,
         "Studio snapshot version drift",
@@ -192,6 +193,8 @@ def check_evidence_graph_contract() -> None:
         "Project",
         "Revision",
         "BuildArtifact",
+        "File",
+        "Component",
         "Capability",
         "Surface",
         "Journey",
@@ -206,13 +209,37 @@ def check_evidence_graph_contract() -> None:
         "unverified-capabilities",
         "recurring-findings",
         "regressions",
+        "impact",
+        "stale-evidence",
+        "lifecycle",
         "history",
         "evidence",
+        "subject",
     ):
         require(query in graph, f"Evidence Graph missing query contract {query}")
     require(
         'first_observed_sha_is_not_proof_of_introducing_commit' in graph,
         "Evidence Graph must not convert first observation into causal blame",
+    )
+    require(
+        'impact_path_is_not_root_cause_proof' in graph
+        and 'resolution_observation_is_not_fix_causality' in graph
+        and 'current_evidence_is_not_invalidated_only_because_its_source_file_changed' in graph,
+        "Evidence Graph 2 must keep impact, resolution and freshness non-causal",
+    )
+    for relation in (
+        "FILE_IN_COMPONENT",
+        "COMPONENT_SUPPORTS_CAPABILITY",
+        "CAPABILITY_OBSERVED_ON_SURFACE",
+        "SURFACE_IN_JOURNEY",
+        "CHANGE_INVALIDATES_EVIDENCE",
+    ):
+        require(relation in graph, f"Evidence Graph 2 missing impact relation {relation}")
+    require(
+        '"freshness"' in graph
+        and '"INVALIDATED"' in graph
+        and "affected_by_current_change" in graph,
+        "Evidence Graph 2 must expose selective freshness invalidation",
     )
     require(
         "Build Evidence Graph" in workflow and "evidence-graph.md" in workflow,
@@ -221,6 +248,12 @@ def check_evidence_graph_contract() -> None:
     require(
         'evidence-graph.json' in studio,
         "Studio must ingest Evidence Graph summary evidence",
+    )
+    require(
+        "invalidated_evidence" in studio_graph
+        and "top_impact_paths" in studio_graph
+        and "finding_lifecycle" in studio_graph,
+        "Studio Evidence Graph projection must expose v4.6 freshness/impact/lifecycle",
     )
 
 
