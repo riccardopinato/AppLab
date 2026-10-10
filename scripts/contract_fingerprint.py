@@ -8,6 +8,7 @@ from pathlib import Path
 CONTRACT_FILES = (
     "scripts/verify_apk.sh",
     "scripts/certification_gate.py",
+    "scripts/release_reality.py",
     "scripts/finalize_certification_matrix.py",
     "scripts/run_external_android_gate.sh",
     "scripts/dismiss_foreign_anr.py",
