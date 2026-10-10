@@ -89,7 +89,13 @@ Example:
 ```
 
 Unknown fields fail closed. Multiple adapter configs, symlinks, unsafe paths,
-oversized config and contradictory project types are rejected.
+oversized config and contradictory project types are rejected. Journey/config
+paths are checked component-by-component so a symlinked parent directory cannot
+escape the target checkout.
+
+Toolchain values are field-validated before they can reach reusable workflow
+inputs: SDK levels are numeric and version/channel fields accept only bounded
+version-safe syntax. Shell substitutions/metacharacter payloads are rejected.
 
 ### Field semantics
 
@@ -131,8 +137,10 @@ A target cannot declare PASS, CERTIFIED, trusted evidence, artifact SHA or
 physical-device verification through `applab.project.json`.
 
 The build contract copies the adapter config into target evidence for
-inspectability, but the real APK identity remains authoritative. If configured
-`package_id` and built APK package id disagree, validation fails.
+inspectability, but only after proving the evidence path remains inside the
+target checkout without symlink traversal. The real APK identity remains
+authoritative. If a configured `package_id` exists, APK package detection is
+mandatory; missing or mismatched APK identity fails validation.
 
 ## Physical validation
 
