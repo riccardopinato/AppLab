@@ -240,123 +240,87 @@ def project_summary(
     }
 
 
-def self_test() -> None:
-    reality = {
+def portfolio_summary(projects: list[dict[str, Any]]) -> dict[str, int]:
+    cockpit_rows = [
+        row["release_cockpit"]
+        for row in projects
+        if isinstance(row.get("release_cockpit"), dict)
+    ]
+    return {
+        "with_release_reality": len(cockpit_rows),
+        "certified_releases": sum(bool(row.get("certified", False)) for row in cockpit_rows),
+        "certification_blocked": sum(
+            row.get("certification_status") == "BLOCKED" for row in cockpit_rows
+        ),
+        "physical_required": sum(
+            bool(_dict(row.get("physical")).get("required", False))
+            for row in cockpit_rows
+        ),
+        "stale_release_evidence": sum(
+            int(_dict(row.get("freshness")).get("stale_or_historical_evidence", 0) or 0)
+            for row in cockpit_rows
+        ),
+    }
+
+
+def self_test_release_reality() -> dict[str, Any]:
+    return {
         "release_id": "release-1",
-        "source": {
-            "repository": "owner/demo",
-            "ref": "main",
-            "resolved_sha": "a" * 40,
-            "engine": "flutter",
-        },
+        "source": {"repository": "owner/demo", "ref": "main", "resolved_sha": "a" * 40, "engine": "flutter"},
         "artifact": {
-            "package_id": "com.example.demo",
-            "version_name": "1.2.3",
-            "version_code": "12",
-            "build_variant": "release",
-            "sha256": "b" * 64,
-            "signing_cert_sha256": "c" * 64,
-            "signing_identity_state": "VERIFIED",
-            "same_bytes_verified": True,
+            "package_id": "com.example.demo", "version_name": "1.2.3", "version_code": "12",
+            "build_variant": "release", "sha256": "b" * 64, "signing_cert_sha256": "c" * 64,
+            "signing_identity_state": "VERIFIED", "same_bytes_verified": True,
         },
         "workflow": {
-            "workflow_run_id": "123",
-            "trusted_applab_sha": "d" * 40,
-            "analysis_mode": "certification",
-            "pipeline_status": "SUCCESS",
-            "aggregate_result": "BLOCKED",
-            "runtime_result": "PASS",
-            "runtime_step_outcome": "SUCCESS",
+            "workflow_run_id": "123", "trusted_applab_sha": "d" * 40,
+            "analysis_mode": "certification", "pipeline_status": "SUCCESS",
+            "aggregate_result": "BLOCKED", "runtime_result": "PASS", "runtime_step_outcome": "SUCCESS",
         },
         "identity_complete": True,
         "current_level": "TRUSTED_RUNTIME_VERIFIED",
         "highest_observed_pass": "TRUSTED_RUNTIME_VERIFIED",
         "levels": [
-            {
-                "key": "TRUSTED_RUNTIME_VERIFIED",
-                "label": "Trusted runtime verified",
-                "state": "PASS",
-                "reason": "Trusted runtime evidence matches.",
-                "evidence": ["trusted-evidence-manifest.json"],
-            },
-            {
-                "key": "PHYSICAL_DEVICE_VERIFIED",
-                "label": "Physical device verified",
-                "state": "BLOCKED",
-                "reason": "GPS requires a real device.",
-                "evidence": ["physical-evidence.json"],
-            },
+            {"key": "TRUSTED_RUNTIME_VERIFIED", "label": "Trusted runtime verified", "state": "PASS",
+             "reason": "Trusted runtime evidence matches.", "evidence": ["trusted-evidence-manifest.json"]},
+            {"key": "PHYSICAL_DEVICE_VERIFIED", "label": "Physical device verified", "state": "BLOCKED",
+             "reason": "GPS requires a real device.", "evidence": ["physical-evidence.json"]},
         ],
-        "next_gate": {
-            "key": "PHYSICAL_DEVICE_VERIFIED",
-            "label": "Physical device verified",
-            "state": "BLOCKED",
-            "reason": "GPS requires a real device.",
-        },
+        "next_gate": {"key": "PHYSICAL_DEVICE_VERIFIED", "label": "Physical device verified",
+                      "state": "BLOCKED", "reason": "GPS requires a real device."},
         "unresolved_stages": [
-            {
-                "key": "PHYSICAL_DEVICE_VERIFIED",
-                "label": "Physical device verified",
-                "state": "BLOCKED",
-                "reason": "GPS requires a real device.",
-                "evidence": ["physical-evidence.json"],
-            }
+            {"key": "PHYSICAL_DEVICE_VERIFIED", "label": "Physical device verified", "state": "BLOCKED",
+             "reason": "GPS requires a real device.", "evidence": ["physical-evidence.json"]}
         ],
-        "certification": {
-            "attempted": True,
-            "status": "BLOCKED",
-            "certified": False,
-        },
+        "certification": {"attempted": True, "status": "BLOCKED", "certified": False},
         "certification_blockers": [
-            {
-                "type": "BLOCKER",
-                "gate": "real_device",
-                "label": "Required physical-device evidence",
-                "observed": "NOT_TESTED",
-            }
+            {"type": "BLOCKER", "gate": "real_device", "label": "Required physical-device evidence",
+             "observed": "NOT_TESTED"}
         ],
-        "physical_evidence": {
-            "present": False,
-            "required_capabilities": ["gps"],
-        },
+        "physical_evidence": {"present": False, "required_capabilities": ["gps"]},
     }
+
+
+def self_test() -> None:
+    reality = self_test_release_reality()
     graph = {
         "summary": {
-            "stale_or_historical_evidence": 2,
-            "invalidated_evidence": 1,
-            "recurring_findings": 1,
-            "regression_candidates": 1,
+            "stale_or_historical_evidence": 2, "invalidated_evidence": 1,
+            "recurring_findings": 1, "regression_candidates": 1,
         },
         "insights": {
             "freshness": {
                 "invalidated_count": 1,
-                "invalidated": [
-                    {
-                        "evidence_id": "Evidence:1",
-                        "label": "lib/location.dart",
-                        "invalidated_by_files": ["lib/location.dart"],
-                    }
-                ],
+                "invalidated": [{"evidence_id": "Evidence:1", "label": "lib/location.dart",
+                                 "invalidated_by_files": ["lib/location.dart"]}],
             },
-            "recurring_findings": [
-                {
-                    "kind": "BACKGROUND_RESTART",
-                    "subject": "location",
-                    "seen_count": 3,
-                }
-            ],
+            "recurring_findings": [{"kind": "BACKGROUND_RESTART", "subject": "location", "seen_count": 3}],
         },
     }
     longitudinal = {
         "summary": {"regression_candidates": 1},
-        "regression_candidates": [
-            {
-                "source": "runtime",
-                "kind": "GPS_REGRESSION",
-                "subject": "tracking",
-                "reason": "Returned after previous resolution.",
-            }
-        ],
+        "regression_candidates": [{"source": "runtime", "kind": "GPS_REGRESSION",
+                                   "subject": "tracking", "reason": "Returned after previous resolution."}],
     }
 
     row = project_summary(reality, graph, longitudinal)
@@ -373,6 +337,11 @@ def self_test() -> None:
     assert any(item["gate"] == "real_device" for item in row["why_not_certified"])
     assert any(item["gate"] == "PHYSICAL_DEVICE_VERIFIED" for item in row["why_not_certified"])
     assert row["missing_evidence"][0]["state"] == "BLOCKED"
+    summary = portfolio_summary([{"release_cockpit": row}, {"release_cockpit": None}])
+    assert summary["with_release_reality"] == 1
+    assert summary["certification_blocked"] == 1
+    assert summary["physical_required"] == 1
+    assert summary["stale_release_evidence"] == 2
     print("AppLab v4.7 Certification Studio projection self-test PASS")
 
 
