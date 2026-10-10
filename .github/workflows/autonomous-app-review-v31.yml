@@ -330,6 +330,8 @@ jobs:
           cp "$GITHUB_WORKSPACE/trusted-runtime/trusted-evidence-manifest.json" "$PROJECT_DIR/"
           cp "$GITHUB_WORKSPACE/trusted-runtime/result.json" "$PROJECT_DIR/trusted-runtime-result.json"
           cp "$GITHUB_WORKSPACE/trusted-runtime/release-reality.json" "$PROJECT_DIR/"
+          cp "$GITHUB_WORKSPACE/trusted-runtime/physical-evidence.json" "$PROJECT_DIR/" 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/trusted-runtime/physical-evidence.md" "$PROJECT_DIR/" 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/trusted-runtime-validation.json" "$PROJECT_DIR/"
 
       - name: Build Studio snapshot
