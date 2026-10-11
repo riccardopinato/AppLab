@@ -50,7 +50,7 @@ def graph_identity(graph: dict[str, Any]) -> dict[str, str]:
     if not artifact:
         raise ValueError("Evidence Graph canonical build artifact is missing")
     attrs = artifact.get("attributes") if isinstance(artifact.get("attributes"), dict) else {}
-    return {
+    out = {
         "repository": clean(identity.get("repository")),
         "resolved_sha": clean(identity.get("resolved_sha")).lower(),
         "run_id": clean(identity.get("run_id")),
@@ -59,6 +59,19 @@ def graph_identity(graph: dict[str, Any]) -> dict[str, str]:
         "version_name": clean(attrs.get("version_name")),
         "version_code": clean(attrs.get("version_code")),
     }
+    if not out["repository"] or "/" not in out["repository"]:
+        raise ValueError("Evidence Graph repository identity is missing")
+    if len(out["resolved_sha"]) != 40 or any(ch not in "0123456789abcdef" for ch in out["resolved_sha"]):
+        raise ValueError("Evidence Graph resolved SHA is invalid")
+    if not out["run_id"].isdigit():
+        raise ValueError("Evidence Graph trusted workflow run identity is invalid")
+    if not out["package_id"] or clean(attrs.get("package_id")) != out["package_id"]:
+        raise ValueError("Evidence Graph package identity is inconsistent")
+    if len(out["artifact_sha256"]) != 64 or any(ch not in "0123456789abcdef" for ch in out["artifact_sha256"]):
+        raise ValueError("Evidence Graph artifact SHA-256 is invalid")
+    if not out["version_name"] or not out["version_code"]:
+        raise ValueError("Evidence Graph artifact version identity is incomplete")
+    return out
 
 def validation_errors(record: dict[str, Any], graph: dict[str, Any] | None) -> list[str]:
     errors: list[str] = []
