@@ -144,6 +144,40 @@ def _validated_record(
                 }:
                     errors.append("walkthrough_state")
 
+        summary = row.get("summary")
+        if not isinstance(summary, dict):
+            errors.append("persona_summary")
+        else:
+            derived_counts = {
+                "friction_signals": sum(
+                    1
+                    for task in tasks
+                    if isinstance(task, dict)
+                    and str(task.get("outcome", "")).strip().upper() == "FRICTION_SIGNAL"
+                ),
+                "evidence_incomplete": sum(
+                    1
+                    for task in tasks
+                    if isinstance(task, dict)
+                    and str(task.get("outcome", "")).strip().upper() == "EVIDENCE_INCOMPLETE"
+                ),
+                "no_strong_signal": sum(
+                    1
+                    for task in tasks
+                    if isinstance(task, dict)
+                    and str(task.get("outcome", "")).strip().upper() == "NO_STRONG_SIGNAL"
+                ),
+                "not_applicable": sum(
+                    1
+                    for task in tasks
+                    if isinstance(task, dict)
+                    and str(task.get("outcome", "")).strip().upper() == "NOT_APPLICABLE"
+                ),
+            }
+            for key, expected in derived_counts.items():
+                observed = summary.get(key)
+                if type(observed) is not int or observed != expected:
+                    errors.append("persona_summary")
     findings_raw = payload.get("consensus_findings")
     findings = (
         [row for row in findings_raw if isinstance(row, dict)]
@@ -511,6 +545,16 @@ def self_test() -> None:
         assert derived["record_valid"] is True
         assert derived["friction_sessions"] == 0
         assert derived["evidence_incomplete_sessions"] == 0
+
+        bad_summary = json.loads(json.dumps(payload))
+        bad_summary["personas"][0]["summary"] = "broken"
+        bad_summary["record_digest_sha256"] = simulated.report_digest(bad_summary)
+        (root / "simulated-human-qa.json").write_text(json.dumps(bad_summary), encoding="utf-8")
+        blocked = project_from_directory(root)
+        assert blocked is not None
+        assert blocked["state"] == "EVIDENCE_INCOMPLETE"
+        assert blocked["record_valid"] is False
+        assert "persona_summary" in blocked["validation_errors"]
 
         bad_task = json.loads(json.dumps(payload))
         bad_task["personas"][0]["tasks"][0]["task_id"] = "invented_task"
