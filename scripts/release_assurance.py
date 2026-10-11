@@ -21,6 +21,8 @@ BLOCKED = "BLOCKED"
 NOT_VERIFIED = "NOT_VERIFIED"
 NOT_APPLICABLE = "N/A"
 ALLOWED = {PASS, FAIL, BLOCKED, NOT_VERIFIED, NOT_APPLICABLE}
+PLAN_LANES = {"NO_RUNTIME_CHANGE", "STATIC_ONLY", "FAST_RUNTIME", "FULL_RUNTIME", "CERTIFICATION"}
+PLAN_MODES = {"fast", "full", "certification"}
 
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -174,12 +176,14 @@ def distribution_state(record: dict[str, Any], ident: dict[str, str]) -> tuple[b
     verification = record.get("verification") if isinstance(record.get("verification"), dict) else {}
     if verification.get("trusted") is not True or verification.get("exact_artifact_match") is not True:
         return True, BLOCKED, "Distribution evidence is not trusted and exact-artifact-bound."
-    result = norm_state(record.get("result"))
+    result = clean(record.get("result")).upper()
     if result == PASS:
         return True, PASS, "Trusted distribution evidence proves delivery/install for the exact artifact."
     if result == FAIL:
         return True, FAIL, "Trusted distribution evidence reports a failed delivery/install scenario."
-    return True, BLOCKED, "Distribution evidence is present but does not prove PASS."
+    if result in {BLOCKED, NOT_VERIFIED}:
+        return True, BLOCKED, "Distribution evidence is present but does not prove PASS."
+    return True, FAIL, f"Distribution evidence uses invalid result state {result or 'MISSING'}."
 
 
 def cross_state(record: dict[str, Any], ident: dict[str, str]) -> tuple[bool, str, str]:
@@ -200,6 +204,30 @@ def cross_state(record: dict[str, Any], ident: dict[str, str]) -> tuple[bool, st
     if result == FAIL:
         return True, FAIL, "Cross-app round-trip failed."
     return True, BLOCKED, "Cross-app evidence is present but is not PASS."
+
+
+def risk_plan_state(plan: dict[str, Any], ident: dict[str, str]) -> tuple[str, str]:
+    if not plan:
+        return BLOCKED, "Adaptive validation plan is missing."
+    schema = plan.get("schema_version")
+    if not isinstance(schema, int) or isinstance(schema, bool) or schema not in {1, 2}:
+        return FAIL, "Adaptive validation plan schema is invalid."
+    mode = clean(plan.get("mode")).lower()
+    if mode not in PLAN_MODES:
+        return FAIL, f"Adaptive validation plan mode is invalid: {mode or 'MISSING'}."
+    lane = clean(plan.get("lane")).upper()
+    if lane not in PLAN_LANES:
+        return FAIL, f"Adaptive validation plan lane is invalid: {lane or 'MISSING'}."
+    repository = clean(plan.get("repository"))
+    head_sha = clean(plan.get("head_sha")).lower()
+    if repository != ident["repository"]:
+        return FAIL, "Adaptive validation plan repository does not match the release."
+    if head_sha != ident["resolved_sha"]:
+        return FAIL, "Adaptive validation plan head SHA does not match the release."
+    selected = plan.get("selected_labs")
+    if not isinstance(selected, dict) or not selected or not all(isinstance(value, bool) for value in selected.values()):
+        return FAIL, "Adaptive validation plan selected_labs schema is invalid."
+    return PASS, f"Risk-based plan is bound to this release: {lane} / {mode}."
 
 
 def digest(ident: dict[str, str], rows: list[dict[str, Any]]) -> str:
@@ -265,32 +293,31 @@ def build_report(report_dir: Path) -> dict[str, Any]:
     gs, gr = graph_state(graph, ident)
     rows.append(stage("EVIDENCE_GRAPH", "Evidence Graph", True, gs, gr, [GRAPH] if graph else []))
 
-    lane = clean(plan.get("lane")) or clean(plan.get("mode")).upper()
-    confidence = clean(plan.get("confidence")).upper()
-    plan_state = PASS if plan and lane else BLOCKED
-    plan_reason = f"Risk-based plan recorded: {lane or 'UNKNOWN'}"
-    if confidence:
-        plan_reason += f" / confidence {confidence}"
-    if plan.get("fallback_full") is True:
-        plan_reason += " / conservative FULL fallback"
+    plan_state, plan_reason = risk_plan_state(plan, ident)
+    if plan and plan.get("fallback_full") is True:
+        plan_reason += " Conservative FULL fallback is active."
     rows.append(stage(
         "RISK_BASED_VALIDATION",
         "Risk-based validation",
         True,
         plan_state,
-        plan_reason if plan else "Adaptive validation plan is missing.",
+        plan_reason,
         [PLAN] if plan else [],
     ))
 
     physical = rr_stage(reality, "PHYSICAL_DEVICE_VERIFIED")
-    physical_required = bool((reality.get("physical_evidence") or {}).get("required"))
-    if physical_required:
+    physical_summary = reality.get("physical_evidence") if isinstance(reality.get("physical_evidence"), dict) else {}
+    physical_required = physical_summary.get("required") is True
+    physical_present = physical_summary.get("present") is True
+    physical_applicable = bool(physical and physical.get("applicable", True))
+    physical_observed = physical_present or physical_applicable or physical_required
+    if physical_observed:
         ps = norm_state(physical.get("state")) if physical else BLOCKED
-        pr = clean(physical.get("reason")) if physical else "Required physical evidence stage is missing."
+        pr = clean(physical.get("reason")) if physical else "Physical evidence stage is missing."
     else:
         ps = NOT_APPLICABLE
-        pr = "Physical evidence is not required by the release policy."
-    rows.append(stage("PHYSICAL_EVIDENCE", "Physical evidence", physical_required, ps, pr, [RR]))
+        pr = "Physical evidence is not required and no optional trusted physical result is attached."
+    rows.append(stage("PHYSICAL_EVIDENCE", "Physical evidence", physical_observed, ps, pr, [RR]))
 
     dist_present, ds, dr = distribution_state(distribution, ident)
     rr_dist = rr_stage(reality, "DISTRIBUTION_VERIFIED")
@@ -316,15 +343,23 @@ def build_report(report_dir: Path) -> dict[str, Any]:
         [CROSS] if cross else [],
     ))
 
-    cert_payload = certification or (reality.get("certification") if isinstance(reality.get("certification"), dict) else {})
-    cert_status = clean(cert_payload.get("status")).upper()
-    cert_identity_mismatch = bool(certification) and not certification_identity_matches(certification, ident)
-    if cert_identity_mismatch:
+    embedded_cert = reality.get("certification") if isinstance(reality.get("certification"), dict) else {}
+    embedded_status = clean(embedded_cert.get("status")).upper()
+    if not certification:
+        cert_status = embedded_status or NOT_VERIFIED
+        cert_state = BLOCKED
+        cert_reason = (
+            "Canonical certification.json is missing; embedded Release Reality certification "
+            f"summary ({cert_status}) is context only and cannot satisfy certification."
+        )
+    elif not certification_identity_matches(certification, ident):
+        cert_status = clean(certification.get("status")).upper() or NOT_VERIFIED
         cert_state = FAIL
         cert_reason = "Certification evidence identity does not match the release."
     else:
+        cert_status = clean(certification.get("status")).upper() or NOT_VERIFIED
         cert_state = PASS if cert_status == "CERTIFIED" else FAIL if cert_status in {"FAIL", "FAILED", "FAILURE", "NOT_CERTIFIED"} else BLOCKED
-        cert_reason = "Canonical certification authority reports CERTIFIED." if cert_state == PASS else f"Canonical certification authority is {cert_status or 'NOT_VERIFIED'}."
+        cert_reason = "Canonical certification authority reports CERTIFIED." if cert_state == PASS else f"Canonical certification authority is {cert_status}."
     rows.append(stage(
         "CERTIFICATION",
         "Canonical certification",
@@ -457,7 +492,16 @@ def self_test() -> None:
                 "package_id": "com.example.demo",
             }
         }), encoding="utf-8")
-        (root / PLAN).write_text(json.dumps({"lane": "CERTIFICATION", "confidence": "HIGH"}), encoding="utf-8")
+        plan = {
+            "schema_version": 2,
+            "mode": "certification",
+            "lane": "CERTIFICATION",
+            "repository": "owner/demo",
+            "head_sha": "a" * 40,
+            "selected_labs": {"system": True},
+            "confidence": 1.0,
+        }
+        (root / PLAN).write_text(json.dumps(plan), encoding="utf-8")
         certification = {
             "status": "CERTIFIED",
             "source": {"repository": "owner/demo", "resolved_sha": "a" * 40},
@@ -527,6 +571,36 @@ def self_test() -> None:
         (root / CROSS).write_text(json.dumps(bad_pair), encoding="utf-8")
         assert build_report(root)["state"] == FAIL
         (root / CROSS).unlink()
+
+        invalid_distribution = json.loads(json.dumps(distribution))
+        invalid_distribution["result"] = "CERTIFIED"
+        (root / DIST).write_text(json.dumps(invalid_distribution), encoding="utf-8")
+        assert build_report(root)["state"] == FAIL
+        (root / DIST).write_text(json.dumps(distribution), encoding="utf-8")
+
+        stale_plan = json.loads(json.dumps(plan))
+        stale_plan["head_sha"] = "e" * 40
+        (root / PLAN).write_text(json.dumps(stale_plan), encoding="utf-8")
+        assert build_report(root)["state"] == FAIL
+        bad_lane = json.loads(json.dumps(plan))
+        bad_lane["lane"] = "BOGUS"
+        (root / PLAN).write_text(json.dumps(bad_lane), encoding="utf-8")
+        assert build_report(root)["state"] == FAIL
+        (root / PLAN).write_text(json.dumps(plan), encoding="utf-8")
+
+        (root / CERT).unlink()
+        assert build_report(root)["state"] == BLOCKED
+        (root / CERT).write_text(json.dumps(certification), encoding="utf-8")
+
+        physical_fail_reality = json.loads(json.dumps(reality))
+        physical_fail_reality["physical_evidence"] = {"required": False, "present": True}
+        for row in physical_fail_reality["levels"]:
+            if row.get("key") == "PHYSICAL_DEVICE_VERIFIED":
+                row.update({"state": FAIL, "applicable": True, "reason": "optional physical test failed"})
+        (root / RR).write_text(json.dumps(physical_fail_reality), encoding="utf-8")
+        assert build_report(root)["state"] == FAIL
+        (root / RR).write_text(json.dumps(reality), encoding="utf-8")
+
         write_outputs(root, second)
         assert (root / "release-assurance.json").is_file()
         assert "Authority boundary" in (root / "release-assurance.md").read_text(encoding="utf-8")
