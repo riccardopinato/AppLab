@@ -17,6 +17,7 @@ from history_learning import (
     build_learning_profile,
     classify_change_playbook,
 )
+from planner_feedback import evaluate_feedback, read_json as read_feedback_json
 
 LABS = (
     "system", "performance", "network", "persistence", "configuration",
@@ -518,7 +519,7 @@ def _plan(requested: str, effective: str, lane: str, baseline_sha: str, evidence
     changed = [str(x.get("path", "")) for x in evidence.get("files", []) if x.get("path")]
     targets = targeted_paths(changed, impacted)
     return {
-        "schema_version": 2, "planner_version": "1.0.0", "requested_mode": requested,
+        "schema_version": 2, "planner_version": "1.1.0", "requested_mode": requested,
         "mode": effective, "lane": lane, "repository": repository, "baseline_sha": baseline_sha,
         "diff_status": evidence.get("status", ""), "changed_files": changed,
         "changes": evidence.get("files", []), "additions": int(evidence.get("additions", 0)),
@@ -533,7 +534,8 @@ def _plan(requested: str, effective: str, lane: str, baseline_sha: str, evidence
 
 def analyze_repository(repo_root: Path, mode: str, baseline_sha: str = "", history_file: str = "",
                        repository: str = "", shadow_every: int = 10,
-                       history_key: str = "", source_ref: str = "") -> dict[str, Any]:
+                       history_key: str = "", source_ref: str = "",
+                       planner_feedback_path: str = "") -> dict[str, Any]:
     start = time.perf_counter()
     head = _run(repo_root, "rev-parse", "HEAD", timeout=15)
     head_sha = head.stdout.strip().lower() if head.returncode == 0 else ""
@@ -568,11 +570,100 @@ def analyze_repository(repo_root: Path, mode: str, baseline_sha: str = "", histo
     playbook = classify_change_playbook(plan.get("changed_files", []))
     plan = apply_playbook_policy(plan, playbook)
     plan = apply_learning_profile(plan, profile)
+    feedback_payload = (
+        read_feedback_json(Path(planner_feedback_path))
+        if planner_feedback_path
+        else None
+    )
+    feedback_evaluation = evaluate_feedback(
+        feedback_payload,
+        repository=repository,
+        baseline_sha=baseline_sha,
+        source_ref=source_ref,
+    )
+    plan = apply_graph_planner_feedback(plan, feedback_evaluation)
     plan["head_sha"] = head_sha
     plan["history_key"] = history_key
     plan["source_ref"] = source_ref
     plan["planner_ms"] = round((time.perf_counter() - start) * 1000, 2)
     return plan
+
+def apply_graph_planner_feedback(
+    plan: dict[str, Any],
+    evaluation: dict[str, Any],
+) -> dict[str, Any]:
+    enriched = dict(plan)
+    feedback_state = {
+        "eligible": bool(evaluation.get("eligible")),
+        "state": str(evaluation.get("state", "ABSENT")),
+        "reason": str(evaluation.get("reason", "")),
+        "source": evaluation.get("source", {}) if isinstance(evaluation.get("source"), dict) else {},
+        "matched_files": [],
+        "risk_boost": 0,
+        "coverage_reduced": False,
+        "pre_feedback_lane": str(plan.get("lane", "")),
+        "pre_feedback_risk_score": int(plan.get("risk_score", 0) or 0),
+    }
+    enriched["planner_feedback"] = feedback_state
+    if not evaluation.get("eligible"):
+        return enriched
+    if str(plan.get("lane", "")) not in {"FAST_RUNTIME", "FULL_RUNTIME"}:
+        feedback_state["state"] = "ELIGIBLE_NOT_RUNTIME_LANE"
+        return enriched
+
+    current_paths = {
+        normalize_repo_path(value)
+        for value in list(plan.get("changed_files", [])) + list(plan.get("impacted_files", []))
+        if isinstance(value, str) and value
+    }
+    for row in plan.get("changes", []) if isinstance(plan.get("changes"), list) else []:
+        if isinstance(row, dict) and row.get("previous_path"):
+            current_paths.add(normalize_repo_path(str(row["previous_path"])))
+
+    matches: list[dict[str, Any]] = []
+    for row in evaluation.get("risk_hints", []) if isinstance(evaluation.get("risk_hints"), list) else []:
+        if not isinstance(row, dict):
+            continue
+        path = normalize_repo_path(str(row.get("path", "")))
+        if path and path in current_paths:
+            matches.append(row)
+    if not matches:
+        feedback_state["state"] = "ELIGIBLE_NO_CURRENT_INTERSECTION"
+        return enriched
+
+    boost = max(min(20, int(row.get("risk_boost", 0) or 0)) for row in matches)
+    feedback_state["state"] = "APPLIED_ESCALATION_ONLY"
+    feedback_state["matched_files"] = sorted(
+        {str(row.get("path", "")) for row in matches if row.get("path")}
+    )
+    feedback_state["risk_boost"] = boost
+    risk = min(100, int(plan.get("risk_score", 0) or 0) + boost)
+    enriched["risk_score"] = risk
+
+    if str(plan.get("lane", "")) == "FAST_RUNTIME" and risk >= 70:
+        enriched["mode"] = "full"
+        enriched["lane"] = "FULL_RUNTIME"
+        enriched["fallback_full"] = True
+        enriched["run_static"] = True
+        enriched["run_build"] = True
+        enriched["run_runtime"] = True
+        enriched["selected_labs"] = {lab: True for lab in LABS}
+        reasons = {
+            lab: list(values)
+            for lab, values in (plan.get("reasons") or {}).items()
+            if isinstance(values, list)
+        }
+        for lab in LABS:
+            values = reasons.setdefault(lab, [])
+            marker = "prior trusted Evidence Graph risk escalation to FULL"
+            if marker not in values:
+                values.append(marker)
+        enriched["reasons"] = reasons
+        feedback_state["escalated_to_full"] = True
+    else:
+        feedback_state["escalated_to_full"] = False
+    return enriched
+
 
 def validate_plan(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict) or payload.get("schema_version") not in {1, 2}:
@@ -593,6 +684,15 @@ def validate_plan(payload: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("invalid risk score")
         if not 0.0 <= float(payload.get("confidence", -1)) <= 1.0:
             raise ValueError("invalid confidence")
+        feedback = payload.get("planner_feedback")
+        if feedback is not None:
+            if not isinstance(feedback, dict):
+                raise ValueError("invalid planner feedback projection")
+            if feedback.get("coverage_reduced") is not False:
+                raise ValueError("planner feedback may never reduce coverage")
+            boost = int(feedback.get("risk_boost", 0) or 0)
+            if not 0 <= boost <= 20:
+                raise ValueError("invalid planner feedback risk boost")
     return payload
 
 def regression_corpus_test() -> None:
@@ -718,6 +818,36 @@ def self_test() -> None:
     cert = classify(["README.md"], "certification", "a"*40)
     assert cert["lane"] == "CERTIFICATION" and all(cert["selected_labs"].values())
 
+    feedback_base = classify_evidence(
+        {
+            "trusted": True,
+            "status": "ok",
+            "files": [{"path": "lib/core/service.dart", "status": "M", "additions": 1, "deletions": 0}],
+            "file_count": 1,
+            "too_large": False,
+            "additions": 1,
+            "deletions": 0,
+            "hunks": ["+ change"],
+        },
+        "fast",
+        "a" * 40,
+    )
+    feedback_base["risk_score"] = 60
+    feedback_base["lane"] = "FAST_RUNTIME"
+    feedback_applied = apply_graph_planner_feedback(
+        feedback_base,
+        {
+            "eligible": True,
+            "state": "ELIGIBLE",
+            "reason": "COMPATIBLE_PRIOR_GRAPH",
+            "source": {"resolved_sha": "a" * 40},
+            "risk_hints": [{"path": "lib/core/service.dart", "risk_boost": 12}],
+        },
+    )
+    assert feedback_applied["lane"] == "FULL_RUNTIME"
+    assert feedback_applied["planner_feedback"]["coverage_reduced"] is False
+    assert feedback_applied["planner_feedback"]["matched_files"] == ["lib/core/service.dart"]
+
     with tempfile.TemporaryDirectory() as raw_history:
         history = Path(raw_history) / "history.jsonl"
         history.write_text(
@@ -785,6 +915,7 @@ def main() -> int:
     parser.add_argument("--repository",default="")
     parser.add_argument("--history-key",default="")
     parser.add_argument("--source-ref",default="")
+    parser.add_argument("--planner-feedback",default="")
     parser.add_argument("--shadow-every",type=int,default=10)
     parser.add_argument("--output")
     parser.add_argument("--github-output",default="")
@@ -803,6 +934,7 @@ def main() -> int:
         args.shadow_every,
         args.history_key,
         args.source_ref,
+        args.planner_feedback,
     )
     validate_plan(plan)
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
