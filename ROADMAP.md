@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.3.0 — Virtual Product Review Council**
+Current production baseline: **v5.3.1 — Evidence-Driven Technical Hardening**
 
 ## Product rule
 
@@ -19,6 +19,18 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v5.3.1 — Evidence-Driven Technical Hardening
+
+- [x] Add one bounded browser-peer recovery for the observed WebRTC connected/no-decoded-frame infrastructure signature without weakening frame or input assertions.
+- [x] Capture video/track, gateway, runtime and browser-error diagnostics before every WebRTC recovery attempt.
+- [x] Fail invalid frontend dependency/lock graphs before expensive Docker/emulator runtime work.
+- [x] Validate dependency-manifest pull requests without allowing the lock workflow to push back into the PR.
+- [x] Keep the read-only Studio build green and inspectable when GitHub Pages is not configured, while explicitly skipping deployment.
+- [x] Define and CI-enforce evidence-retention classes and minimum artifact TTLs.
+- [x] Raise certified release, final certification and certification-history retention from 7 to 90 days.
+- [x] Retain transient Live WebRTC diagnostic evidence for 7 days instead of one day.
+- [x] Preserve FAST/FULL/CERTIFICATION, exact-artifact provenance and physical-device authority boundaries.
 
 ### v5.3.0 — Virtual Product Review Council
 
@@ -671,13 +683,13 @@ The strategic roadmap above does not postpone technical quality. Every version
 may include targeted hardening when real AppLab evidence demonstrates a need.
 
 Continuous priorities:
-- [ ] Reduce runtime/browser E2E flakiness without weakening assertions.
-- [ ] Improve diagnostics for WebRTC/frame/codec/runtime infrastructure failures.
+- [ ] Reduce runtime/browser E2E flakiness without weakening assertions. v5.3.1 adds a bounded single reconnect for the observed connected/no-frame signature; continue measuring recurrence.
+- [ ] Improve diagnostics for WebRTC/frame/codec/runtime infrastructure failures. v5.3.1 records browser video/track, runtime, gateway and console evidence before recovery.
 - [ ] Add schema/version contracts for new evidence producers and consumers.
-- [ ] Add evidence retention/garbage-collection policy while pinning release-critical evidence.
+- [ ] Add evidence retention/garbage-collection policy while pinning release-critical evidence. v5.3.1 introduces the first enforced TTL policy; expand it as new evidence classes become release-critical.
 - [ ] Improve delta execution so small changes rerun only the evidence that can actually be invalidated.
 - [ ] Tune heuristics from real multi-project data rather than speculative complexity.
-- [ ] Keep performance, security, dependency, artifact-provenance and maintainability gates healthy as AppLab grows.
+- [ ] Keep performance, security, dependency, artifact-provenance and maintainability gates healthy as AppLab grows. v5.3.1 adds dependency fail-fast validation and a maintainability ceiling for the retention contract.
 
 ## v1.0 evidence contract
 

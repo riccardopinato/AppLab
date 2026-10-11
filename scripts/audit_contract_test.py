@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "5.3.0"
+EXPECTED_VERSION = "5.3.1"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -825,7 +825,7 @@ def check_release_assurance_contract() -> None:
         "release-assurance.md",
         "release-reality.json",
         "evidence-graph.md",
-        "AppLab True Autonomous App Review v5.3.0",
+        "AppLab True Autonomous App Review v5.3.1",
         "release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|virtual_product_review_council|studio_review_council|trusted_cross_app_evidence|physical_evidence",
         "cross_app_run_id",
         "trusted_cross_app_evidence.py verify-run",
@@ -960,7 +960,7 @@ def check_simulated_human_qa_contract() -> None:
     require(
         "studio_simulated_human.project_from_directory" in studio
         and "studio_simulated_human.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.3.0"' in studio,
+        and 'STUDIO_VERSION = "5.3.1"' in studio,
         "Studio must expose v5.0 simulated-human evidence through the v5.1 Studio projection",
     )
     require(
@@ -974,7 +974,7 @@ def check_simulated_human_qa_contract() -> None:
         "Build Simulated Human QA",
         "scripts/simulated_human_qa.py",
         "simulated-human-qa.md",
-        "AppLab True Autonomous App Review v5.3.0",
+        "AppLab True Autonomous App Review v5.3.1",
         "simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor",
     ):
         require(needle in workflow, f"v5.0 autonomous review integration missing: {needle}")
@@ -1039,7 +1039,7 @@ def check_design_system_advisor_contract() -> None:
     require(
         "studio_design_advisor.project_from_directory" in studio
         and "studio_design_advisor.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.3.0"' in studio,
+        and 'STUDIO_VERSION = "5.3.1"' in studio,
         "Studio must expose v5.1 design-advisor evidence through the dedicated projection",
     )
     require(
@@ -1052,7 +1052,7 @@ def check_design_system_advisor_contract() -> None:
         "Build Design System & UI Library Advisor",
         "scripts/design_system_advisor.py",
         "design-system-advisor.md",
-        "AppLab True Autonomous App Review v5.3.0",
+        "AppLab True Autonomous App Review v5.3.1",
         "design_system_advisor|studio_design_advisor",
     ):
         require(needle in workflow, f"v5.1 autonomous review integration missing: {needle}")
@@ -1105,7 +1105,7 @@ def check_competitive_product_intelligence_contract() -> None:
     require(
         "studio_competitive_product.project_from_directory" in studio
         and "studio_competitive_product.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.3.0"' in studio,
+        and 'STUDIO_VERSION = "5.3.1"' in studio,
         "Studio must expose v5.2 competitive-product evidence",
     )
     require(
@@ -1118,7 +1118,7 @@ def check_competitive_product_intelligence_contract() -> None:
         "Build Competitive Product Intelligence",
         "scripts/competitive_product_intelligence.py",
         "competitive-product-intelligence.md",
-        "AppLab True Autonomous App Review v5.3.0",
+        "AppLab True Autonomous App Review v5.3.1",
         "competitive_product_intelligence|studio_competitive_product",
         "market_evidence_path:",
     ):
@@ -1177,7 +1177,7 @@ def check_virtual_product_review_council_contract() -> None:
     require(
         "studio_review_council.project_from_directory" in studio
         and "studio_review_council.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.3.0"' in studio,
+        and 'STUDIO_VERSION = "5.3.1"' in studio,
         "Studio must expose v5.3 review-council evidence",
     )
     require(
@@ -1190,7 +1190,7 @@ def check_virtual_product_review_council_contract() -> None:
         "Build Virtual Product Review Council",
         "scripts/virtual_product_review_council.py",
         "virtual-product-review-council.md",
-        "AppLab True Autonomous App Review v5.3.0",
+        "AppLab True Autonomous App Review v5.3.1",
         "virtual_product_review_council|studio_review_council",
     ):
         require(needle in workflow, f"v5.3 autonomous review integration missing: {needle}")
@@ -1198,6 +1198,95 @@ def check_virtual_product_review_council_contract() -> None:
     require(
         (ROOT / "integration/review/VIRTUAL_PRODUCT_REVIEW_COUNCIL_V53.md").is_file(),
         "v5.3 review council contract documentation is required",
+    )
+
+
+def check_v531_technical_hardening_contract() -> None:
+    live_spec = (ROOT / "frontend/e2e/live-webrtc.spec.mjs").read_text(encoding="utf-8")
+    live_workflow = (ROOT / ".github/workflows/live-emulator-self-test.yml").read_text(
+        encoding="utf-8"
+    )
+    preview = (ROOT / ".github/workflows/web-preview.yml").read_text(encoding="utf-8")
+    lock = (ROOT / ".github/workflows/frontend-lock.yml").read_text(encoding="utf-8")
+    production = (ROOT / ".github/workflows/production-certification.yml").read_text(
+        encoding="utf-8"
+    )
+    retention = (ROOT / "scripts/evidence_retention_contract.py").read_text(
+        encoding="utf-8"
+    )
+    maintainability = (ROOT / "scripts/maintainability_budget.py").read_text(
+        encoding="utf-8"
+    )
+
+    for needle in (
+        "async function videoDiagnostics",
+        "async function attachFrameRecoveryDiagnostics",
+        "async function waitForDecodedFrame",
+        "webrtc-frame-recovery-attempt-",
+        "for (let attempt = 1; attempt <= 2; attempt += 1)",
+        "if (attempt === 2) throw error",
+        "WebRTC connected but no decoded Android video frame arrived",
+        "WebRTC connected but no non-black Android frame was decoded",
+        "Android UI did not react to the WebRTC pointer input",
+    ):
+        require(needle in live_spec, f"v5.3.1 WebRTC hardening missing invariant: {needle}")
+
+    for needle in (
+        "Setup Node for browser tooling",
+        'node-version: "22"',
+        "Validate frontend dependency graph before runtime work",
+        "npm ci --ignore-scripts --no-audit --no-fund --dry-run",
+        "frontend-dependency-preflight.txt",
+        "retention-days: 7",
+    ):
+        require(needle in live_workflow, f"v5.3.1 live workflow hardening missing: {needle}")
+
+    for needle in (
+        "pull_request:",
+        "applab-frontend-lock-${{ github.ref }}",
+        "Validate install graph",
+        "Require clean lockfile on pull request",
+        "github.event_name != 'pull_request'",
+    ):
+        require(needle in lock, f"v5.3.1 frontend lock hardening missing: {needle}")
+
+    for needle in (
+        "Detect Pages availability",
+        "pages_enabled: ${{ steps.pages_status.outputs.enabled }}",
+        "Upload non-deployed preview evidence",
+        "if: steps.pages_status.outputs.enabled == 'true'",
+        "if: needs.build.outputs.pages_enabled == 'true'",
+        "GitHub Pages is not configured for this repository",
+    ):
+        require(needle in preview, f"v5.3.1 preview hardening missing: {needle}")
+
+    for needle in (
+        'POLICY_VERSION = "1.0"',
+        '"RELEASE_CRITICAL", 90',
+        '"LONGITUDINAL", 90',
+        '"INFRA_DIAGNOSTIC", 7',
+        "Upload certified release bundle",
+        "Upload final certification evidence",
+        "Upload certification history",
+        "Upload physical evidence attestation",
+        "Upload paired verification evidence",
+        "Upload repository-wide longitudinal history",
+        "Upload live browser evidence",
+        "AppLab evidence retention policy v",
+    ):
+        require(needle in retention, f"v5.3.1 retention contract missing invariant: {needle}")
+
+    require(
+        production.count("retention-days: 90") >= 3,
+        "production certification release-critical artifacts must retain 90 days",
+    )
+    require(
+        '"scripts/evidence_retention_contract.py": 180' in maintainability,
+        "retention contract must have a maintainability ceiling",
+    )
+    require(
+        (ROOT / "integration/hardening/TECHNICAL_HARDENING_V531.md").is_file(),
+        "v5.3.1 technical hardening documentation is required",
     )
 
 
@@ -1219,6 +1308,7 @@ def main() -> int:
     check_design_system_advisor_contract()
     check_competitive_product_intelligence_contract()
     check_virtual_product_review_council_contract()
+    check_v531_technical_hardening_contract()
     check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")

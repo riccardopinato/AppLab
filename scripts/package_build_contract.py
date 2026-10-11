@@ -385,7 +385,7 @@ def package(args: argparse.Namespace) -> dict:
 
     contract = {
         "schema_version": 1,
-        "applab_version": "5.3.0",
+        "applab_version": "5.3.1",
         "trusted_applab_sha": args.trusted_applab_sha.strip().lower(),
         "repository": args.repository,
         "resolved_sha": args.resolved_sha,

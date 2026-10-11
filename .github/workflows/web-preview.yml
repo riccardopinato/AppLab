@@ -22,6 +22,8 @@ jobs:
   build:
     name: Build read-only Studio
     runs-on: ubuntu-latest
+    outputs:
+      pages_enabled: ${{ steps.pages_status.outputs.enabled }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
@@ -32,15 +34,54 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Detect Pages availability
+        id: pages_status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          HTTP_CODE="$(curl --silent --show-error             -H "Authorization: Bearer $GH_TOKEN"             -H "Accept: application/vnd.github+json"             -H "X-GitHub-Api-Version: 2022-11-28"             -o "$RUNNER_TEMP/pages-site.json"             -w '%{http_code}'             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pages")"
+          case "$HTTP_CODE" in
+            200)
+              echo "enabled=true" >> "$GITHUB_OUTPUT"
+              ;;
+            404)
+              echo "enabled=false" >> "$GITHUB_OUTPUT"
+              echo "GitHub Pages is not configured for this repository; build preview evidence without deployment." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              cat "$RUNNER_TEMP/pages-site.json" >&2 || true
+              echo "Unable to determine GitHub Pages state (HTTP $HTTP_CODE)." >&2
+              exit 1
+              ;;
+          esac
+
       - name: Configure Pages
+        if: steps.pages_status.outputs.enabled == 'true'
         id: pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b
+
+      - name: Resolve preview base path
+        id: preview_base
+        shell: bash
+        env:
+          PAGES_ENABLED: ${{ steps.pages_status.outputs.enabled }}
+          CONFIGURED_BASE: ${{ steps.pages.outputs.base_path }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$PAGES_ENABLED" == "true" && -n "$CONFIGURED_BASE" ]]; then
+            BASE="$CONFIGURED_BASE"
+          else
+            BASE="/${GITHUB_REPOSITORY#*/}"
+          fi
+          echo "base_path=$BASE" >> "$GITHUB_OUTPUT"
 
       - name: Build safe read-only preview
         working-directory: frontend
         env:
           VITE_APPLAB_READ_ONLY: "true"
-          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          PAGES_BASE_PATH: ${{ steps.preview_base.outputs.base_path }}
         run: |
           set -Eeuo pipefail
           npm ci --no-audit --no-fund
@@ -51,13 +92,24 @@ jobs:
           npm run build -- --base "$BASE"
 
       - name: Upload Pages artifact
+        if: steps.pages_status.outputs.enabled == 'true'
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
         with:
           path: frontend/dist
 
+      - name: Upload non-deployed preview evidence
+        if: steps.pages_status.outputs.enabled != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-read-only-preview-${{ github.run_id }}
+          path: frontend/dist/
+          if-no-files-found: error
+          retention-days: 7
+
   deploy:
     name: Deploy read-only Studio
     needs: build
+    if: needs.build.outputs.pages_enabled == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

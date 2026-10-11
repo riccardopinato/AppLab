@@ -123,6 +123,19 @@ jobs:
           chmod +x scripts/restore_runtime_fixture.sh
           ./scripts/restore_runtime_fixture.sh "$GITHUB_WORKSPACE/runtime-fixture"
 
+      - name: Setup Node for browser tooling
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Validate frontend dependency graph before runtime work
+        working-directory: frontend
+        run: |
+          set -Eeuo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund --dry-run | tee ../frontend-dependency-preflight.txt
+
       - name: Install Playwright Chromium
         working-directory: frontend/e2e
         run: |
@@ -256,10 +269,11 @@ jobs:
             gateway.log
             history.json
             docker-ps.txt
+            frontend-dependency-preflight.txt
             frontend/e2e/playwright-report/
             frontend/e2e/test-results/
           if-no-files-found: warn
-          retention-days: 1
+          retention-days: 7
 
       - name: Cleanup
         if: always()

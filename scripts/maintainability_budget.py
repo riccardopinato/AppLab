@@ -17,6 +17,7 @@ LIMITS = {
     "scripts/studio_competitive_product.py": 350,
     "scripts/virtual_product_review_council.py": 700,
     "scripts/studio_review_council.py": 350,
+    "scripts/evidence_retention_contract.py": 180,
 }
 
 

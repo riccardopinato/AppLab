@@ -1,3 +1,31 @@
+## v5.3.1 — Evidence-Driven Technical Hardening
+
+AppLab now hardens the v5.x runtime and evidence pipeline from observed CI
+failure signatures rather than speculative complexity.
+
+- **Bounded WebRTC recovery:** when signaling is connected but no Android video
+  frame is decoded within the existing 30-second assertion, Browser E2E captures
+  runtime/gateway/video/track diagnostics and may recreate the browser peer
+  exactly once. The second attempt runs the same strict assertions and fails
+  normally if video is still absent.
+- **No assertion weakening:** decoded-frame, non-black-frame, Android pointer
+  input and hardware-control checks remain mandatory.
+- **Dependency fail-fast:** frontend dependency/lock compatibility is validated
+  before Docker/emulator work, and dependency PRs must produce a clean,
+  installable lockfile without the workflow pushing changes back into the PR.
+- **Pages-aware preview:** if GitHub Pages is disabled, the read-only Studio
+  still builds and is retained as a 7-day CI artifact while deployment is
+  explicitly skipped instead of creating a false-red workflow.
+- **Evidence retention contract:** release-critical certification, physical and
+  trusted cross-app artifacts plus longitudinal history are pinned to at least
+  90 days; transient WebRTC diagnostics are retained for 7 days.
+- **Bounded garbage collection:** artifact TTL remains the CI evidence cleanup
+  mechanism, enforced by `scripts/evidence_retention_contract.py`.
+- **Authority preserved:** FAST/FULL/CERTIFICATION, exact-artifact provenance
+  and physical-device evidence semantics are unchanged.
+
+See `integration/hardening/TECHNICAL_HARDENING_V531.md`.
+
 ## v5.3.0 — Virtual Product Review Council
 
 AppLab now composes its existing evidence into a **meeting-like Product Review

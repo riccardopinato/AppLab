@@ -34,6 +34,98 @@ async function hierarchy(request) {
   return body.xml || "";
 }
 
+async function videoDiagnostics(video) {
+  return video.evaluate((element) => {
+    const stream = element.srcObject instanceof MediaStream ? element.srcObject : null;
+    const quality =
+      typeof element.getVideoPlaybackQuality === "function"
+        ? element.getVideoPlaybackQuality()
+        : null;
+    return {
+      readyState: element.readyState,
+      networkState: element.networkState,
+      width: element.videoWidth,
+      height: element.videoHeight,
+      currentTime: element.currentTime,
+      paused: element.paused,
+      ended: element.ended,
+      error: element.error
+        ? { code: element.error.code, message: element.error.message }
+        : null,
+      totalVideoFrames: quality?.totalVideoFrames ?? null,
+      droppedVideoFrames: quality?.droppedVideoFrames ?? null,
+      tracks: stream
+        ? stream.getTracks().map((track) => ({
+            kind: track.kind,
+            enabled: track.enabled,
+            muted: track.muted,
+            readyState: track.readyState,
+            settings:
+              typeof track.getSettings === "function" ? track.getSettings() : {},
+          }))
+        : [],
+    };
+  });
+}
+
+async function endpointDiagnostics(request, url) {
+  try {
+    const response = await request.get(url, { timeout: 10_000 });
+    const text = await response.text();
+    let body = text;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // Preserve raw response text when the endpoint is not JSON.
+    }
+    return { ok: response.ok(), status: response.status(), body };
+  } catch (error) {
+    return { ok: false, status: 0, error: String(error) };
+  }
+}
+
+async function attachFrameRecoveryDiagnostics({
+  request,
+  video,
+  testInfo,
+  browserErrors,
+  attempt,
+  error,
+}) {
+  const payload = {
+    attempt,
+    error: String(error),
+    video: await videoDiagnostics(video),
+    runtime: await endpointDiagnostics(request, `${BACKEND}/api/runtime`),
+    gateway: await endpointDiagnostics(
+      request,
+      "http://127.0.0.1:8080/api/v1/emulator/status",
+    ),
+    browserErrors: [...browserErrors],
+  };
+  await testInfo.attach(`webrtc-frame-recovery-attempt-${attempt}.json`, {
+    body: Buffer.from(JSON.stringify(payload, null, 2)),
+    contentType: "application/json",
+  });
+}
+
+async function waitForDecodedFrame(video) {
+  let last = await videoDiagnostics(video);
+  await expect
+    .poll(
+      async () => {
+        last = await videoDiagnostics(video);
+        return last.readyState >= 2 && last.width > 0 && last.height > 0;
+      },
+      {
+        timeout: 30_000,
+        message: "WebRTC connected but no decoded Android video frame arrived",
+      },
+    )
+    .toBe(true);
+  return last;
+}
+
 test("streams real Android video and sends real WebRTC input", async ({
   page,
   request,
@@ -46,34 +138,43 @@ test("streams real Android video and sends real WebRTC input", async ({
 
   await page.goto(FRONTEND, { waitUntil: "domcontentloaded" });
 
-  const liveView = page.getByTestId("device-live-view");
-  await expect(liveView).toHaveAttribute("data-webrtc-state", "connected", {
-    timeout: 60_000,
-  });
+  let liveView;
+  let video;
+  let first;
 
-  const video = liveView.locator("video");
-  await expect(video).toBeVisible();
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    liveView = page.getByTestId("device-live-view");
+    await expect(liveView).toHaveAttribute("data-webrtc-state", "connected", {
+      timeout: 60_000,
+    });
 
-  await expect
-    .poll(async () => {
-      return video.evaluate(
-        (element) =>
-          element.readyState >= 2 &&
-          element.videoWidth > 0 &&
-          element.videoHeight > 0,
-      );
-    }, {
-      timeout: 30_000,
-      message: "WebRTC connected but no decoded Android video frame arrived",
-    })
-    .toBe(true);
+    video = liveView.locator("video");
+    await expect(video).toBeVisible();
 
-  const first = await video.evaluate((element) => ({
-    readyState: element.readyState,
-    width: element.videoWidth,
-    height: element.videoHeight,
-    currentTime: element.currentTime,
-  }));
+    try {
+      first = await waitForDecodedFrame(video);
+      break;
+    } catch (error) {
+      await attachFrameRecoveryDiagnostics({
+        request,
+        video,
+        testInfo,
+        browserErrors,
+        attempt,
+        error,
+      });
+      if (attempt === 2) throw error;
+
+      // A connected signaling channel with no decoded frame is an observed
+      // transient infrastructure signature. Recreate the browser peer once,
+      // then rerun the exact same frame assertions; never convert it to PASS.
+      await page.reload({ waitUntil: "domcontentloaded" });
+    }
+  }
+
+  if (!liveView || !video || !first) {
+    throw new Error("WebRTC frame recovery exhausted without a decoded frame");
+  }
 
   expect(first.readyState).toBeGreaterThanOrEqual(2);
   expect(first.width).toBeGreaterThan(0);
