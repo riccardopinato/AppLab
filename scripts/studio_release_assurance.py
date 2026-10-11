@@ -82,14 +82,17 @@ def _validated_record(
         or len(keys) != len(set(keys))
     ):
         errors.append("canonical_stage_set")
+    stage_structure_valid = True
     for row in rows:
         key = str(row.get("key", "")).strip()
         state = str(row.get("state", "")).strip().upper()
         if not key:
             errors.append("stage_key")
+            stage_structure_valid = False
         required = row.get("required")
-        if required not in {True, False}:
+        if type(required) is not bool:
             errors.append("stage_required")
+            stage_structure_valid = False
         if key in release_assurance.ALWAYS_REQUIRED_STAGE_KEYS and required is not True:
             errors.append("canonical_required_flag")
         if key in release_assurance.CONDITIONAL_STAGE_KEYS:
@@ -101,6 +104,7 @@ def _validated_record(
             errors.append("required_stage_na")
         if state not in release_assurance.ALLOWED:
             errors.append("stage_state")
+            stage_structure_valid = False
 
     declared_state = str(payload.get("state", "")).strip().upper()
     derived_state = release_assurance.overall_state(rows) if rows else release_assurance.BLOCKED
@@ -115,10 +119,14 @@ def _validated_record(
         errors.append("state_mismatch")
 
     expected_digest = str(payload.get("assurance_digest", "")).strip().lower()
-    if identity and rows:
-        actual_digest = release_assurance.digest(identity, rows)
-        if expected_digest != actual_digest:
+    if identity and rows and stage_structure_valid:
+        try:
+            actual_digest = release_assurance.digest(identity, rows)
+        except (KeyError, TypeError, ValueError):
             errors.append("assurance_digest")
+        else:
+            if expected_digest != actual_digest:
+                errors.append("assurance_digest")
     else:
         errors.append("assurance_digest")
 
@@ -357,6 +365,27 @@ def self_test() -> None:
         assert blocked is not None
         assert blocked["state"] == "BLOCKED"
         assert "canonical_stage_set" in blocked["validation_errors"]
+
+        malformed = json.loads(json.dumps(payload))
+        malformed["stages"][0].pop("required")
+        (root / "release-assurance.json").write_text(json.dumps(malformed), encoding="utf-8")
+        blocked = project_from_directory(root)
+        assert blocked is not None
+        assert blocked["state"] == "BLOCKED"
+        assert "stage_required" in blocked["validation_errors"]
+        assert "assurance_digest" in blocked["validation_errors"]
+
+        int_required = json.loads(json.dumps(payload))
+        for row in int_required["stages"]:
+            if row["key"] == "CROSS_APP":
+                row["required"] = 1
+                row["state"] = "FAIL"
+        int_required["state"] = "PASS"
+        (root / "release-assurance.json").write_text(json.dumps(int_required), encoding="utf-8")
+        blocked = project_from_directory(root)
+        assert blocked is not None
+        assert blocked["state"] == "BLOCKED"
+        assert "stage_required" in blocked["validation_errors"]
 
         summary = portfolio_summary([{"release_assurance": blocked}])
         assert summary["with_release_assurance"] == 1
