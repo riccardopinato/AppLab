@@ -423,6 +423,7 @@ def package(args: argparse.Namespace) -> dict:
         repository=args.repository,
         history_key=args.history_key,
         source_ref=args.source_ref,
+        planner_feedback_path=args.planner_feedback,
     )
     smart_test_plan.validate_plan(plan)
 
@@ -435,6 +436,7 @@ def package(args: argparse.Namespace) -> dict:
             "impacted_files", "selected_labs", "predicted_selected_labs",
             "risk_score", "confidence", "fallback_full", "shadow_full",
             "run_static", "run_build", "run_runtime", "targets",
+            "planner_feedback",
         )
         mismatches = [
             key for key in immutable_keys
@@ -461,6 +463,11 @@ def package(args: argparse.Namespace) -> dict:
         json.dumps(plan, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    if args.planner_feedback and Path(args.planner_feedback).is_file():
+        shutil.copy2(args.planner_feedback, output / "planner-feedback.json")
+        contract["planner_feedback"] = "planner-feedback.json"
+    else:
+        contract["planner_feedback"] = ""
 
     (output / "contract.json").write_text(
         json.dumps(contract, indent=2, sort_keys=True) + "\n",
@@ -498,7 +505,7 @@ def self_test() -> None:
             working_directory=".", package_id="com.example.app",
             maestro_flow=".maestro/smoke.yaml",
             analysis_mode="fast", baseline_sha="", analysis_plan_input="", history_file="",
-            history_key="", source_ref="", quality_json="",
+            history_key="", source_ref="", planner_feedback="", quality_json="",
             build_command="flutter build apk --debug",
             analyze_status="PASS", lint_status="N/A",
             test_status="PASS", build_status="PASS",
@@ -544,6 +551,7 @@ def main() -> int:
     parser.add_argument("--history-file", default="")
     parser.add_argument("--history-key", default="")
     parser.add_argument("--source-ref", default="")
+    parser.add_argument("--planner-feedback", default="")
     parser.add_argument("--quality-json", default="")
     parser.add_argument("--build-command", default="")
     parser.add_argument("--analyze-status", default="NOT_RUN")
