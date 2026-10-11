@@ -607,7 +607,8 @@ function badgeClass(value: string) {
   if (value === "CERTIFIED_STALE") return "cc-badge warn";
   if (value === "FAIL" || value === "FAILURE" || value === "ERROR" || value === "NOT_CERTIFIED")
     return "cc-badge bad";
-  if (value === "WARN" || value === "BLOCKED") return "cc-badge warn";
+  if (value === "WARN" || value === "BLOCKED" || value === "REVIEW_REQUIRED" || value === "EVIDENCE_INCOMPLETE")
+    return "cc-badge warn";
   return "cc-badge neutral";
 }
 
@@ -807,7 +808,9 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                           <small>simulated review record invalid · {(project.simulated_human.validation_errors ?? []).join(", ") || "unknown"}</small>
                         ) : null}
                       </div>
-                      <span className="cc-badge neutral">{project.simulated_human.state ?? "EVIDENCE_INCOMPLETE"}</span>
+                      <span className={badgeClass(project.simulated_human.state ?? "EVIDENCE_INCOMPLETE")}>
+                        {project.simulated_human.state ?? "EVIDENCE_INCOMPLETE"}
+                      </span>
                     </div>
                   ) : null}
                   <div className="studio-dimensions">
