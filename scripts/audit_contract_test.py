@@ -793,6 +793,8 @@ def check_release_assurance_contract() -> None:
         '"certification_is_not_distribution_proof": True',
         '"cross_app_pass_is_independent_from_single_app_pass": True',
         "certification_identity_matches",
+        "certification_contract_state",
+        "CANONICAL_STAGE_KEYS",
         "pair_identity_matches",
         "risk_plan_state",
         "PLAN_LANES",
@@ -837,9 +839,11 @@ def check_release_assurance_contract() -> None:
         and "_validated_record" in projection
         and "release_assurance.digest" in projection
         and "release_assurance.overall_state" in projection
-        and '"next_required_stage": "IDENTITY_MISMATCH"' in projection
+        and 'reason = "IDENTITY_MISMATCH"' in projection
         and '"certification_status": "NOT_VERIFIED"' in projection
-        and '"record_valid": False' in projection,
+        and '"record_valid": False' in projection
+        and "release_assurance.CANONICAL_STAGE_KEYS" in projection
+        and '"canonical_stage_set"' in projection,
         "Release Assurance Studio projection must preserve blocked/fail states and reject stale identities",
     )
     require(
