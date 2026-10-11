@@ -7,10 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import certification_studio, studio_evidence_graph, studio_release_assurance
-SCHEMA_VERSION = 1
-STUDIO_VERSION = "4.9.0"
-
+import certification_studio, studio_evidence_graph, studio_release_assurance, studio_simulated_human
+SCHEMA_VERSION = 1; STUDIO_VERSION = "5.0.0"
 
 def read_json(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
@@ -20,7 +18,6 @@ def read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
-
 
 def present_capabilities(app: dict[str, Any]) -> list[str]:
     product = app.get("product") if isinstance(app.get("product"), dict) else {}
@@ -60,13 +57,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     evidence_graph = read_json(project_dir / "evidence-graph.json")
     release_cockpit = certification_studio.project_from_directory(project_dir, evidence_graph, longitudinal)
     release_assurance = studio_release_assurance.project_from_directory(project_dir)
+    simulated_human = studio_simulated_human.project_from_directory(project_dir)
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, evidence_graph, release_cockpit, release_assurance, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, evidence_graph, release_cockpit, release_assurance, simulated_human, contract, brief, autonomous)
     ):
         return None
 
@@ -87,6 +85,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "evidence_graph": None,
         "release_cockpit": release_cockpit,
         "release_assurance": release_assurance,
+        "simulated_human": simulated_human,
         "autonomous_review": None,
     }
 
@@ -735,6 +734,7 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
             ),
             **certification_studio.portfolio_summary(projects),
             **studio_release_assurance.portfolio_summary(projects),
+            **studio_simulated_human.portfolio_summary(projects),
             "evidence_graph_nodes": sum(
                 int((row.get("evidence_graph") or {}).get("nodes", 0) or 0)
                 for row in projects
