@@ -253,6 +253,18 @@ def apply_playbook_policy(plan: dict[str, Any], playbook: dict[str, Any]) -> dic
     return enriched
 
 
+def refresh_lane_telemetry(plan: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(plan)
+    lane = str(enriched.get("lane", "FULL_RUNTIME"))
+    profile = enriched.get("learning_profile")
+    profile = profile if isinstance(profile, dict) else {}
+    observed = ((profile.get("lane_metrics") or {}).get(lane) or {})
+    enriched["verification_budget_seconds"] = LANE_BUDGETS.get(lane, 1800)
+    enriched["historical_lane_p95_seconds"] = observed.get("wall_clock_p95_seconds")
+    enriched["budget_pressure"] = bool(observed.get("budget_pressure", False))
+    return enriched
+
+
 def apply_learning_profile(plan: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
     enriched = dict(plan)
     selected = dict(enriched.get("selected_labs", {}))
@@ -295,8 +307,6 @@ def apply_learning_profile(plan: dict[str, Any], profile: dict[str, Any]) -> dic
 
     risk = max(0, min(100, risk))
     confidence = max(0.0, min(1.0, confidence))
-    budget = LANE_BUDGETS.get(lane, 1800)
-    observed = ((profile.get("lane_metrics") or {}).get(lane) or {})
     enriched.update(
         {
             "lane": lane,
@@ -306,12 +316,9 @@ def apply_learning_profile(plan: dict[str, Any], profile: dict[str, Any]) -> dic
             "confidence": round(confidence, 3),
             "learning_profile": profile,
             "learning_applied_labs": sorted(set(applied)),
-            "verification_budget_seconds": budget,
-            "historical_lane_p95_seconds": observed.get("wall_clock_p95_seconds"),
-            "budget_pressure": bool(observed.get("budget_pressure", False)),
         }
     )
-    return enriched
+    return refresh_lane_telemetry(enriched)
 
 
 def self_test() -> None:
@@ -349,6 +356,8 @@ def self_test() -> None:
         enriched = apply_learning_profile(plan, profile)
         assert enriched["selected_labs"]["network"]
         assert enriched["verification_budget_seconds"] == 900
+        promoted = refresh_lane_telemetry({**enriched, "lane": "FULL_RUNTIME"})
+        assert promoted["verification_budget_seconds"] == 1800
         assert classify_change_playbook(["lib/ui/home_screen.dart"])["category"] == "ui_change"
     print("AppLab history learning self-test PASS")
 
