@@ -90,6 +90,9 @@ def rr_stage(reality: dict[str, Any], key: str) -> dict[str, Any] | None:
 def stage(key: str, title: str, required: bool, state: str, reason: str, evidence: list[str]) -> dict[str, Any]:
     if state not in ALLOWED:
         raise ValueError(f"unsupported assurance state: {state}")
+    if required and state == NOT_APPLICABLE:
+        state = BLOCKED
+        reason = "Required assurance stage cannot be N/A. " + reason
     return {
         "key": key,
         "title": title,
@@ -247,6 +250,20 @@ def risk_plan_state(plan: dict[str, Any], ident: dict[str, str]) -> tuple[str, s
     return PASS, f"Risk-based plan is bound to this release: {lane} / {mode}."
 
 
+def overall_state(rows: list[dict[str, Any]]) -> str:
+    required = [row for row in rows if isinstance(row, dict) and row.get("required") is True]
+    if not required:
+        return BLOCKED
+    states = [clean(row.get("state")).upper() for row in required]
+    if any(state == FAIL for state in states):
+        return FAIL
+    if all(state == PASS for state in states):
+        return PASS
+    if any(state in {BLOCKED, NOT_VERIFIED, NOT_APPLICABLE} for state in states):
+        return BLOCKED
+    return BLOCKED
+
+
 def digest(ident: dict[str, str], rows: list[dict[str, Any]]) -> str:
     payload = {
         "identity": ident,
@@ -340,10 +357,10 @@ def build_report(report_dir: Path) -> dict[str, Any]:
     rr_dist = rr_stage(reality, "DISTRIBUTION_VERIFIED")
     dist_required = bool(rr_dist and rr_dist.get("applicable", True)) or dist_present
     rr_dist_state = norm_state(rr_dist.get("state")) if rr_dist else NOT_VERIFIED
-    if not dist_present and rr_dist_state == PASS:
-        ds, dr = BLOCKED, "Release Reality claims distribution PASS without attached trusted distribution evidence."
-    elif not dist_present and rr_dist_state == FAIL:
+    if rr_dist_state == FAIL:
         ds, dr = FAIL, clean(rr_dist.get("reason")) or "Release Reality records a distribution failure."
+    elif not dist_present and rr_dist_state == PASS:
+        ds, dr = BLOCKED, "Release Reality claims distribution PASS without attached trusted distribution evidence."
     rows.append(stage(
         "DISTRIBUTION_EVIDENCE",
         "Distribution evidence",
@@ -390,17 +407,10 @@ def build_report(report_dir: Path) -> dict[str, Any]:
     ))
 
     required = [row for row in rows if row["required"]]
-    if any(row["state"] == FAIL for row in required):
-        overall = FAIL
-    elif all(row["state"] == PASS for row in required):
-        overall = PASS
-    elif any(row["state"] in {BLOCKED, NOT_VERIFIED} for row in required):
-        overall = BLOCKED
-    else:
-        overall = NOT_VERIFIED
+    overall = overall_state(rows)
 
     failures = [row for row in required if row["state"] == FAIL]
-    blockers = [row for row in required if row["state"] in {BLOCKED, NOT_VERIFIED}]
+    blockers = [row for row in required if row["state"] in {BLOCKED, NOT_VERIFIED, NOT_APPLICABLE}]
     next_required = next((row for row in required if row["state"] != PASS), None)
 
     return {
@@ -638,8 +648,18 @@ def self_test() -> None:
         distribution_failure = build_report(root)
         assert distribution_failure["state"] == FAIL
         assert any(row["key"] == "DISTRIBUTION_EVIDENCE" for row in distribution_failure["failures"])
+        (root / DIST).write_text(json.dumps(distribution), encoding="utf-8")
+        distribution_conflict = build_report(root)
+        assert distribution_conflict["state"] == FAIL
+        assert any(row["key"] == "DISTRIBUTION_EVIDENCE" for row in distribution_conflict["failures"])
         (root / RR).write_text(json.dumps(reality), encoding="utf-8")
         (root / DIST).write_text(json.dumps(distribution), encoding="utf-8")
+
+        assert stage("REQUIRED_NA", "Required N/A", True, NOT_APPLICABLE, "not applicable", [])["state"] == BLOCKED
+        assert overall_state([
+            {"required": True, "state": PASS},
+            {"required": True, "state": NOT_APPLICABLE},
+        ]) == BLOCKED
 
         stale_plan = json.loads(json.dumps(plan))
         stale_plan["head_sha"] = "e" * 40
