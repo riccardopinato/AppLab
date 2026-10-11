@@ -826,7 +826,7 @@ def check_release_assurance_contract() -> None:
         "release-reality.json",
         "evidence-graph.md",
         "AppLab True Autonomous App Review v5.2.0",
-        "release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|trusted_cross_app_evidence|physical_evidence",
+        "release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|trusted_cross_app_evidence|physical_evidence",
         "cross_app_run_id",
         "trusted_cross_app_evidence.py verify-run",
         "trusted_cross_app_evidence.py validate",
