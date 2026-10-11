@@ -802,6 +802,8 @@ def check_release_assurance_contract() -> None:
         "Canonical certification.json is missing",
         "Cross-app evidence uses invalid round-trip state",
         "Release Reality records a distribution failure",
+        "def overall_state",
+        "Required assurance stage cannot be N/A",
         "physical_present",
         'return 0 if payload["state"] == PASS or not args.require_pass else 1',
     ):
@@ -832,8 +834,12 @@ def check_release_assurance_contract() -> None:
         '"release_assurance_blocked"' in projection
         and '"release_assurance_fail"' in projection
         and "_identity_match" in projection
+        and "_validated_record" in projection
+        and "release_assurance.digest" in projection
+        and "release_assurance.overall_state" in projection
         and '"next_required_stage": "IDENTITY_MISMATCH"' in projection
-        and '"certification_status": "NOT_VERIFIED"' in projection,
+        and '"certification_status": "NOT_VERIFIED"' in projection
+        and '"record_valid": False' in projection,
         "Release Assurance Studio projection must preserve blocked/fail states and reject stale identities",
     )
     require(
@@ -842,7 +848,8 @@ def check_release_assurance_contract() -> None:
         and "release_assurance_blocked" in frontend
         and "project.release_assurance.blockers" in frontend
         and "project.release_assurance.failures" in frontend
-        and "project.release_assurance.identity_match === false" in frontend,
+        and "project.release_assurance.identity_match === false" in frontend
+        and "project.release_assurance.record_valid === false" in frontend,
         "Control Center must expose release assurance state",
     )
     cross_helper = (ROOT / "scripts/trusted_cross_app_evidence.py").read_text(
