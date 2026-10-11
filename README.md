@@ -1,3 +1,30 @@
+## v4.9.0 — Autonomous Release Assurance
+
+AppLab now composes the complete technical release-assurance chain for the
+**exact release artifact** without creating a second certification authority.
+
+- **End-to-end assurance chain:** source/build identity, static/test/CI evidence,
+  trusted runtime, Evidence Graph, risk-based validation, conditional physical
+  evidence, distribution evidence, conditional cross-app evidence and canonical
+  certification are reconciled in one record.
+- **Exact artifact binding:** repository, immutable source SHA, package/version
+  and APK SHA-256 remain the release identity; mismatched evidence fails closed.
+- **Explicit PASS / FAIL / BLOCKED:** missing required evidence remains visible
+  and can never be converted into a synthetic green release state.
+- **Distribution stays independent:** certification or a green build never
+  implies delivery/install-channel verification.
+- **Cross-app stays independent:** pair PASS is consumed only when supplied and
+  remains distinct from single-app certification.
+- **Certification authority preserved:** Release Assurance cannot emit or
+  promote `CERTIFIED`; it only reports the state produced by the canonical
+  Production Certification Gate.
+- **Studio integration:** the Control Center shows assurance state, required-stage
+  coverage and the next missing release stage.
+- **Deterministic output:** `release-assurance.json/.md` plus a stable assurance
+  digest, with no opaque quality score.
+
+See `integration/certification/AUTONOMOUS_RELEASE_ASSURANCE_V49.md`.
+
 ## v4.8.0 — Cross-App Verification
 
 AppLab can now verify **one exact producer/consumer pair** without treating two
