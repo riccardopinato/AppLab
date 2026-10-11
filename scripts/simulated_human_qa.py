@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import tempfile
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -189,12 +190,32 @@ def evidence_identity(graph: dict[str, Any]) -> dict[str, str]:
     return out
 
 
+TAG_PREFIX_PATTERNS = {"discover", "confus", "efficien", "accessib", "recover", "permission", "http"}
+
+
+def text_tokens(value: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", value.casefold().replace("_", " ").replace("-", " "))
+
+
+def pattern_matches(tokens: list[str], pattern: str) -> bool:
+    wanted = text_tokens(pattern)
+    if not wanted:
+        return False
+    if len(wanted) == 1:
+        token = wanted[0]
+        if token in TAG_PREFIX_PATTERNS:
+            return any(value.startswith(token) for value in tokens)
+        return token in tokens
+    width = len(wanted)
+    return any(tokens[index:index + width] == wanted for index in range(len(tokens) - width + 1))
+
+
 def tags_for_text(*values: object) -> list[str]:
-    text = " ".join(clean(value).casefold() for value in values if clean(value))
+    tokens = text_tokens(" ".join(clean(value) for value in values if clean(value)))
     return sorted(
         tag
         for tag, patterns in TAG_RULES.items()
-        if any(pattern.casefold() in text for pattern in patterns)
+        if any(pattern_matches(tokens, pattern) for pattern in patterns)
     )
 
 
@@ -234,10 +255,13 @@ def normalized_evidence(source: str, rows: Any) -> list[dict[str, Any]]:
 
 
 def state_signals(state_report: dict[str, Any]) -> list[dict[str, Any]]:
-    result = normalized_evidence(
-        SOURCE_FILES["state"],
-        state_report.get("findings"),
-    )
+    raw_findings = state_report.get("findings")
+    result = normalized_evidence(SOURCE_FILES["state"], raw_findings)
+    covered_states = {
+        clean(row.get("state") or row.get("subject"))
+        for row in raw_findings
+        if isinstance(raw_findings, list) and isinstance(row, dict)
+    } if isinstance(raw_findings, list) else set()
     states = state_report.get("states") if isinstance(state_report.get("states"), dict) else {}
     for key, row in sorted(states.items()):
         if not isinstance(row, dict):
@@ -247,6 +271,8 @@ def state_signals(state_report: dict[str, Any]) -> list[dict[str, Any]]:
         if applicability == "NOT_APPLICABLE":
             continue
         if status not in {"OBSERVED_FAIL", "NOT_OBSERVED", "OBSERVED_UNKNOWN"}:
+            continue
+        if clean(key) in covered_states:
             continue
         kind = "EDGE_STATE_FAILURE" if status == "OBSERVED_FAIL" else "EDGE_STATE_EVIDENCE_GAP"
         tags = tags_for_text(key, kind)
@@ -302,13 +328,14 @@ def task_session(
     posture: dict[str, Any],
 ) -> dict[str, Any]:
     tags = set(task["tags"])
-    relevant = [row for row in signals if tags & set(row.get("tags") or [])]
     needs = set(task["needs"])
     available = all(bool(posture.get(need)) for need in needs)
-    if relevant:
-        outcome = "FRICTION_SIGNAL"
-        rationale = "Existing AppLab evidence exposes one or more review signals relevant to this bounded task."
-    elif not available:
+    relevant = (
+        [row for row in signals if tags & set(row.get("tags") or [])]
+        if available
+        else []
+    )
+    if not available:
         if "sensitive" in needs and not posture.get("sensitive"):
             outcome = "NOT_APPLICABLE"
             rationale = "No applicable sensitive capability/state was evidenced for this product."
@@ -318,6 +345,9 @@ def task_session(
         else:
             outcome = "EVIDENCE_INCOMPLETE"
             rationale = "The required trusted evidence for this bounded task is incomplete."
+    elif relevant:
+        outcome = "FRICTION_SIGNAL"
+        rationale = "Existing AppLab evidence exposes one or more review signals relevant to this bounded task."
     else:
         outcome = "NO_STRONG_SIGNAL"
         rationale = "Available evidence does not contain a strong simulated-review signal for this task."
@@ -470,11 +500,14 @@ def advisory_state(
 ) -> str:
     if actions:
         return "REVIEW_REQUIRED"
-    if any(
-        int((row.get("summary") or {}).get("evidence_incomplete", 0) or 0) > 0
-        for row in sessions
-    ):
-        return "EVIDENCE_INCOMPLETE"
+    for session in sessions:
+        tasks = session.get("tasks") if isinstance(session, dict) and isinstance(session.get("tasks"), list) else []
+        if any(
+            isinstance(task, dict)
+            and clean(task.get("outcome")).upper() == "EVIDENCE_INCOMPLETE"
+            for task in tasks
+        ):
+            return "EVIDENCE_INCOMPLETE"
     return "NO_STRONG_SIGNAL"
 
 
@@ -706,6 +739,9 @@ def self_test() -> None:
         assert report["guardrails"]["simulated_review_is_not_real_user_validation"] is True
         assert report["record_digest_sha256"] == report_digest(report)
         assert report["identity"]["artifact_sha256"] == "b" * 64
+        assert "storage" not in tags_for_text("profile")
+        assert "auth" not in tags_for_text("authoritative")
+        assert "auth" in tags_for_text("auth failure")
 
         stale_graph = json.loads(json.dumps(graph))
         stale_graph["nodes"][0]["attributes"]["package_id"] = "com.example.other"
