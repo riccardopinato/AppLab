@@ -796,8 +796,12 @@ def check_release_assurance_contract() -> None:
         "pair_identity_matches",
         "risk_plan_state",
         "PLAN_LANES",
+        "PLAN_LABS",
+        "set(selected) != PLAN_LABS",
         'result = clean(record.get("result")).upper()',
         "Canonical certification.json is missing",
+        "Cross-app evidence uses invalid round-trip state",
+        "Release Reality records a distribution failure",
         "physical_present",
         'return 0 if payload["state"] == PASS or not args.require_pass else 1',
     ):
