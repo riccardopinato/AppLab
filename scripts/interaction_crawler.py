@@ -238,6 +238,20 @@ def pid_of(package_id: str) -> str:
     return result.stdout.strip().split()[0] if result.stdout.strip() else ""
 
 
+def wait_for_process(
+    package_id: str,
+    timeout_seconds: float = 6.0,
+    poll_seconds: float = 0.25,
+) -> bool:
+    deadline = time.monotonic() + max(0.0, timeout_seconds)
+    while True:
+        if pid_of(package_id):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(max(0.05, poll_seconds))
+
+
 def app_crashed(package_id: str) -> tuple[bool, str]:
     if not pid_of(package_id):
         return True, "application process died"
@@ -259,6 +273,12 @@ def relaunch(package_id: str, settle: float) -> None:
         "adb", "shell", "monkey", "-p", package_id,
         "-c", "android.intent.category.LAUNCHER", "1",
         check=False,
+    )
+    _wait_for_adb()
+    wait_for_process(
+        package_id,
+        timeout_seconds=max(6.0, settle * 4.0),
+        poll_seconds=0.25,
     )
     time.sleep(settle)
 
@@ -420,7 +440,7 @@ def crawl(
 
     return {
         "schema_version": 2,
-        "interaction_crawler_version": "0.6.6.1",
+        "interaction_crawler_version": "0.6.6.2",
         "result": result,
         "package_id": package_id,
         "candidate_count": len(candidates),
@@ -490,6 +510,7 @@ def self_test() -> None:
         }
         assert report["result"] != "FAIL"
         assert report["failures"] == 0
+        assert wait_for_process.__name__ == "wait_for_process"
     print("AppLab Safe Interaction Crawler self-test PASS")
 
 
