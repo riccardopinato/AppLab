@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "5.0.0"
+EXPECTED_VERSION = "5.1.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -825,8 +825,8 @@ def check_release_assurance_contract() -> None:
         "release-assurance.md",
         "release-reality.json",
         "evidence-graph.md",
-        "AppLab True Autonomous App Review v5.0.0",
-        "release_assurance|simulated_human_qa|studio_simulated_human|trusted_cross_app_evidence|physical_evidence",
+        "AppLab True Autonomous App Review v5.1.0",
+        "release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|trusted_cross_app_evidence|physical_evidence",
         "cross_app_run_id",
         "trusted_cross_app_evidence.py verify-run",
         "trusted_cross_app_evidence.py validate",
@@ -960,8 +960,8 @@ def check_simulated_human_qa_contract() -> None:
     require(
         "studio_simulated_human.project_from_directory" in studio
         and "studio_simulated_human.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.0.0"' in studio,
-        "Studio must expose v5.0 simulated-human evidence through the dedicated projection",
+        and 'STUDIO_VERSION = "5.1.0"' in studio,
+        "Studio must expose v5.0 simulated-human evidence through the v5.1 Studio projection",
     )
     require(
         "Simulated Human QA" in frontend
@@ -974,14 +974,92 @@ def check_simulated_human_qa_contract() -> None:
         "Build Simulated Human QA",
         "scripts/simulated_human_qa.py",
         "simulated-human-qa.md",
-        "AppLab True Autonomous App Review v5.0.0",
-        "simulated_human_qa|studio_simulated_human",
+        "AppLab True Autonomous App Review v5.1.0",
+        "simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor",
     ):
         require(needle in workflow, f"v5.0 autonomous review integration missing: {needle}")
 
     require(
         (ROOT / "integration/review/SIMULATED_HUMAN_QA_V50.md").is_file(),
         "v5.0 simulated-human QA contract documentation is required",
+    )
+
+
+def check_design_system_advisor_contract() -> None:
+    engine = (ROOT / "scripts/design_system_advisor.py").read_text(encoding="utf-8")
+    projection = (ROOT / "scripts/studio_design_advisor.py").read_text(encoding="utf-8")
+    studio = (ROOT / "scripts/studio_snapshot.py").read_text(encoding="utf-8")
+    frontend = (ROOT / "frontend/src/ControlCenter.tsx").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/autonomous-app-review-v31.yml").read_text(
+        encoding="utf-8"
+    )
+
+    for needle in (
+        'LAB_VERSION = "5.1.0"',
+        'RECORD_TYPE = "DESIGN_SYSTEM_UI_LIBRARY_ADVISOR"',
+        'AUTHORITY = "APPLAB_DESIGN_SYSTEM_ADVISOR_ADVISORY"',
+        'CLASSIFICATION = "DESIGN SYSTEM ADVISORY"',
+        '"KEEP", "ADAPT", "REPLACE_CANDIDATE", "EVIDENCE_INCOMPLETE"',
+        '"hierarchy"',
+        '"typography"',
+        '"spacing"',
+        '"density"',
+        '"component_consistency"',
+        '"feedback"',
+        '"empty_loading_error_states"',
+        '"interaction_affordances"',
+        '"accessibility"',
+        '"responsive"',
+        '"dark_mode"',
+        '"localization"',
+        '"no_numeric_aesthetic_score": True',
+        '"no_automatic_library_replacement": True',
+        '"different_library_is_not_automatically_better": True',
+        '"missing_evidence_fails_closed": True',
+        'evidence-graph.json is required for Design System Advisor',
+        '"artifact_sha256"',
+        '"version_name"',
+        '"version_code"',
+        'AppLab Design System Advisor self-test PASS',
+    ):
+        require(needle in engine, f"v5.1 design advisor engine missing invariant: {needle}")
+
+    for needle in (
+        'LAB_VERSION = "5.1.0"',
+        'validation_errors',
+        'record_digest_sha256',
+        'dimensions.canonical_set',
+        '"record_valid": False',
+        '"EVIDENCE_INCOMPLETE"',
+        'portfolio_summary',
+        'AppLab Studio Design Advisor self-test PASS',
+    ):
+        require(needle in projection, f"v5.1 Studio design projection missing invariant: {needle}")
+
+    require(
+        "studio_design_advisor.project_from_directory" in studio
+        and "studio_design_advisor.portfolio_summary(projects)" in studio
+        and 'STUDIO_VERSION = "5.1.0"' in studio,
+        "Studio must expose v5.1 design-advisor evidence through the dedicated projection",
+    )
+    require(
+        "Design System & UI Library Advisor" in frontend
+        and "with_design_advisor" in frontend
+        and "project.design_advisor.record_valid === false" in frontend,
+        "Control Center must surface advisory design-system evidence",
+    )
+    for needle in (
+        "Build Design System & UI Library Advisor",
+        "scripts/design_system_advisor.py",
+        "design-system-advisor.md",
+        "AppLab True Autonomous App Review v5.1.0",
+        "design_system_advisor|studio_design_advisor",
+    ):
+        require(needle in workflow, f"v5.1 autonomous review integration missing: {needle}")
+
+    require(
+        (ROOT / "integration/design/DESIGN_SYSTEM_UI_LIBRARY_ADVISOR_V51.md").is_file(),
+        "v5.1 design advisor contract documentation is required",
     )
 
 
@@ -1000,6 +1078,7 @@ def main() -> int:
     check_cross_app_verification_contract()
     check_release_assurance_contract()
     check_simulated_human_qa_contract()
+    check_design_system_advisor_contract()
     check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")

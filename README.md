@@ -1,3 +1,28 @@
+## v5.1.0 — Design System & UI Library Advisor
+
+AppLab now evaluates whether the current visual language and component library fit
+the **actual product context** instead of applying one design system to every app.
+
+- **Product context first:** bounded source/App Intelligence evidence infers the
+  product category and interaction style before visual fit is judged.
+- **Twelve canonical dimensions:** hierarchy, typography, spacing, density,
+  component consistency, feedback, empty/loading/error states, affordances,
+  accessibility, responsive behavior, dark mode and localization.
+- **Library-aware review:** Material, Cupertino, custom and common third-party
+  systems are compared against product needs rather than ranked generically.
+- **KEEP / ADAPT / REPLACE_CANDIDATE / EVIDENCE_INCOMPLETE:** replacement is a
+  rare candidate decision and never an automatic migration.
+- **No style churn:** another library is not treated as better merely because it
+  is different, newer or more fashionable.
+- **Exact provenance:** the advisory record binds to Evidence Graph v2 and the
+  exact repository/source/APK/package/version identity.
+- **Fail-closed Studio projection:** malformed or identity-mismatched records
+  become `EVIDENCE_INCOMPLETE`.
+- **Authority preserved:** design advice cannot override FAST, FULL,
+  CERTIFICATION or Release Assurance and never emits a release verdict.
+
+See `integration/design/DESIGN_SYSTEM_UI_LIBRARY_ADVISOR_V51.md`.
+
 ## v5.0.0 — Simulated Human QA
 
 AppLab now adds a bounded **simulated-user review layer** on top of its trusted
