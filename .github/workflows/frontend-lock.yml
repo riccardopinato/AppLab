@@ -7,13 +7,18 @@ on:
       - "frontend/package.json"
       - "frontend/package-lock.json"
       - ".github/workflows/frontend-lock.yml"
+  pull_request:
+    paths:
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - ".github/workflows/frontend-lock.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: applab-frontend-lock
+  group: applab-frontend-lock-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -30,6 +35,20 @@ jobs:
       - name: Generate deterministic lockfile
         working-directory: frontend
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Validate install graph
+        working-directory: frontend
+        run: npm ci --ignore-scripts --no-audit --no-fund --dry-run
+
+      - name: Require clean lockfile on pull request
+        if: github.event_name == 'pull_request'
+        run: |
+          set -Eeuo pipefail
+          if ! git diff --exit-code -- frontend/package-lock.json; then
+            echo "frontend/package-lock.json is not deterministic for the proposed dependency graph." >&2
+            echo "Regenerate and commit the lockfile before running expensive runtime gates." >&2
+            exit 1
+          fi
+
       - name: Upload generated lockfile
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -38,6 +57,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
       - name: Commit lockfile when dependency graph changes
+        if: github.event_name != 'pull_request'
         run: |
           git add frontend/package-lock.json
           if git diff --cached --quiet; then
