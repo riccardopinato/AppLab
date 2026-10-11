@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "4.9.0"
+EXPECTED_VERSION = "5.0.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -348,8 +348,9 @@ def check_project_adapter_contract() -> None:
     )
     require(
         "Declared package id does not match APK package id" in validator
-        and "APK package id is unavailable" in validator,
-        "trusted contract validation must bind configured package to available built APK identity",
+        and 'for field in ("package_id", "version_name", "version_code")' in validator
+        and 'raise ValueError(f"APK {field} is missing")' in validator,
+        "trusted contract validation must bind configured package and exact APK version identity",
     )
     require(
         "riccardopinato/CamperBoss" in integration
@@ -824,8 +825,8 @@ def check_release_assurance_contract() -> None:
         "release-assurance.md",
         "release-reality.json",
         "evidence-graph.md",
-        "AppLab True Autonomous App Review v4.9.0",
-        "release_assurance|trusted_cross_app_evidence|physical_evidence",
+        "AppLab True Autonomous App Review v5.0.0",
+        "release_assurance|simulated_human_qa|studio_simulated_human|trusted_cross_app_evidence|physical_evidence",
         "cross_app_run_id",
         "trusted_cross_app_evidence.py verify-run",
         "trusted_cross_app_evidence.py validate",
@@ -886,6 +887,104 @@ def check_release_assurance_contract() -> None:
     )
 
 
+def check_simulated_human_qa_contract() -> None:
+    engine = (ROOT / "scripts/simulated_human_qa.py").read_text(encoding="utf-8")
+    projection = (ROOT / "scripts/studio_simulated_human.py").read_text(encoding="utf-8")
+    studio = (ROOT / "scripts/studio_snapshot.py").read_text(encoding="utf-8")
+    frontend = (ROOT / "frontend/src/ControlCenter.tsx").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/autonomous-app-review-v31.yml").read_text(
+        encoding="utf-8"
+    )
+
+    for needle in (
+        'LAB_VERSION = "5.0.0"',
+        'RECORD_TYPE = "SIMULATED_HUMAN_QA"',
+        'AUTHORITY = "APPLAB_SIMULATED_HUMAN_QA_ADVISORY"',
+        'CLASSIFICATION = "SIMULATED USER REVIEW"',
+        '"beginner"',
+        '"power_user"',
+        '"older_user"',
+        '"accessibility_focused"',
+        '"privacy_conscious"',
+        '"impatient"',
+        '"offline_user"',
+        '"VERIFY_NEXT", "IMPROVE", "NO_ACTION"',
+        '"simulated_review_is_not_real_user_validation": True',
+        '"simulated_review_is_not_physical_device_evidence": True',
+        '"simulated_review_has_no_release_verdict": True',
+        '"simulated_review_never_emits_fix_now": True',
+        '"deterministic_core_no_llm_required": True',
+        'graph.get("schema_version") != 2',
+        'clean(graph.get("graph_version")) != "2.0"',
+        "TAG_PREFIX_PATTERNS",
+        "pattern_matches",
+        "covered_states",
+        "is_evidence_gap_signal",
+        "EVIDENCE_GAP_MARKERS",
+        "friction_candidates",
+        "if not available:",
+        '"artifact_sha256"',
+        '"version_name"',
+        '"version_code"',
+        'print("AppLab v5.0 Simulated Human QA self-test PASS")',
+    ):
+        require(needle in engine, f"v5.0 simulated-human engine missing invariant: {needle}")
+
+    for needle in (
+        "_identity_match",
+        "_validated_record",
+        "simulated.evidence_identity(graph)",
+        '"canonical_tasks"',
+        '"walkthrough_state"',
+        '"persona_summary"',
+        '"heuristic_review"',
+        '"heuristic_state"',
+        '"finding_persona_derivation"',
+        '"summary"',
+        '"action_consistency"',
+        '"finding_signal_ids"',
+        '"action_finding_binding"',
+        '"action_personas"',
+        "type(support_count) is not int",
+        "type(recurring) is not bool",
+        '"record_valid": False',
+        '"identity_match"',
+        '"validation_errors"',
+        '"simulated_review_required"',
+        '"friction_sessions": sum(',
+        '"evidence_incomplete_sessions": sum(',
+        'print("AppLab v5.0 Simulated Human Studio projection self-test PASS")',
+    ):
+        require(needle in projection, f"v5.0 Studio projection missing invariant: {needle}")
+
+    require(
+        "studio_simulated_human.project_from_directory" in studio
+        and "studio_simulated_human.portfolio_summary(projects)" in studio
+        and 'STUDIO_VERSION = "5.0.0"' in studio,
+        "Studio must expose v5.0 simulated-human evidence through the dedicated projection",
+    )
+    require(
+        "Simulated Human QA" in frontend
+        and "with_simulated_human" in frontend
+        and "project.simulated_human.record_valid === false" in frontend
+        and "SIMULATED USER REVIEW" in frontend,
+        "Control Center must surface advisory simulated-human evidence",
+    )
+    for needle in (
+        "Build Simulated Human QA",
+        "scripts/simulated_human_qa.py",
+        "simulated-human-qa.md",
+        "AppLab True Autonomous App Review v5.0.0",
+        "simulated_human_qa|studio_simulated_human",
+    ):
+        require(needle in workflow, f"v5.0 autonomous review integration missing: {needle}")
+
+    require(
+        (ROOT / "integration/review/SIMULATED_HUMAN_QA_V50.md").is_file(),
+        "v5.0 simulated-human QA contract documentation is required",
+    )
+
+
 def main() -> int:
     check_version_alignment()
     check_local_controller_boundary()
@@ -900,6 +999,7 @@ def main() -> int:
     check_certification_studio_contract()
     check_cross_app_verification_contract()
     check_release_assurance_contract()
+    check_simulated_human_qa_contract()
     check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")

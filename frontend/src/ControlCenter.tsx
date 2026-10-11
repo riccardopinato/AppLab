@@ -487,6 +487,27 @@ type StudioProject = {
     record_valid?: boolean;
     validation_errors?: string[];
   } | null;
+  simulated_human?: {
+    state?: string;
+    persona_count?: number;
+    task_count?: number;
+    friction_sessions?: number;
+    evidence_incomplete_sessions?: number;
+    consensus_findings?: number;
+    disagreements?: number;
+    verify_next?: number;
+    improve?: number;
+    identity_match?: boolean;
+    record_valid?: boolean;
+    validation_errors?: string[];
+    classification?: string;
+    top_findings?: Array<{
+      kind?: string;
+      subject?: string;
+      route?: string;
+      support_count?: number;
+    }>;
+  } | null;
   autonomous_review?: {
     review_state?: string;
     runtime_evidence_state?: string;
@@ -549,6 +570,10 @@ type StudioSnapshot = {
     release_assurance_pass?: number;
     release_assurance_blocked?: number;
     release_assurance_fail?: number;
+    with_simulated_human?: number;
+    simulated_review_required?: number;
+    simulated_evidence_incomplete?: number;
+    simulated_no_strong_signal?: number;
     autonomous_reviews?: number;
     autonomous_attention?: number;
     runtime_observed?: number;
@@ -582,7 +607,8 @@ function badgeClass(value: string) {
   if (value === "CERTIFIED_STALE") return "cc-badge warn";
   if (value === "FAIL" || value === "FAILURE" || value === "ERROR" || value === "NOT_CERTIFIED")
     return "cc-badge bad";
-  if (value === "WARN" || value === "BLOCKED") return "cc-badge warn";
+  if (value === "WARN" || value === "BLOCKED" || value === "REVIEW_REQUIRED" || value === "EVIDENCE_INCOMPLETE")
+    return "cc-badge warn";
   return "cc-badge neutral";
 }
 
@@ -713,6 +739,9 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
               <div><span>Assurance PASS</span><strong>{studio.summary.release_assurance_pass ?? 0}</strong></div>
               <div><span>Assurance blocked</span><strong>{studio.summary.release_assurance_blocked ?? 0}</strong></div>
               <div><span>Assurance FAIL</span><strong>{studio.summary.release_assurance_fail ?? 0}</strong></div>
+              <div><span>Simulated Human QA</span><strong>{studio.summary.with_simulated_human ?? 0}</strong></div>
+              <div><span>Simulated review required</span><strong>{studio.summary.simulated_review_required ?? 0}</strong></div>
+              <div><span>Simulated evidence gaps</span><strong>{studio.summary.simulated_evidence_incomplete ?? 0}</strong></div>
               <div><span>CERTIFIED</span><strong>{studio.summary.certified_releases ?? 0}</strong></div>
               <div><span>Certification blocked</span><strong>{studio.summary.certification_blocked ?? 0}</strong></div>
               <div><span>Physical required</span><strong>{studio.summary.physical_required ?? 0}</strong></div>
@@ -763,6 +792,24 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                       </div>
                       <span className={badgeClass(project.release_assurance.state ?? "NOT_VERIFIED")}>
                         {project.release_assurance.state ?? "NOT_VERIFIED"}
+                      </span>
+                    </div>
+                  ) : null}
+                  {project.simulated_human ? (
+                    <div className="release-cockpit-head">
+                      <div>
+                        <span>Simulated Human QA · advisory</span>
+                        <strong>{project.simulated_human.state ?? "EVIDENCE_INCOMPLETE"}</strong>
+                        <small>
+                          {project.simulated_human.persona_count ?? 0} personas · {project.simulated_human.task_count ?? 0} tasks · {project.simulated_human.consensus_findings ?? 0} consensus · {project.simulated_human.verify_next ?? 0} verify next · {project.simulated_human.improve ?? 0} improve
+                        </small>
+                        <small>{project.simulated_human.classification ?? "SIMULATED USER REVIEW"} · never real-user validation</small>
+                        {project.simulated_human.record_valid === false ? (
+                          <small>simulated review record invalid · {(project.simulated_human.validation_errors ?? []).join(", ") || "unknown"}</small>
+                        ) : null}
+                      </div>
+                      <span className={badgeClass(project.simulated_human.state ?? "EVIDENCE_INCOMPLETE")}>
+                        {project.simulated_human.state ?? "EVIDENCE_INCOMPLETE"}
                       </span>
                     </div>
                   ) : null}
@@ -872,6 +919,20 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                           ? `${project.ux_friction.no_change_actions ?? 0} stable-signature · ${project.ux_friction.info_signals ?? 0} info · share ${project.ux_friction.no_change_share ?? 0}`
                           : "no UX friction evidence"}
                       </small>
+                    </div>
+                    <div>
+                      <span>Simulated users</span>
+                      <strong>{project.simulated_human?.persona_count ?? 0}</strong>
+                      <small>
+                        {project.simulated_human
+                          ? `${project.simulated_human.friction_sessions ?? 0} friction tasks · ${project.simulated_human.evidence_incomplete_sessions ?? 0} evidence gaps · ${project.simulated_human.disagreements ?? 0} disagreements`
+                          : "no simulated-human evidence"}
+                      </small>
+                      {project.simulated_human?.top_findings?.[0] ? (
+                        <small>
+                          top · {project.simulated_human.top_findings[0].route ?? "NO_ACTION"} · {project.simulated_human.top_findings[0].kind ?? "review"} · {project.simulated_human.top_findings[0].subject ?? ""}
+                        </small>
+                      ) : null}
                     </div>
                     <div>
                       <span>Autonomous Review</span>
