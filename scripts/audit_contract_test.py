@@ -348,8 +348,9 @@ def check_project_adapter_contract() -> None:
     )
     require(
         "Declared package id does not match APK package id" in validator
-        and "APK package id is unavailable" in validator,
-        "trusted contract validation must bind configured package to available built APK identity",
+        and 'for field in ("package_id", "version_name", "version_code")' in validator
+        and 'raise ValueError(f"APK {field} is missing")' in validator,
+        "trusted contract validation must bind configured package and exact APK version identity",
     )
     require(
         "riccardopinato/CamperBoss" in integration
