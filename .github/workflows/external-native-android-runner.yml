@@ -318,6 +318,18 @@ jobs:
           restore-keys: |
             applab-watch-history-
 
+      - name: Restore prior graph planner feedback
+        if: inputs.analysis_mode == 'fast' && inputs.baseline_sha != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          chmod +x "$GITHUB_WORKSPACE/.applab/scripts/restore_planner_feedback.sh"
+          "$GITHUB_WORKSPACE/.applab/scripts/restore_planner_feedback.sh" \
+            "${{ inputs.repository }}" \
+            "$RUNNER_TEMP/applab-planner-feedback.json"
+
       - name: Plan adaptive verification
         id: impact
         shell: bash
@@ -332,6 +344,7 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --history-key "${{ inputs.history_key }}" \
             --source-ref "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}" \
+            --planner-feedback "$RUNNER_TEMP/applab-planner-feedback.json" \
             --output "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
             --github-output "$GITHUB_OUTPUT"
 
