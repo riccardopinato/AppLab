@@ -219,6 +219,21 @@ def tags_for_text(*values: object) -> list[str]:
     )
 
 
+EVIDENCE_GAP_MARKERS = (
+    "NOT_OBSERVED",
+    "UNOBSERVED",
+    "UNVERIFIED",
+    "EVIDENCE_GAP",
+    "OBSERVED_UNKNOWN",
+    "MISSING_EVIDENCE",
+)
+
+
+def is_evidence_gap_signal(row: dict[str, Any]) -> bool:
+    kind = clean(row.get("kind")).upper()
+    return any(marker in kind for marker in EVIDENCE_GAP_MARKERS)
+
+
 def normalized_evidence(source: str, rows: Any) -> list[dict[str, Any]]:
     if not isinstance(rows, list):
         return []
@@ -335,6 +350,8 @@ def task_session(
         if available
         else []
     )
+    evidence_gaps = [row for row in relevant if is_evidence_gap_signal(row)]
+    friction_candidates = [row for row in relevant if not is_evidence_gap_signal(row)]
     if not available:
         if "sensitive" in needs and not posture.get("sensitive"):
             outcome = "NOT_APPLICABLE"
@@ -345,22 +362,26 @@ def task_session(
         else:
             outcome = "EVIDENCE_INCOMPLETE"
             rationale = "The required trusted evidence for this bounded task is incomplete."
-    elif relevant:
+    elif friction_candidates:
         outcome = "FRICTION_SIGNAL"
-        rationale = "Existing AppLab evidence exposes one or more review signals relevant to this bounded task."
+        rationale = "Existing AppLab evidence exposes one or more observed review signals relevant to this bounded task."
+    elif evidence_gaps:
+        outcome = "EVIDENCE_INCOMPLETE"
+        rationale = "Relevant AppLab evidence is explicitly unobserved or unverified; verification is required before inferring user friction."
     else:
         outcome = "NO_STRONG_SIGNAL"
         rationale = "Available evidence does not contain a strong simulated-review signal for this task."
 
+    gap_ids = {row["id"] for row in evidence_gaps}
     criteria: list[dict[str, Any]] = []
     for name, criterion_tags in WALKTHROUGH_CRITERIA.items():
         hits = [row["id"] for row in relevant if criterion_tags & set(row.get("tags") or [])]
-        if hits:
+        if hits and any(hit not in gap_ids for hit in hits):
             state = "REVIEW_SIGNAL"
-        elif available:
-            state = "EVIDENCE_AVAILABLE_NO_SIGNAL"
-        else:
+        elif hits or not available:
             state = "EVIDENCE_INCOMPLETE"
+        else:
+            state = "EVIDENCE_AVAILABLE_NO_SIGNAL"
         criteria.append({"criterion": name, "state": state, "signal_ids": hits[:12]})
 
     return {
@@ -761,6 +782,28 @@ def self_test() -> None:
         )
         assert unavailable["outcome"] == "EVIDENCE_INCOMPLETE"
         assert unavailable["signal_ids"] == []
+
+        gap_only = task_session(
+            "offline_user",
+            offline_task,
+            [{
+                "id": "offline-gap",
+                "source": SOURCE_FILES["state"],
+                "kind": "EDGE_STATE_NOT_OBSERVED",
+                "subject": "offline",
+                "message": "offline not observed",
+                "severity": "REVIEW",
+                "tags": ["offline", "network"],
+                "evidence": [],
+            }],
+            {"offline": True},
+        )
+        assert gap_only["outcome"] == "EVIDENCE_INCOMPLETE"
+        assert gap_only["signal_ids"] == ["offline-gap"]
+        assert all(
+            item["state"] != "REVIEW_SIGNAL"
+            for item in gap_only["cognitive_walkthrough"]
+        )
 
         deduped = state_signals({
             "findings": [{
