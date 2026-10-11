@@ -134,14 +134,61 @@ def _validated_record(
             if criteria != list(simulated.WALKTHROUGH_CRITERIA):
                 errors.append("cognitive_walkthrough")
 
+    findings_raw = payload.get("consensus_findings")
+    findings = (
+        [row for row in findings_raw if isinstance(row, dict)]
+        if isinstance(findings_raw, list)
+        else []
+    )
+    if not isinstance(findings_raw, list) or len(findings) != len(findings_raw):
+        errors.append("consensus_findings")
+    for row in findings:
+        route = str(row.get("route", "")).strip().upper()
+        supporters = row.get("supporting_personas")
+        non_supporters = row.get("non_supporting_personas")
+        if route not in simulated.ALLOWED_ROUTES:
+            errors.append("finding_route")
+        if not isinstance(supporters, list) or not isinstance(non_supporters, list):
+            errors.append("finding_personas")
+            continue
+        if (
+            any(persona not in simulated.PERSONAS for persona in supporters + non_supporters)
+            or len(set(supporters)) != len(supporters)
+            or len(set(non_supporters)) != len(non_supporters)
+            or bool(set(supporters) & set(non_supporters))
+            or set(supporters) | set(non_supporters) != set(simulated.PERSONAS)
+        ):
+            errors.append("finding_personas")
+        if row.get("support_count") != len(supporters):
+            errors.append("finding_support_count")
+        if row.get("recurring") is not (len(supporters) >= 2):
+            errors.append("finding_recurring")
+
     actions_raw = payload.get("actions")
     actions = [row for row in actions_raw if isinstance(row, dict)] if isinstance(actions_raw, list) else []
     if not isinstance(actions_raw, list) or len(actions) != len(actions_raw):
         errors.append("actions")
     for row in actions:
         route = str(row.get("route", "")).strip().upper()
-        if route not in simulated.ALLOWED_ROUTES or route == "FIX_NOW":
+        if route not in simulated.ALLOWED_ROUTES or route in {"FIX_NOW", "NO_ACTION"}:
             errors.append("action_route")
+    expected_actions = {
+        (
+            str(row.get("route", "")).strip().upper(),
+            str(row.get("signal_id", "")).strip(),
+        )
+        for row in findings
+        if str(row.get("route", "")).strip().upper() in {"VERIFY_NEXT", "IMPROVE"}
+    }
+    observed_actions = {
+        (
+            str(row.get("route", "")).strip().upper(),
+            str(row.get("signal_id", "")).strip(),
+        )
+        for row in actions
+    }
+    if observed_actions != expected_actions or len(actions) != len(expected_actions):
+        errors.append("action_consistency")
 
     declared = str(payload.get("state", "")).strip().upper()
     derived = _derived_state(personas, actions) if personas else "EVIDENCE_INCOMPLETE"
