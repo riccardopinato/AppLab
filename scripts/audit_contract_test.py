@@ -1301,6 +1301,7 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
     watcher = (ROOT / ".github/workflows/repo-watcher.yml").read_text(encoding="utf-8")
     fingerprint = (ROOT / "scripts/contract_fingerprint.py").read_text(encoding="utf-8")
     maintainability = (ROOT / "scripts/maintainability_budget.py").read_text(encoding="utf-8")
+    acceleration = (ROOT / "scripts/execution_acceleration.py").read_text(encoding="utf-8")
 
     for needle in (
         'ENGINE_VERSION = "5.3.2"',
@@ -1380,6 +1381,10 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
         '"scripts/smart_test_plan.py": 1000' in maintainability
         and '"scripts/planner_feedback.py": 420' in maintainability,
         "v5.3.2 planner modules must have maintainability ceilings",
+    )
+    require(
+        '"planner_feedback",' in acceleration,
+        "execution identity must include planner-feedback provenance",
     )
     require(
         (ROOT / "integration/hardening/GRAPH_AWARE_PLANNING_FEEDBACK_V532.md").is_file(),
