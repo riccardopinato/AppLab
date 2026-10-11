@@ -16,6 +16,7 @@ from history_learning import (
     apply_playbook_policy,
     build_learning_profile,
     classify_change_playbook,
+    refresh_lane_telemetry,
 )
 from planner_feedback import evaluate_feedback, read_json as read_feedback_json
 
@@ -561,6 +562,22 @@ def analyze_repository(repo_root: Path, mode: str, baseline_sha: str = "", histo
         source_ref,
         impact_meta,
     )
+    # Preserve completeness metadata for every lane, including explicit FULL.
+    # Planner feedback must never infer a complete prior analysis from missing
+    # truncation fields.
+    semantic_truncated = bool(evidence.get("semantic_diff_truncated"))
+    dependency_scan_truncated = bool(impact_meta.get("dependency_scan_truncated"))
+    dependency_cap = bool(impact_meta.get("dependency_impact_cap_reached"))
+    dependency_import_truncated = bool(impact_meta.get("dependency_import_truncated"))
+    plan["diff_hunk_count"] = int(evidence.get("diff_hunk_count", len(evidence.get("hunks", []))) or 0)
+    plan["semantic_diff_truncated"] = semantic_truncated
+    plan["dependency_analysis"] = impact_meta
+    plan["analysis_truncated"] = bool(
+        semantic_truncated
+        or dependency_scan_truncated
+        or dependency_cap
+        or dependency_import_truncated
+    )
     profile = build_learning_profile(
         history_file,
         repository,
@@ -582,6 +599,7 @@ def analyze_repository(repo_root: Path, mode: str, baseline_sha: str = "", histo
         source_ref=source_ref,
     )
     plan = apply_graph_planner_feedback(plan, feedback_evaluation)
+    plan = refresh_lane_telemetry(plan)
     plan["head_sha"] = head_sha
     plan["history_key"] = history_key
     plan["source_ref"] = source_ref
@@ -845,6 +863,8 @@ def self_test() -> None:
         },
     )
     assert feedback_applied["lane"] == "FULL_RUNTIME"
+    feedback_applied = refresh_lane_telemetry(feedback_applied)
+    assert feedback_applied["verification_budget_seconds"] == 1800
     assert feedback_applied["planner_feedback"]["coverage_reduced"] is False
     assert feedback_applied["planner_feedback"]["matched_files"] == ["lib/core/service.dart"]
 
