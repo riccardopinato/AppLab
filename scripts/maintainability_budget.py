@@ -15,6 +15,8 @@ LIMITS = {
     "scripts/autonomous_app_review.py": 500,
     "scripts/competitive_product_intelligence.py": 750,
     "scripts/studio_competitive_product.py": 350,
+    "scripts/virtual_product_review_council.py": 700,
+    "scripts/studio_review_council.py": 350,
 }
 
 
