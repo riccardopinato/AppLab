@@ -334,9 +334,24 @@ def risk_plan_state(plan: dict[str, Any], ident: dict[str, str]) -> tuple[str, s
     if (
         not isinstance(selected, dict)
         or set(selected) != PLAN_LABS
-        or not all(isinstance(selected[key], bool) for key in PLAN_LABS)
+        or not all(type(selected[key]) is bool for key in PLAN_LABS)
     ):
         return FAIL, "Adaptive validation plan selected_labs schema is invalid."
+    if schema == 2:
+        risk_score = plan.get("risk_score")
+        confidence = plan.get("confidence")
+        if (
+            not isinstance(risk_score, int)
+            or isinstance(risk_score, bool)
+            or not 0 <= risk_score <= 100
+        ):
+            return FAIL, "Adaptive validation plan risk_score is invalid."
+        if (
+            not isinstance(confidence, (int, float))
+            or isinstance(confidence, bool)
+            or not 0.0 <= float(confidence) <= 1.0
+        ):
+            return FAIL, "Adaptive validation plan confidence is invalid."
     return PASS, f"Risk-based plan is bound to this release: {lane} / {mode}."
 
 
@@ -377,7 +392,7 @@ def build_report(report_dir: Path) -> dict[str, Any]:
     ident = identity(reality)
     rows: list[dict[str, Any]] = []
 
-    same_bytes = bool((reality.get("same_artifact_semantics") or {}).get("same_bytes_verified"))
+    same_bytes = (reality.get("same_artifact_semantics") or {}).get("same_bytes_verified") is True
     identity_complete = reality.get("identity_complete") is True
     source_state = PASS if same_bytes and identity_complete else BLOCKED
     rows.append(stage(
@@ -633,6 +648,7 @@ def self_test() -> None:
             "repository": "owner/demo",
             "head_sha": "a" * 40,
             "selected_labs": {key: True for key in sorted(PLAN_LABS)},
+            "risk_score": 50,
             "confidence": 1.0,
         }
         (root / PLAN).write_text(json.dumps(plan), encoding="utf-8")
@@ -655,6 +671,22 @@ def self_test() -> None:
         first = build_report(root)
         assert first["state"] == BLOCKED
         assert first["next_required_stage"]["key"] == "DISTRIBUTION_EVIDENCE"
+
+        non_boolean_bytes = json.loads(json.dumps(reality))
+        non_boolean_bytes["same_artifact_semantics"]["same_bytes_verified"] = "false"
+        (root / RR).write_text(json.dumps(non_boolean_bytes), encoding="utf-8")
+        assert build_report(root)["state"] == BLOCKED
+        (root / RR).write_text(json.dumps(reality), encoding="utf-8")
+
+        bad_risk = json.loads(json.dumps(plan))
+        bad_risk["risk_score"] = 101
+        (root / PLAN).write_text(json.dumps(bad_risk), encoding="utf-8")
+        assert build_report(root)["state"] == FAIL
+        bad_confidence = json.loads(json.dumps(plan))
+        bad_confidence["confidence"] = "high"
+        (root / PLAN).write_text(json.dumps(bad_confidence), encoding="utf-8")
+        assert build_report(root)["state"] == FAIL
+        (root / PLAN).write_text(json.dumps(plan), encoding="utf-8")
 
         stale_graph = json.loads(json.dumps(graph))
         stale_graph["nodes"][0]["attributes"]["apk_sha256"] = "c" * 64
