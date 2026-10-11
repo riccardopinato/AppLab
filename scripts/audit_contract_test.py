@@ -792,6 +792,8 @@ def check_release_assurance_contract() -> None:
         '"missing_required_evidence_never_passes": True',
         '"certification_is_not_distribution_proof": True',
         '"cross_app_pass_is_independent_from_single_app_pass": True',
+        "certification_identity_matches",
+        "pair_identity_matches",
         'return 0 if payload["state"] == PASS or not args.require_pass else 1',
     ):
         require(needle in assurance, f"v4.9 release assurance missing invariant: {needle}")
@@ -803,6 +805,7 @@ def check_release_assurance_contract() -> None:
         "release-reality.json",
         "evidence-graph.md",
         "AppLab True Autonomous App Review v4.9.0",
+        "release_assurance|physical_evidence",
     ):
         require(needle in workflow, f"v4.9 autonomous review integration missing: {needle}")
 
@@ -820,7 +823,9 @@ def check_release_assurance_contract() -> None:
     require(
         "Autonomous Release Assurance" in frontend
         and "release_assurance_pass" in frontend
-        and "release_assurance_blocked" in frontend,
+        and "release_assurance_blocked" in frontend
+        and "project.release_assurance.blockers" in frontend
+        and "project.release_assurance.failures" in frontend,
         "Control Center must expose release assurance state",
     )
     require(
