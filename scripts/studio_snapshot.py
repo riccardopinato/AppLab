@@ -709,7 +709,7 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "summary": {
             "projects": len(projects),
-            "with_market": sum(1 for row in projects if row.get("market") is not None),
+            "with_market": sum(1 for row in projects if row.get("market") is not None or (isinstance(row.get("competitive_product"), dict) and int((row["competitive_product"] or {}).get("competitors", 0) or 0) > 0)),
             "manual_review": sum(
                 1
                 for row in projects
