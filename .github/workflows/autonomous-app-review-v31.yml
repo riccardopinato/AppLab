@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v5.3.0
+name: AppLab True Autonomous App Review v5.3.1
 
 on:
   schedule:
@@ -420,11 +420,11 @@ jobs:
           include-hidden-files: true
           retention-days: 90
 
-      - name: Publish v5.3 review
+      - name: Publish v5.3.1 review
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v5.3.0"
+            echo "## AppLab True Autonomous App Review v5.3.1"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
