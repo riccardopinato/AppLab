@@ -305,7 +305,8 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          python .applab/scripts/release_assurance.py             --report-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
+          python .applab/scripts/release_assurance.py \
+            --report-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
 
       - name: Upload repository-wide longitudinal history
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
