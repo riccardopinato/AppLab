@@ -76,16 +76,31 @@ def _validated_record(
     rows = [row for row in rows_raw if isinstance(row, dict)] if isinstance(rows_raw, list) else []
     if not rows or len(rows) != len(rows_raw or []):
         errors.append("stages")
+    keys = [str(row.get("key", "")).strip() for row in rows]
+    if (
+        tuple(keys) != release_assurance.CANONICAL_STAGE_KEYS
+        or len(keys) != len(set(keys))
+    ):
+        errors.append("canonical_stage_set")
     for row in rows:
+        key = str(row.get("key", "")).strip()
         state = str(row.get("state", "")).strip().upper()
-        if not str(row.get("key", "")).strip():
+        if not key:
             errors.append("stage_key")
-        if row.get("required") not in {True, False}:
+        required = row.get("required")
+        if required not in {True, False}:
             errors.append("stage_required")
+        if key in release_assurance.ALWAYS_REQUIRED_STAGE_KEYS and required is not True:
+            errors.append("canonical_required_flag")
+        if key in release_assurance.CONDITIONAL_STAGE_KEYS:
+            if required is False and state != release_assurance.NOT_APPLICABLE:
+                errors.append("conditional_stage_state")
+            if required is True and state == release_assurance.NOT_APPLICABLE:
+                errors.append("required_stage_na")
+        elif required is True and state == release_assurance.NOT_APPLICABLE:
+            errors.append("required_stage_na")
         if state not in release_assurance.ALLOWED:
             errors.append("stage_state")
-        if row.get("required") is True and state == release_assurance.NOT_APPLICABLE:
-            errors.append("required_stage_na")
 
     declared_state = str(payload.get("state", "")).strip().upper()
     derived_state = release_assurance.overall_state(rows) if rows else release_assurance.BLOCKED
@@ -264,9 +279,15 @@ def self_test() -> None:
             encoding="utf-8",
         )
         rows = [
-            {"key": "SOURCE", "required": True, "state": "PASS"},
-            {"key": "DIST", "required": True, "state": "BLOCKED"},
-            {"key": "OPTIONAL", "required": False, "state": "N/A"},
+            {"key": "SOURCE_BUILD_BOUND", "required": True, "state": "PASS"},
+            {"key": "STATIC_BUILD_ASSURANCE", "required": True, "state": "PASS"},
+            {"key": "TRUSTED_RUNTIME", "required": True, "state": "PASS"},
+            {"key": "EVIDENCE_GRAPH", "required": True, "state": "PASS"},
+            {"key": "RISK_BASED_VALIDATION", "required": True, "state": "PASS"},
+            {"key": "PHYSICAL_EVIDENCE", "required": False, "state": "N/A"},
+            {"key": "DISTRIBUTION_EVIDENCE", "required": True, "state": "BLOCKED"},
+            {"key": "CROSS_APP", "required": False, "state": "N/A"},
+            {"key": "CERTIFICATION", "required": True, "state": "PASS"},
         ]
         payload = {
             "schema_version": release_assurance.SCHEMA_VERSION,
@@ -276,9 +297,9 @@ def self_test() -> None:
             "state": "BLOCKED",
             "release_id": "r1",
             "identity": identity,
-            "blockers": [{"key": "DIST"}],
+            "blockers": [{"key": "DISTRIBUTION_EVIDENCE"}],
             "failures": [],
-            "next_required_stage": {"key": "DIST"},
+            "next_required_stage": {"key": "DISTRIBUTION_EVIDENCE"},
             "certification": {"status": "CERTIFIED"},
             "stages": rows,
         }
@@ -289,8 +310,8 @@ def self_test() -> None:
         assert projection["state"] == "BLOCKED"
         assert projection["record_valid"] is True
         assert projection["identity_match"] is True
-        assert projection["required_passed"] == 1
-        assert projection["required_total"] == 2
+        assert projection["required_passed"] == 6
+        assert projection["required_total"] == 7
 
         stale = json.loads(json.dumps(payload))
         stale["identity"]["artifact_sha256"] = "d" * 64
@@ -324,6 +345,18 @@ def self_test() -> None:
         blocked = project_from_directory(root)
         assert blocked is not None
         assert "authority" in blocked["validation_errors"]
+
+        fake_stage = json.loads(json.dumps(payload))
+        fake_stage["stages"] = [{"key": "FAKE", "required": True, "state": "PASS"}]
+        fake_stage["state"] = "PASS"
+        fake_stage["assurance_digest"] = release_assurance.digest(
+            fake_stage["identity"], fake_stage["stages"]
+        )
+        (root / "release-assurance.json").write_text(json.dumps(fake_stage), encoding="utf-8")
+        blocked = project_from_directory(root)
+        assert blocked is not None
+        assert blocked["state"] == "BLOCKED"
+        assert "canonical_stage_set" in blocked["validation_errors"]
 
         summary = portfolio_summary([{"release_assurance": blocked}])
         assert summary["with_release_assurance"] == 1
