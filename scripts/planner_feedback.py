@@ -378,31 +378,19 @@ def self_test() -> None:
     assert feedback["state"] == "AVAILABLE"
     assert feedback["risk_hints"][0]["path"] == "lib/auth.dart"
     assert feedback["risk_hints"][0]["risk_boost"] > 0
-    assert evaluate_feedback(
-        feedback, repository="owner/app", baseline_sha=sha, source_ref="main"
-    )["eligible"]
-    assert not evaluate_feedback(
-        feedback, repository="owner/app", baseline_sha="2" * 40, source_ref="main"
-    )["eligible"]
+    assert evaluate_feedback(feedback, repository="owner/app", baseline_sha=sha, source_ref="main")["eligible"]
+    assert not evaluate_feedback(feedback, repository="owner/app", baseline_sha="2" * 40, source_ref="main")["eligible"]
     truncated = build_feedback(graph, {**plan, "analysis_truncated": True})
     assert truncated["state"] == "EVIDENCE_INCOMPLETE"
-    assert not evaluate_feedback(
-        truncated, repository="owner/app", baseline_sha=sha, source_ref="main"
-    )["eligible"]
+    assert not evaluate_feedback(truncated, repository="owner/app", baseline_sha=sha, source_ref="main")["eligible"]
     malformed = json.loads(json.dumps(feedback))
     malformed["risk_hints"][0]["impact_path_count"] = "unknown"
     malformed["record_digest_sha256"] = _canonical_digest(malformed)
-    assert evaluate_feedback(
-        malformed, repository="owner/app", baseline_sha=sha, source_ref="main"
-    )["eligible"]
-    assert evaluate_feedback(
-        malformed, repository="owner/app", baseline_sha=sha, source_ref="main"
-    )["risk_hints"] == []
+    malformed_eval = evaluate_feedback(malformed, repository="owner/app", baseline_sha=sha, source_ref="main")
+    assert malformed_eval["eligible"] and malformed_eval["risk_hints"] == []
     tampered = json.loads(json.dumps(feedback))
     tampered["risk_hints"][0]["risk_boost"] = 1
-    assert not evaluate_feedback(
-        tampered, repository="owner/app", baseline_sha=sha, source_ref="main"
-    )["eligible"]
+    assert not evaluate_feedback(tampered, repository="owner/app", baseline_sha=sha, source_ref="main")["eligible"]
     incomplete_plan = {key: value for key, value in plan.items() if key != "dependency_analysis"}
     assert build_feedback(graph, incomplete_plan)["state"] == "EVIDENCE_INCOMPLETE"
     print("AppLab Graph-aware Planner Feedback v5.3.2 self-test PASS")
