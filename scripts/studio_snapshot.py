@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import certification_studio, studio_competitive_product, studio_design_advisor, studio_evidence_graph, studio_release_assurance, studio_simulated_human
-SCHEMA_VERSION = 1; STUDIO_VERSION = "5.2.0"
+import certification_studio, studio_competitive_product, studio_design_advisor, studio_evidence_graph, studio_release_assurance, studio_review_council, studio_simulated_human
+SCHEMA_VERSION = 1; STUDIO_VERSION = "5.3.0"
 
 def read_json(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
@@ -57,14 +57,14 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     evidence_graph = read_json(project_dir / "evidence-graph.json")
     release_cockpit = certification_studio.project_from_directory(project_dir, evidence_graph, longitudinal)
     release_assurance = studio_release_assurance.project_from_directory(project_dir)
-    simulated_human = studio_simulated_human.project_from_directory(project_dir); design_advisor = studio_design_advisor.project_from_directory(project_dir); competitive_product = studio_competitive_product.project_from_directory(project_dir)
+    simulated_human = studio_simulated_human.project_from_directory(project_dir); design_advisor = studio_design_advisor.project_from_directory(project_dir); competitive_product = studio_competitive_product.project_from_directory(project_dir); review_council = studio_review_council.project_from_directory(project_dir)
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
 
     if all(
         item is None
-        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, evidence_graph, release_cockpit, release_assurance, simulated_human, design_advisor, competitive_product, contract, brief, autonomous)
+        for item in (app, market, audit, change, behavioral, state_edge, calibration, evidence_confidence, user_journey, ux_friction, longitudinal, experiment, analyst, evidence_graph, release_cockpit, release_assurance, simulated_human, design_advisor, competitive_product, review_council, contract, brief, autonomous)
     ):
         return None
 
@@ -85,7 +85,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "evidence_graph": None,
         "release_cockpit": release_cockpit,
         "release_assurance": release_assurance,
-        "simulated_human": simulated_human, "design_advisor": design_advisor, "competitive_product": competitive_product,
+        "simulated_human": simulated_human, "design_advisor": design_advisor, "competitive_product": competitive_product, "review_council": review_council,
         "autonomous_review": None,
     }
 
@@ -734,7 +734,7 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
             ),
             **certification_studio.portfolio_summary(projects),
             **studio_release_assurance.portfolio_summary(projects),
-            **studio_simulated_human.portfolio_summary(projects), **studio_design_advisor.portfolio_summary(projects), **studio_competitive_product.portfolio_summary(projects),
+            **studio_simulated_human.portfolio_summary(projects), **studio_design_advisor.portfolio_summary(projects), **studio_competitive_product.portfolio_summary(projects), **studio_review_council.portfolio_summary(projects),
             "evidence_graph_nodes": sum(
                 int((row.get("evidence_graph") or {}).get("nodes", 0) or 0)
                 for row in projects
