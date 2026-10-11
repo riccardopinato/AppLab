@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "4.8.0"
+EXPECTED_VERSION = "4.9.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -775,6 +775,55 @@ def check_cross_app_verification_contract() -> None:
         "cross-app trusted workflow boundary drift",
     )
 
+def check_release_assurance_contract() -> None:
+    assurance = (ROOT / "scripts/release_assurance.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/autonomous-app-review-v31.yml").read_text(
+        encoding="utf-8"
+    )
+    studio = (ROOT / "scripts/studio_snapshot.py").read_text(encoding="utf-8")
+    frontend = (ROOT / "frontend/src/ControlCenter.tsx").read_text(encoding="utf-8")
+
+    for needle in (
+        'APPLAB_VERSION = "4.9.0"',
+        'RECORD_TYPE = "AUTONOMOUS_RELEASE_ASSURANCE"',
+        'AUTHORITY = "APPLAB_RELEASE_ASSURANCE"',
+        '"release_assurance_can_certify": False',
+        '"same_artifact_required": True',
+        '"missing_required_evidence_never_passes": True',
+        '"certification_is_not_distribution_proof": True',
+        '"cross_app_pass_is_independent_from_single_app_pass": True',
+        'return 0 if payload["state"] == PASS or not args.require_pass else 1',
+    ):
+        require(needle in assurance, f"v4.9 release assurance missing invariant: {needle}")
+
+    for needle in (
+        "Build Autonomous Release Assurance",
+        "scripts/release_assurance.py",
+        "release-assurance.md",
+        "release-reality.json",
+        "evidence-graph.md",
+        "AppLab True Autonomous App Review v4.9.0",
+    ):
+        require(needle in workflow, f"v4.9 autonomous review integration missing: {needle}")
+
+    require(
+        '"release_assurance": None' in studio
+        and '"with_release_assurance"' in studio
+        and '"release_assurance_blocked"' in studio,
+        "Studio must surface release assurance independently from certification",
+    )
+    require(
+        "Autonomous Release Assurance" in frontend
+        and "release_assurance_pass" in frontend
+        and "release_assurance_blocked" in frontend,
+        "Control Center must expose release assurance state",
+    )
+    require(
+        (ROOT / "integration/certification/AUTONOMOUS_RELEASE_ASSURANCE_V49.md").is_file(),
+        "v4.9 release assurance contract documentation is required",
+    )
+
+
 def main() -> int:
     check_version_alignment()
     check_local_controller_boundary()
@@ -788,6 +837,7 @@ def main() -> int:
     check_release_reality_contract()
     check_certification_studio_contract()
     check_cross_app_verification_contract()
+    check_release_assurance_contract()
     check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
