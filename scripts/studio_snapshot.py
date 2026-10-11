@@ -88,7 +88,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "analyst": None,
         "evidence_graph": None,
         "release_cockpit": release_cockpit,
-        "release_assurance": None,
+        "release_assurance": release_assurance,
         "autonomous_review": None,
     }
 
