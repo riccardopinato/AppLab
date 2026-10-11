@@ -95,6 +95,8 @@ jobs:
             scripts/ecosystem_core_contract.py \
             scripts/cross_app_verification.py \
             scripts/release_assurance.py \
+            scripts/simulated_human_qa.py \
+            scripts/studio_simulated_human.py \
             scripts/trusted_cross_app_evidence.py \
             scripts/audit_orchestrator.py \
             scripts/studio_snapshot.py \
@@ -172,6 +174,8 @@ jobs:
           python scripts/ecosystem_core_contract.py --self-test
           python scripts/cross_app_verification.py --self-test
           python scripts/release_assurance.py --self-test
+          python scripts/simulated_human_qa.py --self-test
+          python scripts/studio_simulated_human.py
           python scripts/trusted_cross_app_evidence.py self-test
           python scripts/audit_orchestrator.py --self-test
           python scripts/studio_snapshot.py --self-test
