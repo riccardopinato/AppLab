@@ -743,6 +743,43 @@ def self_test() -> None:
         assert "auth" not in tags_for_text("authoritative")
         assert "auth" in tags_for_text("auth failure")
 
+        offline_task = PERSONA_TASKS["offline_user"][0]
+        unavailable = task_session(
+            "offline_user",
+            offline_task,
+            [{
+                "id": "generic-feedback",
+                "source": SOURCE_FILES["ux"],
+                "kind": "FEEDBACK",
+                "subject": "button",
+                "message": "feedback candidate",
+                "severity": "REVIEW",
+                "tags": ["feedback"],
+                "evidence": [],
+            }],
+            {"offline": False},
+        )
+        assert unavailable["outcome"] == "EVIDENCE_INCOMPLETE"
+        assert unavailable["signal_ids"] == []
+
+        deduped = state_signals({
+            "findings": [{
+                "kind": "EDGE_STATE_NOT_OBSERVED",
+                "severity": "REVIEW",
+                "state": "offline",
+                "subject": "offline",
+                "message": "offline not observed",
+                "evidence": [],
+            }],
+            "states": {
+                "offline": {
+                    "applicability": "APPLICABLE",
+                    "status": "NOT_OBSERVED",
+                }
+            },
+        })
+        assert sum(1 for row in deduped if row["subject"] == "offline") == 1
+
         stale_graph = json.loads(json.dumps(graph))
         stale_graph["nodes"][0]["attributes"]["package_id"] = "com.example.other"
         (root / SOURCE_FILES["graph"]).write_text(json.dumps(stale_graph), encoding="utf-8")
