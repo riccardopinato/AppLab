@@ -44,7 +44,9 @@ def read_json(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 def _analysis_truncated(plan: dict[str, Any] | None) -> bool:
     if not isinstance(plan, dict):
-        return False
+        return True
+    if any(key not in plan for key in ("analysis_truncated", "semantic_diff_truncated", "dependency_analysis")):
+        return True
     dep = plan.get("dependency_analysis")
     dep = dep if isinstance(dep, dict) else {}
     return bool(
@@ -236,13 +238,21 @@ def _valid_hints(payload: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         if not path or not 1 <= boost <= MAX_RISK_BOOST:
             continue
+        try:
+            impact_count = int(row.get("impact_path_count", 0) or 0)
+            terminal_count = int(row.get("terminal_evidence_count", 0) or 0)
+            invalidated_count = int(row.get("invalidated_evidence_count", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if min(impact_count, terminal_count, invalidated_count) < 0:
+            continue
         hints.append(
             {
                 "path": path,
                 "risk_boost": boost,
-                "impact_path_count": int(row.get("impact_path_count", 0) or 0),
-                "terminal_evidence_count": int(row.get("terminal_evidence_count", 0) or 0),
-                "invalidated_evidence_count": int(row.get("invalidated_evidence_count", 0) or 0),
+                "impact_path_count": impact_count,
+                "terminal_evidence_count": terminal_count,
+                "invalidated_evidence_count": invalidated_count,
                 "reasons": [
                     _safe(value)
                     for value in row.get("reasons", [])[:8]
@@ -379,11 +389,22 @@ def self_test() -> None:
     assert not evaluate_feedback(
         truncated, repository="owner/app", baseline_sha=sha, source_ref="main"
     )["eligible"]
+    malformed = json.loads(json.dumps(feedback))
+    malformed["risk_hints"][0]["impact_path_count"] = "unknown"
+    malformed["record_digest_sha256"] = _canonical_digest(malformed)
+    assert evaluate_feedback(
+        malformed, repository="owner/app", baseline_sha=sha, source_ref="main"
+    )["eligible"]
+    assert evaluate_feedback(
+        malformed, repository="owner/app", baseline_sha=sha, source_ref="main"
+    )["risk_hints"] == []
     tampered = json.loads(json.dumps(feedback))
     tampered["risk_hints"][0]["risk_boost"] = 1
     assert not evaluate_feedback(
         tampered, repository="owner/app", baseline_sha=sha, source_ref="main"
     )["eligible"]
+    incomplete_plan = {key: value for key, value in plan.items() if key != "dependency_analysis"}
+    assert build_feedback(graph, incomplete_plan)["state"] == "EVIDENCE_INCOMPLETE"
     print("AppLab Graph-aware Planner Feedback v5.3.2 self-test PASS")
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build AppLab graph-aware planner feedback")
