@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.3.1 — Evidence-Driven Technical Hardening**
+Current production baseline: **v5.3.2 — Graph-aware Planning Feedback Hardening**
 
 ## Product rule
 
@@ -19,6 +19,19 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v5.3.2 — Graph-aware Planning Feedback Hardening
+
+- [x] Define a versioned planner-feedback record derived only from prior Evidence Graph evidence.
+- [x] Bind feedback to repository, exact source/baseline SHA, lineage, graph version/digest and analysis-plan digest.
+- [x] Reject missing, malformed, digest-mismatched, cross-repository, cross-lineage, stale-baseline or truncated feedback without weakening the existing planner.
+- [x] Feed compatible prior graph impact/invalidated-evidence signals into Smart Test Plan as bounded escalation-only risk hints.
+- [x] Keep Smart Test Plan as the sole FAST/FULL authority; graph feedback cannot reduce lab/build/runtime coverage.
+- [x] Prevent the current run's graph from retroactively changing the lane that produced it.
+- [x] Persist planner feedback inside repository-scoped 90-day longitudinal evidence and restore it automatically for future FAST runs.
+- [x] Pass the same feedback into trusted post-build plan recomputation and make it part of immutable plan comparison.
+- [x] Include planner-feedback producer/restore logic in core contract fingerprints and watcher invalidation.
+- [x] Add self-tests, CI/audit/workflow contracts, documentation and maintainability ceilings.
 
 ### v5.3.1 — Evidence-Driven Technical Hardening
 
@@ -666,17 +679,6 @@ Simulated-human, design and market conclusions are advisory evidence. They must
 never be represented as real-user research, physical-device evidence or trusted
 runtime PASS.
 
-### v4.6.1 — Graph-aware Planning Feedback
-
-Goal: feed prior trusted Evidence Graph impact/freshness into future Smart Test
-Plan decisions without creating a second test-selection authority.
-
-Planned:
-- [ ] Define a versioned planner-feedback contract sourced only from prior trusted graph evidence.
-- [ ] Use prior graph impact to refine risk-based FAST/FULL selection only when lineage, source SHA and evidence freshness are compatible.
-- [ ] Fall back to the existing conservative Smart Test Plan whenever graph evidence is missing, stale, ambiguous or truncated.
-- [ ] Keep current-run Evidence Graph unable to retroactively change the lane that produced it.
-
 ### v5.x ongoing technical hardening
 
 The strategic roadmap above does not postpone technical quality. Every version
@@ -687,7 +689,7 @@ Continuous priorities:
 - [ ] Improve diagnostics for WebRTC/frame/codec/runtime infrastructure failures. v5.3.1 records browser video/track, runtime, gateway and console evidence before recovery.
 - [ ] Add schema/version contracts for new evidence producers and consumers.
 - [ ] Add evidence retention/garbage-collection policy while pinning release-critical evidence. v5.3.1 introduces the first enforced TTL policy; expand it as new evidence classes become release-critical.
-- [ ] Improve delta execution so small changes rerun only the evidence that can actually be invalidated.
+- [ ] Improve delta execution so small changes rerun only the evidence that can actually be invalidated. v5.3.2 adds exact-baseline graph feedback as an escalation-only foundation; coverage reduction remains pending multi-project calibration.
 - [ ] Tune heuristics from real multi-project data rather than speculative complexity.
 - [ ] Keep performance, security, dependency, artifact-provenance and maintainability gates healthy as AppLab grows. v5.3.1 adds dependency fail-fast validation and a maintainability ceiling for the retention contract.
 
@@ -742,5 +744,5 @@ These are explicit engineering boundaries, not hidden assumptions:
 - Accumulate multi-project runtime/evidence samples to calibrate heuristics, FAST/FULL selection and recurrence thresholds.
 - Measure and reduce Browser E2E / emulator infrastructure flakiness without converting transient uncertainty into PASS.
 - Introduce physical-device evidence incrementally for capabilities that materially depend on real hardware, OEM behavior or store services.
-- Use v4.2 Evidence Graph data to drive freshness/impact work before adding additional standalone intelligence engines.
+- Use v4.2 Evidence Graph data to drive freshness/impact work before adding additional standalone intelligence engines. v5.3.2 now feeds compatible prior graph impact back into planning; collect real multi-project samples before allowing any coverage-reducing optimization.
 - Treat simulated-human, design and competitor review as advisory layers that complement rather than replace deterministic QA and real-user validation.
