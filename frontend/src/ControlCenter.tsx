@@ -508,6 +508,27 @@ type StudioProject = {
       support_count?: number;
     }>;
   } | null;
+  design_advisor?: {
+    state?: string;
+    recommendation?: string;
+    product_context?: string;
+    interaction_style?: string;
+    primary_system?: string;
+    detected_systems?: number;
+    fit_dimensions?: number;
+    review_dimensions?: number;
+    evidence_incomplete_dimensions?: number;
+    finding_count?: number;
+    record_valid?: boolean;
+    validation_errors?: string[];
+    classification?: string;
+    top_findings?: Array<{
+      kind?: string;
+      subject?: string;
+      route?: string;
+      state?: string;
+    }>;
+  } | null;
   autonomous_review?: {
     review_state?: string;
     runtime_evidence_state?: string;
@@ -574,6 +595,11 @@ type StudioSnapshot = {
     simulated_review_required?: number;
     simulated_evidence_incomplete?: number;
     simulated_no_strong_signal?: number;
+    with_design_advisor?: number;
+    design_keep?: number;
+    design_adapt?: number;
+    design_replace_candidate?: number;
+    design_evidence_incomplete?: number;
     autonomous_reviews?: number;
     autonomous_attention?: number;
     runtime_observed?: number;
@@ -742,6 +768,10 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
               <div><span>Simulated Human QA</span><strong>{studio.summary.with_simulated_human ?? 0}</strong></div>
               <div><span>Simulated review required</span><strong>{studio.summary.simulated_review_required ?? 0}</strong></div>
               <div><span>Simulated evidence gaps</span><strong>{studio.summary.simulated_evidence_incomplete ?? 0}</strong></div>
+              <div><span>Design advisor</span><strong>{studio.summary.with_design_advisor ?? 0}</strong></div>
+              <div><span>Design adapt</span><strong>{studio.summary.design_adapt ?? 0}</strong></div>
+              <div><span>Design replace candidates</span><strong>{studio.summary.design_replace_candidate ?? 0}</strong></div>
+              <div><span>Design evidence gaps</span><strong>{studio.summary.design_evidence_incomplete ?? 0}</strong></div>
               <div><span>CERTIFIED</span><strong>{studio.summary.certified_releases ?? 0}</strong></div>
               <div><span>Certification blocked</span><strong>{studio.summary.certification_blocked ?? 0}</strong></div>
               <div><span>Physical required</span><strong>{studio.summary.physical_required ?? 0}</strong></div>
@@ -810,6 +840,26 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                       </div>
                       <span className={badgeClass(project.simulated_human.state ?? "EVIDENCE_INCOMPLETE")}>
                         {project.simulated_human.state ?? "EVIDENCE_INCOMPLETE"}
+                      </span>
+                    </div>
+                  ) : null}
+                  {project.design_advisor ? (
+                    <div className="release-cockpit-head">
+                      <div>
+                        <span>Design System & UI Library Advisor · advisory</span>
+                        <strong>{project.design_advisor.recommendation ?? "EVIDENCE_INCOMPLETE"}</strong>
+                        <small>
+                          {project.design_advisor.product_context ?? "UNKNOWN"} · {project.design_advisor.interaction_style ?? "UNKNOWN"} · {project.design_advisor.primary_system ?? "UNKNOWN"}
+                        </small>
+                        <small>
+                          {project.design_advisor.fit_dimensions ?? 0} fit · {project.design_advisor.review_dimensions ?? 0} review · {project.design_advisor.evidence_incomplete_dimensions ?? 0} evidence gaps · {project.design_advisor.finding_count ?? 0} findings
+                        </small>
+                        {project.design_advisor.record_valid === false ? (
+                          <small>design advisor record invalid · {(project.design_advisor.validation_errors ?? []).join(", ") || "unknown"}</small>
+                        ) : null}
+                      </div>
+                      <span className={badgeClass(project.design_advisor.state ?? "EVIDENCE_INCOMPLETE")}>
+                        {project.design_advisor.state ?? "EVIDENCE_INCOMPLETE"}
                       </span>
                     </div>
                   ) : null}
@@ -931,6 +981,20 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                       {project.simulated_human?.top_findings?.[0] ? (
                         <small>
                           top · {project.simulated_human.top_findings[0].route ?? "NO_ACTION"} · {project.simulated_human.top_findings[0].kind ?? "review"} · {project.simulated_human.top_findings[0].subject ?? ""}
+                        </small>
+                      ) : null}
+                    </div>
+                    <div>
+                      <span>Design system</span>
+                      <strong>{project.design_advisor?.recommendation ?? "—"}</strong>
+                      <small>
+                        {project.design_advisor
+                          ? `${project.design_advisor.primary_system ?? "UNKNOWN"} · ${project.design_advisor.review_dimensions ?? 0} review · ${project.design_advisor.evidence_incomplete_dimensions ?? 0} incomplete`
+                          : "no design-advisor evidence"}
+                      </small>
+                      {project.design_advisor?.top_findings?.[0] ? (
+                        <small>
+                          top · {project.design_advisor.top_findings[0].route ?? "VERIFY_NEXT"} · {project.design_advisor.top_findings[0].subject ?? "visual system"}
                         </small>
                       ) : null}
                     </div>
