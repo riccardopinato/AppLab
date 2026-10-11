@@ -1302,6 +1302,8 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
     fingerprint = (ROOT / "scripts/contract_fingerprint.py").read_text(encoding="utf-8")
     maintainability = (ROOT / "scripts/maintainability_budget.py").read_text(encoding="utf-8")
     acceleration = (ROOT / "scripts/execution_acceleration.py").read_text(encoding="utf-8")
+    restore = (ROOT / "scripts/restore_planner_feedback.sh").read_text(encoding="utf-8")
+    learning = (ROOT / "scripts/history_learning.py").read_text(encoding="utf-8")
 
     for needle in (
         'ENGINE_VERSION = "5.3.2"',
@@ -1323,6 +1325,8 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
         "IMPACT_PATH_CAP_REACHED",
         "DIGEST_MISMATCH",
         "AppLab Graph-aware Planner Feedback v5.3.2 self-test PASS",
+        'key not in plan for key in ("analysis_truncated", "semantic_diff_truncated", "dependency_analysis")',
+        "except (TypeError, ValueError)",
     ):
         require(needle in feedback, f"v5.3.2 planner-feedback contract missing: {needle}")
 
@@ -1335,6 +1339,8 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
         "prior trusted Evidence Graph risk escalation to FULL",
         'parser.add_argument("--planner-feedback"',
         "planner_feedback_path",
+        "refresh_lane_telemetry",
+        'plan["analysis_truncated"] = bool(',
     ):
         require(needle in planner, f"v5.3.2 Smart Test Plan integration missing: {needle}")
 
@@ -1354,6 +1360,8 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
         for needle in (
             "Restore prior graph planner feedback",
             "restore_planner_feedback.sh",
+            '${{ inputs.baseline_sha }}',
+            '${{ inputs.source_ref != \'\' && inputs.source_ref || inputs.ref }}',
             '--planner-feedback "$RUNNER_TEMP/applab-planner-feedback.json"',
         ):
             require(needle in workflow, f"v5.3.2 external runner integration missing: {needle}")
@@ -1362,7 +1370,10 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
         "Build graph-aware planner feedback",
         "scripts/planner_feedback.py",
         "planner-feedback.md",
-        ".applab-longitudinal/planner-feedback.json",
+        ".applab-longitudinal/planner-feedback/",
+        "Pin resolved SHA and delta baseline",
+        "fetch-depth: 2",
+        "HEAD^",
         "AppLab True Autonomous App Review v5.3.2",
     ):
         require(needle in review, f"v5.3.2 autonomous review integration missing: {needle}")
@@ -1386,6 +1397,21 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
         '"planner_feedback",' in acceleration,
         "execution identity must include planner-feedback provenance",
     )
+    require(
+        "def refresh_lane_telemetry(" in learning
+        and 'LANE_BUDGETS.get(lane, 1800)' in learning,
+        "FAST-to-FULL planner promotion must refresh lane telemetry",
+    )
+    for needle in (
+        'baseline_sha="${2:-}"',
+        'source_ref="${3:-}"',
+        '--hostname "$gh_host"',
+        "GH_ENTERPRISE_TOKEN",
+        "mapfile -t artifact_ids",
+        "select_matching_feedback",
+        "No compatible planner feedback found across recent longitudinal artifacts",
+    ):
+        require(needle in restore, f"v5.3.2 planner-feedback restore hardening missing: {needle}")
     require(
         (ROOT / "integration/hardening/GRAPH_AWARE_PLANNING_FEEDBACK_V532.md").is_file(),
         "v5.3.2 graph-aware planning feedback documentation is required",
