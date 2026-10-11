@@ -2060,7 +2060,7 @@ def build_graph(
         "guardrails": {
             "deterministic_derivation_only": True,
             "source_reports_remain_authoritative": True,
-            "graph_does_not_change_fast_full_certification": True,
+            "graph_does_not_retroactively_change_current_fast_full_certification": True,
             "missing_evidence_never_becomes_pass": True,
             "first_observed_sha_is_not_proof_of_introducing_commit": True,
             "regression_candidate_is_not_automatic_defect": True,
