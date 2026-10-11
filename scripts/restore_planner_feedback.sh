@@ -102,25 +102,30 @@ fi
 
 scope="$(scope_for_repository "$repository")"
 artifact_name="applab-longitudinal-history-$scope"
-work_dir="$runner_temp/applab-planner-feedback-$scope"
-zip_path="$runner_temp/applab-planner-feedback-$scope.zip"
-rm -rf "$work_dir" "$zip_path"
-mkdir -p "$work_dir" "$(dirname "$destination")"
+work_root="$runner_temp/applab-planner-feedback-$scope"
+rm -rf "$work_root"
+mkdir -p "$work_root" "$(dirname "$destination")"
+rm -f "$destination"
 
-artifact_id="$(
-  gh api --hostname "$gh_host"     -H "Accept: application/vnd.github+json"     "/repos/$workflow_repository/actions/artifacts?name=$artifact_name&per_page=100"     --jq '.artifacts | map(select(.expired == false)) | sort_by(.created_at) | reverse | .[0].id // empty'
-)"
-if [[ -z "$artifact_id" ]]; then
+mapfile -t artifact_ids < <(
+  gh api --hostname "$gh_host"     -H "Accept: application/vnd.github+json"     "/repos/$workflow_repository/actions/artifacts?name=$artifact_name&per_page=100"     --jq '.artifacts | map(select(.expired == false)) | sort_by(.created_at) | reverse | .[:20] | .[].id'
+)
+if [[ "${#artifact_ids[@]}" -eq 0 ]]; then
   echo "No prior planner-feedback artifact found for $repository."
   exit 0
 fi
 
-gh api --hostname "$gh_host"   -H "Accept: application/vnd.github+json"   "/repos/$workflow_repository/actions/artifacts/$artifact_id/zip"   > "$zip_path"
-unzip -q -o "$zip_path" -d "$work_dir"
+for artifact_id in "${artifact_ids[@]}"; do
+  work_dir="$work_root/$artifact_id"
+  zip_path="$work_root/$artifact_id.zip"
+  mkdir -p "$work_dir"
+  gh api --hostname "$gh_host"     -H "Accept: application/vnd.github+json"     "/repos/$workflow_repository/actions/artifacts/$artifact_id/zip"     > "$zip_path"
+  unzip -q -o "$zip_path" -d "$work_dir"
+  if select_matching_feedback "$work_dir" "$repository" "$baseline_sha" "$source_ref" "$destination"; then
+    echo "Restored exact-baseline planner feedback from artifact $artifact_id for $repository@$baseline_sha."
+    exit 0
+  fi
+done
 
-if ! select_matching_feedback "$work_dir" "$repository" "$baseline_sha" "$source_ref" "$destination"; then
-  echo "No compatible planner feedback found in longitudinal artifact $artifact_id."
-  rm -f "$destination"
-  exit 0
-fi
-echo "Restored exact-baseline planner feedback from artifact $artifact_id for $repository@$baseline_sha."
+echo "No compatible planner feedback found across recent longitudinal artifacts for $repository@$baseline_sha."
+rm -f "$destination"
