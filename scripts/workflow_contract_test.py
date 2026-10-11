@@ -24,6 +24,8 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "Restore prior graph planner feedback",
         "restore_planner_feedback.sh",
         "--planner-feedback",
+        "${{ inputs.baseline_sha }}",
+        "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}",
     ),
     ".github/workflows/external-native-android-runner.yml": (
         "source_ref:",
@@ -43,6 +45,8 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "Restore prior graph planner feedback",
         "restore_planner_feedback.sh",
         "--planner-feedback",
+        "${{ inputs.baseline_sha }}",
+        "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}",
     ),
     ".github/workflows/universal-project-runner.yml": (
         "source_ref:",
@@ -115,7 +119,9 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "Build graph-aware planner feedback",
         "scripts/planner_feedback.py",
         "planner-feedback.md",
-        ".applab-longitudinal/planner-feedback.json",
+        ".applab-longitudinal/planner-feedback/",
+        "Pin resolved SHA and delta baseline",
+        "fetch-depth: 2",
         "AppLab True Autonomous App Review v5.3.2",
         "cross_app_run_id",
         "trusted_cross_app_evidence.py verify-run",
