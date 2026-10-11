@@ -110,6 +110,8 @@ def self_test(root: Path) -> None:
         "scripts/install_maestro.sh",
         "scripts/project_autodiscover.py",
         "scripts/project_adapter.py",
+        "scripts/planner_feedback.py",
+        "scripts/restore_planner_feedback.sh",
         ".github/workflows/trusted-apk-verifier.yml",
         ".github/workflows/external-project-runner.yml",
         ".github/workflows/external-native-android-runner.yml",
