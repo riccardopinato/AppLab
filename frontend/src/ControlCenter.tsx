@@ -550,6 +550,30 @@ type StudioProject = {
       route?: string;
     }>;
   } | null;
+  review_council?: {
+    state?: string;
+    reviewers?: number;
+    reviewers_with_findings?: number;
+    reviewers_with_missing_evidence?: number;
+    agreements?: number;
+    contradictions?: number;
+    fix_now?: number;
+    verify_next?: number;
+    improve?: number;
+    consider?: number;
+    no_action?: number;
+    record_valid?: boolean;
+    validation_errors?: string[];
+    classification?: string;
+    top_items?: Array<{
+      bucket?: string;
+      reviewer?: string;
+      item_type?: string;
+      subject?: string;
+      uncertainty?: string;
+    }>;
+    evidence_classes?: Record<string, { class?: string; state?: string; note?: string; source?: string }>;
+  } | null;
   autonomous_review?: {
     review_state?: string;
     runtime_evidence_state?: string;
@@ -628,6 +652,15 @@ type StudioSnapshot = {
     competitive_parity_reviews?: number;
     competitive_differentiators?: number;
     competitive_weakness_opportunities?: number;
+    with_review_council?: number;
+    council_review_required?: number;
+    council_evidence_incomplete?: number;
+    council_no_strong_signal?: number;
+    council_fix_now?: number;
+    council_verify_next?: number;
+    council_improve?: number;
+    council_consider?: number;
+    council_contradictions?: number;
     autonomous_reviews?: number;
     autonomous_attention?: number;
     runtime_observed?: number;
@@ -805,6 +838,11 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
               <div><span>Parity reviews</span><strong>{studio.summary.competitive_parity_reviews ?? 0}</strong></div>
               <div><span>Differentiators</span><strong>{studio.summary.competitive_differentiators ?? 0}</strong></div>
               <div><span>Market evidence stale</span><strong>{studio.summary.competitive_stale ?? 0}</strong></div>
+              <div><span>Review council</span><strong>{studio.summary.with_review_council ?? 0}</strong></div>
+              <div><span>Council review required</span><strong>{studio.summary.council_review_required ?? 0}</strong></div>
+              <div><span>Council FIX NOW</span><strong>{studio.summary.council_fix_now ?? 0}</strong></div>
+              <div><span>Council VERIFY NEXT</span><strong>{studio.summary.council_verify_next ?? 0}</strong></div>
+              <div><span>Council contradictions</span><strong>{studio.summary.council_contradictions ?? 0}</strong></div>
               <div><span>CERTIFIED</span><strong>{studio.summary.certified_releases ?? 0}</strong></div>
               <div><span>Certification blocked</span><strong>{studio.summary.certification_blocked ?? 0}</strong></div>
               <div><span>Physical required</span><strong>{studio.summary.physical_required ?? 0}</strong></div>
@@ -913,6 +951,26 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                       </div>
                       <span className={badgeClass(project.competitive_product.state ?? "EVIDENCE_INCOMPLETE")}>
                         {project.competitive_product.state ?? "EVIDENCE_INCOMPLETE"}
+                      </span>
+                    </div>
+                  ) : null}
+                  {project.review_council ? (
+                    <div className="release-cockpit-head">
+                      <div>
+                        <span>Virtual Product Review Council · advisory</span>
+                        <strong>{project.review_council.state ?? "EVIDENCE_INCOMPLETE"}</strong>
+                        <small>
+                          {project.review_council.reviewers ?? 0} reviewers · {project.review_council.reviewers_with_findings ?? 0} with findings · {project.review_council.agreements ?? 0} agreements · {project.review_council.contradictions ?? 0} contradictions
+                        </small>
+                        <small>
+                          {project.review_council.fix_now ?? 0} FIX_NOW · {project.review_council.verify_next ?? 0} VERIFY_NEXT · {project.review_council.improve ?? 0} IMPROVE · {project.review_council.consider ?? 0} CONSIDER
+                        </small>
+                        {project.review_council.record_valid === false ? (
+                          <small>review council record invalid · {(project.review_council.validation_errors ?? []).join(", ") || "unknown"}</small>
+                        ) : null}
+                      </div>
+                      <span className={badgeClass(project.review_council.state ?? "EVIDENCE_INCOMPLETE")}>
+                        {project.review_council.state ?? "EVIDENCE_INCOMPLETE"}
                       </span>
                     </div>
                   ) : null}
@@ -1062,6 +1120,20 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                       {project.autonomous_review?.runtime_trusted ? (
                         <small>
                           {project.autonomous_review.trusted_package_id || "package"} · {shortSha(project.autonomous_review.trusted_sha ?? "")} · run {project.autonomous_review.trusted_run_id || "—"}
+                        </small>
+                      ) : null}
+                    </div>
+                    <div>
+                      <span>Review council</span>
+                      <strong>{project.review_council?.state ?? "—"}</strong>
+                      <small>
+                        {project.review_council
+                          ? `${project.review_council.fix_now ?? 0} fix · ${project.review_council.verify_next ?? 0} verify · ${project.review_council.improve ?? 0} improve · ${project.review_council.consider ?? 0} consider`
+                          : "no council evidence"}
+                      </small>
+                      {project.review_council?.top_items?.[0] ? (
+                        <small>
+                          top · {project.review_council.top_items[0].bucket ?? "VERIFY_NEXT"} · {project.review_council.top_items[0].reviewer ?? "REVIEW"} · {project.review_council.top_items[0].subject ?? "general"}
                         </small>
                       ) : null}
                     </div>
