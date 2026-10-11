@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v5.3.1
+name: AppLab True Autonomous App Review v5.3.2
 
 on:
   schedule:
@@ -97,7 +97,7 @@ jobs:
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/applab-changed-files.txt"
-          if grep -Eq '(^\.github/workflows/(autonomous-app-review-v31|trusted-apk-verifier|universal-project-runner)\.yml$|^scripts/(trusted_evidence_manifest|project_autodiscover|autonomous_app_review|behavioral_product_lab|state_edge_case_lab|evidence_calibration|evidence_confidence_engine|journey_crawler|user_journey_intelligence|ux_friction_lab|longitudinal_product_intelligence|longitudinal_finding_lifecycle|autonomous_experiment_planner|applab_analyst|evidence_graph|release_reality|release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|virtual_product_review_council|studio_review_council|trusted_cross_app_evidence|physical_evidence|product_contract_audit|decision_brief)\.py$|^scripts/verify_apk\.sh$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
+          if grep -Eq '(^\.github/workflows/(autonomous-app-review-v31|trusted-apk-verifier|universal-project-runner)\.yml$|^scripts/(trusted_evidence_manifest|project_autodiscover|autonomous_app_review|behavioral_product_lab|state_edge_case_lab|evidence_calibration|evidence_confidence_engine|journey_crawler|user_journey_intelligence|ux_friction_lab|longitudinal_product_intelligence|longitudinal_finding_lifecycle|autonomous_experiment_planner|applab_analyst|evidence_graph|planner_feedback|release_reality|release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|virtual_product_review_council|studio_review_council|trusted_cross_app_evidence|physical_evidence|product_contract_audit|decision_brief)\.py$|^scripts/verify_apk\.sh$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -346,6 +346,17 @@ jobs:
             --trusted-runtime-dir "$GITHUB_WORKSPACE/trusted-runtime" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
 
+      - name: Build graph-aware planner feedback
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/planner_feedback.py \
+            --graph "$GITHUB_WORKSPACE/applab-autonomous-review/evidence-graph.json" \
+            --analysis-plan "$GITHUB_WORKSPACE/trusted-runtime/analysis-plan.json" \
+            --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
+          cp "$GITHUB_WORKSPACE/applab-autonomous-review/planner-feedback.json" \
+            "$GITHUB_WORKSPACE/.applab-longitudinal/planner-feedback.json"
+
       - name: Build Simulated Human QA
         shell: bash
         run: |
@@ -420,11 +431,11 @@ jobs:
           include-hidden-files: true
           retention-days: 90
 
-      - name: Publish v5.3.1 review
+      - name: Publish v5.3.2 review
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v5.3.1"
+            echo "## AppLab True Autonomous App Review v5.3.2"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
@@ -437,6 +448,8 @@ jobs:
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/analyst-report.md"
             echo
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/evidence-graph.md"
+            echo
+            cat "$GITHUB_WORKSPACE/applab-autonomous-review/planner-feedback.md"
             echo
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/simulated-human-qa.md"
             echo
