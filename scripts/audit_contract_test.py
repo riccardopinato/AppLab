@@ -974,7 +974,7 @@ def check_simulated_human_qa_contract() -> None:
         "Build Simulated Human QA",
         "scripts/simulated_human_qa.py",
         "simulated-human-qa.md",
-        "AppLab True Autonomous App Review v5.0.0",
+        "AppLab True Autonomous App Review v5.1.0",
         "simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor",
     ):
         require(needle in workflow, f"v5.0 autonomous review integration missing: {needle}")
