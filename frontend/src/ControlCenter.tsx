@@ -748,7 +748,7 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                         <span>Autonomous Release Assurance</span>
                         <strong>{project.release_assurance.state ?? "NOT_VERIFIED"}</strong>
                         <small>
-                          {project.release_assurance.required_passed ?? 0}/{project.release_assurance.required_total ?? 0} required stages · next {project.release_assurance.next_required_stage || "none"}
+                          {project.release_assurance.required_passed ?? 0}/{project.release_assurance.required_total ?? 0} required stages · {project.release_assurance.blockers ?? 0} blockers · {project.release_assurance.failures ?? 0} failures · next {project.release_assurance.next_required_stage || "none"}
                         </small>
                       </div>
                       <span className={badgeClass(project.release_assurance.state ?? "NOT_VERIFIED")}>
