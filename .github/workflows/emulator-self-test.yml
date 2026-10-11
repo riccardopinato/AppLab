@@ -120,7 +120,7 @@ jobs:
           disable-animations: true
           script: |
             chmod +x scripts/*.sh
-            RUN_MAESTRO=true MAESTRO_FLOW="$GITHUB_WORKSPACE/tests/flows/selftest.yaml" REPORT_DIR="$GITHUB_WORKSPACE/applab-report" APPLAB_TARGET_ROOT="$GITHUB_WORKSPACE" APPLAB_PROJECT_ROOT="$GITHUB_WORKSPACE" APPLAB_UPGRADE_BASELINE_APK="$GITHUB_WORKSPACE/runtime-fixture/app-debug.apk" APPLAB_VERSION="5.3.0" ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/runtime-fixture/app-debug.apk" "dev.applab.selftest"
+            RUN_MAESTRO=true MAESTRO_FLOW="$GITHUB_WORKSPACE/tests/flows/selftest.yaml" REPORT_DIR="$GITHUB_WORKSPACE/applab-report" APPLAB_TARGET_ROOT="$GITHUB_WORKSPACE" APPLAB_PROJECT_ROOT="$GITHUB_WORKSPACE" APPLAB_UPGRADE_BASELINE_APK="$GITHUB_WORKSPACE/runtime-fixture/app-debug.apk" APPLAB_VERSION="5.3.1" ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/runtime-fixture/app-debug.apk" "dev.applab.selftest"
             grep -Fq -- "- Result: PASS" "$GITHUB_WORKSPACE/applab-report/summary.md"
             grep -Fq -- "- Maestro: PASS" "$GITHUB_WORKSPACE/applab-report/summary.md"
             grep -Fq "dev.applab.selftest" "$GITHUB_WORKSPACE/applab-report/activity.txt"
