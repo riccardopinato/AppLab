@@ -472,6 +472,17 @@ type StudioProject = {
     why_not_certified_total?: number;
     why_not_certified_truncated?: boolean;
   } | null;
+  release_assurance?: {
+    state?: string;
+    release_id?: string;
+    assurance_digest?: string;
+    blockers?: number;
+    failures?: number;
+    next_required_stage?: string;
+    certification_status?: string;
+    required_passed?: number;
+    required_total?: number;
+  } | null;
   autonomous_review?: {
     review_state?: string;
     runtime_evidence_state?: string;
@@ -530,6 +541,10 @@ type StudioSnapshot = {
     certification_blocked?: number;
     physical_required?: number;
     stale_release_evidence?: number;
+    with_release_assurance?: number;
+    release_assurance_pass?: number;
+    release_assurance_blocked?: number;
+    release_assurance_fail?: number;
     autonomous_reviews?: number;
     autonomous_attention?: number;
     runtime_observed?: number;
@@ -690,6 +705,10 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
               <div><span>Runtime observed</span><strong>{studio.summary.runtime_observed ?? 0}</strong></div>
               <div><span>Trusted runtime</span><strong>{studio.summary.trusted_runtime_reviews ?? 0}</strong></div>
               <div><span>Release Reality</span><strong>{studio.summary.with_release_reality ?? 0}</strong></div>
+              <div><span>Release Assurance</span><strong>{studio.summary.with_release_assurance ?? 0}</strong></div>
+              <div><span>Assurance PASS</span><strong>{studio.summary.release_assurance_pass ?? 0}</strong></div>
+              <div><span>Assurance blocked</span><strong>{studio.summary.release_assurance_blocked ?? 0}</strong></div>
+              <div><span>Assurance FAIL</span><strong>{studio.summary.release_assurance_fail ?? 0}</strong></div>
               <div><span>CERTIFIED</span><strong>{studio.summary.certified_releases ?? 0}</strong></div>
               <div><span>Certification blocked</span><strong>{studio.summary.certification_blocked ?? 0}</strong></div>
               <div><span>Physical required</span><strong>{studio.summary.physical_required ?? 0}</strong></div>
@@ -720,6 +739,20 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                       </div>
                       <span className={badgeClass(project.release_cockpit.certification_status ?? "NOT_VERIFIED")}>
                         {project.release_cockpit.certification_status ?? "NOT_VERIFIED"}
+                      </span>
+                    </div>
+                  ) : null}
+                  {project.release_assurance ? (
+                    <div className="release-cockpit-head">
+                      <div>
+                        <span>Autonomous Release Assurance</span>
+                        <strong>{project.release_assurance.state ?? "NOT_VERIFIED"}</strong>
+                        <small>
+                          {project.release_assurance.required_passed ?? 0}/{project.release_assurance.required_total ?? 0} required stages · next {project.release_assurance.next_required_stage || "none"}
+                        </small>
+                      </div>
+                      <span className={badgeClass(project.release_assurance.state ?? "NOT_VERIFIED")}>
+                        {project.release_assurance.state ?? "NOT_VERIFIED"}
                       </span>
                     </div>
                   ) : null}
