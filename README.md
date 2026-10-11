@@ -1,3 +1,29 @@
+## v5.3.0 — Virtual Product Review Council
+
+AppLab now composes its existing evidence into a **meeting-like Product Review
+Council** without creating a new release authority.
+
+- **Six specialized reviewers:** QA, UX, accessibility, product, design and
+  market.
+- **No opaque score:** each reviewer keeps scope, source records, uncertainty
+  and independent findings.
+- **Cross-review reasoning:** AppLab surfaces agreement, contradiction and
+  missing evidence by normalized subject while preserving every contributing
+  position.
+- **Prioritized Product Review Brief:** `FIX_NOW`, `VERIFY_NEXT`,
+  `IMPROVE`, `CONSIDER` and `NO_ACTION`.
+- **Strict FIX_NOW authority:** only existing high-confidence
+  technical/runtime evidence from the QA reviewer can remain in `FIX_NOW`.
+- **Evidence-class separation:** simulated users are not real users; physical
+  device validation and release certification remain independent evidence
+  classes.
+- **Fail-closed Studio projection:** stale identity, malformed Council records
+  or incomplete reviewer evidence cannot become a false green state.
+- **Product ownership preserved:** the Council reduces manual triage but never
+  makes autonomous product-scope or certification decisions.
+
+See `integration/review/VIRTUAL_PRODUCT_REVIEW_COUNCIL_V53.md`.
+
 ## v5.2.0 — Competitive Product Intelligence
 
 AppLab now turns source-traceable competitor evidence into **bounded product

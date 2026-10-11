@@ -101,6 +101,8 @@ jobs:
             scripts/studio_design_advisor.py \
             scripts/competitive_product_intelligence.py \
             scripts/studio_competitive_product.py \
+            scripts/virtual_product_review_council.py \
+            scripts/studio_review_council.py \
             scripts/trusted_cross_app_evidence.py \
             scripts/audit_orchestrator.py \
             scripts/studio_snapshot.py \
@@ -184,6 +186,8 @@ jobs:
           python scripts/studio_design_advisor.py
           python scripts/competitive_product_intelligence.py --self-test
           python scripts/studio_competitive_product.py
+          python scripts/virtual_product_review_council.py --self-test
+          python scripts/studio_review_council.py
           python scripts/trusted_cross_app_evidence.py self-test
           python scripts/audit_orchestrator.py --self-test
           python scripts/studio_snapshot.py --self-test
@@ -213,7 +217,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"5.2.0"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"5.3.0"'; then
               healthy=true
               break
             fi

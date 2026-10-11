@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.2.0 — Competitive Product Intelligence**
+Current production baseline: **v5.3.0 — Virtual Product Review Council**
 
 ## Product rule
 
@@ -19,6 +19,19 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v5.3.0 — Virtual Product Review Council
+
+- [x] Run specialized virtual reviewers for QA, UX, accessibility, product, design and market context.
+- [x] Preserve each reviewer's evidence, uncertainty, scope and source-record state instead of producing an opaque consensus score.
+- [x] Detect cross-review agreement, action contradiction and missing/invalid evidence.
+- [x] Produce a prioritized Product Review Brief with FIX_NOW, VERIFY_NEXT, IMPROVE, CONSIDER and NO_ACTION.
+- [x] Distinguish technical defects, usability/accessibility risks, design-fit questions and product/market opportunities.
+- [x] Restrict FIX_NOW to existing technical/runtime evidence and demote advisory conflicts to VERIFY_NEXT.
+- [x] Keep real-user validation, physical-device validation and release certification as separate evidence classes.
+- [x] Bind the Council to the exact Evidence Graph source/artifact identity and fail closed in Studio.
+- [x] Integrate the Council into True Autonomous Review, Studio, Control Center and CI.
+- [x] Use the Council to reduce manual triage without replacing final product ownership.
 
 ### v5.2.0 — Competitive Product Intelligence
 
@@ -651,20 +664,6 @@ Planned:
 - [ ] Use prior graph impact to refine risk-based FAST/FULL selection only when lineage, source SHA and evidence freshness are compatible.
 - [ ] Fall back to the existing conservative Smart Test Plan whenever graph evidence is missing, stale, ambiguous or truncated.
 - [ ] Keep current-run Evidence Graph unable to retroactively change the lane that produced it.
-
-### v5.3 — Virtual Product Review Council
-
-Goal: combine technical QA, simulated users, UX, design and competitor evidence
-into one review meeting-like output without collapsing authorities.
-
-Planned:
-- [ ] Run specialized virtual reviewers for QA, UX, accessibility, product, design and market context.
-- [ ] Preserve each reviewer's evidence, uncertainty and scope instead of producing an opaque consensus score.
-- [ ] Detect cross-review agreement, contradiction and missing evidence.
-- [ ] Produce a prioritized Product Review Brief: FIX_NOW, VERIFY_NEXT, IMPROVE, CONSIDER and NO_ACTION.
-- [ ] Distinguish technical defects, usability risks, design-fit questions and product opportunities.
-- [ ] Keep real-user validation, physical-device validation and release certification as separate evidence classes.
-- [ ] Use the council to reduce manual triage, not to replace final product ownership.
 
 ### v5.x ongoing technical hardening
 
