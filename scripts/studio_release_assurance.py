@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import release_assurance
+
 
 def _read(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
@@ -51,53 +53,169 @@ def _identity_match(
     return not mismatches, mismatches
 
 
+def _validated_record(
+    project_dir: Path,
+    payload: dict[str, Any],
+) -> tuple[bool, list[str], list[dict[str, Any]], str, list[str]]:
+    errors: list[str] = []
+    if payload.get("schema_version") != release_assurance.SCHEMA_VERSION:
+        errors.append("schema_version")
+    if str(payload.get("applab_version", "")).strip() != release_assurance.APPLAB_VERSION:
+        errors.append("applab_version")
+    if str(payload.get("record_type", "")).strip() != release_assurance.RECORD_TYPE:
+        errors.append("record_type")
+    if str(payload.get("authority", "")).strip() != release_assurance.AUTHORITY:
+        errors.append("authority")
+
+    identity = payload.get("identity")
+    if not isinstance(identity, dict):
+        identity = {}
+        errors.append("identity")
+
+    rows_raw = payload.get("stages")
+    rows = [row for row in rows_raw if isinstance(row, dict)] if isinstance(rows_raw, list) else []
+    if not rows or len(rows) != len(rows_raw or []):
+        errors.append("stages")
+    for row in rows:
+        state = str(row.get("state", "")).strip().upper()
+        if not str(row.get("key", "")).strip():
+            errors.append("stage_key")
+        if row.get("required") not in {True, False}:
+            errors.append("stage_required")
+        if state not in release_assurance.ALLOWED:
+            errors.append("stage_state")
+        if row.get("required") is True and state == release_assurance.NOT_APPLICABLE:
+            errors.append("required_stage_na")
+
+    declared_state = str(payload.get("state", "")).strip().upper()
+    derived_state = release_assurance.overall_state(rows) if rows else release_assurance.BLOCKED
+    if declared_state not in {
+        release_assurance.PASS,
+        release_assurance.FAIL,
+        release_assurance.BLOCKED,
+        release_assurance.NOT_VERIFIED,
+    }:
+        errors.append("state")
+    elif declared_state != derived_state:
+        errors.append("state_mismatch")
+
+    expected_digest = str(payload.get("assurance_digest", "")).strip().lower()
+    if identity and rows:
+        actual_digest = release_assurance.digest(identity, rows)
+        if expected_digest != actual_digest:
+            errors.append("assurance_digest")
+    else:
+        errors.append("assurance_digest")
+
+    identity_match, identity_mismatches = _identity_match(project_dir, payload)
+    if not identity_match:
+        errors.append("release_identity")
+
+    return not errors, sorted(set(errors)), rows, derived_state, identity_mismatches
+
+
+def _blocked_projection(
+    payload: dict[str, Any],
+    rows: list[dict[str, Any]],
+    *,
+    reason: str,
+    validation_errors: list[str],
+    identity_mismatches: list[str],
+) -> dict[str, Any]:
+    required_total = sum(
+        1 for row in rows if isinstance(row, dict) and row.get("required") is True
+    )
+    return {
+        "state": "BLOCKED",
+        "release_id": str(payload.get("release_id", "")),
+        "assurance_digest": str(payload.get("assurance_digest", "")),
+        "blockers": max(1, sum(
+            1
+            for row in rows
+            if row.get("required") is True
+            and str(row.get("state", "")).upper()
+            in {release_assurance.BLOCKED, release_assurance.NOT_VERIFIED, release_assurance.NOT_APPLICABLE}
+        )),
+        "failures": sum(
+            1
+            for row in rows
+            if row.get("required") is True
+            and str(row.get("state", "")).upper() == release_assurance.FAIL
+        ),
+        "next_required_stage": reason,
+        "certification_status": "NOT_VERIFIED",
+        "required_passed": 0,
+        "required_total": required_total,
+        "identity_match": not identity_mismatches,
+        "identity_mismatches": identity_mismatches,
+        "record_valid": False,
+        "validation_errors": validation_errors,
+    }
+
+
 def project_from_directory(project_dir: Path) -> dict[str, Any] | None:
     payload = _read(project_dir / "release-assurance.json")
     if not payload:
         return None
-    next_stage = payload.get("next_required_stage")
-    next_stage = next_stage if isinstance(next_stage, dict) else {}
-    rows = payload.get("stages")
-    rows = rows if isinstance(rows, list) else []
-    required_total = sum(
-        1 for row in rows if isinstance(row, dict) and row.get("required") is True
-    )
-    identity_match, identity_mismatches = _identity_match(project_dir, payload)
-    if not identity_match:
-        return {
-            "state": "BLOCKED",
-            "release_id": str(payload.get("release_id", "")),
-            "assurance_digest": str(payload.get("assurance_digest", "")),
-            "blockers": max(1, len(payload.get("blockers") or [])),
-            "failures": len(payload.get("failures") or []),
-            "next_required_stage": "IDENTITY_MISMATCH",
-            "certification_status": "NOT_VERIFIED",
-            "required_passed": 0,
-            "required_total": required_total,
-            "identity_match": False,
-            "identity_mismatches": identity_mismatches,
-        }
 
+    valid, validation_errors, rows, derived_state, identity_mismatches = _validated_record(
+        project_dir, payload
+    )
+    if not valid:
+        reason = "IDENTITY_MISMATCH" if identity_mismatches else "ASSURANCE_RECORD_INVALID"
+        return _blocked_projection(
+            payload,
+            rows,
+            reason=reason,
+            validation_errors=validation_errors,
+            identity_mismatches=identity_mismatches,
+        )
+
+    next_required = next(
+        (
+            row
+            for row in rows
+            if row.get("required") is True
+            and str(row.get("state", "")).strip().upper() != release_assurance.PASS
+        ),
+        None,
+    )
     certification = payload.get("certification")
     certification = certification if isinstance(certification, dict) else {}
+    failures = [
+        row
+        for row in rows
+        if row.get("required") is True
+        and str(row.get("state", "")).strip().upper() == release_assurance.FAIL
+    ]
+    blockers = [
+        row
+        for row in rows
+        if row.get("required") is True
+        and str(row.get("state", "")).strip().upper()
+        in {release_assurance.BLOCKED, release_assurance.NOT_VERIFIED}
+    ]
     return {
-        "state": str(payload.get("state", "NOT_VERIFIED")),
+        "state": derived_state,
         "release_id": str(payload.get("release_id", "")),
         "assurance_digest": str(payload.get("assurance_digest", "")),
-        "blockers": len(payload.get("blockers") or []),
-        "failures": len(payload.get("failures") or []),
-        "next_required_stage": str(next_stage.get("key", "")),
+        "blockers": len(blockers),
+        "failures": len(failures),
+        "next_required_stage": str(next_required.get("key", "")) if next_required else "",
         "certification_status": str(certification.get("status", "NOT_VERIFIED")),
         "required_passed": sum(
             1
             for row in rows
-            if isinstance(row, dict)
-            and row.get("required") is True
-            and row.get("state") == "PASS"
+            if row.get("required") is True
+            and str(row.get("state", "")).strip().upper() == release_assurance.PASS
         ),
-        "required_total": required_total,
+        "required_total": sum(
+            1 for row in rows if row.get("required") is True
+        ),
         "identity_match": True,
         "identity_mismatches": [],
+        "record_valid": True,
+        "validation_errors": [],
     }
 
 
@@ -145,46 +263,67 @@ def self_test() -> None:
             ),
             encoding="utf-8",
         )
+        rows = [
+            {"key": "SOURCE", "required": True, "state": "PASS"},
+            {"key": "DIST", "required": True, "state": "BLOCKED"},
+            {"key": "OPTIONAL", "required": False, "state": "N/A"},
+        ]
         payload = {
+            "schema_version": release_assurance.SCHEMA_VERSION,
+            "applab_version": release_assurance.APPLAB_VERSION,
+            "record_type": release_assurance.RECORD_TYPE,
+            "authority": release_assurance.AUTHORITY,
             "state": "BLOCKED",
             "release_id": "r1",
-            "assurance_digest": "c" * 64,
             "identity": identity,
-            "blockers": [{"key": "DISTRIBUTION_EVIDENCE"}],
+            "blockers": [{"key": "DIST"}],
             "failures": [],
-            "next_required_stage": {"key": "DISTRIBUTION_EVIDENCE"},
+            "next_required_stage": {"key": "DIST"},
             "certification": {"status": "CERTIFIED"},
-            "stages": [
-                {"required": True, "state": "PASS"},
-                {"required": True, "state": "BLOCKED"},
-                {"required": False, "state": "N/A"},
-            ],
+            "stages": rows,
         }
-        (root / "release-assurance.json").write_text(
-            json.dumps(payload),
-            encoding="utf-8",
-        )
+        payload["assurance_digest"] = release_assurance.digest(identity, rows)
+        (root / "release-assurance.json").write_text(json.dumps(payload), encoding="utf-8")
         projection = project_from_directory(root)
         assert projection is not None
         assert projection["state"] == "BLOCKED"
+        assert projection["record_valid"] is True
         assert projection["identity_match"] is True
         assert projection["required_passed"] == 1
         assert projection["required_total"] == 2
 
         stale = json.loads(json.dumps(payload))
         stale["identity"]["artifact_sha256"] = "d" * 64
-        stale["state"] = "PASS"
-        (root / "release-assurance.json").write_text(
-            json.dumps(stale),
-            encoding="utf-8",
-        )
+        stale["assurance_digest"] = release_assurance.digest(stale["identity"], rows)
+        (root / "release-assurance.json").write_text(json.dumps(stale), encoding="utf-8")
         blocked = project_from_directory(root)
         assert blocked is not None
         assert blocked["state"] == "BLOCKED"
         assert blocked["identity_match"] is False
         assert blocked["next_required_stage"] == "IDENTITY_MISMATCH"
-        assert "artifact_sha256" in blocked["identity_mismatches"]
-        assert blocked["certification_status"] == "NOT_VERIFIED"
+
+        inconsistent = json.loads(json.dumps(payload))
+        inconsistent["state"] = "PASS"
+        (root / "release-assurance.json").write_text(json.dumps(inconsistent), encoding="utf-8")
+        blocked = project_from_directory(root)
+        assert blocked is not None
+        assert blocked["state"] == "BLOCKED"
+        assert blocked["record_valid"] is False
+        assert "state_mismatch" in blocked["validation_errors"]
+
+        bad_digest = json.loads(json.dumps(payload))
+        bad_digest["assurance_digest"] = "f" * 64
+        (root / "release-assurance.json").write_text(json.dumps(bad_digest), encoding="utf-8")
+        blocked = project_from_directory(root)
+        assert blocked is not None
+        assert "assurance_digest" in blocked["validation_errors"]
+
+        bad_authority = json.loads(json.dumps(payload))
+        bad_authority["authority"] = "OTHER"
+        (root / "release-assurance.json").write_text(json.dumps(bad_authority), encoding="utf-8")
+        blocked = project_from_directory(root)
+        assert blocked is not None
+        assert "authority" in blocked["validation_errors"]
 
         summary = portfolio_summary([{"release_assurance": blocked}])
         assert summary["with_release_assurance"] == 1
