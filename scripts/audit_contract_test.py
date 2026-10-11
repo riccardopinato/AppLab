@@ -795,6 +795,10 @@ def check_release_assurance_contract() -> None:
         "certification_identity_matches",
         "certification_contract_state",
         "CANONICAL_STAGE_KEYS",
+        'graph.get("schema_version") != 2',
+        'clean(graph.get("graph_version")) != "2.0"',
+        '"BuildArtifact"',
+        '"apk_sha256"',
         "pair_identity_matches",
         "risk_plan_state",
         "PLAN_LANES",
@@ -843,7 +847,10 @@ def check_release_assurance_contract() -> None:
         and '"certification_status": "NOT_VERIFIED"' in projection
         and '"record_valid": False' in projection
         and "release_assurance.CANONICAL_STAGE_KEYS" in projection
-        and '"canonical_stage_set"' in projection,
+        and '"canonical_stage_set"' in projection
+        and "type(required) is not bool" in projection
+        and "stage_structure_valid" in projection
+        and "except (KeyError, TypeError, ValueError)" in projection,
         "Release Assurance Studio projection must preserve blocked/fail states and reject stale identities",
     )
     require(
