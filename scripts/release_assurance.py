@@ -152,19 +152,51 @@ def identity(reality: dict[str, Any]) -> dict[str, str]:
 def graph_state(graph: dict[str, Any], ident: dict[str, str]) -> tuple[str, str]:
     if not graph:
         return BLOCKED, "Evidence Graph is missing."
+    if graph.get("schema_version") != 2 or clean(graph.get("graph_version")) != "2.0":
+        return FAIL, "Evidence Graph schema/version is invalid."
     current = graph.get("identity") if isinstance(graph.get("identity"), dict) else {}
     repo = clean(current.get("repository"))
     sha = clean(current.get("resolved_sha")).lower()
     pkg = clean(current.get("package_id"))
-    if repo and repo != ident["repository"]:
+    if repo != ident["repository"]:
         return FAIL, "Evidence Graph repository mismatch."
-    if sha and sha != ident["resolved_sha"]:
+    if sha != ident["resolved_sha"]:
         return FAIL, "Evidence Graph source SHA mismatch."
-    if pkg and pkg != ident["package_id"]:
+    if pkg != ident["package_id"]:
         return FAIL, "Evidence Graph package id mismatch."
-    if not repo or not sha:
-        return BLOCKED, "Evidence Graph identity is incomplete."
-    return PASS, "Evidence Graph is bound to the same release revision."
+
+    roots = graph.get("root_nodes") if isinstance(graph.get("root_nodes"), dict) else {}
+    artifact_id = clean(roots.get("build_artifact"))
+    nodes = graph.get("nodes") if isinstance(graph.get("nodes"), list) else []
+    if not artifact_id or not nodes:
+        return FAIL, "Evidence Graph canonical build-artifact root is missing."
+    matches = [
+        row
+        for row in nodes
+        if isinstance(row, dict)
+        and clean(row.get("id")) == artifact_id
+        and clean(row.get("type")) == "BuildArtifact"
+    ]
+    if len(matches) != 1:
+        return FAIL, "Evidence Graph build-artifact root does not resolve uniquely."
+    attrs = matches[0].get("attributes")
+    if not isinstance(attrs, dict):
+        return FAIL, "Evidence Graph build-artifact attributes are missing."
+    observed = {
+        "artifact_sha256": clean(attrs.get("apk_sha256")).lower(),
+        "package_id": clean(attrs.get("package_id")),
+        "version_name": clean(attrs.get("version_name")),
+        "version_code": clean(attrs.get("version_code")),
+    }
+    for key, expected in (
+        ("artifact_sha256", ident["artifact_sha256"]),
+        ("package_id", ident["package_id"]),
+        ("version_name", ident["version_name"]),
+        ("version_code", ident["version_code"]),
+    ):
+        if observed[key] != expected:
+            return FAIL, f"Evidence Graph build artifact {key} mismatch."
+    return PASS, "Evidence Graph is bound to the exact release artifact."
 
 
 def exact_identity(record: dict[str, Any], ident: dict[str, str]) -> bool:
@@ -571,13 +603,29 @@ def self_test() -> None:
             "certification": {"status": "CERTIFIED"},
         }
         (root / RR).write_text(json.dumps(reality), encoding="utf-8")
-        (root / GRAPH).write_text(json.dumps({
+        graph = {
+            "schema_version": 2,
+            "graph_version": "2.0",
             "identity": {
                 "repository": "owner/demo",
                 "resolved_sha": "a" * 40,
                 "package_id": "com.example.demo",
-            }
-        }), encoding="utf-8")
+            },
+            "root_nodes": {"build_artifact": "artifact:demo"},
+            "nodes": [
+                {
+                    "id": "artifact:demo",
+                    "type": "BuildArtifact",
+                    "attributes": {
+                        "apk_sha256": "b" * 64,
+                        "package_id": "com.example.demo",
+                        "version_name": "1.0.0",
+                        "version_code": "1",
+                    },
+                }
+            ],
+        }
+        (root / GRAPH).write_text(json.dumps(graph), encoding="utf-8")
         plan = {
             "schema_version": 2,
             "mode": "certification",
@@ -607,6 +655,12 @@ def self_test() -> None:
         first = build_report(root)
         assert first["state"] == BLOCKED
         assert first["next_required_stage"]["key"] == "DISTRIBUTION_EVIDENCE"
+
+        stale_graph = json.loads(json.dumps(graph))
+        stale_graph["nodes"][0]["attributes"]["apk_sha256"] = "c" * 64
+        (root / GRAPH).write_text(json.dumps(stale_graph), encoding="utf-8")
+        assert build_report(root)["state"] == FAIL
+        (root / GRAPH).write_text(json.dumps(graph), encoding="utf-8")
 
         distribution = {
             "source": {"repository": "owner/demo", "resolved_sha": "a" * 40},
