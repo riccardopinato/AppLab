@@ -794,6 +794,11 @@ def check_release_assurance_contract() -> None:
         '"cross_app_pass_is_independent_from_single_app_pass": True',
         "certification_identity_matches",
         "pair_identity_matches",
+        "risk_plan_state",
+        "PLAN_LANES",
+        'result = clean(record.get("result")).upper()',
+        "Canonical certification.json is missing",
+        "physical_present",
         'return 0 if payload["state"] == PASS or not args.require_pass else 1',
     ):
         require(needle in assurance, f"v4.9 release assurance missing invariant: {needle}")
@@ -805,7 +810,11 @@ def check_release_assurance_contract() -> None:
         "release-reality.json",
         "evidence-graph.md",
         "AppLab True Autonomous App Review v4.9.0",
-        "release_assurance|physical_evidence",
+        "release_assurance|trusted_cross_app_evidence|physical_evidence",
+        "cross_app_run_id",
+        "trusted_cross_app_evidence.py verify-run",
+        "trusted_cross_app_evidence.py validate",
+        "cross-app-verification.bound.json",
     ):
         require(needle in workflow, f"v4.9 autonomous review integration missing: {needle}")
 
@@ -828,6 +837,18 @@ def check_release_assurance_contract() -> None:
         and "project.release_assurance.failures" in frontend,
         "Control Center must expose release assurance state",
     )
+    cross_helper = (ROOT / "scripts/trusted_cross_app_evidence.py").read_text(
+        encoding="utf-8"
+    )
+    for needle in (
+        'AUTHORITY = "APPLAB_CROSS_APP_VERIFICATION"',
+        'WORKFLOW_PATH = ".github/workflows/cross-app-verification.yml"',
+        "cross-app run must originate from main",
+        "cross-app evidence digest mismatch",
+        "reviewed repository/revision",
+    ):
+        require(needle in cross_helper, f"trusted cross-app evidence helper missing: {needle}")
+
     require(
         (ROOT / "integration/certification/AUTONOMOUS_RELEASE_ASSURANCE_V49.md").is_file(),
         "v4.9 release assurance contract documentation is required",
