@@ -394,26 +394,32 @@ def self_test() -> None:
         }), encoding="utf-8")
         personas = []
         for name in simulated.PERSONAS:
+            tasks = []
+            for task in simulated.PERSONA_TASKS[name]:
+                tasks.append({
+                    "task_id": task["id"],
+                    "goal": task["goal"],
+                    "outcome": "NO_STRONG_SIGNAL",
+                    "rationale": "fixture",
+                    "signal_ids": [],
+                    "cognitive_walkthrough": [
+                        {
+                            "criterion": criterion,
+                            "state": "EVIDENCE_AVAILABLE_NO_SIGNAL",
+                            "signal_ids": [],
+                        }
+                        for criterion in simulated.WALKTHROUGH_CRITERIA
+                    ],
+                })
             personas.append({
                 "persona": name,
                 "classification": simulated.CLASSIFICATION,
                 "focus": sorted(simulated.PERSONA_FOCUS[name]),
-                "tasks": [{
-                    "task_id": f"{name}_task",
-                    "goal": "Bounded test task",
-                    "outcome": "NO_STRONG_SIGNAL",
-                    "rationale": "fixture",
-                    "signal_ids": [],
-                    "cognitive_walkthrough": [{
-                        "criterion": "goal_discoverability",
-                        "state": "EVIDENCE_AVAILABLE_NO_SIGNAL",
-                        "signal_ids": [],
-                    }],
-                }],
+                "tasks": tasks,
                 "summary": {
                     "friction_signals": 0,
                     "evidence_incomplete": 0,
-                    "no_strong_signal": 1,
+                    "no_strong_signal": len(tasks),
                     "not_applicable": 0,
                 },
             })
@@ -457,6 +463,7 @@ def self_test() -> None:
         assert projection is not None
         assert projection["record_valid"] is True
         assert projection["persona_count"] == 7
+        assert projection["task_count"] == 14
         assert projection["state"] == "NO_STRONG_SIGNAL"
 
         stale = json.loads(json.dumps(payload))
