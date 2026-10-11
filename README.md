@@ -1,3 +1,31 @@
+## v5.0.0 — Simulated Human QA
+
+AppLab now adds a bounded **simulated-user review layer** on top of its trusted
+technical evidence without turning simulation into a release authority.
+
+- **Seven bounded personas:** beginner, power user, older user,
+  accessibility-focused, privacy-conscious, impatient and offline.
+- **Task-driven review:** every persona attempts explicit goals using only
+  existing AppLab evidence from product flows, runtime journeys, UX friction,
+  edge states and Evidence Graph.
+- **Cognitive walkthrough + heuristic review:** discoverability, next-action
+  clarity, feedback, recovery, efficiency and accessibility are reviewed as
+  evidence-backed signals.
+- **Consensus without fake certainty:** agreements and disagreements are
+  preserved; recurring signals route only to `VERIFY_NEXT` or `IMPROVE`.
+- **Exact provenance:** the simulated record is bound to repository, immutable
+  source SHA, workflow run, package, exact APK SHA-256 and version identity from
+  the canonical Evidence Graph BuildArtifact.
+- **Strict authority boundary:** findings are classified `SIMULATED USER REVIEW`,
+  never real-user validation, physical-device evidence or release certification.
+  The module can never emit `FIX_NOW` or override deterministic technical gates.
+- **Fail-closed Studio projection:** stale, malformed or identity-mismatched
+  records become `EVIDENCE_INCOMPLETE`, never a false green state.
+- **Deterministic core:** no LLM is required for the v5.0 engine, keeping the
+  review reproducible and independent from FAST/FULL/CERTIFICATION.
+
+See `integration/review/SIMULATED_HUMAN_QA_V50.md`.
+
 ## v4.9.0 — Autonomous Release Assurance
 
 AppLab now composes the complete technical release-assurance chain for the
