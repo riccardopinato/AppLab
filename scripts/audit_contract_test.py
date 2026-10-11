@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "5.2.0"
+EXPECTED_VERSION = "5.3.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -825,8 +825,8 @@ def check_release_assurance_contract() -> None:
         "release-assurance.md",
         "release-reality.json",
         "evidence-graph.md",
-        "AppLab True Autonomous App Review v5.2.0",
-        "release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|trusted_cross_app_evidence|physical_evidence",
+        "AppLab True Autonomous App Review v5.3.0",
+        "release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|virtual_product_review_council|studio_review_council|trusted_cross_app_evidence|physical_evidence",
         "cross_app_run_id",
         "trusted_cross_app_evidence.py verify-run",
         "trusted_cross_app_evidence.py validate",
@@ -960,7 +960,7 @@ def check_simulated_human_qa_contract() -> None:
     require(
         "studio_simulated_human.project_from_directory" in studio
         and "studio_simulated_human.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.2.0"' in studio,
+        and 'STUDIO_VERSION = "5.3.0"' in studio,
         "Studio must expose v5.0 simulated-human evidence through the v5.1 Studio projection",
     )
     require(
@@ -974,7 +974,7 @@ def check_simulated_human_qa_contract() -> None:
         "Build Simulated Human QA",
         "scripts/simulated_human_qa.py",
         "simulated-human-qa.md",
-        "AppLab True Autonomous App Review v5.2.0",
+        "AppLab True Autonomous App Review v5.3.0",
         "simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor",
     ):
         require(needle in workflow, f"v5.0 autonomous review integration missing: {needle}")
@@ -1039,7 +1039,7 @@ def check_design_system_advisor_contract() -> None:
     require(
         "studio_design_advisor.project_from_directory" in studio
         and "studio_design_advisor.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.2.0"' in studio,
+        and 'STUDIO_VERSION = "5.3.0"' in studio,
         "Studio must expose v5.1 design-advisor evidence through the dedicated projection",
     )
     require(
@@ -1052,7 +1052,7 @@ def check_design_system_advisor_contract() -> None:
         "Build Design System & UI Library Advisor",
         "scripts/design_system_advisor.py",
         "design-system-advisor.md",
-        "AppLab True Autonomous App Review v5.2.0",
+        "AppLab True Autonomous App Review v5.3.0",
         "design_system_advisor|studio_design_advisor",
     ):
         require(needle in workflow, f"v5.1 autonomous review integration missing: {needle}")
@@ -1105,7 +1105,7 @@ def check_competitive_product_intelligence_contract() -> None:
     require(
         "studio_competitive_product.project_from_directory" in studio
         and "studio_competitive_product.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.2.0"' in studio,
+        and 'STUDIO_VERSION = "5.3.0"' in studio,
         "Studio must expose v5.2 competitive-product evidence",
     )
     require(
@@ -1118,7 +1118,7 @@ def check_competitive_product_intelligence_contract() -> None:
         "Build Competitive Product Intelligence",
         "scripts/competitive_product_intelligence.py",
         "competitive-product-intelligence.md",
-        "AppLab True Autonomous App Review v5.2.0",
+        "AppLab True Autonomous App Review v5.3.0",
         "competitive_product_intelligence|studio_competitive_product",
         "market_evidence_path:",
     ):
@@ -1127,6 +1127,77 @@ def check_competitive_product_intelligence_contract() -> None:
     require(
         (ROOT / "integration/market/COMPETITIVE_PRODUCT_INTELLIGENCE_V52.md").is_file(),
         "v5.2 competitive product contract documentation is required",
+    )
+
+
+def check_virtual_product_review_council_contract() -> None:
+    engine = (ROOT / "scripts/virtual_product_review_council.py").read_text(encoding="utf-8")
+    projection = (ROOT / "scripts/studio_review_council.py").read_text(encoding="utf-8")
+    studio = (ROOT / "scripts/studio_snapshot.py").read_text(encoding="utf-8")
+    frontend = (ROOT / "frontend/src/ControlCenter.tsx").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/autonomous-app-review-v31.yml").read_text(encoding="utf-8")
+
+    for needle in (
+        'LAB_VERSION = "5.3.0"',
+        'RECORD_TYPE = "VIRTUAL_PRODUCT_REVIEW_COUNCIL"',
+        'AUTHORITY = "APPLAB_VIRTUAL_PRODUCT_REVIEW_COUNCIL_ADVISORY"',
+        'CLASSIFICATION = "VIRTUAL PRODUCT REVIEW COUNCIL"',
+        'REVIEWERS = ("QA", "UX", "ACCESSIBILITY", "PRODUCT", "DESIGN", "MARKET")',
+        'BUCKETS = ("FIX_NOW", "VERIFY_NEXT", "IMPROVE", "CONSIDER", "NO_ACTION")',
+        '"TECHNICAL_DEFECT"',
+        '"USABILITY_RISK"',
+        '"ACCESSIBILITY_RISK"',
+        '"DESIGN_FIT_QUESTION"',
+        '"PRODUCT_OPPORTUNITY"',
+        '"MARKET_OPPORTUNITY"',
+        '"no_numeric_consensus_score": True',
+        '"fix_now_only_from_existing_technical_runtime_evidence": True',
+        '"simulated_users_are_not_real_users": True',
+        '"physical_device_validation_remains_separate": True',
+        '"release_certification_remains_separate": True',
+        '"council_does_not_replace_product_ownership": True',
+        'CROSS_REVIEW_AGREEMENT',
+        'CROSS_REVIEW_ACTION_CONTRADICTION',
+        'evidence-graph.json is required for Virtual Product Review Council',
+        'AppLab Virtual Product Review Council v5.3 self-test PASS',
+    ):
+        require(needle in engine, f"v5.3 review council engine missing invariant: {needle}")
+
+    for needle in (
+        'LAB_VERSION = "5.3.0"',
+        'reviewers.canonical_set',
+        'product_review_brief.fix_now_authority',
+        'record_digest_sha256',
+        '"record_valid": False',
+        'portfolio_summary',
+        'AppLab Studio Virtual Product Review Council v5.3 self-test PASS',
+    ):
+        require(needle in projection, f"v5.3 council Studio projection missing invariant: {needle}")
+
+    require(
+        "studio_review_council.project_from_directory" in studio
+        and "studio_review_council.portfolio_summary(projects)" in studio
+        and 'STUDIO_VERSION = "5.3.0"' in studio,
+        "Studio must expose v5.3 review-council evidence",
+    )
+    require(
+        "Virtual Product Review Council" in frontend
+        and "with_review_council" in frontend
+        and "project.review_council.record_valid === false" in frontend,
+        "Control Center must surface review-council evidence",
+    )
+    for needle in (
+        "Build Virtual Product Review Council",
+        "scripts/virtual_product_review_council.py",
+        "virtual-product-review-council.md",
+        "AppLab True Autonomous App Review v5.3.0",
+        "virtual_product_review_council|studio_review_council",
+    ):
+        require(needle in workflow, f"v5.3 autonomous review integration missing: {needle}")
+
+    require(
+        (ROOT / "integration/review/VIRTUAL_PRODUCT_REVIEW_COUNCIL_V53.md").is_file(),
+        "v5.3 review council contract documentation is required",
     )
 
 
@@ -1147,6 +1218,7 @@ def main() -> int:
     check_simulated_human_qa_contract()
     check_design_system_advisor_contract()
     check_competitive_product_intelligence_contract()
+    check_virtual_product_review_council_contract()
     check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
