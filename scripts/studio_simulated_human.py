@@ -178,6 +178,37 @@ def _validated_record(
                 observed = summary.get(key)
                 if type(observed) is not int or observed != expected:
                     errors.append("persona_summary")
+    heuristic_raw = payload.get("heuristic_review")
+    heuristics = (
+        [row for row in heuristic_raw if isinstance(row, dict)]
+        if isinstance(heuristic_raw, list)
+        else []
+    )
+    heuristic_names = [str(row.get("heuristic", "")).strip() for row in heuristics]
+    if heuristic_names != list(simulated.HEURISTICS) or len(heuristics) != len(simulated.HEURISTICS):
+        errors.append("heuristic_review")
+    for row in heuristics:
+        if str(row.get("state", "")).strip().upper() not in {
+            "REVIEW_SIGNAL",
+            "NO_STRONG_SIGNAL",
+        }:
+            errors.append("heuristic_state")
+        signal_ids = row.get("signal_ids")
+        if not isinstance(signal_ids, list) or not all(
+            isinstance(value, str) and value for value in signal_ids
+        ):
+            errors.append("heuristic_signal_ids")
+
+    support_by_signal: dict[str, set[str]] = {}
+    for persona_row in personas:
+        persona_name = str(persona_row.get("persona", "")).strip()
+        for task in persona_row.get("tasks") or []:
+            if not isinstance(task, dict):
+                continue
+            for signal_id in task.get("signal_ids") or []:
+                if isinstance(signal_id, str) and signal_id:
+                    support_by_signal.setdefault(signal_id, set()).add(persona_name)
+
     findings_raw = payload.get("consensus_findings")
     findings = (
         [row for row in findings_raw if isinstance(row, dict)]
@@ -195,8 +226,22 @@ def _validated_record(
         non_supporters = row.get("non_supporting_personas")
         if route not in simulated.ALLOWED_ROUTES:
             errors.append("finding_route")
+        if str(row.get("classification", "")).strip() != simulated.CLASSIFICATION:
+            errors.append("finding_classification")
         if not signal_id or not str(row.get("kind", "")).strip() or not str(row.get("subject", "")).strip():
             errors.append("finding_identity")
+        evidence = row.get("evidence")
+        if not isinstance(evidence, dict):
+            errors.append("finding_evidence")
+        else:
+            source = str(evidence.get("source", "")).strip()
+            refs = evidence.get("refs")
+            if source not in set(simulated.SOURCE_FILES.values()):
+                errors.append("finding_evidence")
+            if not isinstance(refs, list) or not all(isinstance(value, str) for value in refs):
+                errors.append("finding_evidence")
+            if not isinstance(evidence.get("message", ""), str):
+                errors.append("finding_evidence")
         if not isinstance(supporters, list) or not isinstance(non_supporters, list):
             errors.append("finding_personas")
             continue
@@ -212,6 +257,16 @@ def _validated_record(
             or set(supporters) | set(non_supporters) != set(simulated.PERSONAS)
         ):
             errors.append("finding_personas")
+        expected_supporters = [
+            persona
+            for persona in simulated.PERSONAS
+            if persona in support_by_signal.get(signal_id, set())
+        ]
+        expected_non_supporters = [
+            persona for persona in simulated.PERSONAS if persona not in expected_supporters
+        ]
+        if supporters != expected_supporters or non_supporters != expected_non_supporters:
+            errors.append("finding_persona_derivation")
         support_count = row.get("support_count")
         if type(support_count) is not int or support_count != len(supporters):
             errors.append("finding_support_count")
@@ -238,6 +293,13 @@ def _validated_record(
         finding = finding_by_signal.get(signal_id)
         if finding is None or str(finding.get("route", "")).strip().upper() != route:
             errors.append("action_finding_binding")
+        elif (
+            str(row.get("kind", "")).strip() != str(finding.get("kind", "")).strip()
+            or str(row.get("subject", "")).strip() != str(finding.get("subject", "")).strip()
+        ):
+            errors.append("action_finding_binding")
+        if not str(row.get("basis", "")).strip():
+            errors.append("action_basis")
         supporters = row.get("supporting_personas")
         if finding is not None and supporters != finding.get("supporting_personas"):
             errors.append("action_personas")
@@ -258,6 +320,53 @@ def _validated_record(
     }
     if observed_actions != expected_actions or len(actions) != len(expected_actions):
         errors.append("action_consistency")
+
+    summary = payload.get("summary")
+    if not isinstance(summary, dict):
+        errors.append("summary")
+    else:
+        all_tasks = [
+            task
+            for persona_row in personas
+            for task in (persona_row.get("tasks") or [])
+            if isinstance(task, dict)
+        ]
+        expected_summary = {
+            "persona_count": len(personas),
+            "task_count": len(all_tasks),
+            "friction_sessions": sum(
+                1 for task in all_tasks
+                if str(task.get("outcome", "")).strip().upper() == "FRICTION_SIGNAL"
+            ),
+            "evidence_incomplete_sessions": sum(
+                1 for task in all_tasks
+                if str(task.get("outcome", "")).strip().upper() == "EVIDENCE_INCOMPLETE"
+            ),
+            "no_strong_signal_sessions": sum(
+                1 for task in all_tasks
+                if str(task.get("outcome", "")).strip().upper() == "NO_STRONG_SIGNAL"
+            ),
+            "not_applicable_sessions": sum(
+                1 for task in all_tasks
+                if str(task.get("outcome", "")).strip().upper() == "NOT_APPLICABLE"
+            ),
+            "consensus_findings": sum(1 for row in findings if row.get("recurring") is True),
+            "disagreements": sum(
+                1 for row in findings
+                if bool(row.get("supporting_personas"))
+                and bool(row.get("non_supporting_personas"))
+            ),
+            "verify_next": sum(
+                1 for row in actions if str(row.get("route", "")).strip().upper() == "VERIFY_NEXT"
+            ),
+            "improve": sum(
+                1 for row in actions if str(row.get("route", "")).strip().upper() == "IMPROVE"
+            ),
+        }
+        for key, expected in expected_summary.items():
+            observed = summary.get(key)
+            if type(observed) is not int or observed != expected:
+                errors.append("summary")
 
     declared = str(payload.get("state", "")).strip().upper()
     derived = _derived_state(personas, actions) if personas else "EVIDENCE_INCOMPLETE"
