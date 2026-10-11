@@ -368,8 +368,10 @@ jobs:
             --graph "$GITHUB_WORKSPACE/applab-autonomous-review/evidence-graph.json" \
             --analysis-plan "$GITHUB_WORKSPACE/trusted-runtime/analysis-plan.json" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
+          mkdir -p "$GITHUB_WORKSPACE/.applab-longitudinal/planner-feedback"
+          LINEAGE_SCOPE="$(printf '%s' "${{ needs.resolve.outputs.lineage_ref }}" | sha256sum | cut -c1-12)"
           cp "$GITHUB_WORKSPACE/applab-autonomous-review/planner-feedback.json" \
-            "$GITHUB_WORKSPACE/.applab-longitudinal/planner-feedback.json"
+            "$GITHUB_WORKSPACE/.applab-longitudinal/planner-feedback/${{ needs.resolve.outputs.resolved_sha }}-$LINEAGE_SCOPE.json"
 
       - name: Build Simulated Human QA
         shell: bash
