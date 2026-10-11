@@ -2269,7 +2269,7 @@ def markdown(graph: dict[str, Any]) -> str:
         "- A first-observed SHA is not proof that the commit introduced the behavior."
     )
     lines.append(
-        "- Evidence Graph does not alter FAST/FULL/CERTIFICATION or trusted-runtime authority."
+        "- Evidence Graph never retroactively changes the current FAST/FULL/CERTIFICATION lane; later runs may consume separately validated escalation-only planner feedback."
     )
     lines.append(
         "- Impact edges are bounded structural observations, not root-cause proof."
