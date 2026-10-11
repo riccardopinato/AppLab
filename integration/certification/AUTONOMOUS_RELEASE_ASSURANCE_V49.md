@@ -43,7 +43,11 @@ stage state.
 
 Cross-app evidence remains a separate conditional stage. When a bound pair record
 is supplied it must contain the exact current release artifact and must preserve
-the independent cross-app authority introduced in v4.8.
+the independent cross-app authority introduced in v4.8. True Autonomous Review
+accepts an optional `cross_app_run_id`, verifies that the successful workflow run
+came from `cross-app-verification.yml` on trusted AppLab `main`, downloads the
+90-day attestation artifact, verifies its digest/attestation, and only then binds
+the record into Release Assurance.
 
 ## Fail-closed rules
 
@@ -51,8 +55,10 @@ the independent cross-app authority introduced in v4.8.
 - Evidence identity mismatch is FAIL.
 - Exact artifact bytes are mandatory.
 - Evidence Graph must match repository/revision/package when those identities are present.
-- Required physical evidence remains independent from emulator evidence.
-- Distribution is not inferred from certification or from a green build.
+- Adaptive risk plans must use the canonical lane schema and match the exact repository/revision.
+- Required physical evidence remains independent from emulator evidence; an attached optional physical FAIL is still a FAIL.
+- Distribution is not inferred from certification or from a green build, and only an explicit distribution PASS can satisfy the stage.
+- Canonical certification PASS requires an identity-bound `certification.json`; the embedded Release Reality summary is context only.
 - Cross-app PASS is not inferred from two individually green apps.
 - Release Assurance cannot promote or issue CERTIFIED.
 - No numeric release/product score is introduced.
