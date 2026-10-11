@@ -390,6 +390,7 @@ jobs:
             echo
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/evidence-graph.md"
             echo
+            cat "$GITHUB_WORKSPACE/applab-autonomous-review/simulated-human-qa.md"
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/release-assurance.md"
           } >> "$GITHUB_STEP_SUMMARY"
 
