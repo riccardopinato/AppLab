@@ -826,15 +826,19 @@ def check_release_assurance_contract() -> None:
     projection = (ROOT / "scripts/studio_release_assurance.py").read_text(encoding="utf-8")
     require(
         '"release_assurance_blocked"' in projection
-        and '"release_assurance_fail"' in projection,
-        "Release Assurance Studio projection must preserve blocked/fail states",
+        and '"release_assurance_fail"' in projection
+        and "_identity_match" in projection
+        and '"next_required_stage": "IDENTITY_MISMATCH"' in projection
+        and '"certification_status": "NOT_VERIFIED"' in projection,
+        "Release Assurance Studio projection must preserve blocked/fail states and reject stale identities",
     )
     require(
         "Autonomous Release Assurance" in frontend
         and "release_assurance_pass" in frontend
         and "release_assurance_blocked" in frontend
         and "project.release_assurance.blockers" in frontend
-        and "project.release_assurance.failures" in frontend,
+        and "project.release_assurance.failures" in frontend
+        and "project.release_assurance.identity_match === false" in frontend,
         "Control Center must expose release assurance state",
     )
     cross_helper = (ROOT / "scripts/trusted_cross_app_evidence.py").read_text(
