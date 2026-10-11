@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v4.8.0
+name: AppLab True Autonomous App Review v4.9.0
 
 on:
   schedule:
@@ -291,6 +291,22 @@ jobs:
             --trusted-runtime-dir "$GITHUB_WORKSPACE/trusted-runtime" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
 
+      - name: Bind trusted release evidence for assurance
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cp "$GITHUB_WORKSPACE/trusted-runtime/release-reality.json" "$GITHUB_WORKSPACE/applab-autonomous-review/"
+          cp "$GITHUB_WORKSPACE/trusted-runtime/analysis-plan.json" "$GITHUB_WORKSPACE/applab-autonomous-review/" 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/trusted-runtime/certification.json" "$GITHUB_WORKSPACE/applab-autonomous-review/" 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/trusted-runtime/physical-evidence.json" "$GITHUB_WORKSPACE/applab-autonomous-review/" 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/trusted-runtime/distribution-evidence.json" "$GITHUB_WORKSPACE/applab-autonomous-review/" 2>/dev/null || true
+
+      - name: Build Autonomous Release Assurance
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/release_assurance.py             --report-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
+
       - name: Upload repository-wide longitudinal history
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -300,7 +316,7 @@ jobs:
           include-hidden-files: true
           retention-days: 90
 
-      - name: Publish v4.8 review
+      - name: Publish v4.9 review
         shell: bash
         run: |
           {
@@ -317,6 +333,8 @@ jobs:
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/analyst-report.md"
             echo
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/evidence-graph.md"
+            echo
+            cat "$GITHUB_WORKSPACE/applab-autonomous-review/release-assurance.md"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Package Studio-ready evidence
