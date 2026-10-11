@@ -23,6 +23,17 @@ NOT_APPLICABLE = "N/A"
 ALLOWED = {PASS, FAIL, BLOCKED, NOT_VERIFIED, NOT_APPLICABLE}
 PLAN_LANES = {"NO_RUNTIME_CHANGE", "STATIC_ONLY", "FAST_RUNTIME", "FULL_RUNTIME", "CERTIFICATION"}
 PLAN_MODES = {"fast", "full", "certification"}
+PLAN_LABS = {
+    "system",
+    "performance",
+    "network",
+    "persistence",
+    "configuration",
+    "resource_pressure",
+    "background",
+    "storage",
+    "upgrade",
+}
 
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -198,12 +209,14 @@ def cross_state(record: dict[str, Any], ident: dict[str, str]) -> tuple[bool, st
     if not found:
         return True, FAIL, "Cross-app evidence does not contain the bound artifact identity."
     round_trip = record.get("cross_app_round_trip") if isinstance(record.get("cross_app_round_trip"), dict) else {}
-    result = norm_state(round_trip.get("state"))
+    result = clean(round_trip.get("state")).upper()
     if result == PASS:
         return True, PASS, "Cross-app round-trip PASS is bound to this release artifact."
     if result == FAIL:
         return True, FAIL, "Cross-app round-trip failed."
-    return True, BLOCKED, "Cross-app evidence is present but is not PASS."
+    if result in {BLOCKED, NOT_VERIFIED}:
+        return True, BLOCKED, "Cross-app evidence is present but is not PASS."
+    return True, FAIL, f"Cross-app evidence uses invalid round-trip state {result or 'MISSING'}."
 
 
 def risk_plan_state(plan: dict[str, Any], ident: dict[str, str]) -> tuple[str, str]:
@@ -225,7 +238,11 @@ def risk_plan_state(plan: dict[str, Any], ident: dict[str, str]) -> tuple[str, s
     if head_sha != ident["resolved_sha"]:
         return FAIL, "Adaptive validation plan head SHA does not match the release."
     selected = plan.get("selected_labs")
-    if not isinstance(selected, dict) or not selected or not all(isinstance(value, bool) for value in selected.values()):
+    if (
+        not isinstance(selected, dict)
+        or set(selected) != PLAN_LABS
+        or not all(isinstance(selected[key], bool) for key in PLAN_LABS)
+    ):
         return FAIL, "Adaptive validation plan selected_labs schema is invalid."
     return PASS, f"Risk-based plan is bound to this release: {lane} / {mode}."
 
@@ -322,8 +339,11 @@ def build_report(report_dir: Path) -> dict[str, Any]:
     dist_present, ds, dr = distribution_state(distribution, ident)
     rr_dist = rr_stage(reality, "DISTRIBUTION_VERIFIED")
     dist_required = bool(rr_dist and rr_dist.get("applicable", True)) or dist_present
-    if not dist_present and rr_dist and norm_state(rr_dist.get("state")) == PASS:
+    rr_dist_state = norm_state(rr_dist.get("state")) if rr_dist else NOT_VERIFIED
+    if not dist_present and rr_dist_state == PASS:
         ds, dr = BLOCKED, "Release Reality claims distribution PASS without attached trusted distribution evidence."
+    elif not dist_present and rr_dist_state == FAIL:
+        ds, dr = FAIL, clean(rr_dist.get("reason")) or "Release Reality records a distribution failure."
     rows.append(stage(
         "DISTRIBUTION_EVIDENCE",
         "Distribution evidence",
@@ -498,7 +518,7 @@ def self_test() -> None:
             "lane": "CERTIFICATION",
             "repository": "owner/demo",
             "head_sha": "a" * 40,
-            "selected_labs": {"system": True},
+            "selected_labs": {key: True for key in sorted(PLAN_LABS)},
             "confidence": 1.0,
         }
         (root / PLAN).write_text(json.dumps(plan), encoding="utf-8")
@@ -576,6 +596,49 @@ def self_test() -> None:
         invalid_distribution["result"] = "CERTIFIED"
         (root / DIST).write_text(json.dumps(invalid_distribution), encoding="utf-8")
         assert build_report(root)["state"] == FAIL
+        (root / DIST).write_text(json.dumps(distribution), encoding="utf-8")
+
+        bad_selected = json.loads(json.dumps(plan))
+        bad_selected["selected_labs"] = {"bogus": True}
+        (root / PLAN).write_text(json.dumps(bad_selected), encoding="utf-8")
+        assert build_report(root)["state"] == FAIL
+        (root / PLAN).write_text(json.dumps(plan), encoding="utf-8")
+
+        invalid_cross = {
+            "pair_identity": {
+                "producer": {
+                    "repository": "owner/demo",
+                    "resolved_sha": "a" * 40,
+                    "artifact_sha256": "b" * 64,
+                    "package_id": "com.example.demo",
+                    "version_name": "1.0.0",
+                    "version_code": "1",
+                },
+                "consumer": {
+                    "repository": "owner/other",
+                    "resolved_sha": "e" * 40,
+                    "artifact_sha256": "f" * 64,
+                    "package_id": "com.example.other",
+                    "version_name": "1.0.0",
+                    "version_code": "1",
+                },
+            },
+            "cross_app_round_trip": {"state": "CERTIFIED"},
+        }
+        (root / CROSS).write_text(json.dumps(invalid_cross), encoding="utf-8")
+        assert build_report(root)["state"] == FAIL
+        (root / CROSS).unlink()
+
+        rr_distribution_fail = json.loads(json.dumps(reality))
+        for row in rr_distribution_fail["levels"]:
+            if row.get("key") == "DISTRIBUTION_VERIFIED":
+                row.update({"state": FAIL, "applicable": True, "reason": "distribution failed"})
+        (root / DIST).unlink()
+        (root / RR).write_text(json.dumps(rr_distribution_fail), encoding="utf-8")
+        distribution_failure = build_report(root)
+        assert distribution_failure["state"] == FAIL
+        assert any(row["key"] == "DISTRIBUTION_EVIDENCE" for row in distribution_failure["failures"])
+        (root / RR).write_text(json.dumps(reality), encoding="utf-8")
         (root / DIST).write_text(json.dumps(distribution), encoding="utf-8")
 
         stale_plan = json.loads(json.dumps(plan))
