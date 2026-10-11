@@ -344,6 +344,7 @@ def competitor_set(raw: dict[str, Any], normalized: dict[str, Any]) -> dict[str,
         "competitor_count": len(normalized.get("competitors", [])),
         "competitors": [{"id": row.get("id"), "name": row.get("name")} for row in normalized.get("competitors", [])],
         "source_urls": source_urls,
+        "evidence_sha256": hashlib.sha256(canonical_bytes(raw)).hexdigest(),
     }
 
 def build_report(
@@ -429,7 +430,7 @@ def build_report(
         "route": "PROTECT_DIFFERENTIATOR",
         "subject": row["key"],
         "message": "Current project evidence indicates a capability less common in the supplied competitor set.",
-        "evidence": row["source_urls"],
+        "evidence": sorted(set(row["source_urls"] + set_info["source_urls"])),
     } for row in differentiators)
     findings.extend({
         "kind": "COMPETITOR_WEAKNESS_OPPORTUNITY",
@@ -447,7 +448,12 @@ def build_report(
             "evidence": [f"as_of={fresh['as_of']}", f"max_age_days={fresh['max_age_days']}"],
         })
 
-    state = "STALE_EVIDENCE" if fresh["state"] == "STALE_EVIDENCE" else "READY"
+    if fresh["state"] == "EVIDENCE_INCOMPLETE":
+        state = "EVIDENCE_INCOMPLETE"
+    elif fresh["state"] in {"STALE_EVIDENCE", "PARTIAL_STALE"}:
+        state = "STALE_EVIDENCE"
+    else:
+        state = "READY"
     record = {
         "schema_version": SCHEMA_VERSION,
         "lab_version": LAB_VERSION,
