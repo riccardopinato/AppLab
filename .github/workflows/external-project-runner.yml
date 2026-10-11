@@ -665,6 +665,7 @@ jobs:
             --history-file "$GITHUB_WORKSPACE/.applab-history/history.jsonl" \
             --history-key "${{ inputs.history_key }}" \
             --source-ref "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}" \
+            --planner-feedback "$RUNNER_TEMP/applab-planner-feedback.json" \
             --quality-json "$GITHUB_WORKSPACE/applab-report/adaptive-quality.json" \
             --build-command "${{ inputs.build_command }}" \
             --analyze-status "${{ steps.quality.outputs.analyze || 'NOT_RUN' }}" \
