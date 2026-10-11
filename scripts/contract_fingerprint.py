@@ -33,6 +33,8 @@ CONTRACT_FILES = (
     "scripts/background_lab.py",
     "scripts/storage_lab.py",
     "scripts/smart_test_plan.py",
+    "scripts/planner_feedback.py",
+    "scripts/restore_planner_feedback.sh",
     "scripts/adaptive_checks.py",
     "scripts/incremental_result.py",
     "scripts/shadow_calibration.py",
