@@ -503,6 +503,30 @@ def self_test() -> None:
         (root / CERT).write_text(json.dumps(stale_cert), encoding="utf-8")
         assert build_report(root)["state"] == FAIL
         (root / CERT).write_text(json.dumps(certification), encoding="utf-8")
+        bad_pair = {
+            "pair_identity": {
+                "producer": {
+                    "repository": "owner/demo",
+                    "resolved_sha": "a" * 40,
+                    "artifact_sha256": "b" * 64,
+                    "package_id": "com.example.wrong",
+                    "version_name": "1.0.0",
+                    "version_code": "1",
+                },
+                "consumer": {
+                    "repository": "owner/other",
+                    "resolved_sha": "e" * 40,
+                    "artifact_sha256": "f" * 64,
+                    "package_id": "com.example.other",
+                    "version_name": "1.0.0",
+                    "version_code": "1",
+                },
+            },
+            "cross_app_round_trip": {"state": PASS},
+        }
+        (root / CROSS).write_text(json.dumps(bad_pair), encoding="utf-8")
+        assert build_report(root)["state"] == FAIL
+        (root / CROSS).unlink()
         write_outputs(root, second)
         assert (root / "release-assurance.json").is_file()
         assert "Authority boundary" in (root / "release-assurance.md").read_text(encoding="utf-8")
