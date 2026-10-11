@@ -145,19 +145,45 @@ def report_digest(report: dict[str, Any]) -> str:
 
 
 def evidence_identity(graph: dict[str, Any]) -> dict[str, str]:
+    if graph.get("schema_version") != 2 or clean(graph.get("graph_version")) != "2.0":
+        raise ValueError("Evidence Graph schema/version is invalid")
     identity = graph.get("identity") if isinstance(graph.get("identity"), dict) else {}
+    roots = graph.get("root_nodes") if isinstance(graph.get("root_nodes"), dict) else {}
+    artifact_id = clean(roots.get("build_artifact"))
+    nodes = graph.get("nodes") if isinstance(graph.get("nodes"), list) else []
+    artifact_rows = [
+        row
+        for row in nodes
+        if isinstance(row, dict)
+        and clean(row.get("id")) == artifact_id
+        and clean(row.get("type")) == "BuildArtifact"
+    ]
+    if not artifact_id or len(artifact_rows) != 1:
+        raise ValueError("Evidence Graph canonical build artifact is missing")
+    attrs = (
+        artifact_rows[0].get("attributes")
+        if isinstance(artifact_rows[0].get("attributes"), dict)
+        else {}
+    )
     out = {
         "repository": clean(identity.get("repository")),
         "resolved_sha": clean(identity.get("resolved_sha")).lower(),
         "run_id": clean(identity.get("run_id")),
         "package_id": clean(identity.get("package_id")),
+        "artifact_sha256": clean(attrs.get("apk_sha256")).lower(),
+        "version_name": clean(attrs.get("version_name")),
+        "version_code": clean(attrs.get("version_code")),
     }
     if not out["repository"] or "/" not in out["repository"]:
         raise ValueError("Evidence Graph repository identity is missing")
     if len(out["resolved_sha"]) != 40 or any(ch not in "0123456789abcdef" for ch in out["resolved_sha"]):
         raise ValueError("Evidence Graph resolved SHA is invalid")
-    if not out["package_id"]:
-        raise ValueError("Evidence Graph package identity is missing")
+    if not out["package_id"] or clean(attrs.get("package_id")) != out["package_id"]:
+        raise ValueError("Evidence Graph package identity is inconsistent")
+    if len(out["artifact_sha256"]) != 64 or any(ch not in "0123456789abcdef" for ch in out["artifact_sha256"]):
+        raise ValueError("Evidence Graph artifact SHA-256 is invalid")
+    if not out["version_name"] or not out["version_code"]:
+        raise ValueError("Evidence Graph artifact version identity is incomplete")
     return out
 
 
@@ -541,7 +567,8 @@ def markdown(report: dict[str, Any]) -> str:
         f"- Classification: **{CLASSIFICATION}**",
         f"- Advisory state: **{report['state']}**",
         f"- Project: **{identity['repository']}@{identity['resolved_sha']}**",
-        f"- Package: **{identity['package_id']}**",
+        f"- Package: **{identity['package_id']}** · {identity['version_name']} ({identity['version_code']})",
+        f"- APK SHA-256: **{identity['artifact_sha256']}**",
         f"- Personas: **{summary['persona_count']}**",
         f"- Tasks: **{summary['task_count']}**",
         f"- Friction / incomplete: **{summary['friction_sessions']} / {summary['evidence_incomplete_sessions']}**",
@@ -580,7 +607,7 @@ def markdown(report: dict[str, Any]) -> str:
 def self_test() -> None:
     with tempfile.TemporaryDirectory() as raw:
         root = Path(raw)
-        (root / SOURCE_FILES["graph"]).write_text(json.dumps({
+        graph = {
             "schema_version": 2,
             "graph_version": "2.0",
             "identity": {
@@ -589,7 +616,21 @@ def self_test() -> None:
                 "run_id": "123",
                 "package_id": "com.example.demo",
             },
-        }), encoding="utf-8")
+            "root_nodes": {"build_artifact": "artifact:demo"},
+            "nodes": [
+                {
+                    "id": "artifact:demo",
+                    "type": "BuildArtifact",
+                    "attributes": {
+                        "package_id": "com.example.demo",
+                        "apk_sha256": "b" * 64,
+                        "version_name": "1.0.0",
+                        "version_code": "1",
+                    },
+                }
+            ],
+        }
+        (root / SOURCE_FILES["graph"]).write_text(json.dumps(graph), encoding="utf-8")
         (root / SOURCE_FILES["app"]).write_text(json.dumps({
             "product": {
                 "feature_signals": [
@@ -641,6 +682,18 @@ def self_test() -> None:
         assert all(row["route"] != "FIX_NOW" for row in report["actions"])
         assert report["guardrails"]["simulated_review_is_not_real_user_validation"] is True
         assert report["record_digest_sha256"] == report_digest(report)
+        assert report["identity"]["artifact_sha256"] == "b" * 64
+
+        stale_graph = json.loads(json.dumps(graph))
+        stale_graph["nodes"][0]["attributes"]["package_id"] = "com.example.other"
+        (root / SOURCE_FILES["graph"]).write_text(json.dumps(stale_graph), encoding="utf-8")
+        try:
+            build_report(root)
+        except ValueError as exc:
+            assert "package identity is inconsistent" in str(exc)
+        else:
+            raise AssertionError("stale Evidence Graph artifact identity must fail closed")
+        (root / SOURCE_FILES["graph"]).write_text(json.dumps(graph), encoding="utf-8")
 
         empty = Path(raw) / "empty"
         empty.mkdir()
