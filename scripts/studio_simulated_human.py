@@ -283,12 +283,17 @@ def project_from_directory(project_dir: Path) -> dict[str, Any] | None:
             identity_mismatches=mismatches,
         )
 
-    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
     findings = (
         payload.get("consensus_findings")
         if isinstance(payload.get("consensus_findings"), list)
         else []
     )
+    tasks = [
+        task
+        for persona in personas
+        for task in (persona.get("tasks") or [])
+        if isinstance(task, dict)
+    ]
     top_findings = [
         {
             "kind": str(row.get("kind", "")),
@@ -303,10 +308,26 @@ def project_from_directory(project_dir: Path) -> dict[str, Any] | None:
         "state": derived,
         "persona_count": len(personas),
         "task_count": sum(len(row.get("tasks") or []) for row in personas),
-        "friction_sessions": int(summary.get("friction_sessions", 0) or 0),
-        "evidence_incomplete_sessions": int(summary.get("evidence_incomplete_sessions", 0) or 0),
-        "consensus_findings": int(summary.get("consensus_findings", 0) or 0),
-        "disagreements": int(summary.get("disagreements", 0) or 0),
+        "friction_sessions": sum(
+            1
+            for task in tasks
+            if str(task.get("outcome", "")).strip().upper() == "FRICTION_SIGNAL"
+        ),
+        "evidence_incomplete_sessions": sum(
+            1
+            for task in tasks
+            if str(task.get("outcome", "")).strip().upper() == "EVIDENCE_INCOMPLETE"
+        ),
+        "consensus_findings": sum(
+            1 for row in findings if isinstance(row, dict) and row.get("recurring") is True
+        ),
+        "disagreements": sum(
+            1
+            for row in findings
+            if isinstance(row, dict)
+            and bool(row.get("supporting_personas"))
+            and bool(row.get("non_supporting_personas"))
+        ),
         "verify_next": sum(1 for row in actions if row.get("route") == "VERIFY_NEXT"),
         "improve": sum(1 for row in actions if row.get("route") == "IMPROVE"),
         "top_findings": top_findings,
