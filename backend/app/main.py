@@ -172,6 +172,7 @@ def health() -> dict:
             "longitudinal-product-intelligence",
             "autonomous-experiment-planner",
             "applab-analyst",
+            "virtual-product-review-council",
             "evidence-graph-v4.2",
             "audit-hardening-v4.0.1",
             "residual-hardening-v4.0.2",
