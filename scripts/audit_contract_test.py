@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "5.3.1"
+EXPECTED_VERSION = "5.3.2"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -825,7 +825,7 @@ def check_release_assurance_contract() -> None:
         "release-assurance.md",
         "release-reality.json",
         "evidence-graph.md",
-        "AppLab True Autonomous App Review v5.3.1",
+        "AppLab True Autonomous App Review v5.3.2",
         "release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|virtual_product_review_council|studio_review_council|trusted_cross_app_evidence|physical_evidence",
         "cross_app_run_id",
         "trusted_cross_app_evidence.py verify-run",
@@ -960,7 +960,7 @@ def check_simulated_human_qa_contract() -> None:
     require(
         "studio_simulated_human.project_from_directory" in studio
         and "studio_simulated_human.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.3.1"' in studio,
+        and 'STUDIO_VERSION = "5.3.2"' in studio,
         "Studio must expose v5.0 simulated-human evidence through the v5.1 Studio projection",
     )
     require(
@@ -974,7 +974,7 @@ def check_simulated_human_qa_contract() -> None:
         "Build Simulated Human QA",
         "scripts/simulated_human_qa.py",
         "simulated-human-qa.md",
-        "AppLab True Autonomous App Review v5.3.1",
+        "AppLab True Autonomous App Review v5.3.2",
         "simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor",
     ):
         require(needle in workflow, f"v5.0 autonomous review integration missing: {needle}")
@@ -1039,7 +1039,7 @@ def check_design_system_advisor_contract() -> None:
     require(
         "studio_design_advisor.project_from_directory" in studio
         and "studio_design_advisor.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.3.1"' in studio,
+        and 'STUDIO_VERSION = "5.3.2"' in studio,
         "Studio must expose v5.1 design-advisor evidence through the dedicated projection",
     )
     require(
@@ -1052,7 +1052,7 @@ def check_design_system_advisor_contract() -> None:
         "Build Design System & UI Library Advisor",
         "scripts/design_system_advisor.py",
         "design-system-advisor.md",
-        "AppLab True Autonomous App Review v5.3.1",
+        "AppLab True Autonomous App Review v5.3.2",
         "design_system_advisor|studio_design_advisor",
     ):
         require(needle in workflow, f"v5.1 autonomous review integration missing: {needle}")
@@ -1105,7 +1105,7 @@ def check_competitive_product_intelligence_contract() -> None:
     require(
         "studio_competitive_product.project_from_directory" in studio
         and "studio_competitive_product.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.3.1"' in studio,
+        and 'STUDIO_VERSION = "5.3.2"' in studio,
         "Studio must expose v5.2 competitive-product evidence",
     )
     require(
@@ -1118,7 +1118,7 @@ def check_competitive_product_intelligence_contract() -> None:
         "Build Competitive Product Intelligence",
         "scripts/competitive_product_intelligence.py",
         "competitive-product-intelligence.md",
-        "AppLab True Autonomous App Review v5.3.1",
+        "AppLab True Autonomous App Review v5.3.2",
         "competitive_product_intelligence|studio_competitive_product",
         "market_evidence_path:",
     ):
@@ -1177,7 +1177,7 @@ def check_virtual_product_review_council_contract() -> None:
     require(
         "studio_review_council.project_from_directory" in studio
         and "studio_review_council.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.3.1"' in studio,
+        and 'STUDIO_VERSION = "5.3.2"' in studio,
         "Studio must expose v5.3 review-council evidence",
     )
     require(
@@ -1190,7 +1190,7 @@ def check_virtual_product_review_council_contract() -> None:
         "Build Virtual Product Review Council",
         "scripts/virtual_product_review_council.py",
         "virtual-product-review-council.md",
-        "AppLab True Autonomous App Review v5.3.1",
+        "AppLab True Autonomous App Review v5.3.2",
         "virtual_product_review_council|studio_review_council",
     ):
         require(needle in workflow, f"v5.3 autonomous review integration missing: {needle}")
@@ -1290,6 +1290,103 @@ def check_v531_technical_hardening_contract() -> None:
     )
 
 
+def check_v532_graph_aware_planning_feedback_contract() -> None:
+    feedback = (ROOT / "scripts/planner_feedback.py").read_text(encoding="utf-8")
+    planner = (ROOT / "scripts/smart_test_plan.py").read_text(encoding="utf-8")
+    packager = (ROOT / "scripts/package_build_contract.py").read_text(encoding="utf-8")
+    graph = (ROOT / "scripts/evidence_graph.py").read_text(encoding="utf-8")
+    flutter = (ROOT / ".github/workflows/external-project-runner.yml").read_text(encoding="utf-8")
+    native = (ROOT / ".github/workflows/external-native-android-runner.yml").read_text(encoding="utf-8")
+    review = (ROOT / ".github/workflows/autonomous-app-review-v31.yml").read_text(encoding="utf-8")
+    watcher = (ROOT / ".github/workflows/repo-watcher.yml").read_text(encoding="utf-8")
+    fingerprint = (ROOT / "scripts/contract_fingerprint.py").read_text(encoding="utf-8")
+    maintainability = (ROOT / "scripts/maintainability_budget.py").read_text(encoding="utf-8")
+
+    for needle in (
+        'ENGINE_VERSION = "5.3.2"',
+        'RECORD_TYPE = "EVIDENCE_GRAPH_PLANNER_FEEDBACK"',
+        'GRAPH_SCHEMA_VERSION = 2',
+        'GRAPH_VERSION = "2.0"',
+        'MAX_RISK_BOOST = 20',
+        "def build_feedback(",
+        "def evaluate_feedback(",
+        '"advisory_input_only": True',
+        '"smart_test_plan_remains_single_authority": True',
+        '"cannot_reduce_coverage": True',
+        '"current_run_graph_cannot_retroactively_change_lane": True',
+        '"exact_baseline_sha_required": True',
+        '"missing_invalid_or_truncated_feedback_is_ignored": True',
+        "BASELINE_SHA_MISMATCH",
+        "LINEAGE_MISMATCH",
+        "SOURCE_ANALYSIS_TRUNCATED",
+        "IMPACT_PATH_CAP_REACHED",
+        "DIGEST_MISMATCH",
+        "AppLab Graph-aware Planner Feedback v5.3.2 self-test PASS",
+    ):
+        require(needle in feedback, f"v5.3.2 planner-feedback contract missing: {needle}")
+
+    for needle in (
+        'from planner_feedback import evaluate_feedback',
+        '"planner_version": "1.1.0"',
+        "def apply_graph_planner_feedback(",
+        '"coverage_reduced": False',
+        "APPLIED_ESCALATION_ONLY",
+        "prior trusted Evidence Graph risk escalation to FULL",
+        'parser.add_argument("--planner-feedback"',
+        "planner_feedback_path",
+    ):
+        require(needle in planner, f"v5.3.2 Smart Test Plan integration missing: {needle}")
+
+    require(
+        'planner_feedback_path=args.planner_feedback' in packager
+        and '"planner_feedback",' in packager
+        and 'output / "planner-feedback.json"' in packager,
+        "trusted build-contract recomputation must bind planner feedback immutably",
+    )
+    require(
+        '"graph_does_not_retroactively_change_current_fast_full_certification": True' in graph
+        and '"graph_does_not_change_fast_full_certification": True' not in graph,
+        "Evidence Graph must express future-feedback vs current-run authority precisely",
+    )
+
+    for workflow in (flutter, native):
+        for needle in (
+            "Restore prior graph planner feedback",
+            "restore_planner_feedback.sh",
+            '--planner-feedback "$RUNNER_TEMP/applab-planner-feedback.json"',
+        ):
+            require(needle in workflow, f"v5.3.2 external runner integration missing: {needle}")
+
+    for needle in (
+        "Build graph-aware planner feedback",
+        "scripts/planner_feedback.py",
+        "planner-feedback.md",
+        ".applab-longitudinal/planner-feedback.json",
+        "AppLab True Autonomous App Review v5.3.2",
+    ):
+        require(needle in review, f"v5.3.2 autonomous review integration missing: {needle}")
+
+    require(
+        '"scripts/planner_feedback.py"' in fingerprint
+        and '"scripts/restore_planner_feedback.sh"' in fingerprint,
+        "planner feedback producer/restore helper must invalidate core contract fingerprints",
+    )
+    require(
+        '"scripts/planner_feedback.py"' in watcher
+        and '"scripts/restore_planner_feedback.sh"' in watcher,
+        "Repo Watcher must react to planner-feedback contract changes",
+    )
+    require(
+        '"scripts/smart_test_plan.py": 1000' in maintainability
+        and '"scripts/planner_feedback.py": 420' in maintainability,
+        "v5.3.2 planner modules must have maintainability ceilings",
+    )
+    require(
+        (ROOT / "integration/hardening/GRAPH_AWARE_PLANNING_FEEDBACK_V532.md").is_file(),
+        "v5.3.2 graph-aware planning feedback documentation is required",
+    )
+
+
 def main() -> int:
     check_version_alignment()
     check_local_controller_boundary()
@@ -1309,6 +1406,7 @@ def main() -> int:
     check_competitive_product_intelligence_contract()
     check_virtual_product_review_council_contract()
     check_v531_technical_hardening_contract()
+    check_v532_graph_aware_planning_feedback_contract()
     check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
