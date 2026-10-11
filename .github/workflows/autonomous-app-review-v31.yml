@@ -320,7 +320,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v4.8.0"
+            echo "## AppLab True Autonomous App Review v4.9.0"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
