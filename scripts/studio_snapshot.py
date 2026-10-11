@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import certification_studio, studio_evidence_graph
+import certification_studio, studio_evidence_graph, studio_release_assurance
 
 SCHEMA_VERSION = 1
 STUDIO_VERSION = "4.9.0"
@@ -61,7 +61,7 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
     analyst = read_json(project_dir / "analyst-report.json")
     evidence_graph = read_json(project_dir / "evidence-graph.json")
     release_cockpit = certification_studio.project_from_directory(project_dir, evidence_graph, longitudinal)
-    release_assurance = read_json(project_dir / "release-assurance.json")
+    release_assurance = studio_release_assurance.project_from_directory(project_dir)
     contract = read_json(project_dir / "product-contract-audit.json")
     brief = read_json(project_dir / "decision-brief.json")
     autonomous = read_json(project_dir / "autonomous-review.json")
@@ -91,35 +91,6 @@ def project_summary(project_id: str, project_dir: Path) -> dict[str, Any] | None
         "release_assurance": None,
         "autonomous_review": None,
     }
-
-    if release_assurance:
-        next_stage = release_assurance.get("next_required_stage")
-        next_stage = next_stage if isinstance(next_stage, dict) else {}
-        rows = release_assurance.get("stages")
-        rows = rows if isinstance(rows, list) else []
-        row["release_assurance"] = {
-            "state": str(release_assurance.get("state", "NOT_VERIFIED")),
-            "release_id": str(release_assurance.get("release_id", "")),
-            "assurance_digest": str(release_assurance.get("assurance_digest", "")),
-            "blockers": len(release_assurance.get("blockers") or []),
-            "failures": len(release_assurance.get("failures") or []),
-            "next_required_stage": str(next_stage.get("key", "")),
-            "certification_status": str(
-                ((release_assurance.get("certification") or {}).get("status", "NOT_VERIFIED"))
-            ),
-            "required_passed": sum(
-                1
-                for item in rows
-                if isinstance(item, dict)
-                and item.get("required") is True
-                and item.get("state") == "PASS"
-            ),
-            "required_total": sum(
-                1
-                for item in rows
-                if isinstance(item, dict) and item.get("required") is True
-            ),
-        }
 
     if app:
         product = app.get("product") if isinstance(app.get("product"), dict) else {}
@@ -765,27 +736,7 @@ def build_snapshot(evidence_root: Path) -> dict[str, Any]:
                 1 for row in projects if row.get("evidence_graph") is not None
             ),
             **certification_studio.portfolio_summary(projects),
-            "with_release_assurance": sum(
-                1 for row in projects if row.get("release_assurance") is not None
-            ),
-            "release_assurance_pass": sum(
-                1
-                for row in projects
-                if isinstance(row.get("release_assurance"), dict)
-                and row["release_assurance"].get("state") == "PASS"
-            ),
-            "release_assurance_blocked": sum(
-                1
-                for row in projects
-                if isinstance(row.get("release_assurance"), dict)
-                and row["release_assurance"].get("state") == "BLOCKED"
-            ),
-            "release_assurance_fail": sum(
-                1
-                for row in projects
-                if isinstance(row.get("release_assurance"), dict)
-                and row["release_assurance"].get("state") == "FAIL"
-            ),
+            **studio_release_assurance.portfolio_summary(projects),
             "evidence_graph_nodes": sum(
                 int((row.get("evidence_graph") or {}).get("nodes", 0) or 0)
                 for row in projects
