@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v4.9.0 — Autonomous Release Assurance**
+Current production baseline: **v5.0.0 — Simulated Human QA**
 
 ## Product rule
 
@@ -19,6 +19,19 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v5.0.0 — Simulated Human QA
+
+- [x] Add task-driven simulated usability sessions over trusted product/runtime evidence and canonical Evidence Graph identity.
+- [x] Define exactly seven bounded personas: beginner, power user, older user, accessibility-focused, privacy-conscious, impatient and offline user.
+- [x] Give each persona explicit goals and classify outcomes as FRICTION_SIGNAL, EVIDENCE_INCOMPLETE, NO_STRONG_SIGNAL or NOT_APPLICABLE.
+- [x] Add cognitive walkthrough criteria and bounded heuristic UX review.
+- [x] Aggregate multi-persona consensus while preserving non-supporting personas and disagreement counts.
+- [x] Classify all output as SIMULATED USER REVIEW, never REAL USER VALIDATION or physical-device evidence.
+- [x] Route recurring simulated findings only to VERIFY_NEXT / IMPROVE / NO_ACTION; never automatic FIX_NOW.
+- [x] Bind the record to repository, immutable source SHA, workflow run, package, exact APK SHA-256 and version identity from Evidence Graph.
+- [x] Keep deterministic FAST/FULL/CERTIFICATION and release-assurance authorities independent from simulated review.
+- [x] Add fail-closed Studio projection, Control Center exposure, self-tests and CI/audit/workflow contract gates.
 
 ### v4.9.0 — Autonomous Release Assurance
 
@@ -614,21 +627,6 @@ Planned:
 - [ ] Use prior graph impact to refine risk-based FAST/FULL selection only when lineage, source SHA and evidence freshness are compatible.
 - [ ] Fall back to the existing conservative Smart Test Plan whenever graph evidence is missing, stale, ambiguous or truncated.
 - [ ] Keep current-run Evidence Graph unable to retroactively change the lane that produced it.
-
-### v5.0 — Simulated Human QA
-
-Goal: add a human-like review layer that tries to use the app as different types
-of users and identifies usability problems that technical PASS cannot detect.
-
-Planned:
-- [ ] Add task-driven simulated usability sessions over trusted screenshots, UI hierarchy, product flows and runtime journeys.
-- [ ] Define bounded personas such as beginner, power user, older user, accessibility-focused user, privacy-conscious user, impatient user and offline user.
-- [ ] Let each persona attempt explicit goals and record friction, confusion, dead ends, excess taps and recovery problems.
-- [ ] Add cognitive walkthrough and heuristic UX review.
-- [ ] Aggregate multi-persona consensus while preserving disagreements and evidence.
-- [ ] Classify findings as SIMULATED USER REVIEW, never REAL USER VALIDATION.
-- [ ] Route strong recurring simulated findings into VERIFY_NEXT / IMPROVE rather than automatic product defects.
-- [ ] Preserve deterministic technical gates independently from model-based human simulation.
 
 ### v5.1 — Design System & UI Library Advisor
 
