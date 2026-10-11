@@ -13,6 +13,8 @@ LIMITS = {
     "scripts/verify_apk.sh": 1150,
     "scripts/longitudinal_product_intelligence.py": 1100,
     "scripts/autonomous_app_review.py": 500,
+    "scripts/competitive_product_intelligence.py": 750,
+    "scripts/studio_competitive_product.py": 350,
 }
 
 
