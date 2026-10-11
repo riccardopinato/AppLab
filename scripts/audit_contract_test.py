@@ -926,10 +926,15 @@ def check_simulated_human_qa_contract() -> None:
         "_identity_match",
         "_validated_record",
         "simulated.evidence_identity(graph)",
+        '"canonical_tasks"',
+        '"walkthrough_state"',
+        '"action_consistency"',
         '"record_valid": False',
         '"identity_match"',
         '"validation_errors"',
         '"simulated_review_required"',
+        '"friction_sessions": sum(',
+        '"evidence_incomplete_sessions": sum(',
         'print("AppLab v5.0 Simulated Human Studio projection self-test PASS")',
     ):
         require(needle in projection, f"v5.0 Studio projection missing invariant: {needle}")
