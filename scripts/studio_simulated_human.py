@@ -27,18 +27,18 @@ def _identity_match(
     identity = payload.get("identity")
     if not isinstance(graph, dict) or not isinstance(identity, dict):
         return False, ["missing_identity_source"]
-    graph_identity = graph.get("identity") if isinstance(graph.get("identity"), dict) else {}
-    expected = {
-        "repository": str(graph_identity.get("repository", "")).strip(),
-        "resolved_sha": str(graph_identity.get("resolved_sha", "")).strip().lower(),
-        "run_id": str(graph_identity.get("run_id", "")).strip(),
-        "package_id": str(graph_identity.get("package_id", "")).strip(),
-    }
+    try:
+        expected = simulated.evidence_identity(graph)
+    except ValueError:
+        return False, ["invalid_evidence_graph_identity"]
     observed = {
         "repository": str(identity.get("repository", "")).strip(),
         "resolved_sha": str(identity.get("resolved_sha", "")).strip().lower(),
         "run_id": str(identity.get("run_id", "")).strip(),
         "package_id": str(identity.get("package_id", "")).strip(),
+        "artifact_sha256": str(identity.get("artifact_sha256", "")).strip().lower(),
+        "version_name": str(identity.get("version_name", "")).strip(),
+        "version_code": str(identity.get("version_code", "")).strip(),
     }
     mismatches = [
         key
@@ -264,9 +264,30 @@ def self_test() -> None:
             "resolved_sha": "a" * 40,
             "run_id": "123",
             "package_id": "com.example.demo",
+            "artifact_sha256": "b" * 64,
+            "version_name": "1.0.0",
+            "version_code": "1",
         }
         (root / "evidence-graph.json").write_text(json.dumps({
-            "identity": identity,
+            "schema_version": 2,
+            "graph_version": "2.0",
+            "identity": {
+                "repository": identity["repository"],
+                "resolved_sha": identity["resolved_sha"],
+                "run_id": identity["run_id"],
+                "package_id": identity["package_id"],
+            },
+            "root_nodes": {"build_artifact": "artifact:demo"},
+            "nodes": [{
+                "id": "artifact:demo",
+                "type": "BuildArtifact",
+                "attributes": {
+                    "package_id": identity["package_id"],
+                    "apk_sha256": identity["artifact_sha256"],
+                    "version_name": identity["version_name"],
+                    "version_code": identity["version_code"],
+                },
+            }],
         }), encoding="utf-8")
         personas = []
         for name in simulated.PERSONAS:
@@ -343,6 +364,15 @@ def self_test() -> None:
         assert blocked is not None
         assert blocked["state"] == "EVIDENCE_INCOMPLETE"
         assert blocked["identity_match"] is False
+
+        stale_artifact = json.loads(json.dumps(payload))
+        stale_artifact["identity"]["artifact_sha256"] = "d" * 64
+        stale_artifact["record_digest_sha256"] = simulated.report_digest(stale_artifact)
+        (root / "simulated-human-qa.json").write_text(json.dumps(stale_artifact), encoding="utf-8")
+        blocked = project_from_directory(root)
+        assert blocked is not None
+        assert blocked["identity_match"] is False
+        assert "artifact_sha256" in blocked["identity_mismatches"]
 
         bad_route = json.loads(json.dumps(payload))
         bad_route["actions"] = [{"route": "FIX_NOW"}]
