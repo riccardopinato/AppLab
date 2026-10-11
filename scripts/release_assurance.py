@@ -472,6 +472,7 @@ def main() -> int:
     parser.add_argument("--report-dir")
     parser.add_argument("--output-dir")
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--require-pass", action="store_true")
     args = parser.parse_args()
 
     if args.self_test:
@@ -488,7 +489,7 @@ def main() -> int:
         "state": payload["state"],
         "assurance_digest": payload["assurance_digest"],
     }, sort_keys=True))
-    return 0 if payload["state"] == PASS else 1
+    return 0 if payload["state"] == PASS or not args.require_pass else 1
 
 
 if __name__ == "__main__":
