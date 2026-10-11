@@ -170,8 +170,8 @@ def qa_review(root: Path, identity: dict[str, str]) -> dict[str, Any]:
         for row in assurance.get("failures", []):
             if isinstance(row, dict):
                 rows.append(item(
-                    "QA", "FIX_NOW", "TECHNICAL_DEFECT", row.get("key") or "release_assurance",
-                    row.get("message") or "Required release-assurance stage failed.",
+                    "QA", "VERIFY_NEXT", "EVIDENCE_GAP", row.get("key") or "release_assurance",
+                    row.get("message") or "Required release-assurance stage failed; keep the release authority separate and investigate the failed stage.",
                     "release-assurance.json", row.get("evidence"), "LOW", "RELEASE_ASSURANCE_FAILURE",
                 ))
         for row in assurance.get("blockers", []):
@@ -445,10 +445,11 @@ def build_report(evidence_dir: Path) -> dict[str, Any]:
     agreements, contradictions = cross_review(reviewers)
     brief = prioritized_brief(reviewers, contradictions)
     missing_reviewers = [row["reviewer"] for row in reviewers if not row["findings"] and row["missing_or_invalid_sources"]]
-    if len(missing_reviewers) == len(REVIEWERS):
-        state = "EVIDENCE_INCOMPLETE"
-    elif any(brief[key] for key in ("FIX_NOW", "VERIFY_NEXT", "IMPROVE", "CONSIDER")):
+    actionable = any(brief[key] for key in ("FIX_NOW", "VERIFY_NEXT", "IMPROVE", "CONSIDER"))
+    if actionable:
         state = "REVIEW_REQUIRED"
+    elif missing_reviewers:
+        state = "EVIDENCE_INCOMPLETE"
     else:
         state = "NO_STRONG_SIGNAL"
     summary = {
