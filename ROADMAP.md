@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.0.0 — Simulated Human QA**
+Current production baseline: **v5.1.0 — Design System & UI Library Advisor**
 
 ## Product rule
 
@@ -19,6 +19,18 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v5.1.0 — Design System & UI Library Advisor
+
+- [x] Infer bounded product context and interaction style before reviewing visual-system fit.
+- [x] Review hierarchy, typography, spacing, density, component consistency, feedback, empty/loading/error states and interaction affordances.
+- [x] Compare detected Material, Cupertino, custom and common third-party UI-system choices against product needs.
+- [x] Emit only KEEP, ADAPT, REPLACE_CANDIDATE or EVIDENCE_INCOMPLETE; replacement requires concrete evidence and is never automatic.
+- [x] Evaluate accessibility, responsive behavior, dark mode and localization together with visual fit.
+- [x] Preserve the no-style-churn rule: a different library is not automatically an improvement.
+- [x] Bind advisory evidence to canonical Evidence Graph repository/source/package/APK/version identity.
+- [x] Add fail-closed Studio projection, Control Center exposure, deterministic self-tests and CI/audit/workflow contract gates.
+- [x] Keep all design/product recommendations advisory and unable to override FAST/FULL/CERTIFICATION or Release Assurance.
 
 ### v5.0.0 — Simulated Human QA
 
@@ -627,20 +639,6 @@ Planned:
 - [ ] Use prior graph impact to refine risk-based FAST/FULL selection only when lineage, source SHA and evidence freshness are compatible.
 - [ ] Fall back to the existing conservative Smart Test Plan whenever graph evidence is missing, stale, ambiguous or truncated.
 - [ ] Keep current-run Evidence Graph unable to retroactively change the lane that produced it.
-
-### v5.1 — Design System & UI Library Advisor
-
-Goal: judge whether the visual language and component library fit the type of
-product instead of applying one design system to every app.
-
-Planned:
-- [ ] Infer product context and interaction style before reviewing visual-system fit.
-- [ ] Review hierarchy, typography, spacing, density, component consistency, feedback, empty/loading/error states and interaction affordances.
-- [ ] Compare current Material, Cupertino, custom or third-party component choices against product needs.
-- [ ] Recommend keeping, adapting or replacing a UI library only when evidence shows a concrete product-fit benefit.
-- [ ] Evaluate accessibility, responsive behavior, dark mode and localization impact together with visual fit.
-- [ ] Avoid style churn: a different library is not automatically an improvement.
-- [ ] Keep aesthetic/product recommendations advisory and traceable to observed evidence.
 
 ### v5.2 — Competitive Product Intelligence
 
