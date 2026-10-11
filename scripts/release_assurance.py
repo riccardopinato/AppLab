@@ -34,6 +34,30 @@ PLAN_LABS = {
     "storage",
     "upgrade",
 }
+CANONICAL_STAGE_KEYS = (
+    "SOURCE_BUILD_BOUND",
+    "STATIC_BUILD_ASSURANCE",
+    "TRUSTED_RUNTIME",
+    "EVIDENCE_GRAPH",
+    "RISK_BASED_VALIDATION",
+    "PHYSICAL_EVIDENCE",
+    "DISTRIBUTION_EVIDENCE",
+    "CROSS_APP",
+    "CERTIFICATION",
+)
+ALWAYS_REQUIRED_STAGE_KEYS = {
+    "SOURCE_BUILD_BOUND",
+    "STATIC_BUILD_ASSURANCE",
+    "TRUSTED_RUNTIME",
+    "EVIDENCE_GRAPH",
+    "RISK_BASED_VALIDATION",
+    "CERTIFICATION",
+}
+CONDITIONAL_STAGE_KEYS = {
+    "PHYSICAL_EVIDENCE",
+    "DISTRIBUTION_EVIDENCE",
+    "CROSS_APP",
+}
 
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -169,6 +193,40 @@ def certification_identity_matches(record: dict[str, Any], ident: dict[str, str]
         "version_code": clean(apk.get("version_code")),
     }
     return all(observed.get(key) == expected for key, expected in ident.items())
+
+
+def certification_contract_state(
+    record: dict[str, Any],
+    ident: dict[str, str],
+) -> tuple[str, str, str]:
+    if not certification_identity_matches(record, ident):
+        status = clean(record.get("status")).upper() or NOT_VERIFIED
+        return FAIL, status, "Certification evidence identity does not match the release."
+
+    status = clean(record.get("status")).upper() or NOT_VERIFIED
+    certified = record.get("certified")
+    failures = record.get("failures")
+    blockers = record.get("blockers")
+    if (
+        not isinstance(certified, bool)
+        or not isinstance(failures, list)
+        or not isinstance(blockers, list)
+        or not all(isinstance(item, dict) for item in failures + blockers)
+    ):
+        return FAIL, status, "Certification evidence contract is structurally inconsistent."
+    if status == "CERTIFIED":
+        if certified is not True or failures or blockers:
+            return FAIL, status, "CERTIFIED conflicts with certified/failures/blockers fields."
+        return PASS, status, "Canonical certification authority reports CERTIFIED."
+    if status == "NOT_CERTIFIED":
+        if certified is not False:
+            return FAIL, status, "NOT_CERTIFIED conflicts with certified=true."
+        return FAIL, status, "Canonical certification authority reports NOT_CERTIFIED."
+    if status == BLOCKED:
+        if certified is not False:
+            return FAIL, status, "BLOCKED certification conflicts with certified=true."
+        return BLOCKED, status, "Canonical certification authority is BLOCKED."
+    return FAIL, status, f"Certification evidence uses invalid status {status}."
 
 
 def pair_identity_matches(row: dict[str, Any], ident: dict[str, str]) -> bool:
@@ -389,14 +447,10 @@ def build_report(report_dir: Path) -> dict[str, Any]:
             "Canonical certification.json is missing; embedded Release Reality certification "
             f"summary ({cert_status}) is context only and cannot satisfy certification."
         )
-    elif not certification_identity_matches(certification, ident):
-        cert_status = clean(certification.get("status")).upper() or NOT_VERIFIED
-        cert_state = FAIL
-        cert_reason = "Certification evidence identity does not match the release."
     else:
-        cert_status = clean(certification.get("status")).upper() or NOT_VERIFIED
-        cert_state = PASS if cert_status == "CERTIFIED" else FAIL if cert_status in {"FAIL", "FAILED", "FAILURE", "NOT_CERTIFIED"} else BLOCKED
-        cert_reason = "Canonical certification authority reports CERTIFIED." if cert_state == PASS else f"Canonical certification authority is {cert_status}."
+        cert_state, cert_status, cert_reason = certification_contract_state(
+            certification, ident
+        )
     rows.append(stage(
         "CERTIFICATION",
         "Canonical certification",
@@ -406,6 +460,8 @@ def build_report(report_dir: Path) -> dict[str, Any]:
         [CERT, RR] if certification else [RR],
     ))
 
+    if tuple(row["key"] for row in rows) != CANONICAL_STAGE_KEYS:
+        raise ValueError("release assurance canonical stage order drift")
     required = [row for row in rows if row["required"]]
     overall = overall_state(rows)
 
@@ -534,6 +590,9 @@ def self_test() -> None:
         (root / PLAN).write_text(json.dumps(plan), encoding="utf-8")
         certification = {
             "status": "CERTIFIED",
+            "certified": True,
+            "failures": [],
+            "blockers": [],
             "source": {"repository": "owner/demo", "resolved_sha": "a" * 40},
             "apk": {
                 "sha256": "b" * 64,
@@ -575,6 +634,13 @@ def self_test() -> None:
         stale_cert["apk"]["sha256"] = "d" * 64
         stale_cert["apk_sha256"] = "d" * 64
         (root / CERT).write_text(json.dumps(stale_cert), encoding="utf-8")
+        assert build_report(root)["state"] == FAIL
+        (root / CERT).write_text(json.dumps(certification), encoding="utf-8")
+
+        contradictory_cert = json.loads(json.dumps(certification))
+        contradictory_cert["certified"] = False
+        contradictory_cert["failures"] = [{"gate": "runtime", "observed": "FAIL"}]
+        (root / CERT).write_text(json.dumps(contradictory_cert), encoding="utf-8")
         assert build_report(root)["state"] == FAIL
         (root / CERT).write_text(json.dumps(certification), encoding="utf-8")
         bad_pair = {
