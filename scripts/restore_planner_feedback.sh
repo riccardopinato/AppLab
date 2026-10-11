@@ -3,7 +3,6 @@ set -Eeuo pipefail
 
 repository="${1:-}"
 destination="${2:-}"
-api_url="${GITHUB_API_URL:-https://api.github.com}"
 workflow_repository="${GITHUB_REPOSITORY:-}"
 runner_temp="${RUNNER_TEMP:-/tmp}"
 
