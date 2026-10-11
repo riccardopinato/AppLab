@@ -133,6 +133,16 @@ def _validated_record(
             ]
             if criteria != list(simulated.WALKTHROUGH_CRITERIA):
                 errors.append("cognitive_walkthrough")
+            for item in walkthrough:
+                if not isinstance(item, dict):
+                    errors.append("cognitive_walkthrough")
+                    continue
+                if str(item.get("state", "")).strip() not in {
+                    "REVIEW_SIGNAL",
+                    "EVIDENCE_AVAILABLE_NO_SIGNAL",
+                    "EVIDENCE_INCOMPLETE",
+                }:
+                    errors.append("walkthrough_state")
 
     findings_raw = payload.get("consensus_findings")
     findings = (
@@ -465,6 +475,26 @@ def self_test() -> None:
         assert projection["persona_count"] == 7
         assert projection["task_count"] == 14
         assert projection["state"] == "NO_STRONG_SIGNAL"
+
+        tampered_summary = json.loads(json.dumps(payload))
+        tampered_summary["summary"]["friction_sessions"] = 999
+        tampered_summary["summary"]["evidence_incomplete_sessions"] = 999
+        tampered_summary["record_digest_sha256"] = simulated.report_digest(tampered_summary)
+        (root / "simulated-human-qa.json").write_text(json.dumps(tampered_summary), encoding="utf-8")
+        derived = project_from_directory(root)
+        assert derived is not None
+        assert derived["record_valid"] is True
+        assert derived["friction_sessions"] == 0
+        assert derived["evidence_incomplete_sessions"] == 0
+
+        bad_task = json.loads(json.dumps(payload))
+        bad_task["personas"][0]["tasks"][0]["task_id"] = "invented_task"
+        bad_task["record_digest_sha256"] = simulated.report_digest(bad_task)
+        (root / "simulated-human-qa.json").write_text(json.dumps(bad_task), encoding="utf-8")
+        blocked = project_from_directory(root)
+        assert blocked is not None
+        assert blocked["record_valid"] is False
+        assert "canonical_tasks" in blocked["validation_errors"]
 
         stale = json.loads(json.dumps(payload))
         stale["identity"]["resolved_sha"] = "b" * 40
