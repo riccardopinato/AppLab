@@ -193,6 +193,21 @@ def engine(app: dict[str, Any]) -> str:
     stack = product.get("stack") if isinstance(product.get("stack"), dict) else {}
     return clean(stack.get("engine")) or "unknown"
 
+def primary_system(current_engine: str, systems: list[dict[str, Any]]) -> str:
+    ids = {row["id"] for row in systems}
+    priorities = {
+        "flutter": ("FLUTTER_MATERIAL3", "FLUTTER_CUPERTINO", "CUSTOM_DESIGN_LAYER"),
+        "native_android": ("COMPOSE_MATERIAL3", "ANDROID_MATERIAL", "CUSTOM_DESIGN_LAYER"),
+        "web_or_hybrid": ("WEB_MUI", "WEB_ANT_DESIGN", "WEB_CHAKRA", "WEB_MANTINE", "WEB_RADIX_SHADCN", "BOOTSTRAP", "TAILWIND", "CUSTOM_DESIGN_LAYER"),
+    }
+    for system_id in priorities.get(current_engine, ()):
+        if system_id in ids:
+            return system_id
+    for row in systems:
+        if row["id"] != "CUSTOM_DESIGN_LAYER":
+            return row["id"]
+    return systems[0]["id"] if systems else "UNKNOWN"
+
 def dimension(identifier: str, state: str, rationale: str, evidence: list[str]) -> dict[str, Any]:
     if state not in ALLOWED_DIMENSION_STATES:
         raise ValueError(f"invalid dimension state: {state}")
@@ -291,7 +306,7 @@ def build_report(repo_root: Path, evidence_dir: Path, max_files: int = 4000, max
         "identity": identity,
         "source_scan": scan,
         "product_context": context,
-        "ui_system": {"engine": engine(app), "primary_detected": systems[0]["id"] if systems else "UNKNOWN", "detected": systems, "comparisons": comparisons},
+        "ui_system": {"engine": engine(app), "primary_detected": primary_system(engine(app), systems), "detected": systems, "comparisons": comparisons},
         "dimensions": dimensions,
         "recommendation": {"decision": decision, "rationale": rationale, "replacement_is_not_default": True},
         "findings": findings[:40],
