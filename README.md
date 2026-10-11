@@ -1,3 +1,31 @@
+## v5.2.0 — Competitive Product Intelligence
+
+AppLab now turns source-traceable competitor evidence into **bounded product
+intelligence** without converting competitor parity into automatic scope.
+
+- **Project/category competitor sets:** a target can maintain a stable
+  `market-evidence.json` set with category, target user and traceable members.
+- **Six comparison dimensions:** capabilities, workflows, onboarding, pricing,
+  visual patterns and recurring user pain points.
+- **Relevant parity only:** a common market gap becomes
+  `RELEVANT_PARITY_REVIEW` only when Product Bible/product-contract relevance
+  and target-user context are both established.
+- **Differentiation protection:** uncommon project capabilities are surfaced as
+  `PROTECT_DIFFERENTIATOR`, not normalized away.
+- **Weakness opportunities:** recurring competitor pain becomes a
+  `CONSIDER` opportunity to simplify or improve, never a copying directive.
+- **Freshness + provenance:** market observations carry source URLs and explicit
+  age state; stale evidence remains visible instead of silently driving product
+  decisions.
+- **Exact product binding:** the record is tied to Evidence Graph repository,
+  immutable source SHA, package/version and exact APK SHA-256.
+- **Fail-closed absence:** no market evidence produces
+  `EVIDENCE_INCOMPLETE`; technical verification still proceeds normally.
+- **No trusted scraping:** True Autonomous Review consumes evidence already
+  present in the target repository and does not crawl the web.
+
+See `integration/market/COMPETITIVE_PRODUCT_INTELLIGENCE_V52.md`.
+
 ## v5.1.0 — Design System & UI Library Advisor
 
 AppLab now evaluates whether the current visual language and component library fit

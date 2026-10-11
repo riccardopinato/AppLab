@@ -2,7 +2,9 @@
   "schema_version": 1,
   "project": {
     "name": "Example App",
-    "category": "utility"
+    "category": "utility",
+    "target_user": "People who want a simple reliable utility",
+    "competitor_set_id": "example_utility_core"
   },
   "observed_at": "2026-09-27",
   "competitors": [
@@ -40,6 +42,30 @@
           "count": 5,
           "source_url": "https://example.com/app/reviews",
           "evidence": "Curated, traceable review-theme evidence."
+        }
+      ],
+      "workflows": [
+        {
+          "key": "quick_task",
+          "label": "Quick task workflow",
+          "source_url": "https://example.com/app/workflow",
+          "evidence": "Traceable workflow observation."
+        }
+      ],
+      "onboarding": [
+        {
+          "key": "guided_setup",
+          "label": "Guided setup",
+          "source_url": "https://example.com/app/onboarding",
+          "evidence": "Traceable onboarding observation."
+        }
+      ],
+      "visual_patterns": [
+        {
+          "key": "compact_cards",
+          "label": "Compact card layout",
+          "source_url": "https://example.com/app/design",
+          "evidence": "Traceable visual-pattern observation."
         }
       ]
     }

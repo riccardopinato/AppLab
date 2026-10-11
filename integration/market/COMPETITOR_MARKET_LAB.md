@@ -25,6 +25,16 @@ Each competitor requires:
 Raw unsourced assertions are rejected where a market fact is used by the
 comparison.
 
+## v5.2 competitive-product extension
+
+The v1.4 evidence contract remains backward compatible. AppLab v5.2 additionally
+consumes optional project/category context plus source-traceable
+`workflows[]`, `onboarding[]` and `visual_patterns[]`. These fields feed
+Competitive Product Intelligence; they do not change the v1.4 capability,
+pricing or review-theme classifications.
+
+See `COMPETITIVE_PRODUCT_INTELLIGENCE_V52.md`.
+
 ## Capability classifications
 
 - `MARKET_PARITY_SIGNAL` — AppLab detected the capability in the project and
