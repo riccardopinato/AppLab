@@ -92,6 +92,7 @@ def build_execution_plan(
         "run_build",
         "run_runtime",
         "targets",
+        "planner_feedback",
     )
     semantic_plan = {
         key: analysis_plan.get(key)
