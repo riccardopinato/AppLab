@@ -152,36 +152,61 @@ def _validated_record(
     )
     if not isinstance(findings_raw, list) or len(findings) != len(findings_raw):
         errors.append("consensus_findings")
+    signal_ids: list[str] = []
     for row in findings:
         route = str(row.get("route", "")).strip().upper()
+        signal_id = str(row.get("signal_id", "")).strip()
+        signal_ids.append(signal_id)
         supporters = row.get("supporting_personas")
         non_supporters = row.get("non_supporting_personas")
         if route not in simulated.ALLOWED_ROUTES:
             errors.append("finding_route")
+        if not signal_id or not str(row.get("kind", "")).strip() or not str(row.get("subject", "")).strip():
+            errors.append("finding_identity")
         if not isinstance(supporters, list) or not isinstance(non_supporters, list):
             errors.append("finding_personas")
             continue
+        people = supporters + non_supporters
+        if not all(isinstance(persona, str) for persona in people):
+            errors.append("finding_personas")
+            continue
         if (
-            any(persona not in simulated.PERSONAS for persona in supporters + non_supporters)
+            any(persona not in simulated.PERSONAS for persona in people)
             or len(set(supporters)) != len(supporters)
             or len(set(non_supporters)) != len(non_supporters)
             or bool(set(supporters) & set(non_supporters))
             or set(supporters) | set(non_supporters) != set(simulated.PERSONAS)
         ):
             errors.append("finding_personas")
-        if row.get("support_count") != len(supporters):
+        support_count = row.get("support_count")
+        if type(support_count) is not int or support_count != len(supporters):
             errors.append("finding_support_count")
-        if row.get("recurring") is not (len(supporters) >= 2):
+        recurring = row.get("recurring")
+        if type(recurring) is not bool or recurring is not (len(supporters) >= 2):
             errors.append("finding_recurring")
+    if len(signal_ids) != len(set(signal_ids)):
+        errors.append("finding_signal_ids")
 
     actions_raw = payload.get("actions")
     actions = [row for row in actions_raw if isinstance(row, dict)] if isinstance(actions_raw, list) else []
     if not isinstance(actions_raw, list) or len(actions) != len(actions_raw):
         errors.append("actions")
+    finding_by_signal = {
+        str(row.get("signal_id", "")).strip(): row
+        for row in findings
+        if str(row.get("signal_id", "")).strip()
+    }
     for row in actions:
         route = str(row.get("route", "")).strip().upper()
+        signal_id = str(row.get("signal_id", "")).strip()
         if route not in simulated.ALLOWED_ROUTES or route in {"FIX_NOW", "NO_ACTION"}:
             errors.append("action_route")
+        finding = finding_by_signal.get(signal_id)
+        if finding is None or str(finding.get("route", "")).strip().upper() != route:
+            errors.append("action_finding_binding")
+        supporters = row.get("supporting_personas")
+        if finding is not None and supporters != finding.get("supporting_personas"):
+            errors.append("action_personas")
     expected_actions = {
         (
             str(row.get("route", "")).strip().upper(),
