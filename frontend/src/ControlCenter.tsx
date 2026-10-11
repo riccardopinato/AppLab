@@ -657,8 +657,8 @@ type StudioSnapshot = {
 };
 
 function badgeClass(value: string) {
-  if (value === "PASS" || value === "CERTIFIED" || value === "CERTIFIED_CURRENT") return "cc-badge good";
-  if (value === "CERTIFIED_STALE") return "cc-badge warn";
+  if (value === "PASS" || value === "CERTIFIED" || value === "CERTIFIED_CURRENT" || value === "READY") return "cc-badge good";
+  if (value === "CERTIFIED_STALE" || value === "STALE_EVIDENCE") return "cc-badge warn";
   if (value === "FAIL" || value === "FAILURE" || value === "ERROR" || value === "NOT_CERTIFIED")
     return "cc-badge bad";
   if (value === "WARN" || value === "BLOCKED" || value === "REVIEW_REQUIRED" || value === "EVIDENCE_INCOMPLETE")
