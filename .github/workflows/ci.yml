@@ -44,6 +44,7 @@ jobs:
             scripts/background_lab.py \
             scripts/storage_lab.py \
             scripts/smart_test_plan.py \
+            scripts/planner_feedback.py \
             scripts/adaptive_checks.py \
             scripts/incremental_result.py \
             scripts/shadow_calibration.py \
@@ -129,6 +130,8 @@ jobs:
           python scripts/background_lab.py --self-test
           python scripts/storage_lab.py --self-test
           python scripts/smart_test_plan.py --self-test
+          python scripts/planner_feedback.py --self-test
+          bash scripts/restore_planner_feedback.sh --self-test
           python scripts/adaptive_checks.py --self-test
           python scripts/incremental_result.py --self-test
           python scripts/shadow_calibration.py --self-test
