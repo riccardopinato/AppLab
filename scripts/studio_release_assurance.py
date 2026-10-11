@@ -177,9 +177,18 @@ def _blocked_projection(
 
 
 def project_from_directory(project_dir: Path) -> dict[str, Any] | None:
-    payload = _read(project_dir / "release-assurance.json")
-    if not payload:
+    assurance_path = project_dir / "release-assurance.json"
+    if not assurance_path.is_file():
         return None
+    payload = _read(assurance_path)
+    if payload is None or not payload:
+        return _blocked_projection(
+            payload or {},
+            [],
+            reason="ASSURANCE_RECORD_INVALID",
+            validation_errors=["unreadable_or_empty_record"],
+            identity_mismatches=[],
+        )
 
     valid, validation_errors, rows, derived_state, identity_mismatches = _validated_record(
         project_dir, payload
@@ -386,6 +395,19 @@ def self_test() -> None:
         assert blocked is not None
         assert blocked["state"] == "BLOCKED"
         assert "stage_required" in blocked["validation_errors"]
+
+        (root / "release-assurance.json").write_text("{truncated", encoding="utf-8")
+        blocked = project_from_directory(root)
+        assert blocked is not None
+        assert blocked["state"] == "BLOCKED"
+        assert blocked["record_valid"] is False
+        assert "unreadable_or_empty_record" in blocked["validation_errors"]
+
+        (root / "release-assurance.json").write_text("{}", encoding="utf-8")
+        blocked = project_from_directory(root)
+        assert blocked is not None
+        assert blocked["state"] == "BLOCKED"
+        assert "unreadable_or_empty_record" in blocked["validation_errors"]
 
         summary = portfolio_summary([{"release_assurance": blocked}])
         assert summary["with_release_assurance"] == 1
