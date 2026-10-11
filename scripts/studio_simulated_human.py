@@ -611,15 +611,28 @@ def self_test() -> None:
             "identity": identity,
             "state": "NO_STRONG_SIGNAL",
             "personas": personas,
-            "heuristic_review": [],
+            "heuristic_review": [
+                {
+                    "heuristic": name,
+                    "state": "NO_STRONG_SIGNAL",
+                    "signal_ids": [],
+                }
+                for name in simulated.HEURISTICS
+            ],
             "consensus_findings": [],
             "actions": [],
             "source_evidence": {},
             "summary": {
+                "persona_count": 7,
+                "task_count": 14,
                 "friction_sessions": 0,
                 "evidence_incomplete_sessions": 0,
+                "no_strong_signal_sessions": 14,
+                "not_applicable_sessions": 0,
                 "consensus_findings": 0,
                 "disagreements": 0,
+                "verify_next": 0,
+                "improve": 0,
             },
             "guardrails": {
                 "simulated_review_is_not_real_user_validation": True,
@@ -651,9 +664,9 @@ def self_test() -> None:
         (root / "simulated-human-qa.json").write_text(json.dumps(tampered_summary), encoding="utf-8")
         derived = project_from_directory(root)
         assert derived is not None
-        assert derived["record_valid"] is True
-        assert derived["friction_sessions"] == 0
-        assert derived["evidence_incomplete_sessions"] == 0
+        assert derived["record_valid"] is False
+        assert derived["state"] == "EVIDENCE_INCOMPLETE"
+        assert "summary" in derived["validation_errors"]
 
         bad_summary = json.loads(json.dumps(payload))
         bad_summary["personas"][0]["summary"] = "broken"
