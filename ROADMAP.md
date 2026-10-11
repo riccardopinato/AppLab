@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.1.0 — Design System & UI Library Advisor**
+Current production baseline: **v5.2.0 — Competitive Product Intelligence**
 
 ## Product rule
 
@@ -19,6 +19,18 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v5.2.0 — Competitive Product Intelligence
+
+- [x] Maintain source-traceable competitor sets per app/category with stable set identity.
+- [x] Compare capabilities, workflows, onboarding, pricing, visual patterns and recurring user pain points.
+- [x] Separate common market expectations from genuine project differentiation opportunities.
+- [x] Highlight missing parity only when Product Bible/product-contract relevance and target-user context are both established.
+- [x] Convert recurring competitor weaknesses into bounded simplify/improve opportunities instead of copying directives.
+- [x] Track market-evidence freshness, observation age and source provenance.
+- [x] Bind competitive conclusions to the exact Evidence Graph source/artifact identity.
+- [x] Integrate fail-closed competitive evidence into True Autonomous Review and AppLab Studio.
+- [x] Guarantee no automatic feature addition and no competitor feature copying.
 
 ### v5.1.0 — Design System & UI Library Advisor
 
@@ -639,20 +651,6 @@ Planned:
 - [ ] Use prior graph impact to refine risk-based FAST/FULL selection only when lineage, source SHA and evidence freshness are compatible.
 - [ ] Fall back to the existing conservative Smart Test Plan whenever graph evidence is missing, stale, ambiguous or truncated.
 - [ ] Keep current-run Evidence Graph unable to retroactively change the lane that produced it.
-
-### v5.2 — Competitive Product Intelligence
-
-Goal: use competitors as evidence for product decisions without turning AppLab
-into a feature-copying engine.
-
-Planned:
-- [ ] Maintain source-traceable competitor sets per app/category.
-- [ ] Compare product capabilities, workflows, onboarding, pricing, visual patterns and recurring user pain points.
-- [ ] Separate common market expectations from genuine differentiation opportunities.
-- [ ] Highlight missing parity only when it is relevant to the Product Bible and target user.
-- [ ] Identify competitor weaknesses that create an opportunity for a simpler or better App Factory implementation.
-- [ ] Track market evidence freshness and provenance.
-- [ ] Never auto-add a feature merely because competitors have it.
 
 ### v5.3 — Virtual Product Review Council
 
