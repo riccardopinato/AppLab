@@ -792,6 +792,9 @@ def check_release_assurance_contract() -> None:
         '"missing_required_evidence_never_passes": True',
         '"certification_is_not_distribution_proof": True',
         '"cross_app_pass_is_independent_from_single_app_pass": True',
+        'same_bytes_verified") is True',
+        '"Adaptive validation plan risk_score is invalid."',
+        '"Adaptive validation plan confidence is invalid."',
         "certification_identity_matches",
         "certification_contract_state",
         "CANONICAL_STAGE_KEYS",
@@ -850,7 +853,9 @@ def check_release_assurance_contract() -> None:
         and '"canonical_stage_set"' in projection
         and "type(required) is not bool" in projection
         and "stage_structure_valid" in projection
-        and "except (KeyError, TypeError, ValueError)" in projection,
+        and "except (KeyError, TypeError, ValueError)" in projection
+        and '"unreadable_or_empty_record"' in projection
+        and "assurance_path.is_file()" in projection,
         "Release Assurance Studio projection must preserve blocked/fail states and reject stale identities",
     )
     require(
