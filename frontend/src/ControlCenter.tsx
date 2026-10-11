@@ -484,6 +484,8 @@ type StudioProject = {
     required_total?: number;
     identity_match?: boolean;
     identity_mismatches?: string[];
+    record_valid?: boolean;
+    validation_errors?: string[];
   } | null;
   autonomous_review?: {
     review_state?: string;
@@ -754,6 +756,9 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                         </small>
                         {project.release_assurance.identity_match === false ? (
                           <small>identity mismatch · {(project.release_assurance.identity_mismatches ?? []).join(", ") || "unknown"}</small>
+                        ) : null}
+                        {project.release_assurance.record_valid === false ? (
+                          <small>assurance record invalid · {(project.release_assurance.validation_errors ?? []).join(", ") || "unknown"}</small>
                         ) : null}
                       </div>
                       <span className={badgeClass(project.release_assurance.state ?? "NOT_VERIFIED")}>
