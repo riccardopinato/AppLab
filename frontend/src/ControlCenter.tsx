@@ -529,6 +529,27 @@ type StudioProject = {
       state?: string;
     }>;
   } | null;
+  competitive_product?: {
+    state?: string;
+    competitor_set_id?: string;
+    category?: string;
+    competitors?: number;
+    freshness?: string;
+    target_user_context?: string;
+    common_expectations?: number;
+    relevant_parity_reviews?: number;
+    differentiation_opportunities?: number;
+    market_weakness_opportunities?: number;
+    stale?: boolean;
+    record_valid?: boolean;
+    validation_errors?: string[];
+    classification?: string;
+    top_findings?: Array<{
+      kind?: string;
+      subject?: string;
+      route?: string;
+    }>;
+  } | null;
   autonomous_review?: {
     review_state?: string;
     runtime_evidence_state?: string;
@@ -600,6 +621,13 @@ type StudioSnapshot = {
     design_adapt?: number;
     design_replace_candidate?: number;
     design_evidence_incomplete?: number;
+    with_competitive_product?: number;
+    competitive_ready?: number;
+    competitive_evidence_incomplete?: number;
+    competitive_stale?: number;
+    competitive_parity_reviews?: number;
+    competitive_differentiators?: number;
+    competitive_weakness_opportunities?: number;
     autonomous_reviews?: number;
     autonomous_attention?: number;
     runtime_observed?: number;
@@ -772,6 +800,11 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
               <div><span>Design adapt</span><strong>{studio.summary.design_adapt ?? 0}</strong></div>
               <div><span>Design replace candidates</span><strong>{studio.summary.design_replace_candidate ?? 0}</strong></div>
               <div><span>Design evidence gaps</span><strong>{studio.summary.design_evidence_incomplete ?? 0}</strong></div>
+              <div><span>Competitive intelligence</span><strong>{studio.summary.with_competitive_product ?? 0}</strong></div>
+              <div><span>Competitive ready</span><strong>{studio.summary.competitive_ready ?? 0}</strong></div>
+              <div><span>Parity reviews</span><strong>{studio.summary.competitive_parity_reviews ?? 0}</strong></div>
+              <div><span>Differentiators</span><strong>{studio.summary.competitive_differentiators ?? 0}</strong></div>
+              <div><span>Market evidence stale</span><strong>{studio.summary.competitive_stale ?? 0}</strong></div>
               <div><span>CERTIFIED</span><strong>{studio.summary.certified_releases ?? 0}</strong></div>
               <div><span>Certification blocked</span><strong>{studio.summary.certification_blocked ?? 0}</strong></div>
               <div><span>Physical required</span><strong>{studio.summary.physical_required ?? 0}</strong></div>
@@ -860,6 +893,26 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                       </div>
                       <span className={badgeClass(project.design_advisor.state ?? "EVIDENCE_INCOMPLETE")}>
                         {project.design_advisor.state ?? "EVIDENCE_INCOMPLETE"}
+                      </span>
+                    </div>
+                  ) : null}
+                  {project.competitive_product ? (
+                    <div className="release-cockpit-head">
+                      <div>
+                        <span>Competitive Product Intelligence · advisory</span>
+                        <strong>{project.competitive_product.state ?? "EVIDENCE_INCOMPLETE"}</strong>
+                        <small>
+                          {project.competitive_product.competitor_set_id ?? "UNKNOWN"} · {project.competitive_product.category ?? "UNSPECIFIED"} · {project.competitive_product.competitors ?? 0} competitors · freshness {project.competitive_product.freshness ?? "EVIDENCE_INCOMPLETE"}
+                        </small>
+                        <small>
+                          {project.competitive_product.common_expectations ?? 0} expectations · {project.competitive_product.relevant_parity_reviews ?? 0} parity reviews · {project.competitive_product.differentiation_opportunities ?? 0} differentiators · {project.competitive_product.market_weakness_opportunities ?? 0} weakness opportunities
+                        </small>
+                        {project.competitive_product.record_valid === false ? (
+                          <small>competitive record invalid · {(project.competitive_product.validation_errors ?? []).join(", ") || "unknown"}</small>
+                        ) : null}
+                      </div>
+                      <span className={badgeClass(project.competitive_product.state ?? "EVIDENCE_INCOMPLETE")}>
+                        {project.competitive_product.state ?? "EVIDENCE_INCOMPLETE"}
                       </span>
                     </div>
                   ) : null}
@@ -1009,6 +1062,20 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                       {project.autonomous_review?.runtime_trusted ? (
                         <small>
                           {project.autonomous_review.trusted_package_id || "package"} · {shortSha(project.autonomous_review.trusted_sha ?? "")} · run {project.autonomous_review.trusted_run_id || "—"}
+                        </small>
+                      ) : null}
+                    </div>
+                    <div>
+                      <span>Competitive product</span>
+                      <strong>{project.competitive_product?.state ?? "—"}</strong>
+                      <small>
+                        {project.competitive_product
+                          ? `${project.competitive_product.relevant_parity_reviews ?? 0} parity · ${project.competitive_product.differentiation_opportunities ?? 0} differentiation · ${project.competitive_product.market_weakness_opportunities ?? 0} weakness opportunities`
+                          : "no competitive-product evidence"}
+                      </small>
+                      {project.competitive_product?.top_findings?.[0] ? (
+                        <small>
+                          top · {project.competitive_product.top_findings[0].route ?? "CONSIDER"} · {project.competitive_product.top_findings[0].subject ?? "market"}
                         </small>
                       ) : null}
                     </div>
