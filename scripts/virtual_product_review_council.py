@@ -404,6 +404,16 @@ def prioritized_brief(reviewers: list[dict[str, Any]], contradictions: list[dict
                 continue
             seen.add(key)
             buckets[bucket].append({**row, "bucket": bucket})
+        for source in reviewer["missing_or_invalid_sources"]:
+            gap = item(
+                reviewer["reviewer"], "VERIFY_NEXT", "EVIDENCE_GAP", source,
+                "Council reviewer input is missing or bound to a different artifact; refresh/repair evidence before relying on this review scope.",
+                source, [], "HIGH", "REVIEWER_SOURCE_MISSING_OR_INVALID",
+            )
+            key = ("VERIFY_NEXT", "EVIDENCE_GAP", norm_subject(source), gap["message"])
+            if key not in seen:
+                seen.add(key)
+                buckets["VERIFY_NEXT"].append(gap)
     limits = {"FIX_NOW": 10, "VERIFY_NEXT": 16, "IMPROVE": 12, "CONSIDER": 12, "NO_ACTION": 10}
     return {key: buckets[key][:limits[key]] for key in BUCKETS}
 
@@ -444,9 +454,12 @@ def build_report(evidence_dir: Path) -> dict[str, Any]:
     ]
     agreements, contradictions = cross_review(reviewers)
     brief = prioritized_brief(reviewers, contradictions)
-    missing_reviewers = [row["reviewer"] for row in reviewers if not row["findings"] and row["missing_or_invalid_sources"]]
-    actionable = any(brief[key] for key in ("FIX_NOW", "VERIFY_NEXT", "IMPROVE", "CONSIDER"))
-    if actionable:
+    missing_reviewers = [row["reviewer"] for row in reviewers if row["missing_or_invalid_sources"]]
+    substantive_actionable = any(
+        row["bucket"] in {"FIX_NOW", "VERIFY_NEXT", "IMPROVE", "CONSIDER"}
+        for reviewer in reviewers for row in reviewer["findings"]
+    )
+    if substantive_actionable:
         state = "REVIEW_REQUIRED"
     elif missing_reviewers:
         state = "EVIDENCE_INCOMPLETE"
