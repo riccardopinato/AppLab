@@ -178,6 +178,8 @@ def evidence_identity(graph: dict[str, Any]) -> dict[str, str]:
         raise ValueError("Evidence Graph repository identity is missing")
     if len(out["resolved_sha"]) != 40 or any(ch not in "0123456789abcdef" for ch in out["resolved_sha"]):
         raise ValueError("Evidence Graph resolved SHA is invalid")
+    if not out["run_id"].isdigit():
+        raise ValueError("Evidence Graph trusted workflow run identity is invalid")
     if not out["package_id"] or clean(attrs.get("package_id")) != out["package_id"]:
         raise ValueError("Evidence Graph package identity is inconsistent")
     if len(out["artifact_sha256"]) != 64 or any(ch not in "0123456789abcdef" for ch in out["artifact_sha256"]):
@@ -242,6 +244,8 @@ def state_signals(state_report: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         status = clean(row.get("status")).upper()
         applicability = clean(row.get("applicability")).upper()
+        if applicability == "NOT_APPLICABLE":
+            continue
         if status not in {"OBSERVED_FAIL", "NOT_OBSERVED", "OBSERVED_UNKNOWN"}:
             continue
         kind = "EDGE_STATE_FAILURE" if status == "OBSERVED_FAIL" else "EDGE_STATE_EVIDENCE_GAP"
@@ -385,15 +389,28 @@ def heuristic_review(signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows
 
 
-def consensus(signals: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def consensus(
+    signals: list[dict[str, Any]],
+    sessions: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     findings = []
     actions = []
+    signal_support: dict[str, set[str]] = defaultdict(set)
+    for session in sessions:
+        persona = clean(session.get("persona"))
+        tasks = session.get("tasks") if isinstance(session.get("tasks"), list) else []
+        for task in tasks:
+            if not isinstance(task, dict):
+                continue
+            for signal_id in task.get("signal_ids") or []:
+                if isinstance(signal_id, str) and signal_id:
+                    signal_support[signal_id].add(persona)
+
     for signal in signals:
-        tags = set(signal.get("tags") or [])
         supporters = [
             persona
             for persona in PERSONAS
-            if tags & PERSONA_FOCUS[persona]
+            if persona in signal_support.get(signal["id"], set())
         ]
         non_supporters = [persona for persona in PERSONAS if persona not in supporters]
         recurring = len(supporters) >= 2
@@ -487,7 +504,7 @@ def build_report(evidence_dir: Path) -> dict[str, Any]:
     posture = evidence_posture(app, journey, ux, state)
     sessions = build_sessions(signals, posture)
     heuristics = heuristic_review(signals)
-    findings, actions = consensus(signals)
+    findings, actions = consensus(signals, sessions)
     state_value = advisory_state(sessions, actions)
 
     outcome_counts = Counter(
@@ -667,6 +684,7 @@ def self_test() -> None:
             "states": {
                 "offline": {"applicability": "APPLICABLE", "status": "NOT_OBSERVED"},
                 "auth": {"applicability": "APPLICABLE", "status": "OBSERVED"},
+                "camera": {"applicability": "NOT_APPLICABLE", "status": "NOT_OBSERVED"},
             },
             "findings": [],
         }), encoding="utf-8")
@@ -678,6 +696,11 @@ def self_test() -> None:
         assert report["summary"]["persona_count"] == 7
         assert report["summary"]["task_count"] == 14
         assert report["summary"]["verify_next"] > 0
+        assert not any(row["subject"] == "camera" for row in report["consensus_findings"])
+        assert all(
+            row["support_count"] == len(row["supporting_personas"])
+            for row in report["consensus_findings"]
+        )
         assert all(row["route"] in ALLOWED_ROUTES for row in report["actions"])
         assert all(row["route"] != "FIX_NOW" for row in report["actions"])
         assert report["guardrails"]["simulated_review_is_not_real_user_validation"] is True
