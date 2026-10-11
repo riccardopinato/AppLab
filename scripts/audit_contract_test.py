@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "4.8.0"
+EXPECTED_VERSION = "4.9.0"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -775,6 +775,117 @@ def check_cross_app_verification_contract() -> None:
         "cross-app trusted workflow boundary drift",
     )
 
+def check_release_assurance_contract() -> None:
+    assurance = (ROOT / "scripts/release_assurance.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/autonomous-app-review-v31.yml").read_text(
+        encoding="utf-8"
+    )
+    studio = (ROOT / "scripts/studio_snapshot.py").read_text(encoding="utf-8")
+    frontend = (ROOT / "frontend/src/ControlCenter.tsx").read_text(encoding="utf-8")
+
+    for needle in (
+        'APPLAB_VERSION = "4.9.0"',
+        'RECORD_TYPE = "AUTONOMOUS_RELEASE_ASSURANCE"',
+        'AUTHORITY = "APPLAB_RELEASE_ASSURANCE"',
+        '"release_assurance_can_certify": False',
+        '"same_artifact_required": True',
+        '"missing_required_evidence_never_passes": True',
+        '"certification_is_not_distribution_proof": True',
+        '"cross_app_pass_is_independent_from_single_app_pass": True',
+        'same_bytes_verified") is True',
+        '"Adaptive validation plan risk_score is invalid."',
+        '"Adaptive validation plan confidence is invalid."',
+        "certification_identity_matches",
+        "certification_contract_state",
+        "CANONICAL_STAGE_KEYS",
+        'graph.get("schema_version") != 2',
+        'clean(graph.get("graph_version")) != "2.0"',
+        '"BuildArtifact"',
+        '"apk_sha256"',
+        "pair_identity_matches",
+        "risk_plan_state",
+        "PLAN_LANES",
+        "PLAN_LABS",
+        "set(selected) != PLAN_LABS",
+        'result = clean(record.get("result")).upper()',
+        "Canonical certification.json is missing",
+        "Cross-app evidence uses invalid round-trip state",
+        "Release Reality records a distribution failure",
+        "def overall_state",
+        "Required assurance stage cannot be N/A",
+        "physical_present",
+        'return 0 if payload["state"] == PASS or not args.require_pass else 1',
+    ):
+        require(needle in assurance, f"v4.9 release assurance missing invariant: {needle}")
+
+    for needle in (
+        "Build Autonomous Release Assurance",
+        "scripts/release_assurance.py",
+        "release-assurance.md",
+        "release-reality.json",
+        "evidence-graph.md",
+        "AppLab True Autonomous App Review v4.9.0",
+        "release_assurance|trusted_cross_app_evidence|physical_evidence",
+        "cross_app_run_id",
+        "trusted_cross_app_evidence.py verify-run",
+        "trusted_cross_app_evidence.py validate",
+        "cross-app-verification.bound.json",
+    ):
+        require(needle in workflow, f"v4.9 autonomous review integration missing: {needle}")
+
+    require(
+        "studio_release_assurance.project_from_directory" in studio
+        and "studio_release_assurance.portfolio_summary(projects)" in studio,
+        "Studio must source release assurance from the dedicated read-only projection",
+    )
+    projection = (ROOT / "scripts/studio_release_assurance.py").read_text(encoding="utf-8")
+    require(
+        '"release_assurance_blocked"' in projection
+        and '"release_assurance_fail"' in projection
+        and "_identity_match" in projection
+        and "_validated_record" in projection
+        and "release_assurance.digest" in projection
+        and "release_assurance.overall_state" in projection
+        and 'reason = "IDENTITY_MISMATCH"' in projection
+        and '"certification_status": "NOT_VERIFIED"' in projection
+        and '"record_valid": False' in projection
+        and "release_assurance.CANONICAL_STAGE_KEYS" in projection
+        and '"canonical_stage_set"' in projection
+        and "type(required) is not bool" in projection
+        and "stage_structure_valid" in projection
+        and "except (KeyError, TypeError, ValueError)" in projection
+        and '"unreadable_or_empty_record"' in projection
+        and "assurance_path.is_file()" in projection,
+        "Release Assurance Studio projection must preserve blocked/fail states and reject stale identities",
+    )
+    require(
+        "Autonomous Release Assurance" in frontend
+        and "release_assurance_pass" in frontend
+        and "release_assurance_blocked" in frontend
+        and "project.release_assurance.blockers" in frontend
+        and "project.release_assurance.failures" in frontend
+        and "project.release_assurance.identity_match === false" in frontend
+        and "project.release_assurance.record_valid === false" in frontend,
+        "Control Center must expose release assurance state",
+    )
+    cross_helper = (ROOT / "scripts/trusted_cross_app_evidence.py").read_text(
+        encoding="utf-8"
+    )
+    for needle in (
+        'AUTHORITY = "APPLAB_CROSS_APP_VERIFICATION"',
+        'WORKFLOW_PATH = ".github/workflows/cross-app-verification.yml"',
+        "cross-app run must originate from main",
+        "cross-app evidence digest mismatch",
+        "reviewed repository/revision",
+    ):
+        require(needle in cross_helper, f"trusted cross-app evidence helper missing: {needle}")
+
+    require(
+        (ROOT / "integration/certification/AUTONOMOUS_RELEASE_ASSURANCE_V49.md").is_file(),
+        "v4.9 release assurance contract documentation is required",
+    )
+
+
 def main() -> int:
     check_version_alignment()
     check_local_controller_boundary()
@@ -788,6 +899,7 @@ def main() -> int:
     check_release_reality_contract()
     check_certification_studio_contract()
     check_cross_app_verification_contract()
+    check_release_assurance_contract()
     check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")

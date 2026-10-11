@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v4.8.0 — Cross-App Verification**
+Current production baseline: **v4.9.0 — Autonomous Release Assurance**
 
 ## Product rule
 
@@ -19,6 +19,18 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v4.9.0 — Autonomous Release Assurance
+
+- [x] Reconcile source/build identity, static/test/CI, trusted runtime, Evidence Graph and risk-based validation into one release-assurance record.
+- [x] Preserve exact-artifact semantics and fail closed on repository, source SHA, package/version or APK SHA-256 mismatch.
+- [x] Consume required physical evidence without treating emulator evidence as physical-device proof.
+- [x] Consume trusted distribution evidence only when it is exact-artifact-bound; never infer distribution from certification or build/runtime PASS.
+- [x] Consume cross-app pair evidence conditionally while keeping pair PASS independent from single-app PASS/CERTIFICATION.
+- [x] Preserve Production Certification Gate as the only certification authority; Release Assurance cannot mint or promote CERTIFIED.
+- [x] Emit deterministic PASS / FAIL / BLOCKED assurance plus explicit blockers, failures, next required stage and assurance digest.
+- [x] Integrate Release Assurance into True Autonomous Review and AppLab Studio without introducing an opaque numeric score.
+- [x] Protect the contract with self-test, workflow/audit invariants and the normal AppLab CI/runtime/governance gates.
 
 ### v4.8.0 — Cross-App Verification
 

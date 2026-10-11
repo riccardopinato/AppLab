@@ -94,8 +94,11 @@ jobs:
             scripts/cross_app_intelligence.py \
             scripts/ecosystem_core_contract.py \
             scripts/cross_app_verification.py \
+            scripts/release_assurance.py \
+            scripts/trusted_cross_app_evidence.py \
             scripts/audit_orchestrator.py \
             scripts/studio_snapshot.py \
+            scripts/studio_release_assurance.py \
             scripts/certification_studio.py \
             scripts/studio_evidence_graph.py \
             scripts/control_center_snapshot.py \
@@ -168,8 +171,11 @@ jobs:
           python scripts/cross_app_intelligence.py --self-test
           python scripts/ecosystem_core_contract.py --self-test
           python scripts/cross_app_verification.py --self-test
+          python scripts/release_assurance.py --self-test
+          python scripts/trusted_cross_app_evidence.py self-test
           python scripts/audit_orchestrator.py --self-test
           python scripts/studio_snapshot.py --self-test
+          python scripts/studio_release_assurance.py
           python scripts/certification_studio.py
           python scripts/studio_evidence_graph.py
           python scripts/control_center_snapshot.py --self-test
@@ -195,7 +201,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"4.8.0"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"4.9.0"'; then
               healthy=true
               break
             fi
