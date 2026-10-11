@@ -141,6 +141,31 @@ def exact_identity(record: dict[str, Any], ident: dict[str, str]) -> bool:
     return all(observed.get(key) == expected for key, expected in ident.items())
 
 
+def certification_identity_matches(record: dict[str, Any], ident: dict[str, str]) -> bool:
+    source = record.get("source") if isinstance(record.get("source"), dict) else {}
+    apk = record.get("apk") if isinstance(record.get("apk"), dict) else {}
+    observed = {
+        "repository": clean(source.get("repository")),
+        "resolved_sha": clean(source.get("resolved_sha")).lower(),
+        "artifact_sha256": clean(apk.get("sha256") or record.get("apk_sha256")).lower(),
+        "package_id": clean(apk.get("package_id")),
+        "version_name": clean(apk.get("version_name")),
+        "version_code": clean(apk.get("version_code")),
+    }
+    return all(observed.get(key) == expected for key, expected in ident.items())
+
+
+def pair_identity_matches(row: dict[str, Any], ident: dict[str, str]) -> bool:
+    return (
+        clean(row.get("repository")) == ident["repository"]
+        and clean(row.get("resolved_sha")).lower() == ident["resolved_sha"]
+        and clean(row.get("artifact_sha256")).lower() == ident["artifact_sha256"]
+        and clean(row.get("package_id")) == ident["package_id"]
+        and clean(row.get("version_name")) == ident["version_name"]
+        and clean(row.get("version_code")) == ident["version_code"]
+    )
+
+
 def distribution_state(record: dict[str, Any], ident: dict[str, str]) -> tuple[bool, str, str]:
     if not record:
         return False, NOT_VERIFIED, "No trusted distribution evidence is attached."
@@ -165,12 +190,7 @@ def cross_state(record: dict[str, Any], ident: dict[str, str]) -> tuple[bool, st
         pair.get("producer") if isinstance(pair.get("producer"), dict) else {},
         pair.get("consumer") if isinstance(pair.get("consumer"), dict) else {},
     ]
-    found = any(
-        clean(row.get("repository")) == ident["repository"]
-        and clean(row.get("resolved_sha")).lower() == ident["resolved_sha"]
-        and clean(row.get("artifact_sha256")).lower() == ident["artifact_sha256"]
-        for row in candidates
-    )
+    found = any(pair_identity_matches(row, ident) for row in candidates)
     if not found:
         return True, FAIL, "Cross-app evidence does not contain the bound artifact identity."
     round_trip = record.get("cross_app_round_trip") if isinstance(record.get("cross_app_round_trip"), dict) else {}
@@ -298,13 +318,19 @@ def build_report(report_dir: Path) -> dict[str, Any]:
 
     cert_payload = certification or (reality.get("certification") if isinstance(reality.get("certification"), dict) else {})
     cert_status = clean(cert_payload.get("status")).upper()
-    cert_state = PASS if cert_status == "CERTIFIED" else FAIL if cert_status in {"FAIL", "FAILED", "FAILURE", "NOT_CERTIFIED"} else BLOCKED
+    cert_identity_mismatch = bool(certification) and not certification_identity_matches(certification, ident)
+    if cert_identity_mismatch:
+        cert_state = FAIL
+        cert_reason = "Certification evidence identity does not match the release."
+    else:
+        cert_state = PASS if cert_status == "CERTIFIED" else FAIL if cert_status in {"FAIL", "FAILED", "FAILURE", "NOT_CERTIFIED"} else BLOCKED
+        cert_reason = "Canonical certification authority reports CERTIFIED." if cert_state == PASS else f"Canonical certification authority is {cert_status or 'NOT_VERIFIED'}."
     rows.append(stage(
         "CERTIFICATION",
         "Canonical certification",
         True,
         cert_state,
-        "Canonical certification authority reports CERTIFIED." if cert_state == PASS else f"Canonical certification authority is {cert_status or 'NOT_VERIFIED'}.",
+        cert_reason,
         [CERT, RR] if certification else [RR],
     ))
 
@@ -432,7 +458,18 @@ def self_test() -> None:
             }
         }), encoding="utf-8")
         (root / PLAN).write_text(json.dumps({"lane": "CERTIFICATION", "confidence": "HIGH"}), encoding="utf-8")
-        (root / CERT).write_text(json.dumps({"status": "CERTIFIED"}), encoding="utf-8")
+        certification = {
+            "status": "CERTIFIED",
+            "source": {"repository": "owner/demo", "resolved_sha": "a" * 40},
+            "apk": {
+                "sha256": "b" * 64,
+                "package_id": "com.example.demo",
+                "version_name": "1.0.0",
+                "version_code": "1",
+            },
+            "apk_sha256": "b" * 64,
+        }
+        (root / CERT).write_text(json.dumps(certification), encoding="utf-8")
 
         first = build_report(root)
         assert first["state"] == BLOCKED
@@ -460,6 +497,12 @@ def self_test() -> None:
         assert build_report(root)["state"] == FAIL
 
         (root / DIST).write_text(json.dumps(distribution), encoding="utf-8")
+        stale_cert = json.loads(json.dumps(certification))
+        stale_cert["apk"]["sha256"] = "d" * 64
+        stale_cert["apk_sha256"] = "d" * 64
+        (root / CERT).write_text(json.dumps(stale_cert), encoding="utf-8")
+        assert build_report(root)["state"] == FAIL
+        (root / CERT).write_text(json.dumps(certification), encoding="utf-8")
         write_outputs(root, second)
         assert (root / "release-assurance.json").is_file()
         assert "Authority boundary" in (root / "release-assurance.md").read_text(encoding="utf-8")
