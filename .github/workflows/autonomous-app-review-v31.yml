@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v5.1.0
+name: AppLab True Autonomous App Review v5.2.0
 
 on:
   schedule:
@@ -31,6 +31,11 @@ on:
         required: false
         default: ""
         type: string
+      market_evidence_path:
+        description: "Optional target-relative competitive evidence JSON path."
+        required: false
+        default: "market-evidence.json"
+        type: string
   workflow_call:
     inputs:
       target_repository:
@@ -52,6 +57,10 @@ on:
       cross_app_run_id:
         required: false
         default: ""
+        type: string
+      market_evidence_path:
+        required: false
+        default: "market-evidence.json"
         type: string
     secrets:
       APPLAB_TARGET_TOKEN:
@@ -88,7 +97,7 @@ jobs:
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/applab-changed-files.txt"
-          if grep -Eq '(^\.github/workflows/(autonomous-app-review-v31|trusted-apk-verifier|universal-project-runner)\.yml$|^scripts/(trusted_evidence_manifest|project_autodiscover|autonomous_app_review|behavioral_product_lab|state_edge_case_lab|evidence_calibration|evidence_confidence_engine|journey_crawler|user_journey_intelligence|ux_friction_lab|longitudinal_product_intelligence|longitudinal_finding_lifecycle|autonomous_experiment_planner|applab_analyst|evidence_graph|release_reality|release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|trusted_cross_app_evidence|physical_evidence|product_contract_audit|decision_brief)\.py$|^scripts/verify_apk\.sh$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
+          if grep -Eq '(^\.github/workflows/(autonomous-app-review-v31|trusted-apk-verifier|universal-project-runner)\.yml$|^scripts/(trusted_evidence_manifest|project_autodiscover|autonomous_app_review|behavioral_product_lab|state_edge_case_lab|evidence_calibration|evidence_confidence_engine|journey_crawler|user_journey_intelligence|ux_friction_lab|longitudinal_product_intelligence|longitudinal_finding_lifecycle|autonomous_experiment_planner|applab_analyst|evidence_graph|release_reality|release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|trusted_cross_app_evidence|physical_evidence|product_contract_audit|decision_brief)\.py$|^scripts/verify_apk\.sh$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -357,6 +366,25 @@ jobs:
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review" \
             --max-files "${MAX_FILES:-3500}"
 
+      - name: Build Competitive Product Intelligence
+        shell: bash
+        env:
+          MARKET_EVIDENCE_PATH: ${{ inputs.market_evidence_path || 'market-evidence.json' }}
+        run: |
+          set -Eeuo pipefail
+          case "$MARKET_EVIDENCE_PATH" in
+            /*|*../*|../*|*/..) echo "Unsafe market_evidence_path" >&2; exit 2 ;;
+          esac
+          ARGS=(
+            --repo-root "$GITHUB_WORKSPACE/target"
+            --evidence-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
+            --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
+          )
+          if [[ -f "$GITHUB_WORKSPACE/target/$MARKET_EVIDENCE_PATH" ]]; then
+            ARGS+=(--market-evidence "$GITHUB_WORKSPACE/target/$MARKET_EVIDENCE_PATH")
+          fi
+          python .applab/scripts/competitive_product_intelligence.py "${ARGS[@]}"
+
       - name: Bind trusted release evidence for assurance
         shell: bash
         run: |
@@ -384,11 +412,11 @@ jobs:
           include-hidden-files: true
           retention-days: 90
 
-      - name: Publish v5.1 review
+      - name: Publish v5.2 review
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v5.1.0"
+            echo "## AppLab True Autonomous App Review v5.2.0"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
@@ -405,6 +433,8 @@ jobs:
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/simulated-human-qa.md"
             echo
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/design-system-advisor.md"
+            echo
+            cat "$GITHUB_WORKSPACE/applab-autonomous-review/competitive-product-intelligence.md"
             echo
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/release-assurance.md"
           } >> "$GITHUB_STEP_SUMMARY"
