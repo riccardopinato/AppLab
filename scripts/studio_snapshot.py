@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-
 import argparse
 import json
 import tempfile
@@ -9,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 import certification_studio, studio_evidence_graph, studio_release_assurance
-
 SCHEMA_VERSION = 1
 STUDIO_VERSION = "4.9.0"
 
