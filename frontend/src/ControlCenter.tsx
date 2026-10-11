@@ -482,6 +482,8 @@ type StudioProject = {
     certification_status?: string;
     required_passed?: number;
     required_total?: number;
+    identity_match?: boolean;
+    identity_mismatches?: string[];
   } | null;
   autonomous_review?: {
     review_state?: string;
@@ -750,6 +752,9 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
                         <small>
                           {project.release_assurance.required_passed ?? 0}/{project.release_assurance.required_total ?? 0} required stages · {project.release_assurance.blockers ?? 0} blockers · {project.release_assurance.failures ?? 0} failures · next {project.release_assurance.next_required_stage || "none"}
                         </small>
+                        {project.release_assurance.identity_match === false ? (
+                          <small>identity mismatch · {(project.release_assurance.identity_mismatches ?? []).join(", ") || "unknown"}</small>
+                        ) : null}
                       </div>
                       <span className={badgeClass(project.release_assurance.state ?? "NOT_VERIFIED")}>
                         {project.release_assurance.state ?? "NOT_VERIFIED"}
