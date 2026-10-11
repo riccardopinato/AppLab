@@ -97,6 +97,7 @@ jobs:
             scripts/release_assurance.py \
             scripts/audit_orchestrator.py \
             scripts/studio_snapshot.py \
+            scripts/studio_release_assurance.py \
             scripts/certification_studio.py \
             scripts/studio_evidence_graph.py \
             scripts/control_center_snapshot.py \
@@ -172,6 +173,7 @@ jobs:
           python scripts/release_assurance.py --self-test
           python scripts/audit_orchestrator.py --self-test
           python scripts/studio_snapshot.py --self-test
+          python scripts/studio_release_assurance.py
           python scripts/certification_studio.py
           python scripts/studio_evidence_graph.py
           python scripts/control_center_snapshot.py --self-test
