@@ -82,21 +82,56 @@ def _validated_record(
         errors.append("canonical_personas")
 
     for row in personas:
+        name = str(row.get("persona", "")).strip()
         if str(row.get("classification", "")).strip() != simulated.CLASSIFICATION:
             errors.append("persona_classification")
+        focus = row.get("focus")
+        if (
+            not isinstance(focus, list)
+            or not all(isinstance(value, str) for value in focus)
+            or focus != sorted(simulated.PERSONA_FOCUS.get(name, set()))
+        ):
+            errors.append("persona_focus")
         tasks = row.get("tasks")
+        expected_tasks = simulated.PERSONA_TASKS.get(name, ())
         if not isinstance(tasks, list) or not tasks:
             errors.append("persona_tasks")
             continue
+        task_ids = [
+            str(task.get("task_id", "")).strip()
+            for task in tasks
+            if isinstance(task, dict)
+        ]
+        expected_ids = [str(task["id"]) for task in expected_tasks]
+        if task_ids != expected_ids or len(tasks) != len(expected_tasks):
+            errors.append("canonical_tasks")
+        expected_by_id = {str(task["id"]): task for task in expected_tasks}
         for task in tasks:
             if not isinstance(task, dict):
                 errors.append("task_structure")
                 continue
+            task_id = str(task.get("task_id", "")).strip()
+            expected_task = expected_by_id.get(task_id)
+            if expected_task and str(task.get("goal", "")).strip() != str(expected_task["goal"]):
+                errors.append("task_goal")
             outcome = str(task.get("outcome", "")).strip().upper()
             if outcome not in simulated.ALLOWED_OUTCOMES:
                 errors.append("task_outcome")
+            signal_ids = task.get("signal_ids")
+            if not isinstance(signal_ids, list) or not all(
+                isinstance(value, str) and value for value in signal_ids
+            ):
+                errors.append("task_signal_ids")
             walkthrough = task.get("cognitive_walkthrough")
-            if not isinstance(walkthrough, list) or not walkthrough:
+            if not isinstance(walkthrough, list):
+                errors.append("cognitive_walkthrough")
+                continue
+            criteria = [
+                str(item.get("criterion", "")).strip()
+                for item in walkthrough
+                if isinstance(item, dict)
+            ]
+            if criteria != list(simulated.WALKTHROUGH_CRITERIA):
                 errors.append("cognitive_walkthrough")
 
     actions_raw = payload.get("actions")
