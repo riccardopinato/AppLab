@@ -94,6 +94,9 @@ def validate(
         value = expected_apk.get(field, "")
         if not isinstance(value, str):
             raise ValueError(f"APK {field} must be a string")
+    for field in ("package_id", "version_name", "version_code"):
+        if not expected_apk[field].strip():
+            raise ValueError(f"APK {field} is missing")
     signing_digest = expected_apk.get("signing_cert_sha256", "")
     if signing_digest and not re.fullmatch(r"[0-9a-f]{64}", signing_digest):
         raise ValueError("APK signing_cert_sha256 is invalid")
@@ -333,15 +336,17 @@ def self_test() -> None:
         assert result["package_id"] == "com.example.app"
         assert result["analysis_mode"] == "fast"
         assert result["trusted_applab_sha"] == "c" * 40
-        payload["apk"]["package_id"] = ""
-        (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
-        try:
-            validate(root, "owner/repo", "a"*40, "flutter", "fast", "c"*40)
-        except ValueError as exc:
-            assert "APK package id is unavailable" in str(exc)
-        else:
-            raise AssertionError("missing APK package identity must be rejected")
-        payload["apk"]["package_id"] = "com.example.app"
+        for field in ("package_id", "version_name", "version_code"):
+            original = payload["apk"][field]
+            payload["apk"][field] = "   "
+            (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
+            try:
+                validate(root, "owner/repo", "a"*40, "flutter", "fast", "c"*40)
+            except ValueError as exc:
+                assert f"APK {field} is missing" in str(exc)
+            else:
+                raise AssertionError(f"missing APK {field} identity must be rejected")
+            payload["apk"][field] = original
         (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
 
         payload["package_id"] = "com.example.other"
