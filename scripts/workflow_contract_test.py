@@ -92,6 +92,11 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "scripts/release_assurance.py",
         "release-assurance.md",
         "AppLab True Autonomous App Review v4.9.0",
+        "cross_app_run_id",
+        "trusted_cross_app_evidence.py verify-run",
+        "Download trusted cross-app verification evidence",
+        "trusted_cross_app_evidence.py validate",
+        "cross-app-verification.bound.json",
     ),
     ".github/workflows/production-certification.yml": (
         "analysis_mode: certification",
