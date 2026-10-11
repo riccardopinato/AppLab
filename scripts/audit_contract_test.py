@@ -807,10 +807,15 @@ def check_release_assurance_contract() -> None:
         require(needle in workflow, f"v4.9 autonomous review integration missing: {needle}")
 
     require(
-        '"release_assurance": None' in studio
-        and '"with_release_assurance"' in studio
-        and '"release_assurance_blocked"' in studio,
-        "Studio must surface release assurance independently from certification",
+        "studio_release_assurance.project_from_directory" in studio
+        and "studio_release_assurance.portfolio_summary(projects)" in studio,
+        "Studio must source release assurance from the dedicated read-only projection",
+    )
+    projection = (ROOT / "scripts/studio_release_assurance.py").read_text(encoding="utf-8")
+    require(
+        '"release_assurance_blocked"' in projection
+        and '"release_assurance_fail"' in projection,
+        "Release Assurance Studio projection must preserve blocked/fail states",
     )
     require(
         "Autonomous Release Assurance" in frontend
