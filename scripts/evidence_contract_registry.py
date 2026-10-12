@@ -256,9 +256,14 @@ def compatibility_errors(artifact: str, payload: Any) -> list[str]:
         return ["PAYLOAD_NOT_OBJECT"]
 
     errors: list[str] = []
-    if payload.get("schema_version") != contract.schema_version:
+    observed_schema = payload.get("schema_version")
+    if (
+        not isinstance(observed_schema, int)
+        or isinstance(observed_schema, bool)
+        or observed_schema != contract.schema_version
+    ):
         errors.append(
-            f"SCHEMA_VERSION_MISMATCH:{payload.get('schema_version')!r}!={contract.schema_version!r}"
+            f"SCHEMA_VERSION_MISMATCH:{observed_schema!r}!={contract.schema_version!r}"
         )
 
     if contract.version_field:
@@ -387,6 +392,10 @@ def self_test() -> None:
         wrong_schema = json.loads(json.dumps(payload))
         wrong_schema["schema_version"] = contract.schema_version + 100
         assert compatibility_errors(contract.artifact, wrong_schema)
+
+        boolean_schema = json.loads(json.dumps(payload))
+        boolean_schema["schema_version"] = True
+        assert compatibility_errors(contract.artifact, boolean_schema)
 
         if contract.version_field:
             wrong_version = json.loads(json.dumps(payload))
