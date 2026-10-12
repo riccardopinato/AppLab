@@ -12,7 +12,14 @@ def run_check(name: str, namespace: dict[str, Any]) -> None:
     check = globals().get(name)
     if not callable(check):
         raise AssertionError(f"unknown hardening audit check: {name}")
-    globals().update(namespace)
+    for key, value in namespace.items():
+        # Preserve extracted check implementations across sequential wrapper
+        # calls; the caller namespace contains wrappers with the same names.
+        if key.startswith("check_v") and callable(globals().get(key)):
+            continue
+        if key == "run_check":
+            continue
+        globals()[key] = value
     check()
 
 
