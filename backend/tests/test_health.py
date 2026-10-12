@@ -74,6 +74,7 @@ def test_health() -> None:
     assert "technical-hardening-v5.3.1" in payload["features"]
     assert "graph-aware-planning-feedback-v5.3.2" in payload["features"]
     assert "structural-hardening-v5.3.3" in payload["features"]
+    assert "evidence-schema-registry-v5.3.4" in payload["features"]
     assert "evidence-graph-v4.2" in payload["features"]
     assert "audit-hardening-v4.0.1" in payload["features"]
     assert "residual-hardening-v4.0.2" in payload["features"]
