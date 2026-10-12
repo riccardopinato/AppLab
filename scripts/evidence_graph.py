@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from product_review_common import write_report
+import evidence_contract_registry
 
 SCHEMA_VERSION = 2
 ENGINE_VERSION = "4.6.0"
@@ -80,10 +81,20 @@ def read_json(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def _load_registered_input(path: Path) -> dict[str, Any] | None:
+    payload = read_json(path)
+    state, errors = evidence_contract_registry.validate_if_registered(path.name, payload)
+    if path.is_file() and state == "INCOMPATIBLE":
+        raise ValueError(
+            f"Incompatible registered evidence {path.name}: " + "; ".join(errors)
+        )
+    return payload
+
+
 def load_inputs(evidence_dir: Path, trusted_runtime_dir: Path | None = None) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for key, filename in FILES.items():
-        payload = read_json(evidence_dir / filename)
+        payload = _load_registered_input(evidence_dir / filename)
         if payload is not None:
             result[key] = payload
 
@@ -94,7 +105,7 @@ def load_inputs(evidence_dir: Path, trusted_runtime_dir: Path | None = None) -> 
             ("trusted_result", "result.json"),
             ("analysis_plan", "analysis-plan.json"),
         ):
-            payload = read_json(trusted_runtime_dir / filename)
+            payload = _load_registered_input(trusted_runtime_dir / filename)
             if payload is not None:
                 result[key] = payload
     return result
