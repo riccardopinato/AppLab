@@ -17,6 +17,7 @@ POLICY = (
     (".github/workflows/physical-evidence-hub.yml", "Upload physical evidence attestation", "RELEASE_CRITICAL", 90),
     (".github/workflows/cross-app-verification.yml", "Upload paired verification evidence", "RELEASE_CRITICAL", 90),
     (".github/workflows/autonomous-app-review-v31.yml", "Upload repository-wide longitudinal history", "LONGITUDINAL", 90),
+    (".github/workflows/repo-watcher.yml", "Upload central history", "ADVISORY_CALIBRATION", 7),
     (".github/workflows/live-emulator-self-test.yml", "Upload live browser evidence", "INFRA_DIAGNOSTIC", 7),
 )
 
