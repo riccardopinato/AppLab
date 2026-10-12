@@ -154,7 +154,7 @@ def capture(report_dir: Path, name: str) -> None:
 
 
 def package_runtime_unhealthy(package_id: str) -> str:
-    pid = pid_of(package_id)
+    pid = wait_for_pid(package_id, timeout=4.0)
     if not pid:
         return "application process is not running"
     logs = adb("logcat", "-b", "all", "-d", "-v", "brief", timeout=30).stdout
