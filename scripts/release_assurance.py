@@ -604,6 +604,8 @@ def self_test() -> None:
     with tempfile.TemporaryDirectory() as raw:
         root = Path(raw)
         reality = {
+            "schema_version": 1,
+            "engine_version": "4.5.0",
             "release_id": "r1",
             "identity_complete": True,
             "source": {"repository": "owner/demo", "resolved_sha": "a" * 40},
@@ -652,6 +654,7 @@ def self_test() -> None:
         (root / GRAPH).write_text(json.dumps(graph), encoding="utf-8")
         plan = {
             "schema_version": 2,
+            "planner_version": "1.1.0",
             "mode": "certification",
             "lane": "CERTIFICATION",
             "repository": "owner/demo",
@@ -662,6 +665,8 @@ def self_test() -> None:
         }
         (root / PLAN).write_text(json.dumps(plan), encoding="utf-8")
         certification = {
+            "schema_version": 1,
+            "applab_version": "1.0.0",
             "status": "CERTIFIED",
             "certified": True,
             "failures": [],
@@ -739,6 +744,10 @@ def self_test() -> None:
         assert build_report(root)["state"] == FAIL
         (root / CERT).write_text(json.dumps(certification), encoding="utf-8")
         bad_pair = {
+            "schema_version": 1,
+            "applab_version": "4.8.0",
+            "authority": "APPLAB_CROSS_APP_VERIFICATION",
+            "record_type": "CROSS_APP_VERIFICATION",
             "pair_identity": {
                 "producer": {
                     "repository": "owner/demo",
@@ -776,6 +785,10 @@ def self_test() -> None:
         (root / PLAN).write_text(json.dumps(plan), encoding="utf-8")
 
         invalid_cross = {
+            "schema_version": 1,
+            "applab_version": "4.8.0",
+            "authority": "APPLAB_CROSS_APP_VERIFICATION",
+            "record_type": "CROSS_APP_VERIFICATION",
             "pair_identity": {
                 "producer": {
                     "repository": "owner/demo",
