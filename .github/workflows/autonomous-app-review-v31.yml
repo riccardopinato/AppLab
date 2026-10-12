@@ -497,8 +497,10 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          PROJECT_ID="$(printf '%s' "${{ needs.resolve.outputs.repository }}" | tr '/' '_')"
+          PROJECT_DIR="$GITHUB_WORKSPACE/studio-evidence/$PROJECT_ID"
           python .applab/scripts/evidence_contract_registry.py validate-dir \
-            --root "$GITHUB_WORKSPACE/studio-evidence"
+            --root "$PROJECT_DIR"
 
       - name: Build Studio snapshot
         shell: bash
