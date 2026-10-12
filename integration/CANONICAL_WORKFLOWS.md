@@ -31,9 +31,24 @@ authority.
 ### autonomous-app-review-v31.yml
 
 The filename is retained because external repositories may already reference it.
-Its display name, implementation and output are AppLab v4.0.2. New documentation
-must call it **True Autonomous Review**, not “v3.1 workflow”, unless discussing
-history.
+Its display name, implementation and output track the current AppLab platform
+baseline. New documentation must call it **True Autonomous Review**, not
+“v3.1 workflow”, unless discussing history.
+
+### verify-flutter.yml
+
+This is a **public compatibility wrapper** for repositories that already call a
+Flutter-only reusable gate. It delegates to the canonical external Flutter
+runner and is not a second verification authority. Its display/job names must
+not carry historical platform versions.
+
+## Diagnostic-only workflows
+
+### apk-emulator-smoke.yml
+
+Manual APK smoke verification is retained as an operator diagnostic. It accepts
+an externally supplied APK URL and is not a source-build, release-assurance, or
+production-certification authority.
 
 ## Naming policy
 
