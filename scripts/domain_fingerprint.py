@@ -108,6 +108,7 @@ def self_test(root: Path) -> None:
         "scripts/release_reality.py",
         "scripts/physical_evidence.py",
         "scripts/evidence_contract_registry.py",
+        "scripts/delta_calibration.py",
         "scripts/install_maestro.sh",
         "scripts/project_autodiscover.py",
         "scripts/project_adapter.py",
