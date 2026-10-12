@@ -188,9 +188,11 @@ def build_report(history: list[dict[str, Any]]) -> dict[str, Any]:
         and len(observed_categories) >= MIN_CHANGE_CATEGORIES
     )
     safety_clear = false_negatives == 0 and missed_warnings == 0
+    baseline_complete = missing_baselines == 0
+    lab_candidate_ready = bool(lab_candidates)
     if not safety_clear:
         state = "UNSAFE"
-    elif diversity_ready:
+    elif diversity_ready and baseline_complete and lab_candidate_ready:
         state = "READY_FOR_EXPERIMENT"
     else:
         state = "COLLECTING"
@@ -200,6 +202,8 @@ def build_report(history: list[dict[str, Any]]) -> dict[str, Any]:
         "shadow_sample_ready": shadow_runs >= MIN_TOTAL_SHADOW_RUNS,
         "change_diversity_ready": len(observed_categories) >= MIN_CHANGE_CATEGORIES,
         "safety_clear": safety_clear,
+        "baseline_complete": baseline_complete,
+        "lab_candidate_ready": lab_candidate_ready,
         "ready_for_controlled_experiment": state == "READY_FOR_EXPERIMENT",
         "thresholds": {
             "min_repositories": MIN_REPOSITORIES,
@@ -274,6 +278,8 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- Shadow sample volume: **{'READY' if readiness['shadow_sample_ready'] else 'COLLECTING'}**",
         f"- Change diversity: **{'READY' if readiness['change_diversity_ready'] else 'COLLECTING'}**",
         f"- Safety: **{'CLEAR' if readiness['safety_clear'] else 'UNSAFE'}**",
+        f"- Baseline completeness: **{'COMPLETE' if readiness['baseline_complete'] else 'COLLECTING'}**",
+        f"- Candidate lab evidence: **{'READY' if readiness['lab_candidate_ready'] else 'COLLECTING'}**",
         "",
         "## Lab evidence",
         "",
@@ -351,6 +357,8 @@ def self_test() -> None:
 
     incomplete_rows = rows + [_fixture_row("owner/app-0", "ui_change", "NO_BASELINE")]
     incomplete = build_report(incomplete_rows)
+    assert incomplete["state"] == "COLLECTING"
+    assert incomplete["readiness"]["baseline_complete"] is False
     assert incomplete["lab_observations"]["network"]["state"] == "EVIDENCE_INCOMPLETE"
     assert incomplete["lab_observations"]["network"]["safe_pass"] == 20
 
