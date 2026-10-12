@@ -9,7 +9,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
-SHA_ACTION = re.compile(r"^[^@\\s]+@[0-9a-f]{40}$")
+SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
 
 def require(condition: bool, message: str) -> None:
