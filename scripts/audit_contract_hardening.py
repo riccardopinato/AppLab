@@ -103,6 +103,8 @@ def check_v531_technical_hardening_contract() -> None:
 
 def check_v532_graph_aware_planning_feedback_contract() -> None:
     feedback = (ROOT / "scripts/planner_feedback.py").read_text(encoding="utf-8")
+    feedback_contract = (ROOT / "scripts/planner_feedback_contract.py").read_text(encoding="utf-8")
+    feedback_surface = feedback + "\n" + feedback_contract
     planner = (ROOT / "scripts/smart_test_plan.py").read_text(encoding="utf-8")
     packager = (ROOT / "scripts/package_build_contract.py").read_text(encoding="utf-8")
     graph = (ROOT / "scripts/evidence_graph.py").read_text(encoding="utf-8")
@@ -117,7 +119,7 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
     learning = (ROOT / "scripts/history_learning.py").read_text(encoding="utf-8")
 
     for needle in (
-        'ENGINE_VERSION = "5.3.2"',
+        'ENGINE_VERSION = "5.3.3"',
         'RECORD_TYPE = "EVIDENCE_GRAPH_PLANNER_FEEDBACK"',
         'GRAPH_SCHEMA_VERSION = 2',
         'GRAPH_VERSION = "2.0"',
@@ -135,11 +137,11 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
         "SOURCE_ANALYSIS_TRUNCATED",
         "IMPACT_PATH_CAP_REACHED",
         "DIGEST_MISMATCH",
-        "AppLab Graph-aware Planner Feedback v5.3.2 self-test PASS",
+        "AppLab Graph-aware Planner Feedback v5.3.3 self-test PASS",
         'key not in plan for key in ("analysis_truncated", "semantic_diff_truncated", "dependency_analysis")',
         "except (TypeError, ValueError)",
     ):
-        require(needle in feedback, f"v5.3.2 planner-feedback contract missing: {needle}")
+        require(needle in feedback_surface, f"v5.3.2 planner-feedback contract missing: {needle}")
 
     for needle in (
         'from planner_feedback import evaluate_feedback',
@@ -185,23 +187,26 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
         "Pin resolved SHA and delta baseline",
         "fetch-depth: 2",
         "HEAD^",
-        "AppLab True Autonomous App Review v5.3.2",
+        "AppLab True Autonomous App Review v5.3.3",
     ):
         require(needle in review, f"v5.3.2 autonomous review integration missing: {needle}")
 
     require(
         '"scripts/planner_feedback.py"' in fingerprint
+        and '"scripts/planner_feedback_contract.py"' in fingerprint
         and '"scripts/restore_planner_feedback.sh"' in fingerprint,
         "planner feedback producer/restore helper must invalidate core contract fingerprints",
     )
     require(
         '"scripts/planner_feedback.py"' in watcher
+        and '"scripts/planner_feedback_contract.py"' in watcher
         and '"scripts/restore_planner_feedback.sh"' in watcher,
         "Repo Watcher must react to planner-feedback contract changes",
     )
     require(
         '"scripts/smart_test_plan.py": 1000' in maintainability
-        and '"scripts/planner_feedback.py": 420' in maintainability,
+        and '"scripts/planner_feedback.py": 280' in maintainability
+        and '"scripts/planner_feedback_contract.py": 260' in maintainability,
         "v5.3.2 planner modules must have maintainability ceilings",
     )
     require(
@@ -228,4 +233,60 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
         "v5.3.2 graph-aware planning feedback documentation is required",
     )
 
+def check_v533_structural_hardening_contract() -> None:
+    maintainability = (ROOT / "scripts/maintainability_budget.py").read_text(encoding="utf-8")
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    registry = (ROOT / "integration/CANONICAL_WORKFLOWS.md").read_text(encoding="utf-8")
+    wrapper = (ROOT / ".github/workflows/verify-flutter.yml").read_text(encoding="utf-8")
+    fingerprint = (ROOT / "scripts/contract_fingerprint.py").read_text(encoding="utf-8")
+    domains = (ROOT / "scripts/domain_fingerprint.py").read_text(encoding="utf-8")
+
+    for path in (
+        "scripts/planner_feedback_contract.py",
+        "scripts/studio_snapshot_self_test.py",
+        "scripts/evidence_graph_self_test.py",
+        "scripts/audit_contract_hardening.py",
+        "tests/contracts/planning_feedback_pipeline_test.py",
+        "tests/contracts/workflow_structure_test.py",
+    ):
+        require((ROOT / path).is_file(), f"v5.3.3 structural hardening file missing: {path}")
+
+    for needle in (
+        '"scripts/planner_feedback.py": 280',
+        '"scripts/planner_feedback_contract.py": 260',
+        '"scripts/studio_snapshot.py": 950',
+        '"scripts/evidence_graph.py": 2400',
+        '"scripts/audit_contract_test.py": 1300',
+        '"frontend/src/ControlCenter.tsx": 1750',
+        '".github/workflows/external-project-runner.yml": 900',
+        '".github/workflows/external-native-android-runner.yml": 900',
+    ):
+        require(needle in maintainability, f"v5.3.3 structural ceiling missing: {needle}")
+
+    for needle in (
+        "tests/contracts/planning_feedback_pipeline_test.py",
+        "tests/contracts/workflow_structure_test.py",
+        "python tests/contracts/planning_feedback_pipeline_test.py",
+        "python tests/contracts/workflow_structure_test.py",
+        "scripts/planner_feedback_contract.py",
+        "scripts/audit_contract_hardening.py",
+        "scripts/studio_snapshot_self_test.py",
+        "scripts/evidence_graph_self_test.py",
+    ):
+        require(needle in ci, f"v5.3.3 CI contract missing: {needle}")
+
+    require("verify-flutter.yml" in registry and "public compatibility wrapper" in registry.lower(),
+            "Flutter compatibility wrapper must be classified in canonical registry")
+    require("apk-emulator-smoke.yml" in registry and "diagnostic" in registry.lower(),
+            "APK smoke workflow must be classified as diagnostic-only")
+    require("v0.6.3 Unified Flutter Gate" not in wrapper,
+            "Flutter compatibility wrapper must not expose stale v0.6.3 naming")
+    require(not (ROOT / ".github/workflows/camperboss-16c-build-once.yml").exists(),
+            "project-specific CamperBoss one-off workflow must be removed from AppLab core")
+    require('"scripts/planner_feedback_contract.py"' in fingerprint,
+            "extracted planner contract must invalidate build-contract fingerprints")
+    require('"scripts/planner_feedback_contract.py"' in domains,
+            "extracted planner contract must remain in core domain fingerprint")
+    require((ROOT / "integration/hardening/STRUCTURAL_HARDENING_V533.md").is_file(),
+            "v5.3.3 structural hardening documentation is required")
 
