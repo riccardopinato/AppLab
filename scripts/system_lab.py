@@ -132,7 +132,7 @@ def wait_for_pid(package_id: str, timeout: float = 30.0) -> str:
 
 
 def app_crash_state(package_id: str) -> tuple[bool, str]:
-    if not pid_of(package_id):
+    if not wait_for_pid(package_id, timeout=4.0):
         return True, "application process is not running"
     logcat = run("adb", "logcat", "-b", "all", "-d", "-v", "brief").stdout
     if f"ANR in {package_id}" in logcat:

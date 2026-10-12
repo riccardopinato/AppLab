@@ -158,7 +158,7 @@ def launch(package_id: str) -> str:
 
 
 def runtime_unhealthy(package_id: str) -> str:
-    if not pid_of(package_id):
+    if not wait_for_pid(package_id, timeout=4.0):
         return "application process is not running"
     # ActivityManager emits ANRs from system_server, so this check must inspect
     # the system log buffer. Process-death callers clear that buffer immediately

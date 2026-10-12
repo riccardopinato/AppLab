@@ -238,8 +238,27 @@ def pid_of(package_id: str) -> str:
     return result.stdout.strip().split()[0] if result.stdout.strip() else ""
 
 
+def wait_for_pid(
+    package_id: str,
+    *,
+    timeout_seconds: float = 4.0,
+    poll_seconds: float = 0.25,
+) -> str:
+    deadline = time.monotonic() + max(0.0, timeout_seconds)
+    while True:
+        pid = pid_of(package_id)
+        if pid:
+            return pid
+        if time.monotonic() >= deadline:
+            return ""
+        time.sleep(max(0.05, poll_seconds))
+
+
 def app_crashed(package_id: str) -> tuple[bool, str]:
-    if not pid_of(package_id):
+    # Hosted Android emulators can need longer than the crawler settle interval
+    # to publish the app PID after force-stop + monkey relaunch. A single pidof
+    # miss is therefore not sufficient evidence of process death.
+    if not wait_for_pid(package_id):
         return True, "application process died"
     logcat = run("adb", "logcat", "-b", "all", "-d", "-v", "brief", check=False).stdout
     if f"ANR in {package_id}" in logcat:
