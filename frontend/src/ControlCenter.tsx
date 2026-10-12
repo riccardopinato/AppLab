@@ -145,6 +145,19 @@ type Snapshot = {
     retryable_failures?: number;
     flaky_suspects?: number;
     release_ready?: number;
+    delta_calibration?: {
+      state?: string;
+      coverage_reduction_enabled?: boolean;
+      summary?: {
+        repositories?: number;
+        qualified_repositories?: number;
+        shadow_runs?: number;
+        change_categories?: number;
+        false_negatives?: number;
+        missed_warnings?: number;
+        lab_candidates?: number;
+      };
+    };
     adaptive_metrics?: {
       sample_count?: number;
       planner_ms?: { p50?: number | null; p95?: number | null };
@@ -1458,6 +1471,34 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
               <div className="good">
                 <span>Release ready</span>
                 <strong>{snapshot.summary.release_ready ?? 0}</strong>
+              </div>
+            </div>
+          ) : null}
+
+          {snapshot.summary.delta_calibration ? (
+            <div className="cc-summary">
+              <div>
+                <span>Delta readiness</span>
+                <strong>{snapshot.summary.delta_calibration.state ?? "COLLECTING"}</strong>
+              </div>
+              <div>
+                <span>Calibrated repositories</span>
+                <strong>
+                  {snapshot.summary.delta_calibration.summary?.qualified_repositories ?? 0}/
+                  {snapshot.summary.delta_calibration.summary?.repositories ?? 0}
+                </strong>
+              </div>
+              <div>
+                <span>Calibration shadow samples</span>
+                <strong>{snapshot.summary.delta_calibration.summary?.shadow_runs ?? 0}</strong>
+              </div>
+              <div>
+                <span>Lab evidence candidates</span>
+                <strong>{snapshot.summary.delta_calibration.summary?.lab_candidates ?? 0}</strong>
+              </div>
+              <div>
+                <span>Coverage reduction</span>
+                <strong>DISABLED</strong>
               </div>
             </div>
           ) : null}
