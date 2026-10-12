@@ -92,8 +92,9 @@ def clean(value: object) -> str:
 
 
 def read_registered_json(path: Path, required: bool = False) -> dict[str, Any]:
+    present = path.is_file()
     payload = read_json(path, required)
-    if payload and path.name in evidence_contract_registry.REGISTRY:
+    if present and path.name in evidence_contract_registry.REGISTRY:
         evidence_contract_registry.require_compatible(path.name, payload)
     return payload
 
@@ -685,6 +686,15 @@ def self_test() -> None:
         first = build_report(root)
         assert first["state"] == BLOCKED
         assert first["next_required_stage"]["key"] == "DISTRIBUTION_EVIDENCE"
+
+        (root / CROSS).write_text("{}", encoding="utf-8")
+        try:
+            build_report(root)
+        except evidence_contract_registry.EvidenceContractError:
+            pass
+        else:
+            raise AssertionError("present empty registered evidence must be rejected")
+        (root / CROSS).unlink()
 
         non_boolean_bytes = json.loads(json.dumps(reality))
         non_boolean_bytes["same_artifact_semantics"]["same_bytes_verified"] = "false"
