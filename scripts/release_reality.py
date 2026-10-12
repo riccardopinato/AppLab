@@ -764,7 +764,7 @@ def self_test() -> None:
         digest = sha256_file(apk)
         contract = {
             "schema_version": 1,
-            "applab_version": "5.3.4",
+            "applab_version": "5.3.5",
             "repository": "owner/demo",
             "resolved_sha": "a" * 40,
             "engine": "flutter",
@@ -837,7 +837,7 @@ def self_test() -> None:
             pass
         else:
             raise AssertionError("stale build-contract version must be rejected")
-        contract["applab_version"] = "5.3.4"
+        contract["applab_version"] = "5.3.5"
         (report / "build-contract.json").write_text(json.dumps(contract), encoding="utf-8")
 
         contract["apk"]["signing_cert_sha256"] = ""
