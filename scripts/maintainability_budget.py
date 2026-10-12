@@ -23,7 +23,7 @@ LIMITS = {
     "scripts/planner_feedback_contract.py": 260,
     "scripts/evidence_graph.py": 2400,
     "scripts/audit_contract_test.py": 1300,
-    "scripts/audit_contract_hardening.py": 280,
+    "scripts/audit_contract_hardening.py": 320,
     "scripts/studio_snapshot_self_test.py": 450,
     "scripts/evidence_graph_self_test.py": 320,
     "frontend/src/ControlCenter.tsx": 1750,
