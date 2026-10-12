@@ -105,7 +105,12 @@ def assert_producer_contracts_are_declared() -> None:
     }
     for artifact, needles in source_checks.items():
         contract = registry.contract_for(artifact)
-        source = (ROOT / contract.producer).read_text(encoding="utf-8")
+        declaration_source = (
+            "scripts/planner_feedback_contract.py"
+            if artifact == "planner-feedback.json"
+            else contract.producer
+        )
+        source = (ROOT / declaration_source).read_text(encoding="utf-8")
         for needle in needles:
             assert needle in source, f"{artifact} producer drift: missing {needle}"
 
