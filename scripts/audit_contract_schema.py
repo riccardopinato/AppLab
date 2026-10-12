@@ -94,6 +94,7 @@ def run_check(namespace: dict[str, Any]) -> None:
     require(
         "Validate registered evidence contracts" in review
         and "evidence_contract_registry.py validate-dir" in review
-        and "evidence_contract_registry" in review,
-        "autonomous review must validate registered evidence before Studio projection",
+        and 'PROJECT_DIR="$GITHUB_WORKSPACE/studio-evidence/$PROJECT_ID"' in review
+        and '--root "$PROJECT_DIR"' in review,
+        "autonomous review must validate the populated project evidence directory before Studio projection",
     )
