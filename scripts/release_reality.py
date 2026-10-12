@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import evidence_contract_registry
+
 ENGINE_VERSION = "4.5.0"
 SCHEMA_VERSION = 1
 
@@ -202,6 +204,7 @@ def physical_evidence_summary(
         return {"present": False}
 
     payload = read_json(path)
+    evidence_contract_registry.require_compatible("physical-evidence.json", payload)
     source = payload.get("source")
     physical_artifact = payload.get("artifact")
     device = payload.get("device")
