@@ -176,6 +176,7 @@ def health() -> dict:
             "technical-hardening-v5.3.1",
             "graph-aware-planning-feedback-v5.3.2",
             "structural-hardening-v5.3.3",
+            "evidence-schema-registry-v5.3.4",
             "evidence-graph-v4.2",
             "audit-hardening-v4.0.1",
             "residual-hardening-v4.0.2",
