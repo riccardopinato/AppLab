@@ -193,6 +193,14 @@ between FAST, FULL or CERTIFICATION in v4.6. Graph-aware feedback into a future
 planner run can be added only with a separate deterministic contract so that a
 derived graph cannot silently become a second test-selection authority.
 
+### v5.3.2 follow-up
+
+v5.3.2 implements that separate contract as `planner-feedback.json`. A completed
+prior graph may now contribute bounded escalation-only risk to a later FAST run
+when repository, exact baseline SHA, lineage and completeness checks are
+compatible. Smart Test Plan remains the sole lane authority, and the current
+run's graph still cannot retroactively alter the lane that produced it.
+
 ## Authority boundaries
 
 v4.6 preserves these rules:

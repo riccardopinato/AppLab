@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v5.3.1
+name: AppLab True Autonomous App Review v5.3.2
 
 on:
   schedule:
@@ -97,7 +97,7 @@ jobs:
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/applab-changed-files.txt"
-          if grep -Eq '(^\.github/workflows/(autonomous-app-review-v31|trusted-apk-verifier|universal-project-runner)\.yml$|^scripts/(trusted_evidence_manifest|project_autodiscover|autonomous_app_review|behavioral_product_lab|state_edge_case_lab|evidence_calibration|evidence_confidence_engine|journey_crawler|user_journey_intelligence|ux_friction_lab|longitudinal_product_intelligence|longitudinal_finding_lifecycle|autonomous_experiment_planner|applab_analyst|evidence_graph|release_reality|release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|virtual_product_review_council|studio_review_council|trusted_cross_app_evidence|physical_evidence|product_contract_audit|decision_brief)\.py$|^scripts/verify_apk\.sh$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
+          if grep -Eq '(^\.github/workflows/(autonomous-app-review-v31|trusted-apk-verifier|universal-project-runner)\.yml$|^scripts/(trusted_evidence_manifest|project_autodiscover|autonomous_app_review|behavioral_product_lab|state_edge_case_lab|evidence_calibration|evidence_confidence_engine|journey_crawler|user_journey_intelligence|ux_friction_lab|longitudinal_product_intelligence|longitudinal_finding_lifecycle|autonomous_experiment_planner|applab_analyst|evidence_graph|planner_feedback|release_reality|release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|virtual_product_review_council|studio_review_council|trusted_cross_app_evidence|physical_evidence|product_contract_audit|decision_brief)\.py$|^scripts/verify_apk\.sh$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -112,7 +112,7 @@ jobs:
       repository: ${{ steps.target.outputs.repository }}
       source_ref: ${{ steps.target.outputs.source_ref }}
       lineage_ref: ${{ steps.target.outputs.lineage_ref }}
-      base_sha: ${{ steps.target.outputs.base_sha }}
+      base_sha: ${{ steps.sha.outputs.base_sha }}
       resolved_sha: ${{ steps.sha.outputs.resolved_sha }}
     steps:
       - name: Resolve coordinates
@@ -155,19 +155,33 @@ jobs:
           repository: ${{ steps.target.outputs.repository }}
           ref: ${{ steps.target.outputs.source_ref }}
           path: target
-          fetch-depth: 1
+          fetch-depth: 2
           persist-credentials: false
           token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
 
-      - name: Pin resolved SHA
+      - name: Pin resolved SHA and delta baseline
         id: sha
         shell: bash
+        env:
+          EVENT_BASE_SHA: ${{ steps.target.outputs.base_sha }}
         run: |
           set -Eeuo pipefail
           SHA="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD)"
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid resolved SHA" >&2; exit 2; }
+          BASE_SHA="$EVENT_BASE_SHA"
+          if [[ -z "$BASE_SHA" ]]; then
+            BASE_SHA="$(git -C "$GITHUB_WORKSPACE/target" rev-parse HEAD^ 2>/dev/null || true)"
+          fi
+          if [[ -n "$BASE_SHA" && ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid delta baseline SHA: $BASE_SHA" >&2
+            exit 2
+          fi
           echo "resolved_sha=$SHA" >> "$GITHUB_OUTPUT"
-          echo "Resolved ${{ steps.target.outputs.repository }}@${{ steps.target.outputs.source_ref }} -> $SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "Resolved ${{ steps.target.outputs.repository }}@${{ steps.target.outputs.source_ref }} -> $SHA"
+            echo "Delta baseline: ${BASE_SHA:-none}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   verify:
     name: Build and trusted runtime verification
@@ -346,6 +360,19 @@ jobs:
             --trusted-runtime-dir "$GITHUB_WORKSPACE/trusted-runtime" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
 
+      - name: Build graph-aware planner feedback
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/planner_feedback.py \
+            --graph "$GITHUB_WORKSPACE/applab-autonomous-review/evidence-graph.json" \
+            --analysis-plan "$GITHUB_WORKSPACE/trusted-runtime/analysis-plan.json" \
+            --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
+          mkdir -p "$GITHUB_WORKSPACE/.applab-longitudinal/planner-feedback"
+          LINEAGE_SCOPE="$(printf '%s' "${{ needs.resolve.outputs.lineage_ref }}" | sha256sum | cut -c1-12)"
+          cp "$GITHUB_WORKSPACE/applab-autonomous-review/planner-feedback.json" \
+            "$GITHUB_WORKSPACE/.applab-longitudinal/planner-feedback/${{ needs.resolve.outputs.resolved_sha }}-$LINEAGE_SCOPE.json"
+
       - name: Build Simulated Human QA
         shell: bash
         run: |
@@ -420,11 +447,11 @@ jobs:
           include-hidden-files: true
           retention-days: 90
 
-      - name: Publish v5.3.1 review
+      - name: Publish v5.3.2 review
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v5.3.1"
+            echo "## AppLab True Autonomous App Review v5.3.2"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
@@ -437,6 +464,8 @@ jobs:
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/analyst-report.md"
             echo
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/evidence-graph.md"
+            echo
+            cat "$GITHUB_WORKSPACE/applab-autonomous-review/planner-feedback.md"
             echo
             cat "$GITHUB_WORKSPACE/applab-autonomous-review/simulated-human-qa.md"
             echo
