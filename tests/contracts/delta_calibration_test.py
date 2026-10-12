@@ -57,7 +57,23 @@ def main() -> int:
     assert unsafe["lab_observations"]["storage"]["state"] == "UNSAFE"
 
     missing = calibration.build_report(rows + [row("owner/app-0", "ui_change", "NO_BASELINE")])
+    assert missing["state"] == "COLLECTING"
     assert missing["lab_observations"]["storage"]["state"] == "EVIDENCE_INCOMPLETE"
+
+    legacy = row("owner/legacy", "ui_change", "WARN")
+    del legacy["shadow_calibration"]["missed_warning_count"]
+    legacy_report = calibration.build_report([legacy])
+    assert legacy_report["summary"]["shadow_runs"] == 0
+    assert legacy_report["state"] == "COLLECTING"
+
+    casing_rows = []
+    casing = ("Owner/App", "owner/app", "OWNER/APP", "oWnEr/aPp")
+    for index in range(20):
+        casing_rows.append(row(casing[index % len(casing)], categories[index % len(categories)]))
+    casing_report = calibration.build_report(casing_rows)
+    assert casing_report["summary"]["repositories"] == 1
+    assert casing_report["summary"]["qualified_repositories"] == 1
+    assert casing_report["state"] == "COLLECTING"
 
     planner = (ROOT / "scripts/smart_test_plan.py").read_text(encoding="utf-8")
     assert "import delta_calibration" not in planner
