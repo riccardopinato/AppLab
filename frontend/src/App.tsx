@@ -728,7 +728,7 @@ function ReadOnlyApp() {
           <p className="eyebrow">READ-ONLY WEB PREVIEW</p>
           <div className="title-row">
             <h1>AppLab Studio</h1>
-            <span className="version">v5.3.2</span>
+            <span className="version">v5.3.3</span>
           </div>
           <p className="subtitle">
             Static Studio · Analyst · Longitudinal Intelligence · Experiment Planner
