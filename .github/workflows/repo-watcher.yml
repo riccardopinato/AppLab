@@ -25,6 +25,7 @@ on:
       - "scripts/smart_test_plan.py"
       - "scripts/planner_feedback.py"
       - "scripts/planner_feedback_contract.py"
+      - "scripts/evidence_contract_registry.py"
       - "scripts/restore_planner_feedback.sh"
       - "scripts/adaptive_checks.py"
       - "scripts/incremental_result.py"
