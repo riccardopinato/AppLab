@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.3.2 — Graph-aware Planning Feedback Hardening**
+Current production baseline: **v5.3.3 — Structural Hardening & Contract Test Foundation**
 
 ## Product rule
 
@@ -19,6 +19,18 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v5.3.3 — Structural Hardening & Contract Test Foundation
+
+- [x] Extract planner-feedback schema/digest/compatibility primitives from the saturated planner-feedback module without changing planner authority.
+- [x] Move large deterministic Studio and Evidence Graph fixtures out of production modules while preserving their self-test entrypoints.
+- [x] Split version-specific heavy audit assertions out of the audit-contract orchestrator.
+- [x] Add independent end-to-end planning-feedback contract coverage for exact baseline, tamper, truncation and FAST-to-FULL promotion behavior.
+- [x] Parse every workflow structurally in CI and independently enforce SHA-pinned external actions.
+- [x] Add maintainability ceilings for Evidence Graph, audit contracts, Studio frontend and both external runners.
+- [x] Bind the extracted planner-feedback contract to central/core fingerprints and Repo Watcher invalidation.
+- [x] Reconcile workflow authority documentation, classify the Flutter compatibility wrapper and APK diagnostic workflow, and remove the CamperBoss one-off workflow.
+- [x] Preserve all FAST/FULL/CERTIFICATION, exact-artifact and physical-evidence authority boundaries.
 
 ### v5.3.2 — Graph-aware Planning Feedback Hardening
 
@@ -691,7 +703,7 @@ Continuous priorities:
 - [ ] Add evidence retention/garbage-collection policy while pinning release-critical evidence. v5.3.1 introduces the first enforced TTL policy; expand it as new evidence classes become release-critical.
 - [ ] Improve delta execution so small changes rerun only the evidence that can actually be invalidated. v5.3.2 adds exact-baseline graph feedback as an escalation-only foundation; coverage reduction remains pending multi-project calibration.
 - [ ] Tune heuristics from real multi-project data rather than speculative complexity.
-- [ ] Keep performance, security, dependency, artifact-provenance and maintainability gates healthy as AppLab grows. v5.3.1 adds dependency fail-fast validation and a maintainability ceiling for the retention contract.
+- [ ] Keep performance, security, dependency, artifact-provenance and maintainability gates healthy as AppLab grows. v5.3.3 adds structural ceilings for Evidence Graph, audit contracts, Studio frontend and external runners, plus independent contract tests.
 
 ## v1.0 evidence contract
 

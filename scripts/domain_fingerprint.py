@@ -111,6 +111,7 @@ def self_test(root: Path) -> None:
         "scripts/project_autodiscover.py",
         "scripts/project_adapter.py",
         "scripts/planner_feedback.py",
+        "scripts/planner_feedback_contract.py",
         "scripts/restore_planner_feedback.sh",
         ".github/workflows/trusted-apk-verifier.yml",
         ".github/workflows/external-project-runner.yml",

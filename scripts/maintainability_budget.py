@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # extraction/refactor justification before more logic is added to the monolith.
 LIMITS = {
     "scripts/app_intelligence.py": 1600,
-    "scripts/studio_snapshot.py": 1300,
+    "scripts/studio_snapshot.py": 950,
     "scripts/verify_apk.sh": 1150,
     "scripts/longitudinal_product_intelligence.py": 1100,
     "scripts/autonomous_app_review.py": 500,
@@ -19,7 +19,17 @@ LIMITS = {
     "scripts/studio_review_council.py": 350,
     "scripts/evidence_retention_contract.py": 180,
     "scripts/smart_test_plan.py": 1000,
-    "scripts/planner_feedback.py": 420,
+    "scripts/planner_feedback.py": 280,
+    "scripts/planner_feedback_contract.py": 260,
+    "scripts/evidence_graph.py": 2400,
+    "scripts/audit_contract_test.py": 1300,
+    "scripts/audit_contract_hardening.py": 320,
+    "scripts/studio_snapshot_self_test.py": 450,
+    "scripts/evidence_graph_self_test.py": 320,
+    "frontend/src/ControlCenter.tsx": 1750,
+    "frontend/src/App.tsx": 850,
+    ".github/workflows/external-project-runner.yml": 900,
+    ".github/workflows/external-native-android-runner.yml": 900,
 }
 
 

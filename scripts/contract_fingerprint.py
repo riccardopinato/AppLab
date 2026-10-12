@@ -34,6 +34,7 @@ CONTRACT_FILES = (
     "scripts/storage_lab.py",
     "scripts/smart_test_plan.py",
     "scripts/planner_feedback.py",
+    "scripts/planner_feedback_contract.py",
     "scripts/restore_planner_feedback.sh",
     "scripts/adaptive_checks.py",
     "scripts/incremental_result.py",

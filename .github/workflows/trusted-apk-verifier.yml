@@ -639,7 +639,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## AppLab v5.3.2 Trusted APK Verification"
+            echo "## AppLab v5.3.3 Trusted APK Verification"
             echo
             echo "- Target: \`${{ inputs.repository }}@${{ inputs.resolved_sha }}\`"
             echo "- Engine: \`${{ inputs.engine }}\`"

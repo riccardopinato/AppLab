@@ -1,3 +1,29 @@
+## v5.3.3 — Structural Hardening & Contract Test Foundation
+
+AppLab now consolidates the v5.x core before introducing any
+coverage-reducing delta execution.
+
+- **Production decomposition:** planner-feedback contract primitives and the
+  largest Studio/Evidence Graph self-test fixtures are extracted from saturated
+  production modules without changing their public entrypoints.
+- **Independent planning-chain test:** a separate contract test verifies
+  Evidence Graph -> planner feedback -> FAST/FULL promotion -> refreshed lane
+  telemetry -> execution identity, including tamper/stale/incomplete fail-closed
+  cases.
+- **Parsed workflow validation:** CI parses every workflow as YAML, validates
+  job structure and independently enforces SHA-pinned external actions.
+- **Stricter growth ceilings:** Evidence Graph, audit contracts, Studio frontend
+  and both external runners are now inside the maintainability budget.
+- **Workflow authority cleanup:** the Flutter gate is explicitly a compatibility
+  wrapper, APK smoke is diagnostic-only and the CamperBoss one-off workflow is
+  removed from AppLab core.
+- **Cache correctness after extraction:** the planner-feedback contract module
+  participates in the central/core fingerprints and Repo Watcher invalidation.
+- **Authority unchanged:** Smart Test Plan, trusted runtime, Release Assurance
+  and Production Certification keep their existing responsibilities.
+
+See `integration/hardening/STRUCTURAL_HARDENING_V533.md`.
+
 ## v5.3.2 — Graph-aware Planning Feedback Hardening
 
 AppLab now feeds **prior trusted Evidence Graph impact** back into future FAST
