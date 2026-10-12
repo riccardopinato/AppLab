@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.3.4 — Evidence Schema Registry & Compatibility Contracts**
+Current production baseline: **v5.3.5 — Multi-Project Calibration & Delta Readiness**
 
 ## Product rule
 
@@ -19,6 +19,18 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v5.3.5 — Multi-Project Calibration & Delta Readiness
+
+- [x] Build one deterministic calibration report from cumulative real multi-project watcher/certification history.
+- [x] Accept only observed shadow FULL calibration as evidence for predicted-skip safety.
+- [x] Track repository, shadow-sample and change-category diversity before declaring experimental readiness.
+- [x] Treat missed WARN/FAIL/ERROR as unsafe and missing baselines as incomplete rather than safe evidence.
+- [x] Derive per-lab evidence candidates only after repeated safe observations across multiple repositories.
+- [x] Publish versioned `delta-calibration.json/.md` evidence and expose readiness in Control Center.
+- [x] Register the new evidence producer, bind it to core fingerprints and add independent CI/audit contracts.
+- [x] Keep `coverage_reduction_enabled=false`; Smart Test Plan remains the sole FAST/FULL authority.
+- [x] Preserve existing FAST/FULL/CERTIFICATION, trusted-runtime, exact-artifact and physical-device boundaries.
 
 ### v5.3.4 — Evidence Schema Registry & Compatibility Contracts
 
@@ -712,8 +724,8 @@ Continuous priorities:
 - [ ] Improve diagnostics for WebRTC/frame/codec/runtime infrastructure failures. v5.3.1 records browser video/track, runtime, gateway and console evidence before recovery.
 - [x] Add schema/version contracts for new evidence producers and consumers. v5.3.4 introduces the canonical compatibility registry and fail-closed producer/consumer checks.
 - [ ] Add evidence retention/garbage-collection policy while pinning release-critical evidence. v5.3.1 introduces the first enforced TTL policy; expand it as new evidence classes become release-critical.
-- [ ] Improve delta execution so small changes rerun only the evidence that can actually be invalidated. v5.3.2 adds exact-baseline graph feedback as an escalation-only foundation; coverage reduction remains pending multi-project calibration.
-- [ ] Tune heuristics from real multi-project data rather than speculative complexity.
+- [ ] Improve delta execution so small changes rerun only the evidence that can actually be invalidated. v5.3.5 adds multi-project readiness calibration, but coverage reduction remains disabled until real history reaches READY_FOR_EXPERIMENT and a later explicit controlled-experiment step is approved.
+- [ ] Tune heuristics from real multi-project data rather than speculative complexity. v5.3.5 now collects and classifies the required evidence; tuning remains gated on observed history rather than synthetic assumptions.
 - [ ] Keep performance, security, dependency, artifact-provenance and maintainability gates healthy as AppLab grows. v5.3.3 adds structural ceilings for Evidence Graph, audit contracts, Studio frontend and external runners, plus independent contract tests.
 
 ## v1.0 evidence contract

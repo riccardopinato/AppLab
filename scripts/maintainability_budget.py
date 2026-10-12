@@ -20,6 +20,8 @@ LIMITS = {
     "scripts/evidence_retention_contract.py": 180,
     "scripts/evidence_contract_registry.py": 480,
     "scripts/audit_contract_schema.py": 180,
+    "scripts/delta_calibration.py": 420,
+    "scripts/audit_contract_delta.py": 150,
     "scripts/smart_test_plan.py": 1000,
     "scripts/planner_feedback.py": 280,
     "scripts/planner_feedback_contract.py": 260,

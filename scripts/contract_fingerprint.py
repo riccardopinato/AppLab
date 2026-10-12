@@ -40,6 +40,7 @@ CONTRACT_FILES = (
     "scripts/adaptive_checks.py",
     "scripts/incremental_result.py",
     "scripts/shadow_calibration.py",
+    "scripts/delta_calibration.py",
     "scripts/domain_fingerprint.py",
     "scripts/pipeline_metrics.py",
     "scripts/github_run_started_at.py",

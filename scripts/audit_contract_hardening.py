@@ -198,7 +198,7 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
         "Pin resolved SHA and delta baseline",
         "fetch-depth: 2",
         "HEAD^",
-        "AppLab True Autonomous App Review v5.3.4",
+        "AppLab True Autonomous App Review v5.3.5",
     ):
         require(needle in review, f"v5.3.2 autonomous review integration missing: {needle}")
 

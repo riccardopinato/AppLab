@@ -1,3 +1,26 @@
+## v5.3.5 — Multi-Project Calibration & Delta Readiness
+
+AppLab now measures delta-execution readiness from real cross-project history
+without reducing current verification coverage.
+
+- **Observed evidence only:** calibration consumes completed shadow FULL records
+  from central watcher/certification history; predicted skips alone are not
+  treated as proof.
+- **Diversity gates:** readiness tracks repository count, shadow sample volume
+  and change-category diversity before any future experiment can be considered.
+- **Safety gates:** a missed WARN, FAIL or ERROR makes the calibration
+  `UNSAFE`; missing baselines remain incomplete evidence rather than PASS.
+- **Per-lab evidence:** AppLab identifies evidence candidates only after repeated
+  safe skip observations across multiple repositories.
+- **Durable evidence:** Repo Watcher and Production Certification publish
+  `delta-calibration.json` and `delta-calibration.md` with central history.
+- **Control Center:** current calibration state, qualified repositories, shadow
+  sample count and candidate labs are visible alongside adaptive metrics.
+- **Coverage unchanged:** `coverage_reduction_enabled=false`; Smart Test Plan
+  remains the sole FAST/FULL authority and certification semantics are unchanged.
+
+See `integration/performance/MULTI_PROJECT_DELTA_CALIBRATION_V535.md`.
+
 ## v5.3.4 — Evidence Schema Registry & Compatibility Contracts
 
 AppLab now makes producer/consumer evidence compatibility explicit instead of

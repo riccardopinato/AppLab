@@ -48,7 +48,7 @@ _CONTRACTS = (
         "scripts/package_build_contract.py",
         1,
         "applab_version",
-        "5.3.4",
+        "5.3.5",
         (
             "scripts/validate_build_contract.py",
             "scripts/trusted_evidence_manifest.py",
@@ -91,6 +91,19 @@ _CONTRACTS = (
         ("scripts/smart_test_plan.py", "scripts/package_build_contract.py"),
         (("record_type", "EVIDENCE_GRAPH_PLANNER_FEEDBACK"),),
         "PLANNING_ADVISORY",
+    ),
+    EvidenceContract(
+        "delta-calibration.json",
+        "scripts/delta_calibration.py",
+        1,
+        "engine_version",
+        "5.3.5",
+        ("scripts/control_center_snapshot.py",),
+        (
+            ("record_type", "MULTI_PROJECT_DELTA_CALIBRATION"),
+            ("authority", "APPLAB_DELTA_CALIBRATION_ADVISORY"),
+        ),
+        "ADVISORY_CALIBRATION",
     ),
     EvidenceContract(
         "physical-evidence.json",
