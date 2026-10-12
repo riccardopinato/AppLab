@@ -825,7 +825,7 @@ def check_release_assurance_contract() -> None:
         "release-assurance.md",
         "release-reality.json",
         "evidence-graph.md",
-        "AppLab True Autonomous App Review v5.3.2",
+        "AppLab True Autonomous App Review v5.3.3",
         "release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|virtual_product_review_council|studio_review_council|trusted_cross_app_evidence|physical_evidence",
         "cross_app_run_id",
         "trusted_cross_app_evidence.py verify-run",
@@ -960,7 +960,7 @@ def check_simulated_human_qa_contract() -> None:
     require(
         "studio_simulated_human.project_from_directory" in studio
         and "studio_simulated_human.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.3.2"' in studio,
+        and 'STUDIO_VERSION = "5.3.3"' in studio,
         "Studio must expose v5.0 simulated-human evidence through the v5.1 Studio projection",
     )
     require(
@@ -974,7 +974,7 @@ def check_simulated_human_qa_contract() -> None:
         "Build Simulated Human QA",
         "scripts/simulated_human_qa.py",
         "simulated-human-qa.md",
-        "AppLab True Autonomous App Review v5.3.2",
+        "AppLab True Autonomous App Review v5.3.3",
         "simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor",
     ):
         require(needle in workflow, f"v5.0 autonomous review integration missing: {needle}")
@@ -1039,7 +1039,7 @@ def check_design_system_advisor_contract() -> None:
     require(
         "studio_design_advisor.project_from_directory" in studio
         and "studio_design_advisor.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.3.2"' in studio,
+        and 'STUDIO_VERSION = "5.3.3"' in studio,
         "Studio must expose v5.1 design-advisor evidence through the dedicated projection",
     )
     require(
@@ -1052,7 +1052,7 @@ def check_design_system_advisor_contract() -> None:
         "Build Design System & UI Library Advisor",
         "scripts/design_system_advisor.py",
         "design-system-advisor.md",
-        "AppLab True Autonomous App Review v5.3.2",
+        "AppLab True Autonomous App Review v5.3.3",
         "design_system_advisor|studio_design_advisor",
     ):
         require(needle in workflow, f"v5.1 autonomous review integration missing: {needle}")
@@ -1105,7 +1105,7 @@ def check_competitive_product_intelligence_contract() -> None:
     require(
         "studio_competitive_product.project_from_directory" in studio
         and "studio_competitive_product.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.3.2"' in studio,
+        and 'STUDIO_VERSION = "5.3.3"' in studio,
         "Studio must expose v5.2 competitive-product evidence",
     )
     require(
@@ -1118,7 +1118,7 @@ def check_competitive_product_intelligence_contract() -> None:
         "Build Competitive Product Intelligence",
         "scripts/competitive_product_intelligence.py",
         "competitive-product-intelligence.md",
-        "AppLab True Autonomous App Review v5.3.2",
+        "AppLab True Autonomous App Review v5.3.3",
         "competitive_product_intelligence|studio_competitive_product",
         "market_evidence_path:",
     ):
@@ -1177,7 +1177,7 @@ def check_virtual_product_review_council_contract() -> None:
     require(
         "studio_review_council.project_from_directory" in studio
         and "studio_review_council.portfolio_summary(projects)" in studio
-        and 'STUDIO_VERSION = "5.3.2"' in studio,
+        and 'STUDIO_VERSION = "5.3.3"' in studio,
         "Studio must expose v5.3 review-council evidence",
     )
     require(
@@ -1190,7 +1190,7 @@ def check_virtual_product_review_council_contract() -> None:
         "Build Virtual Product Review Council",
         "scripts/virtual_product_review_council.py",
         "virtual-product-review-council.md",
-        "AppLab True Autonomous App Review v5.3.2",
+        "AppLab True Autonomous App Review v5.3.3",
         "virtual_product_review_council|studio_review_council",
     ):
         require(needle in workflow, f"v5.3 autonomous review integration missing: {needle}")
