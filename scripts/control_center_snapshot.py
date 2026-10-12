@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import delta_calibration
+
 
 def read_history(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
@@ -372,6 +374,7 @@ def build_snapshot(
             "flaky_suspects": flaky_suspects,
             "release_ready": release_ready,
             "adaptive_metrics": adaptive_history_metrics(history),
+            "delta_calibration": delta_calibration.build_report(history),
         },
         "projects": projects,
         "recent": recent,
@@ -492,6 +495,8 @@ def self_test() -> None:
     assert "shadow_false_negatives" in snapshot["summary"]
     assert "adaptive_metrics" in snapshot["summary"]
     assert snapshot["summary"]["adaptive_metrics"]["sample_count"] == 0
+    assert snapshot["summary"]["delta_calibration"]["state"] == "COLLECTING"
+    assert snapshot["summary"]["delta_calibration"]["coverage_reduction_enabled"] is False
     first = next(
         item for item in snapshot["projects"] if item["repository"] == "owner/one"
     )
