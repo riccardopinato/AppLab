@@ -5,10 +5,14 @@ from typing import Any
 
 
 def run_check(name: str, namespace: dict[str, Any]) -> None:
-    globals().update(namespace)
+    # Capture the extracted implementation before importing caller globals.
+    # The caller intentionally exposes wrapper functions with the same names;
+    # allowing globals().update() to resolve the target afterwards would recurse
+    # back into the wrapper instead of executing the extracted check.
     check = globals().get(name)
     if not callable(check):
         raise AssertionError(f"unknown hardening audit check: {name}")
+    globals().update(namespace)
     check()
 
 
