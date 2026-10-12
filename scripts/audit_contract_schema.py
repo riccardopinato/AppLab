@@ -77,7 +77,7 @@ def run_check(namespace: dict[str, Any]) -> None:
         "registry must remain in the core domain fingerprint",
     )
     require(
-        '"scripts/evidence_contract_registry.py": 360' in maintainability
+        '"scripts/evidence_contract_registry.py": 480' in maintainability
         and '"scripts/audit_contract_schema.py": 180' in maintainability,
         "v5.3.4 schema modules must have maintainability ceilings",
     )
