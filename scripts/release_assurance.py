@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import evidence_contract_registry
+
 APPLAB_VERSION = "4.9.0"
 SCHEMA_VERSION = 1
 RECORD_TYPE = "AUTONOMOUS_RELEASE_ASSURANCE"
@@ -87,6 +89,14 @@ def read_json(path: Path, required: bool = False) -> dict[str, Any]:
 
 def clean(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def read_registered_json(path: Path, required: bool = False) -> dict[str, Any]:
+    present = path.is_file()
+    payload = read_json(path, required)
+    if present and path.name in evidence_contract_registry.REGISTRY:
+        evidence_contract_registry.require_compatible(path.name, payload)
+    return payload
 
 
 def norm_state(value: object, default: str = NOT_VERIFIED) -> str:
@@ -382,11 +392,11 @@ def digest(ident: dict[str, str], rows: list[dict[str, Any]]) -> str:
 
 
 def build_report(report_dir: Path) -> dict[str, Any]:
-    reality = read_json(report_dir / RR, True)
-    graph = read_json(report_dir / GRAPH)
-    plan = read_json(report_dir / PLAN)
-    certification = read_json(report_dir / CERT)
-    cross = read_json(report_dir / CROSS)
+    reality = read_registered_json(report_dir / RR, True)
+    graph = read_registered_json(report_dir / GRAPH)
+    plan = read_registered_json(report_dir / PLAN)
+    certification = read_registered_json(report_dir / CERT)
+    cross = read_registered_json(report_dir / CROSS)
     distribution = read_json(report_dir / DIST)
 
     ident = identity(reality)
@@ -595,6 +605,8 @@ def self_test() -> None:
     with tempfile.TemporaryDirectory() as raw:
         root = Path(raw)
         reality = {
+            "schema_version": 1,
+            "engine_version": "4.5.0",
             "release_id": "r1",
             "identity_complete": True,
             "source": {"repository": "owner/demo", "resolved_sha": "a" * 40},
@@ -643,6 +655,7 @@ def self_test() -> None:
         (root / GRAPH).write_text(json.dumps(graph), encoding="utf-8")
         plan = {
             "schema_version": 2,
+            "planner_version": "1.1.0",
             "mode": "certification",
             "lane": "CERTIFICATION",
             "repository": "owner/demo",
@@ -653,6 +666,8 @@ def self_test() -> None:
         }
         (root / PLAN).write_text(json.dumps(plan), encoding="utf-8")
         certification = {
+            "schema_version": 1,
+            "applab_version": "1.0.0",
             "status": "CERTIFIED",
             "certified": True,
             "failures": [],
@@ -671,6 +686,15 @@ def self_test() -> None:
         first = build_report(root)
         assert first["state"] == BLOCKED
         assert first["next_required_stage"]["key"] == "DISTRIBUTION_EVIDENCE"
+
+        (root / CROSS).write_text("{}", encoding="utf-8")
+        try:
+            build_report(root)
+        except evidence_contract_registry.EvidenceContractError:
+            pass
+        else:
+            raise AssertionError("present empty registered evidence must be rejected")
+        (root / CROSS).unlink()
 
         non_boolean_bytes = json.loads(json.dumps(reality))
         non_boolean_bytes["same_artifact_semantics"]["same_bytes_verified"] = "false"
@@ -730,6 +754,10 @@ def self_test() -> None:
         assert build_report(root)["state"] == FAIL
         (root / CERT).write_text(json.dumps(certification), encoding="utf-8")
         bad_pair = {
+            "schema_version": 1,
+            "applab_version": "4.8.0",
+            "authority": "APPLAB_CROSS_APP_VERIFICATION",
+            "record_type": "CROSS_APP_VERIFICATION",
             "pair_identity": {
                 "producer": {
                     "repository": "owner/demo",
@@ -767,6 +795,10 @@ def self_test() -> None:
         (root / PLAN).write_text(json.dumps(plan), encoding="utf-8")
 
         invalid_cross = {
+            "schema_version": 1,
+            "applab_version": "4.8.0",
+            "authority": "APPLAB_CROSS_APP_VERIFICATION",
+            "record_type": "CROSS_APP_VERIFICATION",
             "pair_identity": {
                 "producer": {
                     "repository": "owner/demo",

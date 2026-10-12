@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from evidence_contract_registry import EvidenceContractError, require_compatible
+
 SCHEMA_VERSION = 1
 MANIFEST_VERSION = "3.0.1"
 MANIFEST_NAME = "trusted-evidence-manifest.json"
@@ -160,6 +162,10 @@ def validate_manifest(
     if not manifest_path.is_file():
         raise EvidenceError(f"Missing {MANIFEST_NAME}")
     manifest = read_json(manifest_path)
+    try:
+        require_compatible(MANIFEST_NAME, manifest)
+    except EvidenceContractError as exc:
+        raise EvidenceError(str(exc)) from exc
     if str(manifest.get("producer", "")) != "trusted-apk-verifier":
         raise EvidenceError("Evidence manifest producer is not trusted-apk-verifier")
 

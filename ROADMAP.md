@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.3.3 — Structural Hardening & Contract Test Foundation**
+Current production baseline: **v5.3.4 — Evidence Schema Registry & Compatibility Contracts**
 
 ## Product rule
 
@@ -19,6 +19,17 @@ FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
 ## Completed
+
+### v5.3.4 — Evidence Schema Registry & Compatibility Contracts
+
+- [x] Add one deterministic registry for stable planning, trusted-runtime, release/certification and advisory evidence boundaries.
+- [x] Declare exact schema/component versions, producers, consumers and fixed authority/record-type fields for registered artifacts.
+- [x] Reject registered schema/version incompatibility before Evidence Graph, Release Reality, Release Assurance or trusted-manifest consumption.
+- [x] Validate registered review evidence before Studio projection without treating the registry as a new evidence authority.
+- [x] Add independent contract coverage for compatible fixtures, tampered schema/version fields, producer drift and unknown evidence.
+- [x] Bind registry semantics to central/core fingerprints and Repo Watcher invalidation.
+- [x] Add CI/audit coverage, maintainability ceilings and release documentation.
+- [x] Preserve FAST/FULL/CERTIFICATION, trusted-runtime, exact-artifact and physical-device authority boundaries.
 
 ### v5.3.3 — Structural Hardening & Contract Test Foundation
 
@@ -699,7 +710,7 @@ may include targeted hardening when real AppLab evidence demonstrates a need.
 Continuous priorities:
 - [ ] Reduce runtime/browser E2E flakiness without weakening assertions. v5.3.1 adds a bounded single reconnect for the observed connected/no-frame signature; continue measuring recurrence.
 - [ ] Improve diagnostics for WebRTC/frame/codec/runtime infrastructure failures. v5.3.1 records browser video/track, runtime, gateway and console evidence before recovery.
-- [ ] Add schema/version contracts for new evidence producers and consumers.
+- [x] Add schema/version contracts for new evidence producers and consumers. v5.3.4 introduces the canonical compatibility registry and fail-closed producer/consumer checks.
 - [ ] Add evidence retention/garbage-collection policy while pinning release-critical evidence. v5.3.1 introduces the first enforced TTL policy; expand it as new evidence classes become release-critical.
 - [ ] Improve delta execution so small changes rerun only the evidence that can actually be invalidated. v5.3.2 adds exact-baseline graph feedback as an escalation-only foundation; coverage reduction remains pending multi-project calibration.
 - [ ] Tune heuristics from real multi-project data rather than speculative complexity.

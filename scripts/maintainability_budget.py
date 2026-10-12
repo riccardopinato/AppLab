@@ -18,6 +18,8 @@ LIMITS = {
     "scripts/virtual_product_review_council.py": 700,
     "scripts/studio_review_council.py": 350,
     "scripts/evidence_retention_contract.py": 180,
+    "scripts/evidence_contract_registry.py": 480,
+    "scripts/audit_contract_schema.py": 180,
     "scripts/smart_test_plan.py": 1000,
     "scripts/planner_feedback.py": 280,
     "scripts/planner_feedback_contract.py": 260,

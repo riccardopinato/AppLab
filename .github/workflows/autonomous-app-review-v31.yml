@@ -1,4 +1,4 @@
-name: AppLab True Autonomous App Review v5.3.3
+name: AppLab True Autonomous App Review v5.3.4
 
 on:
   schedule:
@@ -97,7 +97,7 @@ jobs:
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/applab-changed-files.txt"
-          if grep -Eq '(^\.github/workflows/(autonomous-app-review-v31|trusted-apk-verifier|universal-project-runner)\.yml$|^scripts/(trusted_evidence_manifest|project_autodiscover|autonomous_app_review|behavioral_product_lab|state_edge_case_lab|evidence_calibration|evidence_confidence_engine|journey_crawler|user_journey_intelligence|ux_friction_lab|longitudinal_product_intelligence|longitudinal_finding_lifecycle|autonomous_experiment_planner|applab_analyst|evidence_graph|planner_feedback|release_reality|release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|virtual_product_review_council|studio_review_council|trusted_cross_app_evidence|physical_evidence|product_contract_audit|decision_brief)\.py$|^scripts/verify_apk\.sh$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
+          if grep -Eq '(^\.github/workflows/(autonomous-app-review-v31|trusted-apk-verifier|universal-project-runner)\.yml$|^scripts/(trusted_evidence_manifest|project_autodiscover|autonomous_app_review|behavioral_product_lab|state_edge_case_lab|evidence_calibration|evidence_confidence_engine|journey_crawler|user_journey_intelligence|ux_friction_lab|longitudinal_product_intelligence|longitudinal_finding_lifecycle|autonomous_experiment_planner|applab_analyst|evidence_graph|planner_feedback|evidence_contract_registry|release_reality|release_assurance|simulated_human_qa|studio_simulated_human|design_system_advisor|studio_design_advisor|competitive_product_intelligence|studio_competitive_product|virtual_product_review_council|studio_review_council|trusted_cross_app_evidence|physical_evidence|product_contract_audit|decision_brief)\.py$|^scripts/verify_apk\.sh$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -447,11 +447,11 @@ jobs:
           include-hidden-files: true
           retention-days: 90
 
-      - name: Publish v5.3.3 review
+      - name: Publish v5.3.4 review
         shell: bash
         run: |
           {
-            echo "## AppLab True Autonomous App Review v5.3.3"
+            echo "## AppLab True Autonomous App Review v5.3.4"
             echo
             echo "**Target:** `${{ needs.resolve.outputs.repository }}@${{ needs.resolve.outputs.resolved_sha }}`"
             echo
@@ -492,6 +492,15 @@ jobs:
           cp "$GITHUB_WORKSPACE/trusted-runtime/physical-evidence.json" "$PROJECT_DIR/" 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/trusted-runtime/physical-evidence.md" "$PROJECT_DIR/" 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/trusted-runtime-validation.json" "$PROJECT_DIR/"
+
+      - name: Validate registered evidence contracts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          PROJECT_ID="$(printf '%s' "${{ needs.resolve.outputs.repository }}" | tr '/' '_')"
+          PROJECT_DIR="$GITHUB_WORKSPACE/studio-evidence/$PROJECT_ID"
+          python .applab/scripts/evidence_contract_registry.py validate-dir \
+            --root "$PROJECT_DIR"
 
       - name: Build Studio snapshot
         shell: bash

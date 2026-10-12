@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import evidence_contract_registry
+
 ENGINE_VERSION = "4.5.0"
 SCHEMA_VERSION = 1
 
@@ -202,6 +204,7 @@ def physical_evidence_summary(
         return {"present": False}
 
     payload = read_json(path)
+    evidence_contract_registry.require_compatible("physical-evidence.json", payload)
     source = payload.get("source")
     physical_artifact = payload.get("artifact")
     device = payload.get("device")
@@ -314,7 +317,10 @@ def build_release_reality(
     trusted_applab_sha: str,
     runtime_outcome: str,
 ) -> dict[str, Any]:
-    contract = optional_json(report_dir / "build-contract.json")
+    contract_path = report_dir / "build-contract.json"
+    contract = optional_json(contract_path)
+    if contract_path.is_file():
+        evidence_contract_registry.require_compatible("build-contract.json", contract)
     result = optional_json(report_dir / "result.json")
 
     contract_repository = str(contract.get("repository", "")).strip()
@@ -757,6 +763,8 @@ def self_test() -> None:
         apk.write_bytes(b"release-apk-v1")
         digest = sha256_file(apk)
         contract = {
+            "schema_version": 1,
+            "applab_version": "5.3.4",
             "repository": "owner/demo",
             "resolved_sha": "a" * 40,
             "engine": "flutter",
@@ -814,6 +822,23 @@ def self_test() -> None:
         assert reality["physical_evidence"]["required"] is False
         assert states["DISTRIBUTION_VERIFIED"] == NOT_VERIFIED
         assert reality["artifact"]["same_bytes_verified"] is True
+
+        contract["applab_version"] = "5.3.3"
+        (report / "build-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+        try:
+            build_release_reality(
+                report,
+                apk,
+                workflow_run_id="123",
+                trusted_applab_sha="c" * 40,
+                runtime_outcome="success",
+            )
+        except evidence_contract_registry.EvidenceContractError:
+            pass
+        else:
+            raise AssertionError("stale build-contract version must be rejected")
+        contract["applab_version"] = "5.3.4"
+        (report / "build-contract.json").write_text(json.dumps(contract), encoding="utf-8")
 
         contract["apk"]["signing_cert_sha256"] = ""
         contract["apk"]["signing_subject"] = ""
@@ -896,7 +921,10 @@ def self_test() -> None:
                 "capabilities": ["gps", "background"],
             },
             "result": "PASS",
-            "attestation": {"workflow_run_id": "789"},
+            "attestation": {
+                "authority": "APPLAB_PHYSICAL_EVIDENCE_HUB",
+                "workflow_run_id": "789",
+            },
             "verification": {
                 "state": "VERIFIED",
                 "exact_artifact_match": True,

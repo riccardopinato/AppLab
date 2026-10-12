@@ -1,3 +1,29 @@
+## v5.3.4 — Evidence Schema Registry & Compatibility Contracts
+
+AppLab now makes producer/consumer evidence compatibility explicit instead of
+leaving schema knowledge duplicated across individual consumers.
+
+- **Canonical registry:** planning, trusted-runtime, release/certification and
+  advisory review artifacts declare producer, schema, component version,
+  consumers and fixed identity fields in one deterministic registry.
+- **Fail-closed compatibility:** registered schema/version/record-type/authority
+  mismatches are rejected; unknown JSON is never implicitly treated as trusted.
+- **Critical consumer wiring:** Evidence Graph, Release Reality, Release
+  Assurance and trusted-manifest validation enforce the registry before
+  consuming registered evidence.
+- **Workflow preflight:** True Autonomous Review validates all registered
+  evidence present in the review bundle before building the Studio projection.
+- **Independent contract test:** CI verifies producer declarations, compatible
+  fixtures, schema/version tampering and deterministic registry identity outside
+  the production registry implementation.
+- **Cache correctness:** registry semantics participate in the central/core
+  fingerprints and Repo Watcher invalidation.
+- **Authority unchanged:** the registry is compatibility metadata only; Smart
+  Test Plan, trusted runtime, Release Assurance and Production Certification
+  retain their existing authority boundaries.
+
+See `integration/hardening/EVIDENCE_SCHEMA_REGISTRY_V534.md`.
+
 ## v5.3.3 — Structural Hardening & Contract Test Foundation
 
 AppLab now consolidates the v5.x core before introducing any

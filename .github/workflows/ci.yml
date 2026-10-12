@@ -46,6 +46,7 @@ jobs:
             scripts/smart_test_plan.py \
             scripts/planner_feedback.py \
             scripts/planner_feedback_contract.py \
+            scripts/evidence_contract_registry.py \
             scripts/adaptive_checks.py \
             scripts/incremental_result.py \
             scripts/shadow_calibration.py \
@@ -109,6 +110,7 @@ jobs:
             scripts/trusted_cross_app_evidence.py \
             scripts/audit_orchestrator.py \
             scripts/audit_contract_hardening.py \
+            scripts/audit_contract_schema.py \
             scripts/studio_snapshot_self_test.py \
             scripts/evidence_graph_self_test.py \
             scripts/studio_snapshot.py \
@@ -123,6 +125,7 @@ jobs:
             tests/intelligence/intelligence_corpus_test.py \
             tests/intelligence/evidence_graph_test.py \
             tests/contracts/planning_feedback_pipeline_test.py \
+            tests/contracts/evidence_schema_registry_test.py \
             tests/contracts/workflow_structure_test.py
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/interaction_crawler.py --self-test
@@ -137,6 +140,7 @@ jobs:
           python scripts/storage_lab.py --self-test
           python scripts/smart_test_plan.py --self-test
           python scripts/planner_feedback.py --self-test
+          python scripts/evidence_contract_registry.py self-test
           bash scripts/restore_planner_feedback.sh --self-test
           python scripts/adaptive_checks.py --self-test
           python scripts/incremental_result.py --self-test
@@ -212,6 +216,7 @@ jobs:
           python scripts/applab_doctor.py --self-test
           python scripts/maintainability_budget.py
           python tests/contracts/planning_feedback_pipeline_test.py
+          python tests/contracts/evidence_schema_registry_test.py
           python tests/contracts/workflow_structure_test.py
           python tests/intelligence/intelligence_corpus_test.py
           python tests/intelligence/evidence_graph_test.py
@@ -231,7 +236,7 @@ jobs:
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
           for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"5.3.3"'; then
+            if curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version":"5.3.4"'; then
               healthy=true
               break
             fi
