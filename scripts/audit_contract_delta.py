@@ -9,6 +9,7 @@ def run_check(namespace: dict[str, Any]) -> None:
     require = namespace["require"]
 
     calibration = (root / "scripts/delta_calibration.py").read_text(encoding="utf-8")
+    registry = (root / "scripts/evidence_contract_registry.py").read_text(encoding="utf-8")
     planner = (root / "scripts/smart_test_plan.py").read_text(encoding="utf-8")
     control = (root / "scripts/control_center_snapshot.py").read_text(encoding="utf-8")
     frontend = (root / "frontend/src/ControlCenter.tsx").read_text(encoding="utf-8")
@@ -43,6 +44,14 @@ def run_check(namespace: dict[str, Any]) -> None:
         require(needle in calibration, f"v5.3.5 calibration guardrail missing: {needle}")
 
     require(
+        '"delta-calibration.json"' in registry
+        and '"scripts/delta_calibration.py"' in registry
+        and '"5.3.5"' in registry
+        and '"MULTI_PROJECT_DELTA_CALIBRATION"' in registry
+        and '"APPLAB_DELTA_CALIBRATION_ADVISORY"' in registry,
+        "delta calibration must have an exact registered evidence contract",
+    )
+    require(
         "import delta_calibration" not in planner
         and "from delta_calibration" not in planner
         and "coverage_reduction_enabled" not in planner,
@@ -65,7 +74,7 @@ def run_check(namespace: dict[str, Any]) -> None:
         "delta calibration semantics must invalidate the core contract fingerprint",
     )
     require(
-        '"scripts/delta_calibration.py": 380' in maintainability
+        '"scripts/delta_calibration.py": 420' in maintainability
         and '"scripts/audit_contract_delta.py": 150' in maintainability,
         "v5.3.5 calibration modules must have maintainability ceilings",
     )
