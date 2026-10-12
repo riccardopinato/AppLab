@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import certification_studio, studio_competitive_product, studio_design_advisor, studio_evidence_graph, studio_release_assurance, studio_review_council, studio_simulated_human
-SCHEMA_VERSION = 1; STUDIO_VERSION = "5.3.2"
+SCHEMA_VERSION = 1; STUDIO_VERSION = "5.3.3"
 
 def read_json(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
