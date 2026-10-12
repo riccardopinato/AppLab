@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import tempfile
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -54,8 +54,19 @@ def _shadow_record(row: dict[str, Any]) -> dict[str, Any] | None:
     metrics = metrics if isinstance(metrics, dict) else {}
     if not bool(row.get("shadow_full", metrics.get("shadow_full", False))):
         return None
-    if calibration.get("shadow_full") is not True:
+    if calibration.get("schema_version") != 2 or calibration.get("shadow_full") is not True:
         return None
+    if not isinstance(calibration.get("divergences"), list):
+        return None
+    for field in (
+        "false_negative_count",
+        "missed_warning_count",
+        "missing_baseline_count",
+        "over_selection_count",
+    ):
+        value = calibration.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            return None
     return calibration
 
 
@@ -110,7 +121,7 @@ def build_report(history: list[dict[str, Any]]) -> dict[str, Any]:
         if calibration is None:
             continue
 
-        repository = str(row.get("repository", "")).strip()
+        repository = str(row.get("repository", "")).strip().casefold()
         if not repository:
             continue
         category = _change_category(row)
