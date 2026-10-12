@@ -64,7 +64,7 @@ def run_check(namespace: dict[str, Any]) -> None:
         "Release Assurance must validate registered evidence before consumption",
     )
     require(
-        "evidence_contract_registry.require_compatible" in manifest,
+        "require_compatible(MANIFEST_NAME, manifest)" in manifest,
         "trusted manifest validation must enforce the registry contract",
     )
 
