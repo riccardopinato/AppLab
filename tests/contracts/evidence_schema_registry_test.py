@@ -131,6 +131,12 @@ def main() -> int:
         assert state == "INCOMPATIBLE"
         assert any("SCHEMA_VERSION_MISMATCH" in error for error in errors)
 
+        boolean_schema = json.loads(json.dumps(payload))
+        boolean_schema["schema_version"] = True
+        state, errors = registry.validate_if_registered(artifact, boolean_schema)
+        assert state == "INCOMPATIBLE"
+        assert any("SCHEMA_VERSION_MISMATCH" in error for error in errors)
+
         if contract.version_field:
             broken = json.loads(json.dumps(payload))
             current = broken
