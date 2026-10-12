@@ -18,6 +18,7 @@ REQUIRED = {
     "trusted-evidence-manifest.json",
     "evidence-graph.json",
     "planner-feedback.json",
+    "delta-calibration.json",
     "physical-evidence.json",
     "release-reality.json",
     "certification.json",
@@ -56,7 +57,7 @@ def valid_payload(contract: registry.EvidenceContract) -> dict[str, object]:
 def assert_producer_contracts_are_declared() -> None:
     source_checks = {
         "analysis-plan.json": ('"schema_version": 2', '"planner_version": "1.1.0"'),
-        "build-contract.json": ('"schema_version": 1', '"applab_version": "5.3.4"'),
+        "build-contract.json": ('"schema_version": 1', '"applab_version": "5.3.5"'),
         "trusted-evidence-manifest.json": (
             "SCHEMA_VERSION = 1",
             'MANIFEST_VERSION = "3.0.1"',
@@ -68,6 +69,11 @@ def assert_producer_contracts_are_declared() -> None:
         "planner-feedback.json": (
             "SCHEMA_VERSION = 1",
             'ENGINE_VERSION = "5.3.3"',
+        ),
+        "delta-calibration.json": (
+            "SCHEMA_VERSION = 1",
+            'ENGINE_VERSION = "5.3.5"',
+            'RECORD_TYPE = "MULTI_PROJECT_DELTA_CALIBRATION"',
         ),
         "physical-evidence.json": (
             "SCHEMA_VERSION = 1",
