@@ -14,6 +14,7 @@ from planner_feedback_contract import (
     MAX_RISK_BOOST,
     RECORD_TYPE,
     SCHEMA_VERSION,
+    _SHA40,
     _analysis_truncated,
     _canonical_digest,
     _compatibility_errors,
