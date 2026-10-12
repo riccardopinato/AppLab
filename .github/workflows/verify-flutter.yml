@@ -1,4 +1,4 @@
-name: AppLab Flutter Project Gate
+name: AppLab Flutter Project Gate (Compatibility Wrapper)
 
 on:
   workflow_call:
@@ -69,7 +69,7 @@ permissions:
 
 jobs:
   verify:
-    name: AppLab v0.6.3 Unified Flutter Gate
+    name: AppLab Flutter Runtime Gate (Compatibility Wrapper)
     uses: ./.github/workflows/external-project-runner.yml
     with:
       repository: ${{ github.repository }}
