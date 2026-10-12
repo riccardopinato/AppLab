@@ -899,7 +899,10 @@ def self_test() -> None:
                 "capabilities": ["gps", "background"],
             },
             "result": "PASS",
-            "attestation": {"workflow_run_id": "789"},
+            "attestation": {
+                "authority": "APPLAB_PHYSICAL_EVIDENCE_HUB",
+                "workflow_run_id": "789",
+            },
             "verification": {
                 "state": "VERIFIED",
                 "exact_artifact_match": True,
