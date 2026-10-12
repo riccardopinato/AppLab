@@ -177,7 +177,7 @@ def clear_logcat() -> None:
 
 
 def runtime_unhealthy(package_id: str) -> str:
-    if not pid_of(package_id):
+    if not wait_for_pid(package_id, timeout=4.0):
         return "application process is not running"
     logs = adb("logcat", "-b", "all", "-d", "-v", "brief", timeout=30).stdout
     if f"ANR in {package_id}" in logs:
