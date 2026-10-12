@@ -64,6 +64,20 @@ def run_check(namespace: dict[str, Any]) -> None:
         "Release Assurance must validate registered evidence before consumption",
     )
     require(
+        "present = path.is_file()" in assurance
+        and "if present and path.name in evidence_contract_registry.REGISTRY:" in assurance,
+        "Release Assurance must validate present registered evidence even when the JSON object is empty",
+    )
+    require(
+        'evidence_contract_registry.require_compatible("build-contract.json", contract)' in (root / "scripts/release_reality.py").read_text(encoding="utf-8"),
+        "Release Reality must validate build-contract compatibility before consuming artifact identity",
+    )
+    require(
+        "not isinstance(observed_schema, int)" in registry
+        and "isinstance(observed_schema, bool)" in registry,
+        "registry schema_version matching must reject booleans and non-integer values",
+    )
+    require(
         "require_compatible(MANIFEST_NAME, manifest)" in manifest,
         "trusted manifest validation must enforce the registry contract",
     )
