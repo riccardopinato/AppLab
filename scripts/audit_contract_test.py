@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_VERSION = "5.3.2"
+EXPECTED_VERSION = "5.3.3"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -1210,6 +1210,10 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
     from audit_contract_hardening import run_check
     run_check("check_v532_graph_aware_planning_feedback_contract", globals())
 
+def check_v533_structural_hardening_contract() -> None:
+    from audit_contract_hardening import run_check
+    run_check("check_v533_structural_hardening_contract", globals())
+
 
 def main() -> int:
     check_version_alignment()
@@ -1231,6 +1235,7 @@ def main() -> int:
     check_virtual_product_review_council_contract()
     check_v531_technical_hardening_contract()
     check_v532_graph_aware_planning_feedback_contract()
+    check_v533_structural_hardening_contract()
     check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
