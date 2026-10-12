@@ -203,7 +203,7 @@ def self_test() -> None:
     assert not evaluate_feedback(tampered, repository="owner/app", baseline_sha=sha, source_ref="main")["eligible"]
     incomplete_plan = {key: value for key, value in plan.items() if key != "dependency_analysis"}
     assert build_feedback(graph, incomplete_plan)["state"] == "EVIDENCE_INCOMPLETE"
-    print("AppLab Graph-aware Planner Feedback v5.3.2 self-test PASS")
+    print("AppLab Graph-aware Planner Feedback v5.3.3 self-test PASS")
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build AppLab graph-aware planner feedback")
     parser.add_argument("--graph", default="")
