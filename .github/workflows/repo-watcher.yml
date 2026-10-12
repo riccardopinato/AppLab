@@ -30,6 +30,7 @@ on:
       - "scripts/adaptive_checks.py"
       - "scripts/incremental_result.py"
       - "scripts/shadow_calibration.py"
+      - "scripts/delta_calibration.py"
       - "scripts/domain_fingerprint.py"
       - "scripts/pipeline_metrics.py"
       - "scripts/github_run_started_at.py"
@@ -333,11 +334,16 @@ jobs:
             --summary-output watch-summary.md \
             --run-id "$GITHUB_RUN_ID" \
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          python scripts/delta_calibration.py \
+            --history-file .applab-history/history.jsonl \
+            --output-json .applab-history/delta-calibration.json \
+            --output-md .applab-history/delta-calibration.md
           python scripts/control_center_snapshot.py \
             --watchlist watchlist.json \
             --history-file .applab-history/history.jsonl \
             --output .applab-history/control-center.json
           cat watch-summary.md >> "$GITHUB_STEP_SUMMARY"
+          cat .applab-history/delta-calibration.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save central history
         if: always()
@@ -355,5 +361,7 @@ jobs:
             watch-summary.md
             .applab-history/history.jsonl
             .applab-history/control-center.json
+            .applab-history/delta-calibration.json
+            .applab-history/delta-calibration.md
           if-no-files-found: warn
           retention-days: 7
