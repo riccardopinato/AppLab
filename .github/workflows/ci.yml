@@ -45,6 +45,7 @@ jobs:
             scripts/storage_lab.py \
             scripts/smart_test_plan.py \
             scripts/planner_feedback.py \
+            scripts/planner_feedback_contract.py \
             scripts/adaptive_checks.py \
             scripts/incremental_result.py \
             scripts/shadow_calibration.py \
@@ -107,6 +108,9 @@ jobs:
             scripts/evidence_retention_contract.py \
             scripts/trusted_cross_app_evidence.py \
             scripts/audit_orchestrator.py \
+            scripts/audit_contract_hardening.py \
+            scripts/studio_snapshot_self_test.py \
+            scripts/evidence_graph_self_test.py \
             scripts/studio_snapshot.py \
             scripts/studio_release_assurance.py \
             scripts/certification_studio.py \
@@ -117,7 +121,9 @@ jobs:
             scripts/applab_doctor.py \
             scripts/maintainability_budget.py \
             tests/intelligence/intelligence_corpus_test.py \
-            tests/intelligence/evidence_graph_test.py
+            tests/intelligence/evidence_graph_test.py \
+            tests/contracts/planning_feedback_pipeline_test.py \
+            tests/contracts/workflow_structure_test.py
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/interaction_crawler.py --self-test
           python scripts/journey_crawler.py --self-test
@@ -205,6 +211,8 @@ jobs:
           python scripts/build_reuse_eligibility.py --self-test
           python scripts/applab_doctor.py --self-test
           python scripts/maintainability_budget.py
+          python tests/contracts/planning_feedback_pipeline_test.py
+          python tests/contracts/workflow_structure_test.py
           python tests/intelligence/intelligence_corpus_test.py
           python tests/intelligence/evidence_graph_test.py
 
