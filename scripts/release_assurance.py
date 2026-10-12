@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import evidence_contract_registry
+
 APPLAB_VERSION = "4.9.0"
 SCHEMA_VERSION = 1
 RECORD_TYPE = "AUTONOMOUS_RELEASE_ASSURANCE"
@@ -87,6 +89,13 @@ def read_json(path: Path, required: bool = False) -> dict[str, Any]:
 
 def clean(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def read_registered_json(path: Path, required: bool = False) -> dict[str, Any]:
+    payload = read_json(path, required)
+    if payload and path.name in evidence_contract_registry.REGISTRY:
+        evidence_contract_registry.require_compatible(path.name, payload)
+    return payload
 
 
 def norm_state(value: object, default: str = NOT_VERIFIED) -> str:
@@ -382,11 +391,11 @@ def digest(ident: dict[str, str], rows: list[dict[str, Any]]) -> str:
 
 
 def build_report(report_dir: Path) -> dict[str, Any]:
-    reality = read_json(report_dir / RR, True)
-    graph = read_json(report_dir / GRAPH)
-    plan = read_json(report_dir / PLAN)
-    certification = read_json(report_dir / CERT)
-    cross = read_json(report_dir / CROSS)
+    reality = read_registered_json(report_dir / RR, True)
+    graph = read_registered_json(report_dir / GRAPH)
+    plan = read_registered_json(report_dir / PLAN)
+    certification = read_registered_json(report_dir / CERT)
+    cross = read_registered_json(report_dir / CROSS)
     distribution = read_json(report_dir / DIST)
 
     ident = identity(reality)
