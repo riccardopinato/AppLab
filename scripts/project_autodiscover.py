@@ -264,98 +264,131 @@ def gradle_lines(workflows: str) -> list[str]:
     return result
 
 
-def gradle_task_tokens(command: str) -> list[str]:
+SHELL_TOKEN_RE = re.compile(
+    r"""(?:[^\\s"'\\\\]+|"(?:\\\\.|[^"\\\\])*"|'[^']*'|\\\\.)+"""
+)
+GRADLE_OPTIONS_WITH_VALUES = {
+    "-p",
+    "--project-dir",
+    "-b",
+    "--build-file",
+    "-c",
+    "--settings-file",
+    "-g",
+    "--gradle-user-home",
+    "-I",
+    "--init-script",
+    "--include-build",
+    "--project-cache-dir",
+    "--max-workers",
+    "--priority",
+    "--console",
+    "--warning-mode",
+    "--dependency-verification",
+    "--configuration-cache-problems",
+    "--write-verification-metadata",
+    "--update-locks",
+    "--tests",
+}
+GRADLE_TASK_HINTS = (
+    "assemble",
+    "bundle",
+    "build",
+    "check",
+    "clean",
+    "connected",
+    "detekt",
+    "device",
+    "jacoco",
+    "ktlint",
+    "lint",
+    "spotless",
+    "test",
+)
+
+
+def shell_tokens(command: str) -> list[str]:
+    return SHELL_TOKEN_RE.findall(command)
+
+
+def shell_token_value(raw: str) -> str:
     try:
-        tokens = shlex.split(command)
+        parsed = shlex.split(raw)
     except ValueError:
-        tokens = command.split()
-    if not tokens:
-        return []
-    result: list[str] = []
+        return raw
+    return parsed[0] if len(parsed) == 1 else raw
+
+
+def gradle_token_records(command: str) -> list[tuple[int, str, str, bool]]:
+    raw_tokens = shell_tokens(command)
+    records: list[tuple[int, str, str, bool]] = []
     skip_next = False
-    options_with_values = {"-p", "--project-dir", "-b", "--build-file", "-c", "--settings-file"}
-    for token in tokens[1:]:
+    for index, raw in enumerate(raw_tokens[1:], start=1):
+        value = shell_token_value(raw)
         if skip_next:
+            records.append((index, raw, value, False))
             skip_next = False
             continue
-        if token in options_with_values:
+        if value in GRADLE_OPTIONS_WITH_VALUES:
+            records.append((index, raw, value, False))
             skip_next = True
             continue
-        if token.startswith("-"):
+        if value.startswith("-"):
+            records.append((index, raw, value, False))
             continue
-        task = token.rsplit(":", 1)[-1]
-        if re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]*", task):
-            result.append(task)
-    return result
+        task = value.rsplit(":", 1)[-1]
+        lower = task.lower()
+        task_like = bool(
+            re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]*", task)
+            and lower.startswith(GRADLE_TASK_HINTS)
+        )
+        records.append((index, raw, value, task_like))
+    return records
+
+
+def gradle_task_tokens(command: str) -> list[str]:
+    return [
+        value.rsplit(":", 1)[-1]
+        for _, _, value, task_like in gradle_token_records(command)
+        if task_like
+    ]
 
 
 def isolate_gradle_task(command: str, token: str) -> str:
-    try:
-        tokens = shlex.split(command)
-    except ValueError:
-        tokens = command.split()
-    if not tokens:
+    raw_tokens = shell_tokens(command)
+    if not raw_tokens:
         return ""
 
     token_lower = token.lower()
-    task_positions: list[tuple[int, str]] = []
-    skip_next = False
-    options_with_values = {
-        "-p",
-        "--project-dir",
-        "-b",
-        "--build-file",
-        "-c",
-        "--settings-file",
-    }
-    for index, value in enumerate(tokens[1:], start=1):
-        if skip_next:
-            skip_next = False
-            continue
-        if value in options_with_values:
-            skip_next = True
-            continue
-        if value.startswith("-"):
-            continue
-        task = value.rsplit(":", 1)[-1]
-        if (
-            re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]*", task)
-            and token_lower in task.lower()
-        ):
-            task_positions.append((index, value))
-
+    records = gradle_token_records(command)
+    task_positions = [
+        (index, raw, value)
+        for index, raw, value, task_like in records
+        if task_like and token_lower in value.rsplit(":", 1)[-1].lower()
+    ]
     if not task_positions:
         return ""
 
-    preferred = next(
-        (item for item in task_positions if "debug" in item[1].lower()),
+    selected_index, _, selected_value = next(
+        (
+            item
+            for item in task_positions
+            if "debug" in item[2].rsplit(":", 1)[-1].lower()
+        ),
         task_positions[0],
     )
-    selected_index = preferred[0]
+    task_indices = {
+        index
+        for index, _, _, task_like in records
+        if task_like
+    }
 
-    rebuilt: list[str] = [tokens[0]]
-    skip_next = False
-    for index, value in enumerate(tokens[1:], start=1):
-        if skip_next:
-            rebuilt.append(value)
-            skip_next = False
-            continue
-        if value in options_with_values:
-            rebuilt.append(value)
-            skip_next = True
-            continue
-        if value.startswith("-"):
-            rebuilt.append(value)
-            continue
-        task = value.rsplit(":", 1)[-1]
-        if re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]*", task):
-            if index == selected_index:
-                rebuilt.append(value)
-            continue
-        rebuilt.append(value)
-
-    return " ".join(shlex.quote(value) for value in rebuilt)
-
+    rebuilt = [
+        raw
+        for index, raw in enumerate(raw_tokens)
+        if index == 0 or index == selected_index or index not in task_indices
+    ]
+    return " ".join(rebuilt)
 
 def pick_gradle_command(lines: list[str], token: str) -> str:
     token_lower = token.lower()
@@ -629,6 +662,32 @@ def self_test() -> None:
         assert "assemble" not in profile["test_command"].lower()
         assert profile["test_command"] == "gradle testDebugUnitTest --stacktrace"
         assert profile["apk_path"] == "app/build/outputs/apk/debug/app-debug.apk"
+
+    combined = (
+        "./gradlew lintDebug testDebugUnitTest assembleDebug assembleRelease "
+        "--warning-mode all --console plain --tests com.example.Test "
+        "-PapiKey=$API_KEY --stacktrace"
+    )
+    assert isolate_gradle_task(combined, "lint") == (
+        "./gradlew lintDebug --warning-mode all --console plain "
+        "--tests com.example.Test -PapiKey=$API_KEY --stacktrace"
+    )
+    assert isolate_gradle_task(combined, "test") == (
+        "./gradlew testDebugUnitTest --warning-mode all --console plain "
+        "--tests com.example.Test -PapiKey=$API_KEY --stacktrace"
+    )
+    assert isolate_gradle_task(combined, "assemble") == (
+        "./gradlew assembleDebug --warning-mode all --console plain "
+        "--tests com.example.Test -PapiKey=$API_KEY --stacktrace"
+    )
+    quoted = (
+        './gradlew lintDebug testDebugUnitTest -Plabel="$BUILD LABEL" '
+        '--tests "com.example.My Test" --stacktrace'
+    )
+    assert isolate_gradle_task(quoted, "test") == (
+        './gradlew testDebugUnitTest -Plabel="$BUILD LABEL" '
+        '--tests "com.example.My Test" --stacktrace'
+    )
 
     print("AppLab universal project auto-discovery self-test PASS")
 
