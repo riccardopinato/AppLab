@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       repository:
-        description: Public GitHub repository in owner/name format
+        description: GitHub repository in owner/name format
         required: true
         type: string
       ref:
@@ -129,6 +129,10 @@ on:
         default: ""
         type: string
 
+    secrets:
+      APPLAB_TARGET_TOKEN:
+        required: false
+
 permissions:
   contents: read
   actions: read
@@ -159,6 +163,7 @@ jobs:
           ref: ${{ inputs.ref }}
           path: target
           persist-credentials: false
+          token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
 
       - name: Detect project engine and build profile
         shell: bash
@@ -238,6 +243,7 @@ jobs:
       baseline_sha: ${{ inputs.baseline_sha }}
       publish_release_artifact: ${{ inputs.publish_release_artifact }}
       physical_evidence_run_id: ${{ inputs.physical_evidence_run_id }}
+    secrets: inherit
 
   verify_native:
     name: Auto native Android verification
@@ -270,3 +276,5 @@ jobs:
       analysis_mode: ${{ inputs.analysis_mode }}
       baseline_sha: ${{ inputs.baseline_sha }}
       physical_evidence_run_id: ${{ inputs.physical_evidence_run_id }}
+    secrets: inherit
+
