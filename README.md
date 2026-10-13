@@ -1,5 +1,12 @@
 ## v5.3.5 operational hardening — watcher coverage
 
+Private targets are explicitly marked in the watcher inventory. If
+`APPLAB_TARGET_TOKEN` is not configured, discovery reports
+`TARGET_AUTH_REQUIRED` and fails closed rather than treating the repository as
+missing. Native auto-discovery also separates combined Gradle task lines and the
+runner can retry preview SDK channels for preview compileSdk levels.
+
+
 The live Repo Watcher now tracks 15 AppLab-compatible Android/Flutter projects.
 CamperBoss follows `main`, and external/private target checkout reuses the
 existing optional `APPLAB_TARGET_TOKEN` contract with public-repository fallback
