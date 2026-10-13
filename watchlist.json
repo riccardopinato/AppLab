@@ -161,11 +161,25 @@
     },
     {
       "key": "watch-world-days",
-      "engine": "auto",
+      "engine": "flutter",
       "enabled": true,
       "repository": "riccardopinato/World-Days",
       "ref": "main",
-      "run_maestro": true
+      "working_directory": ".",
+      "flutter_channel": "stable",
+      "flutter_version": "3.47.3",
+      "java_version": "17",
+      "prepare_command": "bash \"$GITHUB_WORKSPACE/.applab/watch-profiles/world_days.sh\"",
+      "post_pub_get_command": "",
+      "android_prepare_command": "",
+      "api_level": "35",
+      "emulator_profile": "pixel_7_pro",
+      "apk_path": "build/app/outputs/flutter-apk/app-debug.apk",
+      "package_id": "com.riccardopinato.world_days",
+      "build_command": "flutter build apk --debug",
+      "run_flutter_tests": true,
+      "run_maestro": true,
+      "maestro_flow": ""
     },
     {
       "key": "inventory-cozy-game",
