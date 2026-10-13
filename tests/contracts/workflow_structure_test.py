@@ -98,7 +98,11 @@ def main() -> int:
 
     target_token = "secrets.APPLAB_TARGET_TOKEN || github.token"
     watcher = (WORKFLOWS / "repo-watcher.yml").read_text(encoding="utf-8")
-    require(target_token in watcher, "Repo Watcher discovery must support private target authentication")
+    require(
+        "GITHUB_TOKEN: ${{ github.token }}" in watcher
+        and f"APPLAB_TARGET_TOKEN: ${{{{ {target_token} }}}}" in watcher,
+        "Repo Watcher must separate AppLab cache auth from private target auth",
+    )
     require(
         watcher.count("secrets: inherit") >= 3,
         "Repo Watcher must forward target authentication to all reusable verification runners",
@@ -113,6 +117,12 @@ def main() -> int:
             "APPLAB_TARGET_TOKEN:" in runner_text and target_token in runner_text,
             f"{runner_name}: private target token contract missing",
         )
+        if runner_name != "universal-project-runner.yml":
+            require(
+                "authenticated_fetch()" in runner_text
+                and "credential.helper=!f()" in runner_text,
+                f"{runner_name}: private baseline fetch must use ephemeral target credentials",
+            )
     universal = (WORKFLOWS / "universal-project-runner.yml").read_text(encoding="utf-8")
     require(
         universal.count("secrets: inherit") >= 2,
