@@ -388,6 +388,23 @@ def isolate_gradle_task(command: str, token: str) -> str:
         for index, raw in enumerate(raw_tokens)
         if index == 0 or index == selected_index or index not in task_indices
     ]
+
+    if token_lower != "test":
+        filtered: list[str] = []
+        skip_next = False
+        for raw in rebuilt:
+            value = shell_token_value(raw)
+            if skip_next:
+                skip_next = False
+                continue
+            if value == "--tests":
+                skip_next = True
+                continue
+            if value.startswith("--tests="):
+                continue
+            filtered.append(raw)
+        rebuilt = filtered
+
     return " ".join(rebuilt)
 
 def pick_gradle_command(lines: list[str], token: str) -> str:
@@ -680,7 +697,7 @@ def self_test() -> None:
     )
     assert isolate_gradle_task(combined, "lint") == (
         "./gradlew lintDebug --warning-mode all --console plain "
-        "--tests com.example.Test -PapiKey=$API_KEY --stacktrace"
+        "-PapiKey=$API_KEY --stacktrace"
     )
     assert isolate_gradle_task(combined, "test") == (
         "./gradlew testDebugUnitTest --warning-mode all --console plain "
@@ -688,7 +705,7 @@ def self_test() -> None:
     )
     assert isolate_gradle_task(combined, "assemble") == (
         "./gradlew assembleDebug --warning-mode all --console plain "
-        "--tests com.example.Test -PapiKey=$API_KEY --stacktrace"
+        "-PapiKey=$API_KEY --stacktrace"
     )
     quoted = (
         './gradlew lintDebug testDebugUnitTest -Plabel="$BUILD LABEL" '
