@@ -65,10 +65,15 @@ def main() -> int:
         "project-specific one-off workflow must not remain in AppLab core",
     )
     watchlist = json.loads((ROOT / "watchlist.json").read_text(encoding="utf-8"))
-    entries = {
+    all_entries = {
         str(item.get("repository", "")).strip(): item
         for item in watchlist.get("repositories", [])
-        if isinstance(item, dict) and item.get("enabled", True)
+        if isinstance(item, dict)
+    }
+    entries = {
+        repository: item
+        for repository, item in all_entries.items()
+        if item.get("enabled", True)
     }
     expected_targets = {
         "riccardopinato/TrailPath",
@@ -91,6 +96,31 @@ def main() -> int:
         expected_targets <= set(entries),
         f"watchlist missing operational v5.3.5 targets: {sorted(expected_targets - set(entries))}",
     )
+    inventory_only = {
+        "riccardopinato/Cozy-game-nome-da-scegliere-":
+            "NO_EXECUTABLE_ANDROID_OR_FLUTTER_PROJECT",
+        "riccardopinato/Neon-arcade-runner":
+            "UNSUPPORTED_CAPACITOR_VITE_RUNTIME",
+    }
+    for repository, reason in inventory_only.items():
+        require(repository in all_entries, f"watchlist inventory missing {repository}")
+        require(
+            all_entries[repository].get("enabled") is False
+            and all_entries[repository].get("exclusion_reason") == reason,
+            f"{repository}: inventory-only exclusion contract drifted",
+        )
+
+    private_targets = {
+        "riccardopinato/app-fotografia",
+        "riccardopinato/PDF-Unifier",
+        "riccardopinato/FrameLab-Google-AI-Studio",
+        "riccardopinato/App-corpo-umano",
+    }
+    for repository in private_targets:
+        require(
+            entries[repository].get("requires_target_token") is True,
+            f"{repository}: private watcher target must require APPLAB_TARGET_TOKEN",
+        )
     require(
         entries["riccardopinato/CamperBoss"].get("ref") == "main",
         "CamperBoss watcher must track production main rather than a stale release branch",
@@ -100,8 +130,8 @@ def main() -> int:
     watcher = (WORKFLOWS / "repo-watcher.yml").read_text(encoding="utf-8")
     require(
         "GITHUB_TOKEN: ${{ github.token }}" in watcher
-        and f"APPLAB_TARGET_TOKEN: ${{{{ {target_token} }}}}" in watcher,
-        "Repo Watcher must separate AppLab cache auth from private target auth",
+        and "APPLAB_TARGET_TOKEN: ${{ secrets.APPLAB_TARGET_TOKEN }}" in watcher,
+        "Repo Watcher must expose whether private target auth is actually configured",
     )
     require(
         watcher.count("secrets: inherit") >= 3,
@@ -122,6 +152,11 @@ def main() -> int:
                 "authenticated_fetch()" in runner_text
                 and "credential.helper=!f()" in runner_text,
                 f"{runner_name}: private baseline fetch must use ephemeral target credentials",
+            )
+        if runner_name == "external-native-android-runner.yml":
+            require(
+                '"$SDKMANAGER" --channel=3 "${COMPONENTS[@]}"' in runner_text,
+                "native runner must retry preview/canary SDK channel for preview compileSdk",
             )
     universal = (WORKFLOWS / "universal-project-runner.yml").read_text(encoding="utf-8")
     require(
