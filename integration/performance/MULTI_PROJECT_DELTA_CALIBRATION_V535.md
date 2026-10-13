@@ -101,3 +101,20 @@ These exclusions are fail-closed compatibility boundaries, not safe calibration
 evidence. They must not count toward repository diversity or shadow-run
 thresholds until AppLab gains a compatible executable verification lane.
 
+### Follow-up operational hardening
+
+The owner inventory is now complete in `watchlist.json`:
+
+- 15 enabled Android/Flutter calibration targets;
+- 2 disabled inventory-only targets with explicit fail-closed reasons;
+- 4 private targets marked `requires_target_token=true`.
+
+When `APPLAB_TARGET_TOKEN` is absent, private targets are reported as
+`TARGET_AUTH_REQUIRED` instead of a generic GitHub 404 and are not counted as
+calibration evidence.
+
+Native auto-discovery now isolates lint/test/build Gradle tasks when a project CI
+places several tasks on one command line. The native runner also retries Android
+SDK installation on channel 3 when the stable channel does not expose a requested
+preview platform such as Android 17 / API 37.
+

@@ -546,10 +546,16 @@ jobs:
 
           echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
-          "$SDKMANAGER" \
-            "platform-tools" \
-            "platforms;android-${{ inputs.compile_sdk }}" \
+
+          COMPONENTS=(
+            "platform-tools"
+            "platforms;android-${{ inputs.compile_sdk }}"
             "build-tools;${{ inputs.build_tools }}"
+          )
+          if ! "$SDKMANAGER" "${COMPONENTS[@]}"; then
+            echo "Stable SDK channel did not expose requested components; retrying preview/canary channel." >&2
+            "$SDKMANAGER" --channel=3 "${COMPONENTS[@]}"
+          fi
 
       - name: Setup Gradle
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
