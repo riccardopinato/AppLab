@@ -265,7 +265,7 @@ def gradle_lines(workflows: str) -> list[str]:
 
 
 SHELL_TOKEN_RE = re.compile(
-    r"""(?:[^\\s"'\\\\]+|"(?:\\\\.|[^"\\\\])*"|'[^']*'|\\\\.)+"""
+    r"""(?:[^\s"'\\]+|"(?:\\.|[^"\\])*"|'[^']*'|\\.)+"""
 )
 GRADLE_OPTIONS_WITH_VALUES = {
     "-p",
