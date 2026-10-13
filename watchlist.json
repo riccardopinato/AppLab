@@ -65,7 +65,7 @@
       "key": "watch-camperboss",
       "enabled": true,
       "repository": "riccardopinato/CamperBoss",
-      "ref": "step-16-release-core",
+      "ref": "main",
       "working_directory": ".",
       "flutter_channel": "stable",
       "flutter_version": "3.47.5",
@@ -82,6 +82,86 @@
       "run_maestro": true,
       "maestro_flow": ".maestro/applab-home-audit-v2.yaml",
       "engine": "flutter"
+    },
+    {
+      "key": "watch-app-fotografia",
+      "engine": "auto",
+      "enabled": true,
+      "repository": "riccardopinato/app-fotografia",
+      "ref": "main",
+      "run_maestro": true
+    },
+    {
+      "key": "watch-android-omni-cleaner",
+      "engine": "auto",
+      "enabled": true,
+      "repository": "riccardopinato/Android-Omni-Cleaner",
+      "ref": "main",
+      "run_maestro": true
+    },
+    {
+      "key": "watch-pdf-unifier",
+      "engine": "auto",
+      "enabled": true,
+      "repository": "riccardopinato/PDF-Unifier",
+      "ref": "main",
+      "run_maestro": true
+    },
+    {
+      "key": "watch-framelab-google-ai-studio",
+      "engine": "auto",
+      "enabled": true,
+      "repository": "riccardopinato/FrameLab-Google-AI-Studio",
+      "ref": "main",
+      "run_maestro": true
+    },
+    {
+      "key": "watch-agenda-per-anna",
+      "engine": "auto",
+      "enabled": true,
+      "repository": "riccardopinato/Agenda-per-Anna",
+      "ref": "main",
+      "run_maestro": true
+    },
+    {
+      "key": "watch-app-corpo-umano",
+      "engine": "auto",
+      "enabled": true,
+      "repository": "riccardopinato/App-corpo-umano",
+      "ref": "main",
+      "run_maestro": true
+    },
+    {
+      "key": "watch-tasteai",
+      "engine": "auto",
+      "enabled": true,
+      "repository": "riccardopinato/TasteAI",
+      "ref": "main",
+      "run_maestro": true
+    },
+    {
+      "key": "watch-notification-control",
+      "engine": "auto",
+      "enabled": true,
+      "repository": "riccardopinato/Notification-Control",
+      "ref": "main",
+      "run_maestro": true
+    },
+    {
+      "key": "watch-wonderlog",
+      "engine": "auto",
+      "enabled": true,
+      "repository": "riccardopinato/Wonderlog",
+      "ref": "main",
+      "run_maestro": true
+    },
+    {
+      "key": "watch-world-days",
+      "engine": "auto",
+      "enabled": true,
+      "repository": "riccardopinato/World-Days",
+      "ref": "main",
+      "run_maestro": true
     }
   ]
 }

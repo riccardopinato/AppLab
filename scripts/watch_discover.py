@@ -303,7 +303,8 @@ def main() -> int:
     if not REPO_RE.fullmatch(applab_repository):
         raise SystemExit("--applab-repository must be owner/name")
 
-    token = os.environ.get("GITHUB_TOKEN", "")
+    applab_token = os.environ.get("GITHUB_TOKEN", "")
+    target_token = os.environ.get("APPLAB_TARGET_TOKEN", "") or applab_token
     only_repository = args.only_repository.strip()
     matrix: list[dict[str, Any]] = []
     flutter_matrix: list[dict[str, Any]] = []
@@ -331,7 +332,7 @@ def main() -> int:
         }
 
         try:
-            sha = resolve_sha(repository, str(entry["ref"]), token)
+            sha = resolve_sha(repository, str(entry["ref"]), target_token)
             previous_result = latest_history_entry(
                 args.history_file, repository, str(entry["key"]), str(entry["ref"])
             )
@@ -345,7 +346,7 @@ def main() -> int:
                 f"p{config_fingerprint}-{entry['key']}-{sha}"
             )
             cached = False if args.force else cache_exists(
-                applab_repository, cache_key, token
+                applab_repository, cache_key, applab_token
             )
 
             same_sha_failure = (

@@ -106,6 +106,7 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          APPLAB_TARGET_TOKEN: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
           FORCE_INPUT: ${{ inputs.force }}
           DISPATCH_REPOSITORY: ${{ github.event.client_payload.repository }}
           MANUAL_REPOSITORY: ${{ inputs.repository }}
@@ -244,6 +245,7 @@ jobs:
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
+    secrets: inherit
 
   verify_native:
     name: Native Android ${{ matrix.repository }}
@@ -278,6 +280,7 @@ jobs:
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
+    secrets: inherit
 
   verify_auto:
     name: Auto ${{ matrix.repository }}
@@ -297,6 +300,7 @@ jobs:
       config_fingerprint: ${{ matrix.config_fingerprint }}
       analysis_mode: fast
       baseline_sha: ${{ matrix.previous_verified_sha }}
+    secrets: inherit
 
   aggregate:
     name: Update central watcher history
