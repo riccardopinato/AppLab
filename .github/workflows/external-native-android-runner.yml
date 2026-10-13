@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       repository:
-        description: Public GitHub repository in owner/name format
+        description: GitHub repository in owner/name format
         required: true
         type: string
       ref:
@@ -221,6 +221,10 @@ on:
         default: ""
         type: string
 
+    secrets:
+      APPLAB_TARGET_TOKEN:
+        required: false
+
 permissions:
   contents: read
   actions: read
@@ -293,6 +297,7 @@ jobs:
           path: target
           fetch-depth: 2
           persist-credentials: false
+          token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
 
       - name: Fetch change baseline commit
         if: inputs.baseline_sha != ''
