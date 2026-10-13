@@ -155,8 +155,10 @@ def main() -> int:
             )
         if runner_name == "external-native-android-runner.yml":
             require(
-                '"$SDKMANAGER" --channel=3 "${COMPONENTS[@]}"' in runner_text,
-                "native runner must retry preview/canary SDK channel for preview compileSdk",
+                'PREVIEW_PLATFORM="platforms;android-${{ inputs.compile_sdk }}.0"' in runner_text
+                and '"$SDKMANAGER" --channel=3 \\' in runner_text
+                and '"$PREVIEW_PLATFORM"' in runner_text,
+                "native runner must retry the versioned preview SDK package for preview compileSdk",
             )
     universal = (WORKFLOWS / "universal-project-runner.yml").read_text(encoding="utf-8")
     require(
