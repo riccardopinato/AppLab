@@ -1,3 +1,25 @@
+## v5.3.5 runtime attribution hardening — crawler evidence windows
+
+Real downstream evidence from TrailPath showed that a crawler/runtime failure can
+become difficult to attribute if a later check scans logcat accumulated by an
+earlier lab or action.
+
+This hardening keeps failures fail-closed while making attribution temporal:
+
+- Safe Interaction Crawler resets the runtime log window before every relaunch;
+- launch ANR/fatal evidence is checked before interaction begins;
+- every safe tap starts a new log window, so an older target ANR cannot be
+  misassigned to the current control;
+- Safe Journey Crawler uses the same launch/action window semantics;
+- relaunch waits briefly for the target process instead of assuming a fixed
+  sleep is enough on a loaded hosted emulator;
+- deterministic regression coverage proves both directions: a stale pre-window
+  ANR no longer contaminates the new action, while a new post-tap ANR still
+  produces FAIL.
+
+No retry converts a target ANR into PASS. Exact-head reruns remain separate
+workflow evidence rather than an in-run override of failure truth.
+
 ## v5.3.5 operational hardening — watcher coverage
 
 The current owner inventory contains 17 repositories: 14 enabled

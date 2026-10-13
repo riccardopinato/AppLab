@@ -238,6 +238,21 @@ def pid_of(package_id: str) -> str:
     return result.stdout.strip().split()[0] if result.stdout.strip() else ""
 
 
+def reset_runtime_window() -> None:
+    """Start a fresh logcat attribution window without reusing prior lab evidence."""
+    run("adb", "logcat", "-b", "all", "-c", check=False)
+
+
+def wait_for_process(package_id: str, timeout: float = 8.0) -> str:
+    deadline = time.monotonic() + max(0.5, timeout)
+    while time.monotonic() < deadline:
+        pid = pid_of(package_id)
+        if pid:
+            return pid
+        time.sleep(0.25)
+    return ""
+
+
 def app_crashed(package_id: str) -> tuple[bool, str]:
     if not pid_of(package_id):
         return True, "application process died"
@@ -254,12 +269,16 @@ def app_crashed(package_id: str) -> tuple[bool, str]:
 
 
 def relaunch(package_id: str, settle: float) -> None:
+    # Never attribute ANR/fatal evidence from an earlier lab or crawler action
+    # to this fresh launch attempt.
+    reset_runtime_window()
     run("adb", "shell", "am", "force-stop", package_id, check=False)
     run(
         "adb", "shell", "monkey", "-p", package_id,
         "-c", "android.intent.category.LAUNCHER", "1",
         check=False,
     )
+    wait_for_process(package_id, timeout=max(4.0, settle * 4))
     time.sleep(settle)
 
 
@@ -337,6 +356,9 @@ def crawl(
                 )
                 continue
 
+            # The action gets its own runtime evidence window. A stale ANR from
+            # launch or a previous action cannot be assigned to this control.
+            reset_runtime_window()
             run(
                 "adb",
                 "shell",
@@ -420,7 +442,7 @@ def crawl(
 
     return {
         "schema_version": 2,
-        "interaction_crawler_version": "0.6.6.1",
+        "interaction_crawler_version": "0.6.6.2",
         "result": result,
         "package_id": package_id,
         "candidate_count": len(candidates),
@@ -428,6 +450,7 @@ def crawl(
         "failures": failures,
         "observation_warnings": observation_warnings,
         "reason": crawler_reason,
+        "runtime_window_strategy": "reset-before-relaunch-and-each-action",
         "base_signature": base_signature,
         "actions": actions,
     }
@@ -442,6 +465,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Runtime failures: {report['failures']}",
         f"- Observation warnings: {report.get('observation_warnings', 0)}",
         f"- Instrumentation note: {report.get('reason') or 'none'}",
+        f"- Runtime attribution: {report.get('runtime_window_strategy','legacy')}",
         "",
         "| # | Control | Result | State changed |",
         "| ---: | --- | --- | --- |",
@@ -490,6 +514,28 @@ def self_test() -> None:
         }
         assert report["result"] != "FAIL"
         assert report["failures"] == 0
+
+    originals = {
+        "run": globals()["run"],
+        "sleep": time.sleep,
+    }
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+        calls.append(tuple(args))
+        stdout = "321\n" if args[:3] == ("adb", "shell", "pidof") else ""
+        return subprocess.CompletedProcess(list(args), 0, stdout=stdout, stderr="")
+
+    try:
+        globals()["run"] = fake_run
+        time.sleep = lambda _seconds: None
+        relaunch("com.example.app", 0.5)
+        assert calls[0] == ("adb", "logcat", "-b", "all", "-c")
+        assert ("adb", "shell", "am", "force-stop", "com.example.app") in calls
+    finally:
+        globals()["run"] = originals["run"]
+        time.sleep = originals["sleep"]
+
     print("AppLab Safe Interaction Crawler self-test PASS")
 
 

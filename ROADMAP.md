@@ -729,6 +729,13 @@ runtime PASS.
 The strategic roadmap above does not postpone technical quality. Every version
 may include targeted hardening when real AppLab evidence demonstrates a need.
 
+Completed evidence-driven hardening:
+- [x] Scope Safe Interaction / Safe Journey crawler ANR and fatal attribution to
+  explicit launch/action log windows, preventing stale prior-lab evidence from
+  being assigned to a later control while preserving fail-closed target crashes.
+- [x] Add deterministic regression coverage proving stale-ANR isolation and
+  fresh post-action ANR failure semantics.
+
 Continuous priorities:
 - [ ] Reduce runtime/browser E2E flakiness without weakening assertions. v5.3.1 adds a bounded single reconnect for the observed connected/no-frame signature; continue measuring recurrence.
 - [ ] Improve diagnostics for WebRTC/frame/codec/runtime infrastructure failures. v5.3.1 records browser video/track, runtime, gateway and console evidence before recovery.
