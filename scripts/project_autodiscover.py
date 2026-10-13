@@ -663,6 +663,16 @@ def self_test() -> None:
         assert profile["test_command"] == "gradle testDebugUnitTest --stacktrace"
         assert profile["apk_path"] == "app/build/outputs/apk/debug/app-debug.apk"
 
+    assert shell_tokens(
+        './gradlew testDebugUnitTest -Plabel="$BUILD LABEL" --warning-mode all'
+    ) == [
+        "./gradlew",
+        "testDebugUnitTest",
+        '-Plabel="$BUILD LABEL"',
+        "--warning-mode",
+        "all",
+    ]
+
     combined = (
         "./gradlew lintDebug testDebugUnitTest assembleDebug assembleRelease "
         "--warning-mode all --console plain --tests com.example.Test "
