@@ -22,6 +22,11 @@ publish a certified release artifact.
 
 ### v5.3.5 — Multi-Project Calibration & Delta Readiness
 
+- [x] Operational hardening: move CamperBoss watcher lineage from stale `step-16-release-core` to `main`.
+- [x] Operational hardening: expand live Android/Flutter watcher coverage from 5 to 15 projects.
+- [x] Operational hardening: reuse `APPLAB_TARGET_TOKEN` for private target discovery/checkout and propagate it through reusable runners.
+- [x] Keep documentation-only and unsupported Capacitor-only repositories outside runtime calibration until an executable lane exists.
+
 - [x] Build one deterministic calibration report from cumulative real multi-project watcher/certification history.
 - [x] Accept only observed shadow FULL calibration as evidence for predicted-skip safety.
 - [x] Track repository, shadow-sample and change-category diversity before declaring experimental readiness.
