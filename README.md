@@ -1,3 +1,11 @@
+## v5.3.5 operational hardening — watcher coverage
+
+The live Repo Watcher now tracks 15 AppLab-compatible Android/Flutter projects.
+CamperBoss follows `main`, and external/private target checkout reuses the
+existing optional `APPLAB_TARGET_TOKEN` contract with public-repository fallback
+to `github.token`. Documentation-only and currently unsupported Capacitor-only
+repositories remain fail-closed outside runtime calibration.
+
 ## v5.3.5 — Multi-Project Calibration & Delta Readiness
 
 AppLab now measures delta-execution readiness from real cross-project history
