@@ -23,13 +23,14 @@ publish a certified release artifact.
 ### v5.3.5 — Multi-Project Calibration & Delta Readiness
 
 - [x] Operational hardening: move CamperBoss watcher lineage from stale `step-16-release-core` to `main`.
-- [x] Operational hardening: expand live Android/Flutter watcher coverage from 5 to 15 projects.
-- [x] Operational hardening: reuse `APPLAB_TARGET_TOKEN` for private target discovery/checkout and propagate it through reusable runners.
+- [x] Operational hardening: expand watcher coverage from the original 5-project pilot; current inventory has 14 enabled Android/Flutter targets after the intentional FrameLab private exclusion.
+- [x] Operational hardening: keep the optional `APPLAB_TARGET_TOKEN` contract available for future explicit private targets; no current enabled watcher target requires it.
 - [x] Keep documentation-only and unsupported Capacitor-only repositories outside runtime calibration until an executable lane exists.
-- [x] Follow-up hardening: classify missing private-repository auth as `TARGET_AUTH_REQUIRED` instead of generic 404.
-- [x] Follow-up hardening: retain Cozy/Neon in complete project inventory while excluding them from calibration with explicit reasons.
+- [x] Follow-up hardening: classify missing private-repository auth as `TARGET_AUTH_REQUIRED` instead of generic 404 when a future enabled target explicitly requires private auth.
+- [x] Follow-up hardening: retain FrameLab-Google-AI-Studio, Cozy and Neon in complete project inventory while excluding them from calibration with explicit reasons.
 - [x] Follow-up hardening: isolate multi-task Gradle CI commands into lint/test/build commands during auto-discovery.
 - [x] Follow-up hardening: retry Android preview SDK installation for valid preview compileSdk targets such as API 37.
+- [x] Visibility reconciliation: treat `app-fotografia`, `PDF-Unifier` and `App-corpo-umano` as public targets and exclude intentionally private `FrameLab-Google-AI-Studio` from runtime/calibration.
 
 - [x] Build one deterministic calibration report from cumulative real multi-project watcher/certification history.
 - [x] Accept only observed shadow FULL calibration as evidence for predicted-skip safety.
