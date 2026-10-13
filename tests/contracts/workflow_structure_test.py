@@ -84,7 +84,6 @@ def main() -> int:
         "riccardopinato/app-fotografia",
         "riccardopinato/Android-Omni-Cleaner",
         "riccardopinato/PDF-Unifier",
-        "riccardopinato/FrameLab-Google-AI-Studio",
         "riccardopinato/Agenda-per-Anna",
         "riccardopinato/App-corpo-umano",
         "riccardopinato/TasteAI",
@@ -94,9 +93,11 @@ def main() -> int:
     }
     require(
         expected_targets <= set(entries),
-        f"watchlist missing operational v5.3.5 targets: {sorted(expected_targets - set(entries))}",
+        f"watchlist missing current operational targets: {sorted(expected_targets - set(entries))}",
     )
     inventory_only = {
+        "riccardopinato/FrameLab-Google-AI-Studio":
+            "PRIVATE_INTENTIONALLY_OUT_OF_SCOPE",
         "riccardopinato/Cozy-game-nome-da-scegliere-":
             "NO_EXECUTABLE_ANDROID_OR_FLUTTER_PROJECT",
         "riccardopinato/Neon-arcade-runner":
@@ -110,17 +111,20 @@ def main() -> int:
             f"{repository}: inventory-only exclusion contract drifted",
         )
 
-    private_targets = {
+    public_targets = {
         "riccardopinato/app-fotografia",
         "riccardopinato/PDF-Unifier",
-        "riccardopinato/FrameLab-Google-AI-Studio",
         "riccardopinato/App-corpo-umano",
     }
-    for repository in private_targets:
+    for repository in public_targets:
         require(
-            entries[repository].get("requires_target_token") is True,
-            f"{repository}: private watcher target must require APPLAB_TARGET_TOKEN",
+            "requires_target_token" not in entries[repository],
+            f"{repository}: public watcher target must not require APPLAB_TARGET_TOKEN",
         )
+    require(
+        not any(item.get("requires_target_token") is True for item in entries.values()),
+        "current enabled watcher inventory must not require private target credentials",
+    )
     require(
         entries["riccardopinato/CamperBoss"].get("ref") == "main",
         "CamperBoss watcher must track production main rather than a stale release branch",
