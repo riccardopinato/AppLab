@@ -81,37 +81,41 @@ decision.
 ## Operational hardening — expanded watcher scope
 
 The live watcher scope is intentionally broader than the original five-project pilot.
-It now tracks 15 Android/Flutter projects on their production/default development
-lineage, including private targets through the existing optional
-`APPLAB_TARGET_TOKEN` contract with `github.token` fallback for public targets.
+The complete owner inventory remains 17 repositories, with 14 currently enabled
+Android/Flutter targets on their production/default development lineage.
+`app-fotografia`, `PDF-Unifier` and `App-corpo-umano` are public and use the
+normal `github.token` path. No currently enabled watcher entry requires private
+target credentials.
 
 `CamperBoss` tracks `main`; the stale `step-16-release-core` watcher lineage is
 no longer used.
 
-Two repositories discovered in the owner inventory are not admitted to runtime
-calibration yet:
+Three repositories in the owner inventory are intentionally not admitted to
+runtime calibration:
 
+- `FrameLab-Google-AI-Studio`: intentionally private and explicitly outside
+  AppLab scope; it must not be cloned or analyzed by AppLab.
 - `Cozy-game-nome-da-scegliere-`: repository currently contains documentation
   only and has no executable Flutter/native Android project to verify.
 - `Neon-arcade-runner`: current project is a Capacitor/Vite application and the
   v5.3.5 universal runner recognizes Flutter or native Android/Gradle projects
   only.
 
-These exclusions are fail-closed compatibility boundaries, not safe calibration
-evidence. They must not count toward repository diversity or shadow-run
-thresholds until AppLab gains a compatible executable verification lane.
+These exclusions are fail-closed boundaries, not safe calibration evidence.
+They must not count toward repository diversity or shadow-run thresholds while
+the corresponding exclusion remains active.
 
 ### Follow-up operational hardening
 
-The owner inventory is now complete in `watchlist.json`:
+The owner inventory is complete in `watchlist.json`:
 
-- 15 enabled Android/Flutter calibration targets;
-- 2 disabled inventory-only targets with explicit fail-closed reasons;
-- 4 private targets marked `requires_target_token=true`.
+- 14 enabled Android/Flutter calibration targets;
+- 3 disabled inventory-only targets with explicit fail-closed reasons;
+- 0 enabled targets marked `requires_target_token=true`.
 
-When `APPLAB_TARGET_TOKEN` is absent, private targets are reported as
-`TARGET_AUTH_REQUIRED` instead of a generic GitHub 404 and are not counted as
-calibration evidence.
+The generic `APPLAB_TARGET_TOKEN` path and `TARGET_AUTH_REQUIRED` failure
+semantics remain supported for future explicitly enabled private targets, but
+there is no current infrastructure action required for the present inventory.
 
 Native auto-discovery now isolates lint/test/build Gradle tasks when a project CI
 places several tasks on one command line. The native runner also retries Android
