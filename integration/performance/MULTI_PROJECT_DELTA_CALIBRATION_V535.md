@@ -77,3 +77,27 @@ real App Factory history reaches READY_FOR_EXPERIMENT. Any such release requires
 its own explicit policy, independent contract tests and fail-closed rollback
 criteria. v5.3.5 itself changes no selected lab, build, runtime or certification
 decision.
+
+## Operational hardening — expanded watcher scope
+
+The live watcher scope is intentionally broader than the original five-project pilot.
+It now tracks 15 Android/Flutter projects on their production/default development
+lineage, including private targets through the existing optional
+`APPLAB_TARGET_TOKEN` contract with `github.token` fallback for public targets.
+
+`CamperBoss` tracks `main`; the stale `step-16-release-core` watcher lineage is
+no longer used.
+
+Two repositories discovered in the owner inventory are not admitted to runtime
+calibration yet:
+
+- `Cozy-game-nome-da-scegliere-`: repository currently contains documentation
+  only and has no executable Flutter/native Android project to verify.
+- `Neon-arcade-runner`: current project is a Capacitor/Vite application and the
+  v5.3.5 universal runner recognizes Flutter or native Android/Gradle projects
+  only.
+
+These exclusions are fail-closed compatibility boundaries, not safe calibration
+evidence. They must not count toward repository diversity or shadow-run
+thresholds until AppLab gains a compatible executable verification lane.
+
