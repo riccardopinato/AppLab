@@ -553,8 +553,12 @@ jobs:
             "build-tools;${{ inputs.build_tools }}"
           )
           if ! "$SDKMANAGER" "${COMPONENTS[@]}"; then
-            echo "Stable SDK channel did not expose requested components; retrying preview/canary channel." >&2
-            "$SDKMANAGER" --channel=3 "${COMPONENTS[@]}"
+            PREVIEW_PLATFORM="platforms;android-${{ inputs.compile_sdk }}"
+            if [[ "${{ inputs.compile_sdk }}" =~ ^[0-9]+$ ]]; then
+              PREVIEW_PLATFORM="platforms;android-${{ inputs.compile_sdk }}.0"
+            fi
+            echo "Primary SDK package unavailable; retrying versioned preview package: $PREVIEW_PLATFORM" >&2
+            "$SDKMANAGER" --channel=3               "platform-tools"               "$PREVIEW_PLATFORM"               "build-tools;${{ inputs.build_tools }}"
           fi
 
       - name: Setup Gradle
