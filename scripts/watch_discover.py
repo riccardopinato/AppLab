@@ -63,6 +63,12 @@ def validate_entry(entry: dict[str, Any]) -> None:
             f"Unsupported engine for {repository}: {engine!r}; "
             f"expected one of {sorted(ENGINES)}"
         )
+    if "requires_target_token" in entry and not isinstance(
+        entry.get("requires_target_token"), bool
+    ):
+        raise ValueError(
+            f"requires_target_token must be boolean for {repository}"
+        )
 
     validate_relative_path(entry.get("working_directory", "."), "working_directory", repository)
     validate_relative_path(entry.get("apk_path", ""), "apk_path", repository)
@@ -219,6 +225,29 @@ def self_test_history() -> None:
         assert latest_history_sha(str(path), "owner/missing") == ""
         assert latest_attempt_entry(str(path), "owner/app", "main", "main")["resolved_sha"] == "e" * 40
         assert retry_attempt_count(str(path), "owner/app", "d" * 40, "main") == 1
+        validate_entry(
+            {
+                "key": "private-app",
+                "repository": "owner/private",
+                "ref": "main",
+                "engine": "auto",
+                "requires_target_token": True,
+            }
+        )
+        try:
+            validate_entry(
+                {
+                    "key": "bad-private-app",
+                    "repository": "owner/private",
+                    "ref": "main",
+                    "engine": "auto",
+                    "requires_target_token": "yes",
+                }
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("requires_target_token must fail closed on non-bool values")
 
 
 def entry_fingerprint(entry: dict[str, Any]) -> str:
@@ -304,7 +333,9 @@ def main() -> int:
         raise SystemExit("--applab-repository must be owner/name")
 
     applab_token = os.environ.get("GITHUB_TOKEN", "")
-    target_token = os.environ.get("APPLAB_TARGET_TOKEN", "") or applab_token
+    configured_target_token = os.environ.get("APPLAB_TARGET_TOKEN", "").strip()
+    target_token = configured_target_token or applab_token
+    target_token_configured = bool(configured_target_token)
     only_repository = args.only_repository.strip()
     matrix: list[dict[str, Any]] = []
     flutter_matrix: list[dict[str, Any]] = []
@@ -330,6 +361,20 @@ def main() -> int:
             "ref": entry["ref"],
             "config_fingerprint": config_fingerprint,
         }
+
+        if bool(entry.get("requires_target_token", False)) and not target_token_configured:
+            item_status.update(
+                {
+                    "scheduled": False,
+                    "error_kind": "TARGET_AUTH_REQUIRED",
+                    "error": (
+                        "APPLAB_TARGET_TOKEN is required for this private target "
+                        "repository"
+                    ),
+                }
+            )
+            status.append(item_status)
+            continue
 
         try:
             sha = resolve_sha(repository, str(entry["ref"]), target_token)
@@ -399,8 +444,27 @@ def main() -> int:
                     native_matrix.append(resolved)
                 elif engine == "auto":
                     auto_matrix.append(resolved)
-        except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
-            item_status.update({"scheduled": False, "error": str(exc)})
+        except urllib.error.HTTPError as exc:
+            error_kind = (
+                "TARGET_NOT_FOUND_OR_UNAUTHORIZED"
+                if exc.code == 404
+                else "TARGET_RESOLUTION_HTTP_ERROR"
+            )
+            item_status.update(
+                {
+                    "scheduled": False,
+                    "error_kind": error_kind,
+                    "error": str(exc),
+                }
+            )
+        except (urllib.error.URLError, ValueError) as exc:
+            item_status.update(
+                {
+                    "scheduled": False,
+                    "error_kind": "TARGET_RESOLUTION_ERROR",
+                    "error": str(exc),
+                }
+            )
         status.append(item_status)
 
     write_matrix(args.matrix_output, matrix)
