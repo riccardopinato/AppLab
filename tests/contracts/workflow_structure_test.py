@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -63,6 +64,61 @@ def main() -> int:
         not (WORKFLOWS / "camperboss-16c-build-once.yml").exists(),
         "project-specific one-off workflow must not remain in AppLab core",
     )
+    watchlist = json.loads((ROOT / "watchlist.json").read_text(encoding="utf-8"))
+    entries = {
+        str(item.get("repository", "")).strip(): item
+        for item in watchlist.get("repositories", [])
+        if isinstance(item, dict) and item.get("enabled", True)
+    }
+    expected_targets = {
+        "riccardopinato/TrailPath",
+        "riccardopinato/Battery_Guard",
+        "riccardopinato/Notes-Ecosistema",
+        "riccardopinato/Send-to-pc",
+        "riccardopinato/CamperBoss",
+        "riccardopinato/app-fotografia",
+        "riccardopinato/Android-Omni-Cleaner",
+        "riccardopinato/PDF-Unifier",
+        "riccardopinato/FrameLab-Google-AI-Studio",
+        "riccardopinato/Agenda-per-Anna",
+        "riccardopinato/App-corpo-umano",
+        "riccardopinato/TasteAI",
+        "riccardopinato/Notification-Control",
+        "riccardopinato/Wonderlog",
+        "riccardopinato/World-Days",
+    }
+    require(
+        expected_targets <= set(entries),
+        f"watchlist missing operational v5.3.5 targets: {sorted(expected_targets - set(entries))}",
+    )
+    require(
+        entries["riccardopinato/CamperBoss"].get("ref") == "main",
+        "CamperBoss watcher must track production main rather than a stale release branch",
+    )
+
+    target_token = "secrets.APPLAB_TARGET_TOKEN || github.token"
+    watcher = (WORKFLOWS / "repo-watcher.yml").read_text(encoding="utf-8")
+    require(target_token in watcher, "Repo Watcher discovery must support private target authentication")
+    require(
+        watcher.count("secrets: inherit") >= 3,
+        "Repo Watcher must forward target authentication to all reusable verification runners",
+    )
+    for runner_name in (
+        "universal-project-runner.yml",
+        "external-project-runner.yml",
+        "external-native-android-runner.yml",
+    ):
+        runner_text = (WORKFLOWS / runner_name).read_text(encoding="utf-8")
+        require(
+            "APPLAB_TARGET_TOKEN:" in runner_text and target_token in runner_text,
+            f"{runner_name}: private target token contract missing",
+        )
+    universal = (WORKFLOWS / "universal-project-runner.yml").read_text(encoding="utf-8")
+    require(
+        universal.count("secrets: inherit") >= 2,
+        "Universal runner must forward target authentication to Flutter/native child runners",
+    )
+
     wrapper = (WORKFLOWS / "verify-flutter.yml").read_text(encoding="utf-8")
     require("v0.6.3 Unified Flutter Gate" not in wrapper, "public wrapper must not expose stale v0.6.3 naming")
 
