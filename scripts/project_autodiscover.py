@@ -289,6 +289,74 @@ def gradle_task_tokens(command: str) -> list[str]:
     return result
 
 
+def isolate_gradle_task(command: str, token: str) -> str:
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+    if not tokens:
+        return ""
+
+    token_lower = token.lower()
+    task_positions: list[tuple[int, str]] = []
+    skip_next = False
+    options_with_values = {
+        "-p",
+        "--project-dir",
+        "-b",
+        "--build-file",
+        "-c",
+        "--settings-file",
+    }
+    for index, value in enumerate(tokens[1:], start=1):
+        if skip_next:
+            skip_next = False
+            continue
+        if value in options_with_values:
+            skip_next = True
+            continue
+        if value.startswith("-"):
+            continue
+        task = value.rsplit(":", 1)[-1]
+        if (
+            re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]*", task)
+            and token_lower in task.lower()
+        ):
+            task_positions.append((index, value))
+
+    if not task_positions:
+        return ""
+
+    preferred = next(
+        (item for item in task_positions if "debug" in item[1].lower()),
+        task_positions[0],
+    )
+    selected_index = preferred[0]
+
+    rebuilt: list[str] = [tokens[0]]
+    skip_next = False
+    for index, value in enumerate(tokens[1:], start=1):
+        if skip_next:
+            rebuilt.append(value)
+            skip_next = False
+            continue
+        if value in options_with_values:
+            rebuilt.append(value)
+            skip_next = True
+            continue
+        if value.startswith("-"):
+            rebuilt.append(value)
+            continue
+        task = value.rsplit(":", 1)[-1]
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]*", task):
+            if index == selected_index:
+                rebuilt.append(value)
+            continue
+        rebuilt.append(value)
+
+    return " ".join(shlex.quote(value) for value in rebuilt)
+
+
 def pick_gradle_command(lines: list[str], token: str) -> str:
     token_lower = token.lower()
     for line in lines:
@@ -296,7 +364,8 @@ def pick_gradle_command(lines: list[str], token: str) -> str:
         if any(token_lower in task.lower() for task in tasks):
             command = line.split("|", 1)[0].strip()
             command = re.sub(r"\s+#.*$", "", command).strip()
-            return command
+            isolated = isolate_gradle_task(command, token)
+            return isolated or command
     return ""
 
 
@@ -523,9 +592,7 @@ def self_test() -> None:
         workflows_dir.mkdir(parents=True)
         (workflows_dir / "ci.yml").write_text(
             "steps:\n"
-            "  - run: gradle testDebugUnitTest --stacktrace\n"
-            "  - run: gradle lintSlim --stacktrace\n"
-            "  - run: gradle assembleSlim --stacktrace\n"
+            "  - run: gradle lintDebug testDebugUnitTest assembleDebug assembleRelease --stacktrace\n"
             "  - uses: gradle/actions/setup-gradle@v4\n"
             "    with:\n      gradle-version: '9.6.0'\n"
         )
@@ -533,9 +600,11 @@ def self_test() -> None:
         assert profile["engine"] == "native_android"
         assert profile["package_id"] == "com.example.demo"
         assert profile["gradle_version"] == "9.6.0"
-        assert profile["build_command"].startswith("gradle assembleSlim")
-        assert profile["apk_path"] == "app/build/outputs/apk/slim/app-slim.apk"
-        assert "assembleRelease" in profile["certification_build_command"]
+        assert profile["test_command"] == "gradle testDebugUnitTest --stacktrace"
+        assert profile["lint_command"] == "gradle lintDebug --stacktrace"
+        assert profile["build_command"] == "gradle assembleDebug --stacktrace"
+        assert profile["apk_path"] == "app/build/outputs/apk/debug/app-debug.apk"
+        assert profile["certification_build_command"] == "gradle assembleRelease --stacktrace"
         assert profile["certification_apk_path"].endswith("app-release.apk")
 
     with tempfile.TemporaryDirectory() as raw:
