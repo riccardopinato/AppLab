@@ -26,6 +26,10 @@ publish a certified release artifact.
 - [x] Operational hardening: expand live Android/Flutter watcher coverage from 5 to 15 projects.
 - [x] Operational hardening: reuse `APPLAB_TARGET_TOKEN` for private target discovery/checkout and propagate it through reusable runners.
 - [x] Keep documentation-only and unsupported Capacitor-only repositories outside runtime calibration until an executable lane exists.
+- [x] Follow-up hardening: classify missing private-repository auth as `TARGET_AUTH_REQUIRED` instead of generic 404.
+- [x] Follow-up hardening: retain Cozy/Neon in complete project inventory while excluding them from calibration with explicit reasons.
+- [x] Follow-up hardening: isolate multi-task Gradle CI commands into lint/test/build commands during auto-discovery.
+- [x] Follow-up hardening: retry Android preview SDK installation for valid preview compileSdk targets such as API 37.
 
 - [x] Build one deterministic calibration report from cumulative real multi-project watcher/certification history.
 - [x] Accept only observed shadow FULL calibration as evidence for predicted-skip safety.
