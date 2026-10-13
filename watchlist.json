@@ -89,8 +89,7 @@
       "enabled": true,
       "repository": "riccardopinato/app-fotografia",
       "ref": "main",
-      "run_maestro": true,
-      "requires_target_token": true
+      "run_maestro": true
     },
     {
       "key": "watch-android-omni-cleaner",
@@ -106,17 +105,16 @@
       "enabled": true,
       "repository": "riccardopinato/PDF-Unifier",
       "ref": "main",
-      "run_maestro": true,
-      "requires_target_token": true
+      "run_maestro": true
     },
     {
-      "key": "watch-framelab-google-ai-studio",
+      "key": "inventory-framelab-google-ai-studio",
       "engine": "auto",
-      "enabled": true,
+      "enabled": false,
       "repository": "riccardopinato/FrameLab-Google-AI-Studio",
       "ref": "main",
-      "run_maestro": true,
-      "requires_target_token": true
+      "run_maestro": false,
+      "exclusion_reason": "PRIVATE_INTENTIONALLY_OUT_OF_SCOPE"
     },
     {
       "key": "watch-agenda-per-anna",
@@ -132,8 +130,7 @@
       "enabled": true,
       "repository": "riccardopinato/App-corpo-umano",
       "ref": "main",
-      "run_maestro": true,
-      "requires_target_token": true
+      "run_maestro": true
     },
     {
       "key": "watch-tasteai",
