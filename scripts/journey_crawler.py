@@ -19,11 +19,12 @@ from interaction_crawler import (
     hierarchy_signature,
     parse_candidates,
     relaunch,
+    reset_runtime_window,
     run,
 )
 
 SCHEMA_VERSION = 1
-CRAWLER_VERSION = "3.3.0"
+CRAWLER_VERSION = "3.3.1"
 
 
 def stable_signature(path: Path, package_id: str) -> dict[str, Any]:
@@ -85,6 +86,7 @@ def replay_path(
             candidate = select_candidate(candidates, step)
             if candidate is None:
                 return False, f"unable to replay safe action: {step.get('label','')}"
+            reset_runtime_window()
             run(
                 "adb",
                 "shell",
@@ -296,6 +298,7 @@ def crawl_journeys(
                     )
                     continue
 
+            reset_runtime_window()
             run(
                 "adb",
                 "shell",
@@ -438,6 +441,7 @@ def crawl_journeys(
         "warnings": warnings,
         "guardrails": {
             "safe_actions_only": True,
+            "runtime_windows_scoped_per_action": True,
             "destructive_purchase_send_actions_denied": True,
             "replay_uses_safe_labels": True,
             "bounded_depth": max_depth,
