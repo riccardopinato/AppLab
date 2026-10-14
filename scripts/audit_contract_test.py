@@ -420,6 +420,11 @@ def check_release_reality_contract() -> None:
         "trusted verifier must generate and publish Release Reality",
     )
     require(
+        '--analysis-mode "${{ steps.analysis.outputs.effective_mode || inputs.analysis_mode }}"'
+        in trusted,
+        "trusted verifier must preserve requested analysis mode when contract validation fails before runtime mode resolution",
+    )
+    require(
         trusted.index("Build Release Reality record")
         < trusted.index("Bind trusted runtime evidence"),
         "Release Reality must be generated before Trusted Evidence Manifest hashing",
