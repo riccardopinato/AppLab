@@ -570,7 +570,7 @@ jobs:
             --engine "${{ inputs.engine }}" \
             --pipeline-status "$APPLAB_PIPELINE_STATUS" \
             --run-id "$GITHUB_RUN_ID" \
-            --analysis-mode "${{ steps.analysis.outputs.effective_mode }}"
+            --analysis-mode "${{ steps.analysis.outputs.effective_mode || inputs.analysis_mode }}"
 
       - name: Build Release Reality record
         if: always()
