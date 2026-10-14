@@ -103,6 +103,11 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Setup Android SDK tools for resilient image install
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: ''
+
       # AVD cache schema is intentionally decoupled from the AppLab release.
       # Bump `schema1` only when API/arch/profile/emulator configuration becomes incompatible.
       - name: Restore clean AVD snapshot
@@ -111,6 +116,15 @@ jobs:
         with:
           path: ~/.android/avd
           key: applab-clean-avd-schema1-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
+
+      - name: Ensure Android system image with retry
+        shell: bash
+        env:
+          APPLAB_ANDROID_API_LEVEL: ${{ inputs.api_level }}
+          APPLAB_ANDROID_TARGET: google_apis
+          APPLAB_ANDROID_ARCH: x86_64
+          APPLAB_ANDROID_CHANNEL: "0"
+        run: bash .applab/scripts/ensure_android_system_image.sh
 
       - name: Create pristine AVD snapshot on cache miss
         if: steps.avd_cache.outputs.cache-hit != 'true'
