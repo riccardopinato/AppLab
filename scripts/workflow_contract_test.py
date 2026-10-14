@@ -74,7 +74,11 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "scripts/pipeline_metrics.py",
     ),
     ".github/workflows/trusted-apk-verifier.yml": (
+        "Setup Android SDK tools for resilient image install",
+        "android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd",
         "Restore clean AVD snapshot",
+        "Ensure Android system image with retry",
+        "scripts/ensure_android_system_image.sh",
         "Create pristine AVD snapshot on cache miss",
         "Save pristine AVD snapshot before target execution",
         "force-avd-creation: false",
