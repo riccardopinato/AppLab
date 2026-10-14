@@ -791,8 +791,11 @@ These are explicit engineering boundaries, not hidden assumptions:
 
 ## Current validation priorities
 
-- Validate the v4.3 external-project adapter first on a real Flutter app, then on a second App Factory project.
-- Promote AppLab QA/certification process only from real trusted evidence, not from AppLab self-tests alone.
+- [x] Validate the external-project adapter on two independent real App Factory Flutter projects:
+  Anna's Diary and CamperBoss.
+- [x] Promote the AppLab QA/certification process only from real trusted evidence:
+  App-Factory-Core now records `CERTIFIED PROCESS` after the Anna's Diary and
+  CamperBoss pilots (Core `main@5f6b2489df2ac85fb85ccfea059983a090689de4`).
 - Accumulate multi-project runtime/evidence samples to calibrate heuristics, FAST/FULL selection and recurrence thresholds.
 - Measure and reduce Browser E2E / emulator infrastructure flakiness without converting transient uncertainty into PASS.
 - Introduce physical-device evidence incrementally for capabilities that materially depend on real hardware, OEM behavior or store services.
