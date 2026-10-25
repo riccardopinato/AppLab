@@ -16,8 +16,9 @@ repositories.
 6. PASS and FAIL commits are both cached as checked, so an unchanged broken
    commit does not consume another emulator run every hour.
 7. `watch_aggregate.py` appends the run to a cumulative `history.jsonl`
-   stored in a rolling GitHub Actions cache and uploads a 90-day history
-   artifact.
+   stored in a rolling GitHub Actions cache and uploads the current central-history
+   artifact with the workflow's present 7-day retention. Release-critical and other
+   longitudinal evidence classes use their own stricter retention contracts.
 
 A manual watcher run can set `force=true` to retry the same SHA. It can also
 limit execution to one configured `owner/name`.
