@@ -86,13 +86,13 @@ Implemented rules:
 - unrelated repositories are independent;
 - automatic supersession applies only to normal `VERIFICATION`;
 - newer work must be a proven descendant;
-- queued/ready/waiting-retry work can be superseded safely;
+- queued/ready/waiting-retry work can be superseded safely; `CREATED` work cannot be superseded before it enters the queue;
 - running verification requires explicit `cancel_safe=true`;
 - protected running stages cannot be superseded;
 - certification/physical/manual classes are protected by class isolation;
 - calibration-preserved/release-critical work cannot be superseded;
 - identical idempotency keys reuse the existing logical Operation;
-- dispatch projection is deterministic by priority, arrival order and operation ID.
+- dispatch projection is deterministic by priority, arrival order and operation ID and includes only `QUEUED`/`READY` work.
 
 No GitHub API is consulted by the simulator. Commit ancestry is supplied explicitly by the replay input.
 
@@ -113,7 +113,7 @@ The simulator rejects retry semantics for deterministic:
 - visual failure;
 - build/quality failure.
 
-Retry budget exhaustion is explicit and deterministic.
+Retry is authorized only from a completed `FAILED` Attempt. `CREATED`/`RUNNING`/other unfinished states never authorize a parallel retry. Retry budget exhaustion is explicit and deterministic.
 
 ## Replay corpus
 
@@ -130,7 +130,11 @@ The initial corpus covers:
 9. certification isolation;
 10. safe running supersession;
 11. protected running-stage preservation;
-12. operation idempotent reuse.
+12. operation idempotent reuse;
+13. reconciliation window identity versus same-window redelivery;
+14. unfinished Attempt no-retry;
+15. `CREATED` operation supersession rejection;
+16. conflicting immutable identity under the same `operation_id` rejection.
 
 The complete report has a deterministic SHA-256 replay digest. Running the same corpus twice must produce byte-equivalent logical output.
 
