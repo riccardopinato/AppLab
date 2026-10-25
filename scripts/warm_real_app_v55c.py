@@ -24,8 +24,8 @@ def load_targets() -> dict[str, dict[str, Any]]:
     targets = {item["repository"]: item for item in payload["pilot_targets"]}
     for repository in REAL_APP_REPOSITORIES:
         target = targets.get(repository)
-        if target is None or target.get("engine") != "UNIVERSAL_PROJECT_RUNNER":
-            raise WarmRealAppPilotError(f"real-app target not routed through Universal Project Runner: {repository}")
+        if target is None or target.get("engine") not in {"flutter", "native_android", "auto"}:
+            raise WarmRealAppPilotError(f"real-app target has unsupported Universal Project Runner engine: {repository}")
     return targets
 
 
@@ -38,6 +38,8 @@ def evaluate_pair(
 ) -> dict[str, Any]:
     if repository not in REAL_APP_REPOSITORIES:
         raise WarmRealAppPilotError("repository is outside the v5.5C real-app pilot")
+    if control.get("repository") != repository or warm_result.get("repository") != repository:
+        raise WarmRealAppPilotError("equivalence evidence repository does not match requested pilot target")
     report = warm.compare_equivalence(
         control,
         warm_result,
@@ -68,7 +70,7 @@ def self_test() -> dict[str, Any]:
             "repository": repository,
             "resolved_sha": str(index) * 40,
             "applab_sha": "a" * 40,
-            "apk_sha256": "sha256:" + str(index + 2) * 64,
+            "apk_sha256": f"pilot-apk-digest-{index}",
             "package_id": f"pilot.realapp.{index}",
             "analysis_mode": "full",
             "result": "PASS",
@@ -86,7 +88,7 @@ def self_test() -> dict[str, Any]:
         mismatch = evaluate_pair(
             repository,
             control,
-            dict(warm_result, apk_sha256="sha256:" + "f" * 64),
+            dict(warm_result, apk_sha256="pilot-apk-digest-mismatch"),
             isolation_clean=True,
         )
         assert mismatch["equivalence"]["equivalent"] is False
