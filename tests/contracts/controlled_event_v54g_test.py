@@ -21,8 +21,8 @@ def main() -> int:
     assert contract["certification_authority_changed"] is False
     assert contract["watchdog"] == "HOURLY_REPO_WATCHER"
 
-    assert config["enabled"] is True
-    assert config["kill_switch"] is False
+    assert isinstance(config["enabled"], bool)
+    assert isinstance(config["kill_switch"], bool)
     assert config["rollout"] == "SELF_REPO_MAIN_CANARY"
     assert config["max_live_operations_per_event"] == 1
     assert len(config["pilot_targets"]) == 1
@@ -37,11 +37,19 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
+        enabled_config = dict(config)
+        enabled_config["enabled"] = True
+        enabled_config["kill_switch"] = False
+        enabled_path = root / "enabled-pilot.json"
+        enabled_path.write_text(
+            json.dumps(enabled_config, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
         # PR-equivalent dry-run: admitted and persisted, never dispatched.
         dry = pilot.admit(
             db_path=root / "dry.sqlite3",
-            config_path=pilot.DEFAULT_CONFIG,
+            config_path=enabled_path,
             repository=target["repository"],
             source_ref=target["source_ref"],
             resolved_sha="1" * 40,
@@ -59,13 +67,14 @@ def main() -> int:
         db = root / "live.sqlite3"
         live = pilot.admit(
             db_path=db,
-            config_path=pilot.DEFAULT_CONFIG,
+            config_path=enabled_path,
             repository=target["repository"],
             source_ref=target["source_ref"],
             resolved_sha="3" * 40,
             applab_sha="4" * 40,
             delivery_id="live-run-1",
             live_requested=True,
+            now_ts=2000.0,
         )
         assert live["admitted"] is True
         assert live["live"] is True
@@ -79,6 +88,7 @@ def main() -> int:
             operation_id=live["operation_id"],
             worker_id=live["worker_id"],
             job_result="success",
+            now_ts=2100.0,
         )
         assert final["operation_terminal_state"] == "SUCCEEDED"
         assert final["queue_state"] == "DONE"
@@ -87,22 +97,25 @@ def main() -> int:
         # Same logical target and same AppLab identity dedupes after completion.
         duplicate = pilot.admit(
             db_path=db,
-            config_path=pilot.DEFAULT_CONFIG,
+            config_path=enabled_path,
             repository=target["repository"],
             source_ref=target["source_ref"],
             resolved_sha="3" * 40,
             applab_sha="4" * 40,
             delivery_id="live-run-2",
             live_requested=True,
+            now_ts=2200.0,
         )
         assert duplicate["event_persistence"] == "DEDUPED"
+        assert duplicate["event_id"] == live["event_id"]
+        assert duplicate["source_delivery_id"] == "live-run-2"
         assert duplicate["operation_id"] == live["operation_id"]
         assert duplicate["dispatch"] is False
 
         # Same target under a new AppLab revision is a distinct orchestration identity.
         upgraded = pilot.admit(
             db_path=db,
-            config_path=pilot.DEFAULT_CONFIG,
+            config_path=enabled_path,
             repository=target["repository"],
             source_ref=target["source_ref"],
             resolved_sha="3" * 40,
@@ -116,19 +129,21 @@ def main() -> int:
         fail_db = root / "failure.sqlite3"
         failing = pilot.admit(
             db_path=fail_db,
-            config_path=pilot.DEFAULT_CONFIG,
+            config_path=enabled_path,
             repository=target["repository"],
             source_ref=target["source_ref"],
             resolved_sha="6" * 40,
             applab_sha="7" * 40,
             delivery_id="failure-run",
             live_requested=True,
+            now_ts=3000.0,
         )
         failed = pilot.finalize(
             db_path=fail_db,
             operation_id=failing["operation_id"],
             worker_id=failing["worker_id"],
             job_result="failure",
+            now_ts=3100.0,
         )
         assert failed["operation_terminal_state"] == "FAILED"
         assert failed["queue_state"] == "BLOCKED"
@@ -136,7 +151,7 @@ def main() -> int:
         assert failed["certification_authority_changed"] is False
 
         # Kill switch overrides a live request without dropping Event/Operation evidence.
-        disabled_config = json.loads(pilot.DEFAULT_CONFIG.read_text(encoding="utf-8"))
+        disabled_config = dict(enabled_config)
         disabled_config["kill_switch"] = True
         disabled_path = root / "disabled.json"
         disabled_path.write_text(
@@ -157,10 +172,32 @@ def main() -> int:
         assert killed["live"] is False
         assert killed["dispatch"] is False
 
+        disabled_enabled = dict(enabled_config)
+        disabled_enabled["enabled"] = False
+        disabled_enabled_path = root / "enabled-false.json"
+        disabled_enabled_path.write_text(
+            json.dumps(disabled_enabled, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        disabled = pilot.admit(
+            db_path=root / "enabled-false.sqlite3",
+            config_path=disabled_enabled_path,
+            repository=target["repository"],
+            source_ref=target["source_ref"],
+            resolved_sha="7" * 40,
+            applab_sha="8" * 40,
+            delivery_id="enabled-false-run",
+            live_requested=True,
+            now_ts=4000.0,
+        )
+        assert disabled["admitted"] is True
+        assert disabled["live"] is False
+        assert disabled["dispatch"] is False
+
         # Non-allowlisted repositories can never enter the live path.
         rejected = pilot.admit(
             db_path=root / "reject.sqlite3",
-            config_path=pilot.DEFAULT_CONFIG,
+            config_path=enabled_path,
             repository="owner/not-allowlisted",
             source_ref="refs/heads/main",
             resolved_sha="a" * 40,
@@ -189,6 +226,13 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     assert "17 * * * *" in watcher
     assert "schedule:" in watcher
+    watchlist = json.loads((ROOT / "watchlist.json").read_text(encoding="utf-8"))
+    watchdog_targets = {
+        (item.get("repository"), item.get("ref"), item.get("working_directory"))
+        for item in watchlist["repositories"]
+        if item.get("enabled")
+    }
+    assert ("riccardopinato/AppLab", "main", "selftest") in watchdog_targets
 
     source = (ROOT / "scripts" / "controlled_event_v54g.py").read_text(encoding="utf-8")
     for forbidden in (
