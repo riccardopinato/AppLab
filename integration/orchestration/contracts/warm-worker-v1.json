@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_WARM_TRUSTED_RUNTIME_PILOT",
+  "authority": "NONE_WORKER_CAPABILITY_ONLY",
+  "worker_class": "WARM_TRUSTED_ANDROID",
+  "states": ["STARTING","AVAILABLE","LEASED","SCRUBBING","UNHEALTHY","QUARANTINED","DRAINING","OFFLINE"],
+  "lease_states": ["ACTIVE","RELEASED","UNKNOWN","QUARANTINED"],
+  "fallback_executor": "GITHUB_ACTIONS",
+  "invariants": [
+    "target_source_build_scripts_never_run_on_warm_host",
+    "exact_applab_sha_required",
+    "runtime_profile_must_match",
+    "single_active_lease_per_worker",
+    "lost_heartbeat_quarantines_uncertain_worker",
+    "cleanup_must_be_proven_before_reuse",
+    "snapshot_is_saved_before_target_apk_install",
+    "warm_restore_must_not_contain_prior_target_app_state",
+    "github_actions_remains_fallback",
+    "worker_capability_never_mints_verdict"
+  ]
+}
