@@ -299,7 +299,12 @@ class DurablePerRepoQueue:
 
             existing = self._entry(operation_id)
             if existing is not None:
-                if bool(existing["preserve_for_calibration"]) != bool(preserve_for_calibration):
+                persisted_op = self._operation(operation_id)
+                persisted_payload = json.loads(persisted_op["payload_json"])
+                effective_replay_preserve = bool(preserve_for_calibration) or bool(
+                    persisted_payload.get("preserve_for_calibration", False)
+                )
+                if bool(existing["preserve_for_calibration"]) != effective_replay_preserve:
                     raise QueueError("queue replay conflicts with preserve_for_calibration")
                 if int(existing["max_retries"]) != int(max_retries):
                     raise QueueError("queue replay conflicts with max_retries")
@@ -314,6 +319,8 @@ class DurablePerRepoQueue:
             payload = json.loads(op["payload_json"])
             operation_class = str(payload["operation_class"])
             protected = operation_class in PROTECTED_CLASSES
+            operation_preserve = bool(payload.get("preserve_for_calibration", False))
+            effective_preserve = bool(preserve_for_calibration) or operation_preserve
 
             superseded: list[str] = []
             if operation_class == "VERIFICATION" and ancestor_shas:
@@ -389,7 +396,7 @@ class DurablePerRepoQueue:
                     int(op["priority"]),
                     initial_state,
                     int(protected),
-                    int(bool(preserve_for_calibration)),
+                    int(effective_preserve),
                     seq,
                     float(now_ts),
                     float(now_ts),
@@ -407,7 +414,7 @@ class DurablePerRepoQueue:
                 now_ts,
                 {
                     "protected": protected,
-                    "preserve_for_calibration": bool(preserve_for_calibration),
+                    "preserve_for_calibration": effective_preserve,
                     "superseded": superseded,
                 },
             )
@@ -424,10 +431,52 @@ class DurablePerRepoQueue:
                 self.db.rollback()
             raise
 
+    def _reconcile_terminal_pending_locked(self, *, now_ts: float) -> list[str]:
+        terminal_states = set(self.store.brain_contract["operation"]["terminal_states"])
+        rows = self.db.execute(
+            """
+            SELECT q.operation_id,q.state,o.current_state AS operation_state
+            FROM queue_entries q
+            JOIN operations o ON o.operation_id=q.operation_id
+            WHERE q.state IN ('QUEUED','DEFERRED')
+            ORDER BY q.enqueued_seq ASC
+            """
+        ).fetchall()
+        reconciled: list[str] = []
+        for row in rows:
+            operation_state = str(row["operation_state"])
+            if operation_state not in terminal_states:
+                continue
+            if operation_state == "SUPERSEDED":
+                target_state = "SUPERSEDED"
+            elif operation_state == "SUCCEEDED":
+                target_state = "DONE"
+            else:
+                target_state = "BLOCKED"
+            self._history(
+                row["operation_id"],
+                "RECONCILE_TERMINAL",
+                row["state"],
+                target_state,
+                f"DURABLE_OPERATION_TERMINAL:{operation_state}",
+                now_ts,
+            )
+            self.db.execute(
+                """
+                UPDATE queue_entries
+                SET state=?,leased_by=NULL,lease_until=NULL,updated_at=?
+                WHERE operation_id=?
+                """,
+                (target_state, float(now_ts), row["operation_id"]),
+            )
+            reconciled.append(row["operation_id"])
+        return reconciled
+
     def rebalance(self, *, now_ts: float) -> list[str]:
         promoted: list[str] = []
         try:
             self.db.execute("BEGIN IMMEDIATE")
+            self._reconcile_terminal_pending_locked(now_ts=now_ts)
             rows = self.db.execute(
                 """
                 SELECT q.*, COALESCE(r.last_claim_seq,0) AS last_claim_seq
@@ -477,23 +526,28 @@ class DurablePerRepoQueue:
         worker_id = brain._require_non_empty_string(worker_id, "worker_id")
         try:
             self.db.execute("BEGIN IMMEDIATE")
+            self._reconcile_terminal_pending_locked(now_ts=now_ts)
             if self._active_count() >= self.max_active_global:
                 self.db.commit()
                 return None
 
             rows = self.db.execute(
                 """
-                SELECT q.*, COALESCE(r.last_claim_seq,0) AS last_claim_seq
+                SELECT q.*, COALESCE(r.last_claim_seq,0) AS last_claim_seq,
+                       o.current_state AS operation_state
                 FROM queue_entries q
+                JOIN operations o ON o.operation_id=q.operation_id
                 LEFT JOIN queue_repo_state r ON r.repository=q.repository
                 WHERE q.state='QUEUED' AND q.available_at<=?
                 """,
                 (float(now_ts),),
             ).fetchall()
+            terminal_states = set(self.store.brain_contract["operation"]["terminal_states"])
             eligible = [
                 row
                 for row in rows
-                if self._repo_active_count(row["repository"]) < self.max_active_per_repo
+                if row["operation_state"] not in terminal_states
+                and self._repo_active_count(row["repository"]) < self.max_active_per_repo
             ]
             if not eligible:
                 self.db.commit()
@@ -663,30 +717,112 @@ class DurablePerRepoQueue:
             raise
 
     def recover_expired_leases(self, *, now_ts: float) -> list[dict[str, Any]]:
-        rows = self.db.execute(
-            """
-            SELECT operation_id,leased_by
-            FROM queue_entries
-            WHERE state='LEASED' AND lease_until IS NOT NULL AND lease_until<?
-            ORDER BY enqueued_seq ASC
-            """,
-            (float(now_ts),),
-        ).fetchall()
         recovered: list[dict[str, Any]] = []
-        for row in rows:
-            current = self._entry(row["operation_id"])
-            if current is None or current["state"] != "LEASED":
-                continue
-            recovered.append(
-                self.record_failure(
-                    row["operation_id"],
-                    str(row["leased_by"]),
-                    "INFRA_ERROR",
-                    retryable=True,
-                    now_ts=now_ts,
-                )
-            )
-        return recovered
+        try:
+            self.db.execute("BEGIN IMMEDIATE")
+            rows = self.db.execute(
+                """
+                SELECT operation_id,leased_by,lease_until,retry_count,max_retries
+                FROM queue_entries
+                WHERE state='LEASED' AND lease_until IS NOT NULL AND lease_until<?
+                ORDER BY enqueued_seq ASC
+                """,
+                (float(now_ts),),
+            ).fetchall()
+            for stale in rows:
+                current = self.db.execute(
+                    """
+                    SELECT operation_id,state,leased_by,lease_until,retry_count,max_retries
+                    FROM queue_entries
+                    WHERE operation_id=?
+                    """,
+                    (stale["operation_id"],),
+                ).fetchone()
+                if current is None:
+                    continue
+                if current["state"] != "LEASED":
+                    continue
+                if current["leased_by"] != stale["leased_by"]:
+                    continue
+                if current["lease_until"] != stale["lease_until"]:
+                    continue
+                if current["lease_until"] is None or float(current["lease_until"]) >= float(now_ts):
+                    continue
+
+                can_retry = int(current["retry_count"]) < int(current["max_retries"])
+                if can_retry:
+                    next_retry = int(current["retry_count"]) + 1
+                    delay = self.retry_base_seconds * (2 ** (next_retry - 1))
+                    available_at = float(now_ts) + delay
+                    self._history(
+                        current["operation_id"],
+                        "RETRY",
+                        "LEASED",
+                        "QUEUED",
+                        "INFRA_ERROR",
+                        now_ts,
+                        {
+                            "retry_count": next_retry,
+                            "available_at": available_at,
+                            "recovered_expired_lease": True,
+                        },
+                    )
+                    self.db.execute(
+                        """
+                        UPDATE queue_entries
+                        SET state='QUEUED',retry_count=?,available_at=?,
+                            leased_by=NULL,lease_until=NULL,updated_at=?
+                        WHERE operation_id=?
+                        """,
+                        (
+                            next_retry,
+                            available_at,
+                            float(now_ts),
+                            current["operation_id"],
+                        ),
+                    )
+                    recovered.append(
+                        {
+                            "operation_id": current["operation_id"],
+                            "retry": True,
+                            "retry_count": next_retry,
+                            "available_at": available_at,
+                        }
+                    )
+                else:
+                    self._history(
+                        current["operation_id"],
+                        "FAIL_TERMINAL",
+                        "LEASED",
+                        "BLOCKED",
+                        "INFRA_ERROR",
+                        now_ts,
+                        {
+                            "retryable_requested": True,
+                            "recovered_expired_lease": True,
+                        },
+                    )
+                    self.db.execute(
+                        """
+                        UPDATE queue_entries
+                        SET state='BLOCKED',leased_by=NULL,lease_until=NULL,updated_at=?
+                        WHERE operation_id=?
+                        """,
+                        (float(now_ts), current["operation_id"]),
+                    )
+                    recovered.append(
+                        {
+                            "operation_id": current["operation_id"],
+                            "retry": False,
+                            "state": "BLOCKED",
+                        }
+                    )
+            self.db.commit()
+            return recovered
+        except Exception:
+            if self.db.in_transaction:
+                self.db.rollback()
+            raise
 
     def history(self, operation_id: str) -> list[dict[str, Any]]:
         rows = self.db.execute(
@@ -712,100 +848,136 @@ class DurablePerRepoQueue:
         return [dict(row) for row in rows]
 
     def integrity_report(self) -> dict[str, Any]:
-        violations: list[str] = []
+        started_snapshot = False
+        if not self.db.in_transaction:
+            self.db.execute("BEGIN")
+            started_snapshot = True
+        try:
+            violations: list[str] = []
 
-        active = self._active_count()
-        if active > self.max_active_global:
-            violations.append(f"global_active_limit:{active}:{self.max_active_global}")
+            active = self._active_count()
+            if active > self.max_active_global:
+                violations.append(f"global_active_limit:{active}:{self.max_active_global}")
 
-        pending = self._pending_count()
-        if pending > self.max_pending_global:
-            violations.append(f"global_pending_limit:{pending}:{self.max_pending_global}")
+            pending = self._pending_count()
+            if pending > self.max_pending_global:
+                violations.append(f"global_pending_limit:{pending}:{self.max_pending_global}")
 
-        repo_counts = self.db.execute(
-            """
-            SELECT repository,
-                   SUM(CASE WHEN state='LEASED' THEN 1 ELSE 0 END) AS active_n,
-                   SUM(CASE WHEN state IN ('QUEUED','DEFERRED','LEASED') THEN 1 ELSE 0 END) AS pending_n
-            FROM queue_entries
-            GROUP BY repository
-            """
-        ).fetchall()
-        for row in repo_counts:
-            if int(row["active_n"] or 0) > self.max_active_per_repo:
-                violations.append(
-                    f"repo_active_limit:{row['repository']}:{row['active_n']}:{self.max_active_per_repo}"
-                )
-            if int(row["pending_n"] or 0) > self.max_pending_per_repo:
-                violations.append(
-                    f"repo_pending_limit:{row['repository']}:{row['pending_n']}:{self.max_pending_per_repo}"
-                )
-
-        lease_projection = self.db.execute(
-            """
-            SELECT operation_id,state,leased_by,lease_until
-            FROM queue_entries
-            WHERE (state='LEASED' AND (leased_by IS NULL OR lease_until IS NULL))
-               OR (state<>'LEASED' AND (leased_by IS NOT NULL OR lease_until IS NOT NULL))
-            """
-        ).fetchall()
-        for row in lease_projection:
-            violations.append(f"lease_projection:{row['operation_id']}:{row['state']}")
-
-        identity_rows = self.db.execute(
-            """
-            SELECT q.operation_id,q.repository,q.source_ref,q.operation_class,q.resolved_sha,q.priority,
-                   o.repository AS op_repository,o.source_ref AS op_source_ref,o.resolved_sha AS op_sha,
-                   o.priority AS op_priority,o.payload_json
-            FROM queue_entries q
-            LEFT JOIN operations o ON o.operation_id=q.operation_id
-            """
-        ).fetchall()
-        for row in identity_rows:
-            if row["op_repository"] is None:
-                violations.append(f"orphan:{row['operation_id']}")
-                continue
-            payload = json.loads(row["payload_json"])
-            if (
-                row["repository"] != row["op_repository"]
-                or row["source_ref"] != row["op_source_ref"]
-                or row["resolved_sha"] != row["op_sha"]
-                or int(row["priority"]) != int(row["op_priority"])
-                or row["operation_class"] != payload["operation_class"]
-            ):
-                violations.append(f"identity_drift:{row['operation_id']}")
-
-        for entry in self.snapshot():
-            history = self.history(entry["operation_id"])
-            if not history:
-                violations.append(f"missing_history:{entry['operation_id']}")
-                continue
-            state: str | None = None
-            for index, record in enumerate(history):
-                if index == 0:
-                    if record["action"] != "ENQUEUE" or record["from_state"] is not None:
-                        violations.append(f"invalid_initial_history:{entry['operation_id']}")
-                        break
-                if record["from_state"] != state:
+            repo_counts = self.db.execute(
+                """
+                SELECT repository,
+                       SUM(CASE WHEN state='LEASED' THEN 1 ELSE 0 END) AS active_n,
+                       SUM(CASE WHEN state IN ('QUEUED','DEFERRED','LEASED') THEN 1 ELSE 0 END) AS pending_n
+                FROM queue_entries
+                GROUP BY repository
+                """
+            ).fetchall()
+            for row in repo_counts:
+                if int(row["active_n"] or 0) > self.max_active_per_repo:
                     violations.append(
-                        f"history_chain:{entry['operation_id']}:{record['history_id']}"
+                        f"repo_active_limit:{row['repository']}:{row['active_n']}:{self.max_active_per_repo}"
                     )
-                    break
-                state = record["to_state"]
-            if state != entry["state"]:
-                violations.append(
-                    f"projection_mismatch:{entry['operation_id']}:{state}:{entry['state']}"
-                )
+                if int(row["pending_n"] or 0) > self.max_pending_per_repo:
+                    violations.append(
+                        f"repo_pending_limit:{row['repository']}:{row['pending_n']}:{self.max_pending_per_repo}"
+                    )
 
-        return {
-            "schema_version": 1,
-            "record_type": "APPLAB_DURABLE_QUEUE_INTEGRITY",
-            "authority": "ORCHESTRATION_ONLY",
-            "executor": "GITHUB_ACTIONS",
-            "dispatch_performed": False,
-            "violations": violations,
-            "ok": not violations,
-        }
+            lease_projection = self.db.execute(
+                """
+                SELECT operation_id,state,leased_by,lease_until
+                FROM queue_entries
+                WHERE (state='LEASED' AND (leased_by IS NULL OR lease_until IS NULL))
+                   OR (state<>'LEASED' AND (leased_by IS NOT NULL OR lease_until IS NOT NULL))
+                """
+            ).fetchall()
+            for row in lease_projection:
+                violations.append(f"lease_projection:{row['operation_id']}:{row['state']}")
+
+            terminal_states = set(self.store.brain_contract["operation"]["terminal_states"])
+            identity_rows = self.db.execute(
+                """
+                SELECT q.operation_id,q.repository,q.source_ref,q.operation_class,q.resolved_sha,q.priority,
+                       q.state AS queue_state,
+                       o.repository AS op_repository,o.source_ref AS op_source_ref,
+                       o.resolved_sha AS op_sha,o.priority AS op_priority,
+                       o.current_state AS operation_state,o.payload_json
+                FROM queue_entries q
+                LEFT JOIN operations o ON o.operation_id=q.operation_id
+                """
+            ).fetchall()
+            for row in identity_rows:
+                if row["op_repository"] is None:
+                    violations.append(f"orphan:{row['operation_id']}")
+                    continue
+                payload = json.loads(row["payload_json"])
+                if (
+                    row["repository"] != row["op_repository"]
+                    or row["source_ref"] != row["op_source_ref"]
+                    or row["resolved_sha"] != row["op_sha"]
+                    or int(row["priority"]) != int(row["op_priority"])
+                    or row["operation_class"] != payload["operation_class"]
+                ):
+                    violations.append(f"identity_drift:{row['operation_id']}")
+                if (
+                    row["operation_state"] in terminal_states
+                    and row["queue_state"] in PENDING_STATES
+                ):
+                    violations.append(
+                        f"terminal_operation_pending:{row['operation_id']}:{row['operation_state']}"
+                    )
+
+            entries = self.db.execute(
+                "SELECT * FROM queue_entries ORDER BY enqueued_seq ASC"
+            ).fetchall()
+            for entry in entries:
+                history_rows = self.db.execute(
+                    """
+                    SELECT history_id,action,from_state,to_state,reason,occurred_at,payload_json
+                    FROM queue_history
+                    WHERE operation_id=?
+                    ORDER BY history_id ASC
+                    """,
+                    (entry["operation_id"],),
+                ).fetchall()
+                if not history_rows:
+                    violations.append(f"missing_history:{entry['operation_id']}")
+                    continue
+                state: str | None = None
+                for index, record in enumerate(history_rows):
+                    if index == 0:
+                        if record["action"] != "ENQUEUE" or record["from_state"] is not None:
+                            violations.append(
+                                f"invalid_initial_history:{entry['operation_id']}"
+                            )
+                            break
+                    if record["from_state"] != state:
+                        violations.append(
+                            f"history_chain:{entry['operation_id']}:{record['history_id']}"
+                        )
+                        break
+                    state = record["to_state"]
+                if state != entry["state"]:
+                    violations.append(
+                        f"projection_mismatch:{entry['operation_id']}:{state}:{entry['state']}"
+                    )
+
+            report = {
+                "schema_version": 1,
+                "record_type": "APPLAB_DURABLE_QUEUE_INTEGRITY",
+                "authority": "ORCHESTRATION_ONLY",
+                "executor": "GITHUB_ACTIONS",
+                "dispatch_performed": False,
+                "violations": violations,
+                "ok": not violations,
+            }
+            if started_snapshot:
+                self.db.commit()
+            return report
+        except Exception:
+            if started_snapshot and self.db.in_transaction:
+                self.db.rollback()
+            raise
+
 
 
 def _persist_operation(
@@ -819,6 +991,7 @@ def _persist_operation(
     analysis_mode: str = "fast",
     priority: int = 200,
     force_generation: int = 0,
+    preserve_for_calibration: bool = False,
 ) -> dict[str, Any]:
     op = brain._operation_fixture(
         operation_id,
@@ -830,6 +1003,7 @@ def _persist_operation(
         analysis_mode=analysis_mode,
         priority=priority,
         force_generation=force_generation,
+        preserve_for_calibration=preserve_for_calibration,
     )
     store.put_operation(op)
     return op
