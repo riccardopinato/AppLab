@@ -45,7 +45,7 @@ Design artifacts:
 ### Implementation sequence
 
 - [x] **v5.4A Contracts & Simulator:** versioned Event/Operation/Attempt contracts, executable state validator, deterministic per-repo queue/supersession simulator and replay corpus; offline only, no external integration.
-- [ ] **v5.4B Durable Store Shadow:** add provider-neutral Postgres-compatible operational persistence plus immutable evidence references; no authority consumers.
+- [x] **v5.4B Durable Store Shadow:** provider-neutral durable persistence contract, file-backed restartable shadow adapter, PostgreSQL-compatible schema smoke, immutable Event/Attempt/Evidence/Transition history and transition-backed Operation projection; zero authority/dispatch.
 - [ ] **v5.4C Event Gateway Shadow:** ingest signed GitHub events with replay protection/deduplication and compare against periodic reconciliation.
 - [ ] **v5.4D Conductor Shadow Pilot:** mirror real AppLab orchestration metadata, model expected DAG/state and compare against actual execution with zero dispatch capability.
 - [ ] **v5.4E Durable Per-Repo Queue:** replace global event-driven cancellation semantics with repository/lineage/class isolation, bounded retries and backpressure while GitHub Actions remains executor.
