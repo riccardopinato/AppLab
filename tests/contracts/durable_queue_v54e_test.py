@@ -62,6 +62,14 @@ def main() -> int:
             )
 
             assert q.enqueue(a1["operation_id"], now_ts=10)["state"] == "QUEUED"
+            expect_error(
+                lambda: q.enqueue(
+                    a2["operation_id"],
+                    ancestor_shas={a1["resolved_sha"]},
+                    now_ts=10.5,
+                ),
+                "proven ancestry",
+            )
             supersede = q.enqueue(
                 a2["operation_id"],
                 ancestor_shas={a1["resolved_sha"]},
@@ -70,6 +78,14 @@ def main() -> int:
             assert supersede["superseded"] == [a1["operation_id"]]
             assert q._entry(a1["operation_id"])["state"] == "SUPERSEDED"
             assert q._entry(a2["operation_id"])["state"] == "QUEUED"
+            expect_error(
+                lambda: q.enqueue(
+                    a2["operation_id"],
+                    preserve_for_calibration=True,
+                    now_ts=11.5,
+                ),
+                "replay conflicts",
+            )
 
             # Different repository is independent and cannot be superseded by repo A.
             assert q.enqueue(b1["operation_id"], now_ts=12)["state"] == "QUEUED"
@@ -195,6 +211,29 @@ def main() -> int:
             assert q2._entry(cert["operation_id"])["retry_count"] == 2
             assert q2._entry(cert["operation_id"])["state"] == "BLOCKED"
             assert q2.integrity_report()["ok"] is True
+
+    with tempfile.TemporaryDirectory() as hard_tmp:
+        hard_path = Path(hard_tmp) / "hard-cap.sqlite3"
+        with storemod.SQLiteShadowStore(hard_path) as hard_store:
+            hard_q = queue_mod.DurablePerRepoQueue(
+                hard_store,
+                max_ready_global=1,
+                max_ready_per_repo=1,
+                max_active_per_repo=1,
+                max_pending_global=1,
+            )
+            h1 = queue_mod._persist_operation(
+                hard_store, "op_h1", "owner/h", "refs/heads/main", "7" * 40
+            )
+            h2 = queue_mod._persist_operation(
+                hard_store, "op_h2", "owner/i", "refs/heads/main", "8" * 40
+            )
+            assert hard_q.enqueue(h1["operation_id"], now_ts=1)["state"] == "QUEUED"
+            expect_error(
+                lambda: hard_q.enqueue(h2["operation_id"], now_ts=2),
+                "hard pending limit",
+            )
+            assert hard_q.integrity_report()["ok"] is True
 
     source = (ROOT / "scripts" / "durable_queue_v54e.py").read_text(encoding="utf-8")
     for forbidden in (
