@@ -147,11 +147,13 @@ jobs:
           script: |
             set -Eeuo pipefail
             python - <<'PY'
+            import os
             import time
             from pathlib import Path
-            start = int(Path("$RUNNER_TEMP/control-start-ms.txt").read_text().strip())
+            temp = Path(os.environ["RUNNER_TEMP"])
+            start = int((temp / "control-start-ms.txt").read_text().strip())
             ready = int(time.time() * 1000)
-            Path("$RUNNER_TEMP/control-startup-seconds.txt").write_text(
+            (temp / "control-startup-seconds.txt").write_text(
                 f"{max(0, ready-start)/1000:.3f}\n", encoding="utf-8"
             )
             PY
@@ -194,11 +196,13 @@ jobs:
           script: |
             set -Eeuo pipefail
             python - <<'PY'
+            import os
             import time
             from pathlib import Path
-            start = int(Path("$RUNNER_TEMP/warm-start-ms.txt").read_text().strip())
+            temp = Path(os.environ["RUNNER_TEMP"])
+            start = int((temp / "warm-start-ms.txt").read_text().strip())
             ready = int(time.time() * 1000)
-            Path("$RUNNER_TEMP/warm-startup-seconds.txt").write_text(
+            (temp / "warm-startup-seconds.txt").write_text(
                 f"{max(0, ready-start)/1000:.3f}\n", encoding="utf-8"
             )
             PY
