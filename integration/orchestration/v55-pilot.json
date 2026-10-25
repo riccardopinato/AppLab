@@ -15,29 +15,34 @@
       ],
       "run_maestro": false,
       "history_key": "v55-applab-selftest",
-      "analysis_mode": "fast"
+      "analysis_mode": "fast",
+      "engine": "native_android"
     },
     {
       "repository": "riccardopinato/CamperBoss",
       "source_ref": "refs/heads/main",
       "event_types": [
+        "push",
         "repository_dispatch",
         "workflow_dispatch"
       ],
       "run_maestro": true,
       "history_key": "v55-camperboss",
-      "analysis_mode": "fast"
+      "analysis_mode": "fast",
+      "engine": "flutter"
     },
     {
       "repository": "riccardopinato/TrailPath",
       "source_ref": "refs/heads/main",
       "event_types": [
+        "push",
         "repository_dispatch",
         "workflow_dispatch"
       ],
       "run_maestro": true,
       "history_key": "v55-trailpath",
-      "analysis_mode": "fast"
+      "analysis_mode": "fast",
+      "engine": "flutter"
     }
   ]
 }
