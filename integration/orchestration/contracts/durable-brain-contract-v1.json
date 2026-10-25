@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_DURABLE_BRAIN_CONTROL_PLANE",
+  "authority": "ORCHESTRATION_ONLY",
+  "event": {
+    "required": [
+      "schema_version",
+      "record_type",
+      "event_id",
+      "correlation_id",
+      "source",
+      "source_event_type",
+      "repository",
+      "source_ref",
+      "resolved_sha",
+      "dedupe_key",
+      "admission",
+      "trust"
+    ],
+    "record_type": "APPLAB_EVENT",
+    "admissions": [
+      "ADMITTED",
+      "REJECTED"
+    ],
+    "trust_required": [
+      "signature_verified",
+      "replay_window_valid",
+      "source_authenticated"
+    ]
+  },
+  "operation": {
+    "required": [
+      "schema_version",
+      "record_type",
+      "operation_id",
+      "correlation_id",
+      "operation_class",
+      "analysis_mode",
+      "repository",
+      "source_ref",
+      "resolved_sha",
+      "applab_sha",
+      "idempotency_key",
+      "queue_key",
+      "priority",
+      "state",
+      "authority"
+    ],
+    "record_type": "APPLAB_OPERATION",
+    "operation_classes": [
+      "VERIFICATION",
+      "CERTIFICATION",
+      "PHYSICAL_VALIDATION",
+      "MANUAL_DIAGNOSTIC",
+      "CANARY",
+      "RECONCILIATION",
+      "SECURITY_RECHECK"
+    ],
+    "analysis_modes": [
+      "fast",
+      "full",
+      "certification",
+      "diagnostic",
+      "none"
+    ],
+    "authority": "ORCHESTRATION_ONLY",
+    "states": [
+      "CREATED",
+      "QUEUED",
+      "PLANNING",
+      "READY",
+      "RUNNING",
+      "WAITING_RETRY",
+      "WAITING_EXTERNAL",
+      "SUCCEEDED",
+      "FAILED",
+      "BLOCKED",
+      "CANCELED",
+      "SUPERSEDED"
+    ],
+    "terminal_states": [
+      "SUCCEEDED",
+      "FAILED",
+      "BLOCKED",
+      "CANCELED",
+      "SUPERSEDED"
+    ],
+    "protected_classes": [
+      "CERTIFICATION",
+      "PHYSICAL_VALIDATION",
+      "MANUAL_DIAGNOSTIC"
+    ],
+    "allowed_transitions": {
+      "CREATED": [
+        "QUEUED",
+        "BLOCKED",
+        "CANCELED"
+      ],
+      "QUEUED": [
+        "PLANNING",
+        "BLOCKED",
+        "CANCELED",
+        "SUPERSEDED"
+      ],
+      "PLANNING": [
+        "READY",
+        "BLOCKED",
+        "CANCELED"
+      ],
+      "READY": [
+        "RUNNING",
+        "BLOCKED",
+        "CANCELED",
+        "SUPERSEDED"
+      ],
+      "RUNNING": [
+        "WAITING_RETRY",
+        "WAITING_EXTERNAL",
+        "SUCCEEDED",
+        "FAILED",
+        "BLOCKED",
+        "CANCELED",
+        "SUPERSEDED"
+      ],
+      "WAITING_RETRY": [
+        "RUNNING",
+        "BLOCKED",
+        "CANCELED",
+        "SUPERSEDED"
+      ],
+      "WAITING_EXTERNAL": [
+        "RUNNING",
+        "BLOCKED",
+        "CANCELED"
+      ],
+      "SUCCEEDED": [],
+      "FAILED": [],
+      "BLOCKED": [],
+      "CANCELED": [],
+      "SUPERSEDED": []
+    }
+  },
+  "attempt": {
+    "required": [
+      "schema_version",
+      "record_type",
+      "attempt_id",
+      "operation_id",
+      "attempt_number",
+      "executor",
+      "state",
+      "failure_class",
+      "retryable"
+    ],
+    "record_type": "APPLAB_ATTEMPT",
+    "states": [
+      "CREATED",
+      "RUNNING",
+      "SUCCEEDED",
+      "FAILED",
+      "BLOCKED",
+      "CANCELED"
+    ],
+    "failure_classes": [
+      "NONE",
+      "INFRA_ERROR",
+      "UNKNOWN_FAILURE",
+      "FLAKY_SUSPECT",
+      "APP_RUNTIME_FAILURE",
+      "APP_VISUAL_FAILURE",
+      "BUILD_OR_QUALITY_FAILURE"
+    ],
+    "never_retry_failure_classes": [
+      "APP_RUNTIME_FAILURE",
+      "APP_VISUAL_FAILURE",
+      "BUILD_OR_QUALITY_FAILURE"
+    ]
+  },
+  "queue_policy": {
+    "key_fields": [
+      "repository",
+      "source_ref",
+      "operation_class"
+    ],
+    "default_max_active_per_queue": 1,
+    "priority_bands": {
+      "CERTIFICATION": 500,
+      "MAIN_REGRESSION": 400,
+      "PULL_REQUEST": 350,
+      "SECURITY_RECHECK": 300,
+      "VERIFICATION": 200,
+      "CANARY_RECONCILIATION": 100,
+      "RESEARCH": 50
+    },
+    "automatic_supersession_classes": [
+      "VERIFICATION"
+    ],
+    "protected_classes": [
+      "CERTIFICATION",
+      "PHYSICAL_VALIDATION",
+      "MANUAL_DIAGNOSTIC"
+    ]
+  }
+}
