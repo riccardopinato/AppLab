@@ -58,6 +58,7 @@ jobs:
             scripts/verification_intelligence.py \
             scripts/durable_brain_v54a.py \
             scripts/durable_store_v54b.py \
+            scripts/event_gateway_v54c.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -159,6 +160,7 @@ jobs:
           python scripts/durable_brain_v54a.py --self-test
           python scripts/durable_brain_v54a.py replay
           python scripts/durable_store_v54b.py --self-test
+          python scripts/event_gateway_v54c.py --self-test
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py
           python scripts/upgrade_lab.py --self-test
@@ -229,6 +231,7 @@ jobs:
           python tests/contracts/delta_calibration_test.py
           python tests/contracts/durable_brain_v54a_test.py
           python tests/contracts/durable_store_v54b_test.py
+          python tests/contracts/event_gateway_v54c_test.py
           python tests/contracts/crawler_runtime_window_test.py
           python tests/contracts/workflow_structure_test.py
           python tests/intelligence/intelligence_corpus_test.py
