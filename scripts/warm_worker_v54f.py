@@ -135,7 +135,12 @@ class WarmWorkerPool:
                 (worker_id,),
             ).fetchone()
             if existing and existing["current_lease_id"]:
-                raise WorkerError("cannot re-register leased worker")
+                lease = self.db.execute(
+                    "SELECT state FROM warm_worker_leases WHERE lease_id=?",
+                    (existing["current_lease_id"],),
+                ).fetchone()
+                if lease is not None and lease["state"] == "ACTIVE":
+                    raise WorkerError("cannot re-register worker with active lease")
             previous = existing["state"] if existing else None
             self.db.execute(
                 """
