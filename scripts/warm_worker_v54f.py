@@ -761,8 +761,12 @@ def compare_equivalence(
     labs_match = control_labs == warm_labs
     verdict_match = control.get("result") == warm.get("result")
 
-    control_seconds = float(control.get("runtime_seconds") or 0.0)
-    warm_seconds = float(warm.get("runtime_seconds") or 0.0)
+    control_seconds = float(
+        control.get("startup_seconds", control.get("runtime_seconds")) or 0.0
+    )
+    warm_seconds = float(
+        warm.get("startup_seconds", warm.get("runtime_seconds")) or 0.0
+    )
     improvement_percent = 0.0
     if control_seconds > 0:
         improvement_percent = ((control_seconds - warm_seconds) / control_seconds) * 100.0
@@ -783,8 +787,8 @@ def compare_equivalence(
         "labs_match": labs_match,
         "verdict_match": verdict_match,
         "isolation_clean": bool(isolation_clean),
-        "control_runtime_seconds": control_seconds,
-        "warm_runtime_seconds": warm_seconds,
+        "control_startup_seconds": control_seconds,
+        "warm_startup_seconds": warm_seconds,
         "improvement_percent": round(improvement_percent, 3),
         "equivalent": equivalent,
         "promotion_candidate": promotion_candidate,
