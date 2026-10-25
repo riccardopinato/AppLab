@@ -68,6 +68,9 @@ def main() -> int:
     assert "publish_release_artifact: false" in workflow
     assert "analysis_mode: fast" in workflow
     assert "cancel-in-progress: false" in workflow
+    repository_selector = "github.event.client_payload.repository || inputs.target_repository || github.repository"
+    assert workflow.count(repository_selector) >= 4
+    assert "restore-keys:" in workflow
     assert "certification" not in workflow.lower()
     print("AppLab v5.5A Multi-Project Pilot contract test PASS")
     return 0
