@@ -460,16 +460,19 @@ async def authorize_execution(
         )
         queue.recover_expired_leases(now_ts=time.time())
         queue.enqueue(operation_id, now_ts=time.time(), max_retries=0)
+        queue.rebalance(now_ts=time.time())
         claim = queue.claim_next(
             f"gha:{payload.run_id}",
             now_ts=time.time(),
             expected_operation_id=operation_id,
         )
         if claim is None:
+            entry = queue._entry(operation_id)
             return {
                 "authorized": False,
                 "operation_id": operation_id,
-                "state": "DEFERRED",
+                "state": entry["state"] if entry is not None else "UNKNOWN",
+                "retry_after_seconds": 15,
                 "authority": "ORCHESTRATION_ONLY",
             }
 
