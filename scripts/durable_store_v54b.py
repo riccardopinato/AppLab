@@ -626,7 +626,7 @@ def self_test() -> None:
             assert reopened.integrity_report()["ok"] is True
 
             illegal = _transition_fixture(
-                "trn_illegal", "op_store", "QUEUED", "RUNNING", "STALE_WRITER"
+                "trn_illegal", "op_store", "QUEUED", "PLANNING", "STALE_WRITER"
             )
             try:
                 reopened.transition_operation(illegal)
