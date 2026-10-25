@@ -42,9 +42,9 @@ Design artifacts:
 - [x] Define security, observability, rollback and promotion guardrails.
 - [x] Keep `coverage_reduction_enabled=false` and make delta coverage reduction explicitly independent from v5.4 orchestration work.
 
-### Implementation sequence — not started
+### Implementation sequence
 
-- [ ] **v5.4A Contracts & Simulator:** implement schema/state validators, queue simulator and replay corpus with no external integration.
+- [x] **v5.4A Contracts & Simulator:** versioned Event/Operation/Attempt contracts, executable state validator, deterministic per-repo queue/supersession simulator and replay corpus; offline only, no external integration.
 - [ ] **v5.4B Durable Store Shadow:** add provider-neutral Postgres-compatible operational persistence plus immutable evidence references; no authority consumers.
 - [ ] **v5.4C Event Gateway Shadow:** ingest signed GitHub events with replay protection/deduplication and compare against periodic reconciliation.
 - [ ] **v5.4D Conductor Shadow Pilot:** mirror real AppLab orchestration metadata, model expected DAG/state and compare against actual execution with zero dispatch capability.
