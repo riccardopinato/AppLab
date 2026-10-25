@@ -316,6 +316,15 @@ def self_test() -> None:
             )
             assert replay["persistence_status"] == "REPLAY"
 
+            later = datetime(2026, 10, 25, 2, 30, 1, tzinfo=timezone.utc)
+            replay_later = ingest_github_delivery(
+                store, headers, body, key,
+                received_at=later.isoformat().replace("+00:00", "Z"),
+                now_epoch=later.timestamp(),
+                contract=contract,
+            )
+            assert replay_later["persistence_status"] == "REPLAY"
+
             second_headers = _headers("push", "delivery-2", body, key)
             redelivery = ingest_github_delivery(
                 store, second_headers, body, key,
