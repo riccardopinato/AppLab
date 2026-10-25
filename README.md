@@ -1,18 +1,26 @@
-## v5.4 design audit — Durable Brain & Event-Driven Execution
+## v5.4 Durable Brain & Event-Driven Execution
 
-**Status: DESIGN-ONLY / NOT ACTIVE IN PRODUCTION.**
+**Status: v5.4A OFFLINE IMPLEMENTED / NOT ACTIVE IN PRODUCTION.**
 
-The next architecture candidate is a persistent orchestration layer above AppLab v5.3.5. The design adds durable Event/Operation/Attempt state, per-repository queues, bounded recovery, a Conductor shadow pilot and warm trusted-runtime workers while preserving all current verification authority.
+The v5.4 architecture adds a persistent orchestration layer above AppLab v5.3.5 while preserving all current verification authority. The first implementation slice, **v5.4A Contracts & Simulator**, makes Event/Operation/Attempt contracts, operation state transitions, queue/supersession policy and deterministic replay executable entirely offline.
 
-Nothing in this design enables production webhooks, Conductor dispatch, self-hosted warm workers, autonomous source modification or coverage reduction. Smart Test Plan remains the FAST/FULL authority; trusted runtime, Release Assurance, Physical Evidence and Production Certification keep their existing semantics.
+Implemented v5.4A artifacts:
 
-Design documents:
+- `integration/orchestration/contracts/durable-brain-contract-v1.json`
+- `scripts/durable_brain_v54a.py`
+- `integration/orchestration/v54a-replay-corpus.json`
+- `tests/contracts/durable_brain_v54a_test.py`
+- `integration/orchestration/V54A_CONTRACTS_SIMULATOR.md`
+
+Architecture documents:
 
 - `integration/orchestration/DURABLE_BRAIN_V54_DESIGN_AUDIT.md`
 - `integration/orchestration/EVENT_OPERATION_EVIDENCE_V54.md`
 - `integration/orchestration/CONDUCTOR_SHADOW_AND_WARM_WORKERS_V54.md`
 
-The planned implementation is deliberately staged: contracts/simulator -> shadow durable store -> shadow event gateway -> Conductor shadow -> durable per-repo queue -> warm trusted-runtime pilot -> controlled event-driven pilot. Every production-enablement step requires a separate change and validation gate.
+v5.4A has no webhook receiver, database client, Conductor client, worker dispatch or production queue. Smart Test Plan remains the FAST/FULL authority; trusted runtime, Release Assurance, Physical Evidence and Production Certification keep their existing semantics. Coverage reduction remains disabled.
+
+The staged path remains: contracts/simulator -> shadow durable store -> shadow event gateway -> Conductor shadow -> durable per-repo queue -> warm trusted-runtime pilot -> controlled event-driven pilot. Every production-enablement step requires a separate change and validation gate.
 
 
 ## v5.3.5 runtime attribution hardening — crawler evidence windows
