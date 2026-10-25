@@ -159,6 +159,14 @@ def main() -> int:
                 "immutable identity",
             )
             registry.db.rollback()
+            expect_error(
+                lambda: registry.db.execute(
+                    "UPDATE warm_worker_leases SET operation_id='tampered' WHERE lease_id=?",
+                    (dirty_lease["lease_id"],),
+                ),
+                "warm lease immutable identity",
+            )
+            registry.db.rollback()
             history_id = registry.db.execute(
                 "SELECT MIN(history_id) AS n FROM warm_worker_history WHERE worker_id='warm-a'"
             ).fetchone()["n"]
@@ -279,6 +287,9 @@ def main() -> int:
         assert required in postgres_schema, required
 
     source = (ROOT / "scripts" / "warm_worker_v54f.py").read_text(encoding="utf-8")
+    sweep_source = source[source.index("def sweep"):source.index("def worker_snapshot", source.index("def sweep"))]
+    assert 'BEGIN IMMEDIATE' in sweep_source
+    assert "warm_worker_active_lease_one_per_worker" in source
     for forbidden in (
         "requests.",
         "urllib.request",
