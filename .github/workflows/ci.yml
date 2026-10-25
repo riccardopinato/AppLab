@@ -57,6 +57,7 @@ jobs:
             scripts/history_learning.py \
             scripts/verification_intelligence.py \
             scripts/durable_brain_v54a.py \
+            scripts/durable_store_v54b.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -157,6 +158,7 @@ jobs:
           python scripts/verification_intelligence.py --self-test
           python scripts/durable_brain_v54a.py --self-test
           python scripts/durable_brain_v54a.py replay
+          python scripts/durable_store_v54b.py --self-test
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py
           python scripts/upgrade_lab.py --self-test
@@ -226,10 +228,44 @@ jobs:
           python tests/contracts/evidence_schema_registry_test.py
           python tests/contracts/delta_calibration_test.py
           python tests/contracts/durable_brain_v54a_test.py
+          python tests/contracts/durable_store_v54b_test.py
           python tests/contracts/crawler_runtime_window_test.py
           python tests/contracts/workflow_structure_test.py
           python tests/intelligence/intelligence_corpus_test.py
           python tests/intelligence/evidence_graph_test.py
+
+      - name: PostgreSQL v5.4B shadow schema smoke
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          NAME="applab-v54b-postgres"
+          cleanup() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker run -d --name "$NAME" \
+            -e POSTGRES_PASSWORD=shadow \
+            -e POSTGRES_DB=applab_shadow \
+            postgres:16-alpine >/dev/null
+          ready=false
+          for _ in {1..30}; do
+            if docker exec "$NAME" pg_isready -U postgres -d applab_shadow >/dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != "true" ]]; then
+            docker logs "$NAME"
+            exit 1
+          fi
+          for _ in 1 2; do
+            docker exec -i "$NAME" psql \
+              -v ON_ERROR_STOP=1 \
+              -U postgres \
+              -d applab_shadow \
+              < integration/orchestration/sql/postgres-v54b-shadow.sql
+          done
+          test "$(docker exec "$NAME" psql -Atq -U postgres -d applab_shadow -c "SELECT value FROM applab_store_meta WHERE key='mode';")" = "SHADOW_NO_DISPATCH"
+          test "$(docker exec "$NAME" psql -Atq -U postgres -d applab_shadow -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'applab_%';")" -ge 6
 
       - name: Frontend build
         run: |
