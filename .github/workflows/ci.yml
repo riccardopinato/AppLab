@@ -169,6 +169,7 @@ jobs:
           python scripts/durable_queue_v54e.py --self-test
           python scripts/warm_worker_v54f.py --self-test
           python scripts/controlled_event_v54g.py self-test
+          python tests/contracts/multi_project_event_v55a_test.py
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py
           python scripts/upgrade_lab.py --self-test
