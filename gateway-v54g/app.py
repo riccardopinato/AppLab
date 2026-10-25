@@ -379,7 +379,10 @@ async def github_webhook(request: Request) -> dict[str, Any]:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         event = event_from_store(store, ingested["event_id"])
         if ingested["persistence_status"] in {"INSERTED", "REPLAY", "DEDUPED"}:
-            dispatched = dispatch_once(store, event, now_ts=now.timestamp())
+            try:
+                dispatched = dispatch_once(store, event, now_ts=now.timestamp())
+            except pilot.PilotError as exc:
+                raise HTTPException(status_code=403, detail=str(exc)) from exc
         else:
             dispatched = {
                 "status": "NOT_DISPATCHED",
@@ -427,7 +430,6 @@ async def authorize_execution(
             "event_id": event["event_id"],
             "plan_digest": normalized_plan["plan_digest_sha256"],
             "applab_sha": applab_sha,
-            "workflow_run_id": payload.run_id,
         }
         operation_id = "op_" + hashlib.sha256(
             brain.canonical_json(operation_material).encode("utf-8")
@@ -444,7 +446,6 @@ async def authorize_execution(
             contract_fingerprint=brain.sha256_json(load_contract_for_operation()),
             plan_digest_sha256=normalized_plan["plan_digest_sha256"],
             event_id=event["event_id"],
-            gateway_run_id=payload.run_id,
         )
         store.put_operation(operation)
         queue = queue_mod.DurablePerRepoQueue(
