@@ -38,7 +38,7 @@ def load_config()->dict[str,Any]:
     return cfg
 
 def stage_repositories(stage:str)->list[str]:
-    cfg=load_config(); compatible=compatible_repositories()
+    compatible=compatible_repositories()
     if any(repo not in compatible for repo in PILOT_REPOS):
         raise ExpansionError("pilot repository is no longer compatible")
     if stage=="3": return list(PILOT_REPOS)
@@ -49,8 +49,9 @@ def stage_repositories(stage:str)->list[str]:
     if stage=="all": return compatible
     raise ExpansionError("unsupported rollout stage")
 
-def admission(repository:str,stage:str)->dict[str,Any]:
-    cfg=load_config(); allowed=stage_repositories(stage)
+def admission(repository:str,stage:str,config:dict[str,Any]|None=None)->dict[str,Any]:
+    cfg=load_config() if config is None else config
+    allowed=stage_repositories(stage)
     if repository not in allowed:
         return {"repository":repository,"stage":stage,"admitted":False,"reason":"OUTSIDE_STAGE"}
     if cfg["global_kill_switch"]:
@@ -75,21 +76,11 @@ def self_test()->dict[str,Any]:
     assert len(sall)>=len(s5) and all(r in sall for r in s5)
     assert all(admission(r,"3")["admitted"] for r in s3)
     assert admission(s5[3],"3")["reason"]=="OUTSIDE_STAGE"
-    original_global=cfg["global_kill_switch"]
-    original_repo=dict(cfg["repository_kill_switches"])
-    try:
-        cfg["global_kill_switch"]=True
-        CONFIG.write_text(json.dumps(cfg,indent=2)+"\n",encoding="utf-8")
-        assert admission(s3[0],"3")["reason"]=="GLOBAL_KILL_SWITCH"
-        cfg["global_kill_switch"]=False
-        cfg["repository_kill_switches"]={s3[1]:True}
-        CONFIG.write_text(json.dumps(cfg,indent=2)+"\n",encoding="utf-8")
-        assert admission(s3[1],"3")["reason"]=="REPOSITORY_KILL_SWITCH"
-        assert admission(s3[0],"3")["admitted"] is True
-    finally:
-        cfg["global_kill_switch"]=original_global
-        cfg["repository_kill_switches"]=original_repo
-        CONFIG.write_text(json.dumps(cfg,indent=2)+"\n",encoding="utf-8")
+    global_stop=dict(cfg,global_kill_switch=True)
+    assert admission(s3[0],"3",global_stop)["reason"]=="GLOBAL_KILL_SWITCH"
+    repo_stop=dict(cfg,global_kill_switch=False,repository_kill_switches={s3[1]:True})
+    assert admission(s3[1],"3",repo_stop)["reason"]=="REPOSITORY_KILL_SWITCH"
+    assert admission(s3[0],"3",repo_stop)["admitted"] is True
     assert watcher_role("3",True)=="PRIMARY_SCHEDULER_AND_RECONCILIATION"
     assert watcher_role("5",True)=="PRIMARY_SCHEDULER_AND_RECONCILIATION"
     assert watcher_role("all",False)=="PRIMARY_SCHEDULER_AND_RECONCILIATION"
