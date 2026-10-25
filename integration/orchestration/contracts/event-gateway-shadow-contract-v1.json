@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_EVENT_GATEWAY_SHADOW",
+  "mode": "SHADOW_NO_DISPATCH",
+  "authority": "NONE",
+  "provider": "github",
+  "supported_events": ["push", "pull_request", "workflow_run"],
+  "required_headers": ["X-Hub-Signature-256", "X-GitHub-Delivery", "X-GitHub-Event"],
+  "max_body_bytes": 1048576,
+  "max_receive_skew_seconds": 300,
+  "invariants": [
+    "verify_provider_signature_before_normalization",
+    "require_unique_delivery_identity",
+    "enforce_gateway_receive_window",
+    "persist_before_success",
+    "dedupe_logical_target_change",
+    "never_create_operation",
+    "never_dispatch_worker",
+    "never_mint_verdict"
+  ]
+}
