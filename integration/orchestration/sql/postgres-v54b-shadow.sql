@@ -215,4 +215,9 @@ CREATE TRIGGER applab_operations_identity_guard
 BEFORE UPDATE ON applab_operations
 FOR EACH ROW EXECUTE FUNCTION applab_guard_operation_identity();
 
+DROP TRIGGER IF EXISTS applab_operations_delete_guard ON applab_operations;
+CREATE TRIGGER applab_operations_delete_guard
+BEFORE DELETE ON applab_operations
+FOR EACH ROW EXECUTE FUNCTION applab_reject_mutation();
+
 COMMIT;
