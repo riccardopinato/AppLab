@@ -1,3 +1,20 @@
+## v5.4 design audit — Durable Brain & Event-Driven Execution
+
+**Status: DESIGN-ONLY / NOT ACTIVE IN PRODUCTION.**
+
+The next architecture candidate is a persistent orchestration layer above AppLab v5.3.5. The design adds durable Event/Operation/Attempt state, per-repository queues, bounded recovery, a Conductor shadow pilot and warm trusted-runtime workers while preserving all current verification authority.
+
+Nothing in this design enables production webhooks, Conductor dispatch, self-hosted warm workers, autonomous source modification or coverage reduction. Smart Test Plan remains the FAST/FULL authority; trusted runtime, Release Assurance, Physical Evidence and Production Certification keep their existing semantics.
+
+Design documents:
+
+- `integration/orchestration/DURABLE_BRAIN_V54_DESIGN_AUDIT.md`
+- `integration/orchestration/EVENT_OPERATION_EVIDENCE_V54.md`
+- `integration/orchestration/CONDUCTOR_SHADOW_AND_WARM_WORKERS_V54.md`
+
+The planned implementation is deliberately staged: contracts/simulator -> shadow durable store -> shadow event gateway -> Conductor shadow -> durable per-repo queue -> warm trusted-runtime pilot -> controlled event-driven pilot. Every production-enablement step requires a separate change and validation gate.
+
+
 ## v5.3.5 runtime attribution hardening — crawler evidence windows
 
 Real downstream evidence from TrailPath showed that a crawler/runtime failure can
