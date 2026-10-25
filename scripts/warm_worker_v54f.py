@@ -59,6 +59,23 @@ CREATE TABLE IF NOT EXISTS warm_worker_leases (
 CREATE INDEX IF NOT EXISTS warm_worker_lease_worker_idx
 ON warm_worker_leases(worker_id, status, issued_at);
 
+CREATE UNIQUE INDEX IF NOT EXISTS warm_worker_active_lease_one_per_worker
+ON warm_worker_leases(worker_id)
+WHERE status='ACTIVE';
+
+CREATE TRIGGER IF NOT EXISTS warm_lease_identity_no_update
+BEFORE UPDATE OF lease_id,worker_id,operation_id,issued_at,expires_at
+ON warm_worker_leases
+BEGIN
+    SELECT RAISE(ABORT, 'warm lease immutable identity');
+END;
+
+CREATE TRIGGER IF NOT EXISTS warm_lease_no_delete
+BEFORE DELETE ON warm_worker_leases
+BEGIN
+    SELECT RAISE(ABORT, 'warm lease cannot be deleted');
+END;
+
 CREATE TABLE IF NOT EXISTS warm_worker_history (
     history_id INTEGER PRIMARY KEY AUTOINCREMENT,
     worker_id TEXT NOT NULL REFERENCES warm_workers(worker_id),
@@ -507,6 +524,50 @@ class WarmWorkerRegistry:
                 self.db.rollback()
             raise
 
+    def _quarantine_locked(
+        self,
+        worker: sqlite3.Row,
+        reason: str,
+        *,
+        now_ts: float,
+        lease_id: str | None = None,
+    ) -> dict[str, Any]:
+        if worker["state"] == "OFFLINE":
+            raise WorkerError("offline worker cannot be quarantined")
+        current_lease = lease_id or worker["current_lease_id"]
+        self._history(
+            worker["worker_id"],
+            "QUARANTINE",
+            worker["state"],
+            "QUARANTINED",
+            reason,
+            now_ts,
+            lease_id=current_lease,
+        )
+        if current_lease:
+            self.db.execute(
+                """
+                UPDATE warm_worker_leases
+                SET status='QUARANTINED',released_at=?
+                WHERE lease_id=? AND status='ACTIVE'
+                """,
+                (float(now_ts), current_lease),
+            )
+        self.db.execute(
+            """
+            UPDATE warm_workers
+            SET state='QUARANTINED',current_lease_id=NULL,
+                quarantine_reason=?,updated_at=?
+            WHERE worker_id=?
+            """,
+            (reason, float(now_ts), worker["worker_id"]),
+        )
+        return {
+            "worker_id": worker["worker_id"],
+            "state": "QUARANTINED",
+            "reason": reason,
+        }
+
     def quarantine(
         self,
         worker_id: str,
@@ -521,38 +582,14 @@ class WarmWorkerRegistry:
             worker = self._worker(worker_id)
             if worker is None:
                 raise WorkerError("unknown worker")
-            if worker["state"] == "OFFLINE":
-                raise WorkerError("offline worker cannot be quarantined")
-            current_lease = lease_id or worker["current_lease_id"]
-            self._history(
-                worker_id,
-                "QUARANTINE",
-                worker["state"],
-                "QUARANTINED",
+            result = self._quarantine_locked(
+                worker,
                 reason,
-                now_ts,
-                lease_id=current_lease,
-            )
-            if current_lease:
-                self.db.execute(
-                    """
-                    UPDATE warm_worker_leases
-                    SET status='QUARANTINED',released_at=?
-                    WHERE lease_id=? AND status='ACTIVE'
-                    """,
-                    (float(now_ts), current_lease),
-                )
-            self.db.execute(
-                """
-                UPDATE warm_workers
-                SET state='QUARANTINED',current_lease_id=NULL,
-                    quarantine_reason=?,updated_at=?
-                WHERE worker_id=?
-                """,
-                (reason, float(now_ts), worker_id),
+                now_ts=now_ts,
+                lease_id=lease_id,
             )
             self.db.commit()
-            return {"worker_id": worker_id, "state": "QUARANTINED", "reason": reason}
+            return result
         except Exception:
             if self.db.in_transaction:
                 self.db.rollback()
@@ -637,35 +674,51 @@ class WarmWorkerRegistry:
 
     def sweep(self, *, now_ts: float) -> list[dict[str, Any]]:
         actions: list[dict[str, Any]] = []
-        workers = self.db.execute(
-            "SELECT worker_id,state,heartbeat_at,current_lease_id FROM warm_workers"
-        ).fetchall()
-        for worker in workers:
-            if worker["state"] == "AVAILABLE":
-                if float(now_ts) - float(worker["heartbeat_at"]) > self.heartbeat_ttl_seconds:
-                    actions.append(
-                        self.quarantine(
-                            worker["worker_id"],
-                            "STALE_HEARTBEAT",
-                            now_ts=now_ts,
+        try:
+            self.db.execute("BEGIN IMMEDIATE")
+            workers = self.db.execute(
+                "SELECT * FROM warm_workers ORDER BY worker_id"
+            ).fetchall()
+            for worker in workers:
+                if worker["state"] == "AVAILABLE":
+                    if (
+                        float(now_ts) - float(worker["heartbeat_at"])
+                        > self.heartbeat_ttl_seconds
+                    ):
+                        actions.append(
+                            self._quarantine_locked(
+                                worker,
+                                "STALE_HEARTBEAT",
+                                now_ts=now_ts,
+                            )
                         )
-                    )
-            elif worker["state"] in {"LEASED", "SCRUBBING"} and worker["current_lease_id"]:
-                lease = self._lease(worker["current_lease_id"])
-                if (
-                    lease is not None
-                    and lease["status"] == "ACTIVE"
-                    and float(lease["expires_at"]) < float(now_ts)
+                elif (
+                    worker["state"] in {"LEASED", "SCRUBBING"}
+                    and worker["current_lease_id"]
                 ):
-                    actions.append(
-                        self.quarantine(
-                            worker["worker_id"],
-                            "LEASE_EXPIRED_UNCERTAIN_CLEANUP",
-                            now_ts=now_ts,
-                            lease_id=lease["lease_id"],
+                    lease = self._lease(worker["current_lease_id"])
+                    if (
+                        lease is not None
+                        and lease["status"] == "ACTIVE"
+                        and float(lease["expires_at"]) < float(now_ts)
+                    ):
+                        # worker + current lease are read from the same write-locked
+                        # snapshot, so a renewed/replaced lease cannot be quarantined
+                        # by a stale sweep observation.
+                        actions.append(
+                            self._quarantine_locked(
+                                worker,
+                                "LEASE_EXPIRED_UNCERTAIN_CLEANUP",
+                                now_ts=now_ts,
+                                lease_id=lease["lease_id"],
+                            )
                         )
-                    )
-        return actions
+            self.db.commit()
+            return actions
+        except Exception:
+            if self.db.in_transaction:
+                self.db.rollback()
+            raise
 
     def worker_snapshot(self) -> list[dict[str, Any]]:
         rows = self.db.execute(
