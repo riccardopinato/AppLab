@@ -221,6 +221,10 @@ jobs:
             APPLAB_ANALYSIS_PLAN_JSON="$GITHUB_WORKSPACE/warm-plan.json" \
             ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/runtime-fixture/app-debug.apk" "dev.applab.selftest"
             python -c 'import json,pathlib; r=json.loads(pathlib.Path("warm-clone-report/result.json").read_text()); assert r["result"]=="PASS", r'
+            if adb shell run-as dev.applab.selftest cat files/applab-warm-marker 2>/dev/null | grep -q control-state; then
+              echo "Warm clone leaked private app data from cold control"
+              exit 1
+            fi
 
       - name: Destroy disposable clone and compare equivalence
         shell: bash
