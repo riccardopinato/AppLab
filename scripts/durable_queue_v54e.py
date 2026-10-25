@@ -151,6 +151,11 @@ class DurablePerRepoQueue:
             "SELECT COUNT(*) AS n FROM queue_entries WHERE state IN ('QUEUED','LEASED')"
         ).fetchone()["n"]
 
+    def _pending_count(self) -> int:
+        return self.db.execute(
+            "SELECT COUNT(*) AS n FROM queue_entries WHERE state IN ('QUEUED','LEASED','DEFERRED')"
+        ).fetchone()["n"]
+
     def _repo_ready_count(self, repository: str) -> int:
         return self.db.execute(
             """
@@ -183,6 +188,10 @@ class DurablePerRepoQueue:
             self.db.execute("BEGIN IMMEDIATE")
             existing = self._entry(operation_id)
             if existing is not None:
+                if bool(existing["preserve_for_calibration"]) != bool(preserve_for_calibration):
+                    raise QueueError("queue replay conflicts with preserve_for_calibration")
+                if int(existing["max_retries"]) != int(max_retries):
+                    raise QueueError("queue replay conflicts with max_retries")
                 result = {
                     "status": "REPLAY",
                     "operation_id": operation_id,
@@ -350,9 +359,12 @@ class DurablePerRepoQueue:
             ).fetchall()
             candidates = []
             for row in rows:
-                if row["repository"] in leased_repos and self.max_active_per_repo <= 1:
+                if self._repo_leased_count(row["repository"]) >= self.max_active_per_repo:
                     continue
-                age_bonus = min(max(int((float(now_ts) - row["enqueued_at"]) // 60), 0), 50)
+                age_bonus = min(
+                    max(int((float(now_ts) - row["enqueued_at"]) // 60), 0),
+                    self.max_age_bonus,
+                )
                 candidates.append((-(row["priority"] + age_bonus), row["last_claim_seq"], row["enqueued_seq"], row))
             if not candidates:
                 self.db.commit()
@@ -567,6 +579,21 @@ class DurablePerRepoQueue:
         ).fetchall()
         for row in leased:
             violations.append(f"repo_active_limit:{row['repository']}:{row['n']}")
+        pending_count = self._pending_count()
+        if pending_count > self.max_pending_global:
+            violations.append(
+                f"global_pending_limit:{pending_count}:{self.max_pending_global}"
+            )
+        lease_projection = self.db.execute(
+            """
+            SELECT operation_id,state,leased_by,lease_until
+            FROM queue_entries
+            WHERE (state='LEASED' AND (leased_by IS NULL OR lease_until IS NULL))
+               OR (state<>'LEASED' AND (leased_by IS NOT NULL OR lease_until IS NOT NULL))
+            """
+        ).fetchall()
+        for row in lease_projection:
+            violations.append(f"lease_projection:{row['operation_id']}:{row['state']}")
         orphans = self.db.execute(
             """
             SELECT q.operation_id
