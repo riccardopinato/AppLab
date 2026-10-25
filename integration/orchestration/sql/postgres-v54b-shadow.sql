@@ -130,7 +130,7 @@ $$;
 CREATE OR REPLACE FUNCTION applab_guard_operation_identity()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $$
+AS $
 BEGIN
     IF NEW.operation_id IS DISTINCT FROM OLD.operation_id
        OR NEW.idempotency_key IS DISTINCT FROM OLD.idempotency_key
@@ -151,10 +151,28 @@ BEGIN
     THEN
         RAISE EXCEPTION 'AppLab v5.4B operation immutable identity mutation rejected';
     END IF;
+
+    IF NEW.current_state IS DISTINCT FROM OLD.current_state
+       AND NOT EXISTS (
+           SELECT 1
+           FROM applab_operation_transitions t
+           WHERE t.operation_id = OLD.operation_id
+             AND t.from_state = OLD.current_state
+             AND t.to_state = NEW.current_state
+             AND t.sequence_number = (
+                 SELECT MAX(t2.sequence_number)
+                 FROM applab_operation_transitions t2
+                 WHERE t2.operation_id = OLD.operation_id
+             )
+       )
+    THEN
+        RAISE EXCEPTION 'AppLab v5.4B operation state update requires matching transition';
+    END IF;
+
     NEW.updated_at := NOW();
     RETURN NEW;
 END;
-$$;
+$;
 
 DROP TRIGGER IF EXISTS applab_events_append_only_u ON applab_events;
 DROP TRIGGER IF EXISTS applab_events_append_only_d ON applab_events;
