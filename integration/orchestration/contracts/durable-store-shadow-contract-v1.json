@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_DURABLE_STORE_SHADOW",
+  "mode": "SHADOW_NO_DISPATCH",
+  "authority": "NONE",
+  "storage_model": {
+    "immutable_entities": [
+      "Event",
+      "Attempt",
+      "EvidenceRef",
+      "OperationTransition"
+    ],
+    "mutable_projections": [
+      "Operation.current_state"
+    ],
+    "large_evidence_bytes": "EXTERNAL_OBJECT_STORE_REFERENCE_ONLY",
+    "production_dispatch": false,
+    "verdict_authority": false,
+    "certification_authority": false
+  },
+  "evidence_ref": {
+    "required": [
+      "schema_version",
+      "record_type",
+      "evidence_ref_id",
+      "operation_id",
+      "artifact_name",
+      "evidence_class",
+      "producer",
+      "registry_state",
+      "content_sha256",
+      "byte_size",
+      "storage_uri",
+      "repository",
+      "resolved_sha",
+      "applab_sha",
+      "generated_at",
+      "retention_class"
+    ],
+    "record_type": "APPLAB_EVIDENCE_REF",
+    "registry_states": [
+      "COMPATIBLE",
+      "NOT_REGISTERED",
+      "INCOMPATIBLE",
+      "UNKNOWN"
+    ],
+    "retention_classes": [
+      "EPHEMERAL",
+      "STANDARD",
+      "LONGITUDINAL",
+      "RELEASE_CRITICAL"
+    ],
+    "allowed_storage_schemes": [
+      "object://",
+      "file://shadow/",
+      "artifact://"
+    ]
+  },
+  "transition": {
+    "required": [
+      "schema_version",
+      "record_type",
+      "transition_id",
+      "operation_id",
+      "from_state",
+      "to_state",
+      "reason_code",
+      "actor",
+      "occurred_at",
+      "metadata_digest_sha256"
+    ],
+    "record_type": "APPLAB_OPERATION_TRANSITION"
+  },
+  "invariants": [
+    "events_attempts_evidence_transitions_are_append_only",
+    "operation_identity_is_immutable",
+    "operation_state_changes_require_an_append_only_transition",
+    "operation_projection_is_rebuildable_from_initial_state_and_transitions",
+    "evidence_ref_never_upgrades_registry_trust",
+    "store_never_mints_pass_or_certified",
+    "store_has_no_dispatch_capability"
+  ]
+}
