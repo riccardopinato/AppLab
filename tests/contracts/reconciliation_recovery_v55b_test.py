@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import importlib.util
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "scripts" / "reconciliation_recovery_v55b.py"
-
-spec = importlib.util.spec_from_file_location("reconciliation_recovery_v55b", SCRIPT)
-assert spec and spec.loader
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
+sys.path.insert(0, str(ROOT / "scripts"))
+import reconciliation_recovery_v55b as mod
 
 
 def main() -> int:
