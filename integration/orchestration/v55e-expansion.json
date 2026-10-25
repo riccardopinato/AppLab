@@ -14,5 +14,6 @@
   "watcher_role_transition": {
     "before_sufficient_all_stage_evidence": "PRIMARY_SCHEDULER_AND_RECONCILIATION",
     "after_sufficient_all_stage_evidence": "RECONCILIATION_WATCHDOG"
-  }
+  },
+  "rollout_stage": "3"
 }
