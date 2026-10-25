@@ -94,7 +94,7 @@ def main() -> int:
                 now_epoch=now.timestamp(),
                 contract=contract,
             )
-            assert pr_result["source_ref"] == "feature/test"
+            assert pr_result["source_ref"] == "refs/heads/feature/test"
             assert pr_result["resolved_sha"] == "3" * 40
 
             workflow_result = gateway.ingest_github_delivery(
@@ -106,8 +106,20 @@ def main() -> int:
                 now_epoch=now.timestamp(),
                 contract=contract,
             )
-            assert workflow_result["source_ref"] == "main"
+            assert workflow_result["source_ref"] == "refs/heads/main"
             assert workflow_result["resolved_sha"] == "4" * 40
+
+            later_text = datetime(2026, 10, 25, 2, 45, 1, tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+            replay_later = gateway.ingest_github_delivery(
+                store,
+                signed_headers("push", "push-1", push_body, key),
+                push_body,
+                key,
+                received_at=later_text,
+                now_epoch=datetime(2026, 10, 25, 2, 45, 1, tzinfo=timezone.utc).timestamp(),
+                contract=contract,
+            )
+            assert replay_later["persistence_status"] == "REPLAY"
 
             # Same logical push delivered under a new provider delivery id is deduped.
             duplicate = gateway.ingest_github_delivery(
@@ -181,6 +193,34 @@ def main() -> int:
                 "body limit",
             )
 
+            newer_push = {
+                "ref": "refs/heads/main",
+                "before": "2" * 40,
+                "after": "5" * 40,
+                "repository": {"full_name": "owner/app"},
+            }
+            newer_body = json.dumps(newer_push, sort_keys=True, separators=(",", ":")).encode()
+            newer = gateway.ingest_github_delivery(
+                store,
+                signed_headers("push", "push-2", newer_body, key),
+                newer_body,
+                key,
+                received_at=now_text,
+                now_epoch=now.timestamp(),
+                contract=contract,
+            )
+            assert newer["persistence_status"] == "INSERTED"
+
+            latest = gateway.compare_reconciliation_snapshot(
+                store,
+                [{
+                    "repository": "owner/app",
+                    "source_ref": "main",
+                    "resolved_sha": "5" * 40,
+                }],
+            )
+            assert latest["all_current"] is True
+
             reconciliation = gateway.compare_reconciliation_snapshot(
                 store,
                 [
@@ -198,7 +238,7 @@ def main() -> int:
             )
             assert reconciliation["matched"] == []
             assert len(reconciliation["stale"]) == 1
-            assert reconciliation["stale"][0]["latest_event_sha"] == "2" * 40
+            assert reconciliation["stale"][0]["latest_event_sha"] == "5" * 40
             assert len(reconciliation["missing"]) == 1
             assert reconciliation["dispatch"] is False
 
