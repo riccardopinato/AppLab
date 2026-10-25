@@ -1,10 +1,10 @@
 ## v5.4 Durable Brain & Event-Driven Execution
 
-**Status: v5.4E DURABLE PER-REPO QUEUE IMPLEMENTED / NOT ACTIVE IN PRODUCTION.**
+**Status: v5.4F WARM TRUSTED-RUNTIME PILOT / PROMOTION PENDING KVM EVIDENCE.**
 
 The v5.4 architecture adds a persistent orchestration layer above AppLab v5.3.5 while preserving all current verification authority. **v5.4A** made Event/Operation/Attempt contracts and queue/state semantics executable offline. **v5.4B Durable Store Shadow** now adds restartable persistent operational memory, immutable EvidenceRef/Transition history and a PostgreSQL-compatible schema, still with zero dispatch and zero verdict authority.
 
-Implemented v5.4A/v5.4B/v5.4C/v5.4D/v5.4E artifacts:
+Implemented v5.4A/v5.4B/v5.4C/v5.4D/v5.4E plus v5.4F pilot artifacts:
 
 - `integration/orchestration/contracts/durable-brain-contract-v1.json`
 - `scripts/durable_brain_v54a.py`
@@ -30,6 +30,12 @@ Implemented v5.4A/v5.4B/v5.4C/v5.4D/v5.4E artifacts:
 - `scripts/durable_queue_v54e.py`
 - `tests/contracts/durable_queue_v54e_test.py`
 - `integration/orchestration/V54E_DURABLE_PER_REPO_QUEUE.md`
+- `integration/orchestration/contracts/warm-worker-contract-v1.json`
+- `integration/orchestration/sql/postgres-v54f-workers.sql`
+- `scripts/warm_worker_v54f.py`
+- `tests/contracts/warm_worker_v54f_test.py`
+- `.github/workflows/warm-worker-pilot.yml`
+- `integration/orchestration/V54F_WARM_TRUSTED_RUNTIME_PILOT.md`
 
 Architecture documents:
 

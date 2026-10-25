@@ -61,6 +61,7 @@ jobs:
             scripts/event_gateway_v54c.py \
             scripts/conductor_shadow_v54d.py \
             scripts/durable_queue_v54e.py \
+            scripts/warm_worker_v54f.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -165,6 +166,7 @@ jobs:
           python scripts/event_gateway_v54c.py --self-test
           python scripts/conductor_shadow_v54d.py --self-test
           python scripts/durable_queue_v54e.py --self-test
+          python scripts/warm_worker_v54f.py --self-test
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py
           python scripts/upgrade_lab.py --self-test
@@ -238,12 +240,13 @@ jobs:
           python tests/contracts/event_gateway_v54c_test.py
           python tests/contracts/conductor_shadow_v54d_test.py
           python tests/contracts/durable_queue_v54e_test.py
+          python tests/contracts/warm_worker_v54f_test.py
           python tests/contracts/crawler_runtime_window_test.py
           python tests/contracts/workflow_structure_test.py
           python tests/intelligence/intelligence_corpus_test.py
           python tests/intelligence/evidence_graph_test.py
 
-      - name: PostgreSQL v5.4B + v5.4E durable schema smoke
+      - name: PostgreSQL v5.4B + v5.4E + v5.4F durable schema smoke
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -279,6 +282,13 @@ jobs:
               -U postgres \
               -d applab_shadow \
               < integration/orchestration/sql/postgres-v54e-queue.sql
+          done
+          for _ in 1 2; do
+            docker exec -i "$NAME" psql \
+              -v ON_ERROR_STOP=1 \
+              -U postgres \
+              -d applab_shadow \
+              < integration/orchestration/sql/postgres-v54f-workers.sql
           done
           test "$(docker exec "$NAME" psql -Atq -U postgres -d applab_shadow -c "SELECT value FROM applab_store_meta WHERE key='mode';")" = "SHADOW_NO_DISPATCH"
           test "$(docker exec "$NAME" psql -Atq -U postgres -d applab_shadow -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'applab_%';")" -ge 6
@@ -345,6 +355,51 @@ jobs:
 
           if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "DELETE FROM applab_queue_entries WHERE operation_id='op_pg_shadow';" >/dev/null 2>&1; then
             echo "PostgreSQL queue DELETE unexpectedly succeeded"
+            exit 1
+          fi
+
+          docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c "
+            INSERT INTO applab_warm_workers(
+              worker_id,worker_class,state,applab_sha,capabilities,
+              capability_digest_sha256,snapshot_digest_sha256,heartbeat_at,
+              current_lease_id,quarantine_reason,registered_at,updated_at
+            ) VALUES (
+              'warm-pg','WARM_TRUSTED_ANDROID','STARTING',repeat('b',40),
+              '{\"kvm\":true,\"android_runtime\":true,\"disposable_avd\":true,\"evidence_capture\":true,\"runtime_profiles\":[\"android-default\"]}'::jsonb,
+              'sha256:capability-fixture','sha256:snapshot-fixture',NOW(),
+              NULL,NULL,NOW(),NOW()
+            );
+            INSERT INTO applab_warm_worker_history(
+              worker_id,lease_id,action,from_state,to_state,reason,occurred_at,payload
+            ) VALUES (
+              'warm-pg',NULL,'REGISTER',NULL,'STARTING','CI_SMOKE',NOW(),'{}'::jsonb
+            );
+            INSERT INTO applab_warm_worker_history(
+              worker_id,lease_id,action,from_state,to_state,reason,occurred_at,payload
+            ) VALUES (
+              'warm-pg',NULL,'ACTIVATE','STARTING','AVAILABLE','CI_SMOKE',NOW(),'{}'::jsonb
+            );
+            UPDATE applab_warm_workers
+            SET state='AVAILABLE'
+            WHERE worker_id='warm-pg';"
+
+          if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "UPDATE applab_warm_workers SET state='LEASED' WHERE worker_id='warm-pg';" >/dev/null 2>&1; then
+            echo "PostgreSQL warm-worker state mutation without history/lease unexpectedly succeeded"
+            exit 1
+          fi
+
+          if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "UPDATE applab_warm_workers SET applab_sha=repeat('c',40) WHERE worker_id='warm-pg';" >/dev/null 2>&1; then
+            echo "PostgreSQL warm-worker identity mutation unexpectedly succeeded"
+            exit 1
+          fi
+
+          if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "UPDATE applab_warm_worker_history SET reason='tampered' WHERE worker_id='warm-pg';" >/dev/null 2>&1; then
+            echo "PostgreSQL warm-worker history mutation unexpectedly succeeded"
+            exit 1
+          fi
+
+          if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "DELETE FROM applab_warm_workers WHERE worker_id='warm-pg';" >/dev/null 2>&1; then
+            echo "PostgreSQL warm-worker DELETE unexpectedly succeeded"
             exit 1
           fi
 

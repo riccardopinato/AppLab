@@ -13,6 +13,10 @@ on:
       - "docker-compose.live.yml"
       - ".github/workflows/live-emulator-self-test.yml"
       - ".github/workflows/emulator-self-test.yml"
+      - "tests/contracts/warm_worker_v54f_test.py"
+      - "integration/orchestration/contracts/warm-worker-contract-v1.json"
+      - "integration/orchestration/sql/postgres-v54f-workers.sql"
+      - ".github/workflows/warm-worker-pilot.yml"
       - ".github/workflows/runtime-fixture-build.yml"
   pull_request:
     paths:
@@ -25,6 +29,10 @@ on:
       - "docker-compose.live.yml"
       - ".github/workflows/live-emulator-self-test.yml"
       - ".github/workflows/emulator-self-test.yml"
+      - "tests/contracts/warm_worker_v54f_test.py"
+      - "integration/orchestration/contracts/warm-worker-contract-v1.json"
+      - "integration/orchestration/sql/postgres-v54f-workers.sql"
+      - ".github/workflows/warm-worker-pilot.yml"
       - ".github/workflows/runtime-fixture-build.yml"
   workflow_dispatch:
 

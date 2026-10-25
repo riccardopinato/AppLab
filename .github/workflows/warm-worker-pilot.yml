@@ -1,0 +1,264 @@
+name: Warm Trusted Runtime Pilot
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/warm_worker_v54f.py"
+      - "scripts/warm_worker_pilot_runtime.sh"
+      - "tests/contracts/warm_worker_v54f_test.py"
+      - "integration/orchestration/contracts/warm-worker-contract-v1.json"
+      - "integration/orchestration/sql/postgres-v54f-workers.sql"
+      - ".github/workflows/warm-worker-pilot.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/warm_worker_v54f.py"
+      - "scripts/warm_worker_pilot_runtime.sh"
+      - "tests/contracts/warm_worker_v54f_test.py"
+      - "integration/orchestration/contracts/warm-worker-contract-v1.json"
+      - "integration/orchestration/sql/postgres-v54f-workers.sql"
+      - ".github/workflows/warm-worker-pilot.yml"
+
+concurrency:
+  group: applab-warm-worker-pilot-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  warm-kvm-pilot:
+    name: Warm KVM equivalence pilot
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+
+      - name: Restore canonical runtime fixture
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          chmod +x scripts/restore_runtime_fixture.sh
+          ./scripts/restore_runtime_fixture.sh "$GITHUB_WORKSPACE/runtime-fixture"
+          test -s "$GITHUB_WORKSPACE/runtime-fixture/app-debug.apk"
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm
+
+      - name: Validate worker control plane
+        run: |
+          python scripts/warm_worker_v54f.py --self-test
+          python tests/contracts/warm_worker_v54f_test.py
+
+      - name: Prepare FAST equivalence plan
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          labs = [
+              "system", "performance", "network", "persistence", "configuration",
+              "resource_pressure", "background", "storage", "upgrade",
+          ]
+          payload = {
+              "schema_version": 1,
+              "planner_version": "0.8.0",
+              "mode": "fast",
+              "changed_files": ["integration/orchestration/warm-worker-pilot"],
+              "selected_labs": {key: False for key in labs},
+              "reasons": {key: ["v5.4F warm-worker equivalence pilot"] for key in labs},
+              "fallback_full": False,
+          }
+          Path("warm-plan.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Prepare pristine AVD template
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/warm_worker_pilot_runtime.sh pristine
+
+      - name: Freeze pristine template
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          PRISTINE="$RUNNER_TEMP/applab-pristine-avd"
+          rm -rf "$PRISTINE"
+          mkdir -p "$PRISTINE"
+          cp -a "$HOME/.android/avd/." "$PRISTINE/"
+          find "$PRISTINE" -type f ! -name '*.lock' -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            | sha256sum \
+            | awk '{print "sha256:"$1}' \
+            > "$RUNNER_TEMP/pristine-digest.txt"
+          test -s "$RUNNER_TEMP/pristine-digest.txt"
+
+      - name: Start cold control timer
+        shell: bash
+        run: |
+          rm -rf "$HOME/.android/avd"
+          date +%s%3N > "$RUNNER_TEMP/control-start-ms.txt"
+
+      - name: Cold GitHub control verification
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/warm_worker_pilot_runtime.sh cold
+
+      - name: Restore disposable warm clone
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -rf "$HOME/.android/avd"
+          mkdir -p "$HOME/.android/avd"
+          cp -a "$RUNNER_TEMP/applab-pristine-avd/." "$HOME/.android/avd/"
+          date +%s%3N > "$RUNNER_TEMP/warm-start-ms.txt"
+
+      - name: Warm clone verification
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          force-avd-creation: false
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/warm_worker_pilot_runtime.sh warm
+
+      - name: Destroy disposable clone and compare equivalence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -rf "$HOME/.android/avd"
+          test ! -e "$HOME/.android/avd"
+
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "scripts")
+          import warm_worker_v54f as warm
+
+          apk = Path("runtime-fixture/app-debug.apk")
+          apk_digest = "sha256:" + hashlib.sha256(apk.read_bytes()).hexdigest()
+          fixture_manifest = json.loads(
+              Path("runtime-fixture/manifest.json").read_text(encoding="utf-8")
+          )
+          source_sha = str(fixture_manifest["source_sha"])
+          applab_sha = __import__("subprocess").check_output(
+              ["git", "rev-parse", "HEAD"], text=True
+          ).strip()
+          if applab_sha != source_sha:
+              raise SystemExit(
+                  f"tested checkout/fixture identity mismatch: {applab_sha} != {source_sha}"
+              )
+          lab_keys = [
+              "system_lab", "performance_lab", "network_lab", "persistence_lab",
+              "configuration_lab", "resource_pressure_lab", "background_lab",
+              "storage_lab", "upgrade_lab", "maestro",
+          ]
+
+          def record(report_path: str, startup_path: str, worker_class: str):
+              result = json.loads(Path(report_path).read_text(encoding="utf-8"))
+              return {
+                  "repository": os.environ.get("GITHUB_REPOSITORY", "unknown/unknown"),
+                  "resolved_sha": source_sha,
+                  "applab_sha": applab_sha,
+                  "apk_sha256": apk_digest,
+                  "package_id": "dev.applab.selftest",
+                  "analysis_mode": result.get("analysis_mode"),
+                  "result": result.get("result"),
+                  "labs": {key: result.get(key) for key in lab_keys},
+                  "startup_seconds": float(Path(startup_path).read_text().strip()),
+                  "worker_class": worker_class,
+              }
+
+          control = record(
+              "warm-control-report/result.json",
+              os.path.join(os.environ["RUNNER_TEMP"], "control-startup-seconds.txt"),
+              "GITHUB_COLD_CONTROL",
+          )
+          warm_record = record(
+              "warm-clone-report/result.json",
+              os.path.join(os.environ["RUNNER_TEMP"], "warm-startup-seconds.txt"),
+              "WARM_TRUSTED_ANDROID",
+          )
+          comparison = warm.compare_equivalence(
+              control,
+              warm_record,
+              isolation_clean=Path(
+                  os.path.join(os.environ["RUNNER_TEMP"], "isolation-clean.txt")
+              ).read_text().strip() == "true",
+              minimum_improvement_percent=1.0,
+          )
+          payload = {
+              "schema_version": 1,
+              "record_type": "APPLAB_WARM_WORKER_PILOT",
+              "authority": "NONE_PILOT_EVIDENCE",
+              "control": control,
+              "warm": warm_record,
+              "comparison": comparison,
+              "pristine_snapshot_digest": Path(
+                  os.path.join(os.environ["RUNNER_TEMP"], "pristine-digest.txt")
+              ).read_text().strip(),
+          }
+          Path("warm-worker-pilot.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          assert comparison["equivalent"], comparison
+          assert comparison["isolation_clean"], comparison
+          assert comparison["promotion_candidate"], comparison
+          PY
+
+      - name: Upload warm pilot evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-warm-worker-pilot-${{ github.run_id }}
+          path: |
+            warm-worker-pilot.json
+            warm-control-report/
+            warm-clone-report/
+          if-no-files-found: warn
+          retention-days: 7
