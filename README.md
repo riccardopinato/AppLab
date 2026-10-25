@@ -1,10 +1,10 @@
 ## v5.4 Durable Brain & Event-Driven Execution
 
-**Status: v5.4B DURABLE STORE SHADOW IMPLEMENTED / NOT ACTIVE IN PRODUCTION.**
+**Status: v5.4C EVENT GATEWAY SHADOW IMPLEMENTED / NOT ACTIVE IN PRODUCTION.**
 
 The v5.4 architecture adds a persistent orchestration layer above AppLab v5.3.5 while preserving all current verification authority. **v5.4A** made Event/Operation/Attempt contracts and queue/state semantics executable offline. **v5.4B Durable Store Shadow** now adds restartable persistent operational memory, immutable EvidenceRef/Transition history and a PostgreSQL-compatible schema, still with zero dispatch and zero verdict authority.
 
-Implemented v5.4A/v5.4B artifacts:
+Implemented v5.4A/v5.4B/v5.4C artifacts:
 
 - `integration/orchestration/contracts/durable-brain-contract-v1.json`
 - `scripts/durable_brain_v54a.py`
@@ -16,6 +16,10 @@ Implemented v5.4A/v5.4B artifacts:
 - `scripts/durable_store_v54b.py`
 - `tests/contracts/durable_store_v54b_test.py`
 - `integration/orchestration/V54B_DURABLE_STORE_SHADOW.md`
+- `integration/orchestration/contracts/event-gateway-shadow-contract-v1.json`
+- `scripts/event_gateway_v54c.py`
+- `tests/contracts/event_gateway_v54c_test.py`
+- `integration/orchestration/V54C_EVENT_GATEWAY_SHADOW.md`
 
 Architecture documents:
 
