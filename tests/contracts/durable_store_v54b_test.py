@@ -109,7 +109,9 @@ def main() -> int:
                 "SHADOW_PLAN_READY",
             )
             assert store.transition_operation(t1)["sequence_number"] == 1
+            assert store.transition_operation(t1)["status"] == "REPLAY"
             assert store.transition_operation(t2)["sequence_number"] == 2
+            assert store.transition_operation(t2)["status"] == "REPLAY"
             assert store.get_operation(operation["operation_id"])["current_state"] == "READY"
             assert store.rebuild_operation_state(operation["operation_id"]) == "READY"
 
@@ -150,6 +152,14 @@ def main() -> int:
                     ("e" * 40, operation["operation_id"]),
                 ),
                 "operation immutable identity",
+            )
+            store.db.rollback()
+            assert_rejected(
+                lambda: store.db.execute(
+                    "UPDATE operations SET current_state='RUNNING' WHERE operation_id=?",
+                    (operation["operation_id"],),
+                ),
+                "operation state update requires transition",
             )
             store.db.rollback()
 
