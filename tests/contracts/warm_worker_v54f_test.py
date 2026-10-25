@@ -213,6 +213,59 @@ def main() -> int:
             )
             assert registry.integrity_report()["ok"] is True
 
+            # Clean scrub after lease expiry must quarantine, never return AVAILABLE.
+            activate(registry, "warm-late", "a" * 40, 40)
+            late = registry.acquire_lease(
+                "op-late",
+                "a" * 40,
+                "android-default",
+                now_ts=41,
+                lease_seconds=2,
+            )
+            registry.begin_scrub(late["lease_id"], now_ts=42)
+            late_release = registry.release_after_scrub(
+                late["lease_id"],
+                clean,
+                now_ts=44,
+            )
+            assert late_release["state"] == "QUARANTINED"
+            assert registry._lease(late["lease_id"])["status"] == "QUARANTINED"
+
+            # A stale failed cleanup for an already released lease cannot quarantine
+            # a later unrelated lease owned by the same worker.
+            activate(registry, "warm-reuse", "a" * 40, 50)
+            old_lease = registry.acquire_lease(
+                "op-old",
+                "a" * 40,
+                "android-default",
+                now_ts=51,
+                lease_seconds=10,
+            )
+            registry.begin_scrub(old_lease["lease_id"], now_ts=52)
+            registry.release_after_scrub(old_lease["lease_id"], clean, now_ts=53)
+            new_lease = registry.acquire_lease(
+                "op-new",
+                "a" * 40,
+                "android-default",
+                now_ts=54,
+                lease_seconds=10,
+            )
+            stale_dirty = dict(clean)
+            stale_dirty["app_data_discarded"] = False
+            expect_error(
+                lambda: registry.release_after_scrub(
+                    old_lease["lease_id"],
+                    stale_dirty,
+                    now_ts=55,
+                ),
+                "lease is not active",
+            )
+            reuse_worker = registry._worker("warm-reuse")
+            assert reuse_worker["state"] == "LEASED"
+            assert reuse_worker["current_lease_id"] == new_lease["lease_id"]
+            assert registry._lease(new_lease["lease_id"])["status"] == "ACTIVE"
+            assert registry.integrity_report()["ok"] is True
+
         # Restart preserves quarantine/lease history and projections.
         with storemod.SQLiteShadowStore(db_path) as reopened:
             registry = warm.WarmWorkerRegistry(
@@ -224,6 +277,8 @@ def main() -> int:
             assert states["warm-a"] == "QUARANTINED"
             assert states["warm-stale"] == "QUARANTINED"
             assert states["warm-expire"] == "QUARANTINED"
+            assert states["warm-late"] == "QUARANTINED"
+            assert states["warm-reuse"] == "LEASED"
             assert registry.integrity_report()["ok"] is True
 
     # Equivalence can only become promotion-candidate with exact identity,
