@@ -165,6 +165,38 @@ CREATE TABLE IF NOT EXISTS operation_transitions (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(operation_id, sequence_number)
 );
+
+CREATE TRIGGER IF NOT EXISTS events_no_update
+BEFORE UPDATE ON events BEGIN SELECT RAISE(ABORT, 'events append-only'); END;
+CREATE TRIGGER IF NOT EXISTS events_no_delete
+BEFORE DELETE ON events BEGIN SELECT RAISE(ABORT, 'events append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS attempts_no_update
+BEFORE UPDATE ON attempts BEGIN SELECT RAISE(ABORT, 'attempts append-only'); END;
+CREATE TRIGGER IF NOT EXISTS attempts_no_delete
+BEFORE DELETE ON attempts BEGIN SELECT RAISE(ABORT, 'attempts append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS evidence_refs_no_update
+BEFORE UPDATE ON evidence_refs BEGIN SELECT RAISE(ABORT, 'evidence_refs append-only'); END;
+CREATE TRIGGER IF NOT EXISTS evidence_refs_no_delete
+BEFORE DELETE ON evidence_refs BEGIN SELECT RAISE(ABORT, 'evidence_refs append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS transitions_no_update
+BEFORE UPDATE ON operation_transitions BEGIN SELECT RAISE(ABORT, 'operation_transitions append-only'); END;
+CREATE TRIGGER IF NOT EXISTS transitions_no_delete
+BEFORE DELETE ON operation_transitions BEGIN SELECT RAISE(ABORT, 'operation_transitions append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS operations_identity_no_update
+BEFORE UPDATE OF
+    operation_id,idempotency_key,queue_key,repository,source_ref,resolved_sha,
+    applab_sha,initial_state,priority,immutable_identity_sha256,payload_json,created_at
+ON operations
+BEGIN
+    SELECT RAISE(ABORT, 'operation immutable identity');
+END;
+
+CREATE TRIGGER IF NOT EXISTS operations_no_delete
+BEFORE DELETE ON operations BEGIN SELECT RAISE(ABORT, 'operations cannot be deleted'); END;
 """
 
 
