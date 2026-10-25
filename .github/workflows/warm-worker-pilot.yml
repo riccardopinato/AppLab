@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - "scripts/warm_worker_v54f.py"
+      - "scripts/warm_worker_pilot_runtime.sh"
       - "tests/contracts/warm_worker_v54f_test.py"
       - "integration/orchestration/contracts/warm-worker-contract-v1.json"
       - "integration/orchestration/sql/postgres-v54f-workers.sql"
@@ -13,6 +14,7 @@ on:
     branches: [main]
     paths:
       - "scripts/warm_worker_v54f.py"
+      - "scripts/warm_worker_pilot_runtime.sh"
       - "tests/contracts/warm_worker_v54f_test.py"
       - "integration/orchestration/contracts/warm-worker-contract-v1.json"
       - "integration/orchestration/sql/postgres-v54f-workers.sql"
