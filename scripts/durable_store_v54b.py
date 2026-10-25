@@ -395,36 +395,45 @@ class SQLiteShadowStore:
     def transition_operation(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_transition_record(payload, self.store_contract, self.brain_contract)
         digest = self._payload_digest(payload)
-        existing_row = self.db.execute(
-            """
-            SELECT payload_sha256,sequence_number,to_state
-            FROM operation_transitions
-            WHERE transition_id=?
-            """,
-            (payload["transition_id"],),
-        ).fetchone()
-        if existing_row:
-            if existing_row["payload_sha256"] != digest:
-                raise StoreError("transition_id reused with conflicting immutable payload")
-            return {
-                "status": "REPLAY",
-                "transition_id": payload["transition_id"],
-                "sequence_number": existing_row["sequence_number"],
-                "current_state": existing_row["to_state"],
-            }
-        row = self.db.execute(
-            "SELECT current_state FROM operations WHERE operation_id=?",
-            (payload["operation_id"],),
-        ).fetchone()
-        if row is None:
-            raise StoreError("transition references unknown operation")
-        if row["current_state"] != payload["from_state"]:
-            raise StoreError("transition from_state does not match durable current_state")
-        next_sequence = self.db.execute(
-            "SELECT COALESCE(MAX(sequence_number),0)+1 AS n FROM operation_transitions WHERE operation_id=?",
-            (payload["operation_id"],),
-        ).fetchone()["n"]
-        with self.db:
+        try:
+            # Serialize writers before any replay/state/sequence read. This makes
+            # validation + append-only transition + projection update one atomic unit
+            # across independent SQLite connections.
+            self.db.execute("BEGIN IMMEDIATE")
+
+            existing_row = self.db.execute(
+                """
+                SELECT payload_sha256,sequence_number,to_state
+                FROM operation_transitions
+                WHERE transition_id=?
+                """,
+                (payload["transition_id"],),
+            ).fetchone()
+            if existing_row:
+                if existing_row["payload_sha256"] != digest:
+                    raise StoreError("transition_id reused with conflicting immutable payload")
+                self.db.commit()
+                return {
+                    "status": "REPLAY",
+                    "transition_id": payload["transition_id"],
+                    "sequence_number": existing_row["sequence_number"],
+                    "current_state": existing_row["to_state"],
+                }
+
+            row = self.db.execute(
+                "SELECT current_state FROM operations WHERE operation_id=?",
+                (payload["operation_id"],),
+            ).fetchone()
+            if row is None:
+                raise StoreError("transition references unknown operation")
+            if row["current_state"] != payload["from_state"]:
+                raise StoreError("transition from_state does not match durable current_state")
+
+            next_sequence = self.db.execute(
+                "SELECT COALESCE(MAX(sequence_number),0)+1 AS n FROM operation_transitions WHERE operation_id=?",
+                (payload["operation_id"],),
+            ).fetchone()["n"]
+
             self.db.execute(
                 """
                 INSERT INTO operation_transitions(
@@ -441,12 +450,17 @@ class SQLiteShadowStore:
                 "UPDATE operations SET current_state=?,updated_at=CURRENT_TIMESTAMP WHERE operation_id=?",
                 (payload["to_state"], payload["operation_id"]),
             )
-        return {
-            "status": "INSERTED",
-            "transition_id": payload["transition_id"],
-            "sequence_number": next_sequence,
-            "current_state": payload["to_state"],
-        }
+            self.db.commit()
+            return {
+                "status": "INSERTED",
+                "transition_id": payload["transition_id"],
+                "sequence_number": next_sequence,
+                "current_state": payload["to_state"],
+            }
+        except Exception:
+            if self.db.in_transaction:
+                self.db.rollback()
+            raise
 
     def get_operation(self, operation_id: str) -> dict[str, Any]:
         row = self.db.execute(
