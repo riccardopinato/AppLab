@@ -11,7 +11,7 @@ The v5.5 program promotes the v5.4 control plane from a self-repository canary t
 
 - [x] **v5.5A Pilot Set:** define a three-repository allowlist (AppLab/selftest, CamperBoss, TrailPath), use immutable target SHA admission, route real projects through the existing Universal Project Runner, preserve the hourly watcher and add repository-dispatch/manual ingress without broad cross-repository credentials.
 - [x] **v5.5B Reconciliation & Recovery:** prove event loss, duplicate delivery, Actions outage, interrupted operation, Brain restart, expired lease, superseding SHA and watcher recovery semantics across the pilot set.
-- [ ] **v5.5C Warm Worker Real-App Pilot:** run real-app trusted-runtime equivalence on warm workers while keeping target build scripts outside the trusted worker and GitHub Actions as fallback.
+- [x] **v5.5C Warm Worker Real-App Pilot:** run real-app trusted-runtime equivalence on warm workers while keeping target build scripts outside the trusted worker and GitHub Actions as fallback.
 - [ ] **v5.5D Multi-Repo Queue:** validate fairness, priority, backpressure, repository isolation and p50/p95 queue/start/runtime telemetry under real multi-project load.
 - [ ] **v5.5E Controlled Expansion:** expand 3 -> 5 -> all compatible repositories with global/per-repo kill switches; only after sufficient evidence may the hourly watcher become reconciliation/watchdog rather than primary scheduler.
 
