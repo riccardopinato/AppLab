@@ -56,6 +56,7 @@ jobs:
             scripts/github_run_started_at.py \
             scripts/history_learning.py \
             scripts/verification_intelligence.py \
+            scripts/durable_brain_v54a.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -154,6 +155,8 @@ jobs:
           python scripts/github_run_started_at.py --self-test
           python scripts/history_learning.py --self-test
           python scripts/verification_intelligence.py --self-test
+          python scripts/durable_brain_v54a.py --self-test
+          python scripts/durable_brain_v54a.py replay
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py
           python scripts/upgrade_lab.py --self-test
@@ -222,6 +225,7 @@ jobs:
           python tests/contracts/planning_feedback_pipeline_test.py
           python tests/contracts/evidence_schema_registry_test.py
           python tests/contracts/delta_calibration_test.py
+          python tests/contracts/durable_brain_v54a_test.py
           python tests/contracts/crawler_runtime_window_test.py
           python tests/contracts/workflow_structure_test.py
           python tests/intelligence/intelligence_corpus_test.py
