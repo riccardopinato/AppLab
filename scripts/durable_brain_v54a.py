@@ -456,7 +456,17 @@ def run_replay_case(case: dict[str, Any], contract: dict[str, Any]) -> dict[str,
         return retry_decision(attempt, int(case["max_infra_attempts"]), contract)
 
     if kind == "queue":
-        return simulate_queue(case.get("operations", []), case.get("parents", {}), contract)
+        simulation = simulate_queue(case.get("operations", []), case.get("parents", {}), contract)
+        return {
+            "states": {item["operation_id"]: item["state"] for item in simulation["operations"]},
+            "superseded_by": {
+                item["operation_id"]: item.get("superseded_by_operation_id")
+                for item in simulation["operations"]
+                if item.get("superseded_by_operation_id")
+            },
+            "actions": simulation["actions"],
+            "dispatch_order": simulation["dispatch_order"],
+        }
 
     raise ContractError(f"unknown replay case kind: {kind}")
 
