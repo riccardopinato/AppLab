@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_CONTROLLED_EVENT_DRIVEN_PILOT",
+  "enabled": false,
+  "authority": "ORCHESTRATION_ONLY",
+  "allowed_operation_classes": ["VERIFICATION"],
+  "allowed_analysis_modes": ["fast", "full"],
+  "max_enabled_repositories": 3,
+  "watcher_remains_watchdog": true,
+  "github_actions_remains_burst_fallback": true,
+  "certification_authority_changed": false,
+  "external_requirements": [
+    "public_signed_event_ingress",
+    "persistent_postgresql_compatible_store"
+  ],
+  "invariants": [
+    "disabled_policy_never_dispatches",
+    "repository_must_be_allowlisted",
+    "certification_is_never_event_auto_dispatched",
+    "event_operation_identity_is_idempotent",
+    "watcher_reconciliation_remains_enabled",
+    "github_actions_fallback_remains_available",
+    "production_activation_requires_external_ingress_and_live_store"
+  ]
+}
