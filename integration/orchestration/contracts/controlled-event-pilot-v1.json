@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_CONTROLLED_EVENT_DRIVEN_PILOT",
+  "authority": "ORCHESTRATION_ONLY",
+  "activation_default": "DISABLED",
+  "supported_live_events": ["push", "pull_request"],
+  "executor": "GITHUB_ACTIONS",
+  "watchdog": "HOURLY_REPO_WATCHER",
+  "protected_classes": ["CERTIFICATION", "PHYSICAL_VALIDATION", "MANUAL_DIAGNOSTIC"],
+  "required_runtime_inputs": [
+    "webhook_secret",
+    "dispatch_secret",
+    "github_actions_token",
+    "public_https_endpoint",
+    "persistent_store_path",
+    "pilot_repository_allowlist"
+  ],
+  "invariants": [
+    "github_signature_verified_before_admission",
+    "event_persisted_before_dispatch",
+    "provider_delivery_replay_is_idempotent",
+    "only_allowlisted_repository_and_ref_can_dispatch",
+    "workflow_run_events_cannot_retrigger_execution",
+    "certification_is_never_triggered_by_normal_webhook_event",
+    "exact_event_sha_is_preserved_into_executor_payload",
+    "dispatch_payload_is_gateway_attested",
+    "repository_lineage_class_concurrency_is_isolated",
+    "hourly_watcher_remains_watchdog",
+    "github_actions_remains_executor",
+    "dispatch_failure_never_becomes_pass",
+    "gateway_cannot_mint_verification_or_certification_verdict"
+  ]
+}
