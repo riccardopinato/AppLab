@@ -247,7 +247,7 @@ jobs:
             postgres:16-alpine >/dev/null
           ready=false
           for _ in {1..30}; do
-            if docker exec "$NAME" pg_isready -U postgres -d applab_shadow >/dev/null 2>&1; then
+            if docker exec "$NAME" psql -U postgres -d applab_shadow -Atqc 'SELECT 1' >/dev/null 2>&1; then
               ready=true
               break
             fi
