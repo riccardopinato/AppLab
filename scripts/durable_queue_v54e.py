@@ -85,16 +85,28 @@ class DurablePerRepoQueue:
         max_ready_global: int = 8,
         max_ready_per_repo: int = 2,
         max_active_per_repo: int = 1,
+        max_pending_global: int = 1000,
+        max_age_bonus: int = 500,
         lease_seconds: int = 900,
         retry_base_seconds: int = 60,
     ) -> None:
         self.store = store
         self.db = store.db
-        if min(max_ready_global, max_ready_per_repo, max_active_per_repo, lease_seconds, retry_base_seconds) < 1:
+        if min(
+            max_ready_global,
+            max_ready_per_repo,
+            max_active_per_repo,
+            max_pending_global,
+            max_age_bonus,
+            lease_seconds,
+            retry_base_seconds,
+        ) < 1:
             raise QueueError("queue limits must be positive")
         self.max_ready_global = max_ready_global
         self.max_ready_per_repo = max_ready_per_repo
         self.max_active_per_repo = max_active_per_repo
+        self.max_pending_global = max_pending_global
+        self.max_age_bonus = max_age_bonus
         self.lease_seconds = lease_seconds
         self.retry_base_seconds = retry_base_seconds
         self.db.executescript(QUEUE_SCHEMA)
@@ -177,6 +189,7 @@ class DurablePerRepoQueue:
         operation_id: str,
         *,
         ancestor_shas: set[str] | None = None,
+        ancestry_proven: bool = False,
         preserve_for_calibration: bool = False,
         now_ts: float,
         max_retries: int = 2,
@@ -184,6 +197,8 @@ class DurablePerRepoQueue:
         if max_retries < 0:
             raise QueueError("max_retries must be non-negative")
         ancestor_shas = set(ancestor_shas or set())
+        if ancestor_shas and not ancestry_proven:
+            raise QueueError("ancestor set requires proven ancestry")
         try:
             self.db.execute("BEGIN IMMEDIATE")
             existing = self._entry(operation_id)
@@ -237,6 +252,9 @@ class DurablePerRepoQueue:
                             {"superseded_by": operation_id},
                         )
                         superseded.append(old["operation_id"])
+
+            if self._pending_count() >= self.max_pending_global:
+                raise QueueError("queue hard pending limit reached")
 
             if protected:
                 initial_state = "QUEUED"
