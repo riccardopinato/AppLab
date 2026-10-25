@@ -634,6 +634,234 @@
           "op_same_1"
         ]
       }
+    },
+    {
+      "name": "reconciliation windows remain distinct while redelivery dedupes",
+      "kind": "event_dedupe",
+      "events": [
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_EVENT",
+          "correlation_id": "cor_schedule",
+          "source": "github",
+          "source_event_type": "reconciliation",
+          "repository": "owner/app",
+          "source_ref": "refs/heads/main",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "admission": "ADMITTED",
+          "trust": {
+            "signature_verified": true,
+            "replay_window_valid": true,
+            "source_authenticated": true
+          },
+          "event_id": "evt_rec_1",
+          "window_id": "2026-10-25T01",
+          "dedupe_key": "sha256:00217086a5d516095e6d8d41a4841ce517753d4b161b935d88303e37e8630b35"
+        },
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_EVENT",
+          "correlation_id": "cor_schedule",
+          "source": "github",
+          "source_event_type": "reconciliation",
+          "repository": "owner/app",
+          "source_ref": "refs/heads/main",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "admission": "ADMITTED",
+          "trust": {
+            "signature_verified": true,
+            "replay_window_valid": true,
+            "source_authenticated": true
+          },
+          "event_id": "evt_rec_1_retry",
+          "window_id": "2026-10-25T01",
+          "dedupe_key": "sha256:00217086a5d516095e6d8d41a4841ce517753d4b161b935d88303e37e8630b35"
+        },
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_EVENT",
+          "correlation_id": "cor_schedule",
+          "source": "github",
+          "source_event_type": "reconciliation",
+          "repository": "owner/app",
+          "source_ref": "refs/heads/main",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "admission": "ADMITTED",
+          "trust": {
+            "signature_verified": true,
+            "replay_window_valid": true,
+            "source_authenticated": true
+          },
+          "event_id": "evt_rec_2",
+          "window_id": "2026-10-25T02",
+          "dedupe_key": "sha256:3fdf85f582a125b9e174d0e3957b8f7395b58d7aee97141018e07adbf75e52ab"
+        }
+      ],
+      "expected": {
+        "dedupe_keys": [
+          "sha256:00217086a5d516095e6d8d41a4841ce517753d4b161b935d88303e37e8630b35",
+          "sha256:00217086a5d516095e6d8d41a4841ce517753d4b161b935d88303e37e8630b35",
+          "sha256:3fdf85f582a125b9e174d0e3957b8f7395b58d7aee97141018e07adbf75e52ab"
+        ],
+        "unique_count": 2
+      }
+    },
+    {
+      "name": "unfinished attempt cannot authorize retry",
+      "kind": "retry",
+      "attempt": {
+        "schema_version": 1,
+        "record_type": "APPLAB_ATTEMPT",
+        "attempt_id": "att_running",
+        "operation_id": "op_retry",
+        "attempt_number": 1,
+        "executor": "simulation",
+        "state": "RUNNING",
+        "failure_class": "INFRA_ERROR",
+        "retryable": true
+      },
+      "max_infra_attempts": 2,
+      "expected": {
+        "retry": false,
+        "reason": "ATTEMPT_NOT_FAILED"
+      }
+    },
+    {
+      "name": "created operation is not superseded before entering queue",
+      "kind": "queue",
+      "parents": {
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "cccccccccccccccccccccccccccccccccccccccc": [
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ],
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ]
+      },
+      "operations": [
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_created",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:31e96307cfca4e7a6cb9994a20ee5bde11375055bf313c9793d796b48dca5d04",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "CREATED",
+          "authority": "ORCHESTRATION_ONLY"
+        },
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_after_created",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:8b5e519dd2673c3a5b6b583353cb66705561babe33d72233b942e019de07f991",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        }
+      ],
+      "expected": {
+        "states": {
+          "op_created": "CREATED",
+          "op_after_created": "QUEUED"
+        },
+        "superseded_by": {},
+        "actions": [
+          {
+            "action": "KEEP",
+            "operation_id": "op_created",
+            "incoming_operation_id": "op_after_created",
+            "reason": "STATE_NOT_SUPERSEDEABLE"
+          }
+        ],
+        "dispatch_order": [
+          "op_created",
+          "op_after_created"
+        ]
+      }
+    },
+    {
+      "name": "operation id cannot be reused with conflicting immutable identity",
+      "kind": "queue_reject",
+      "parents": {
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "cccccccccccccccccccccccccccccccccccccccc": [
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ],
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ]
+      },
+      "operations": [
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_conflict",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:31e96307cfca4e7a6cb9994a20ee5bde11375055bf313c9793d796b48dca5d04",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        },
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_conflict",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:8b5e519dd2673c3a5b6b583353cb66705561babe33d72233b942e019de07f991",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        }
+      ],
+      "expected": {
+        "rejected": true,
+        "error": "operation_id reused with conflicting immutable identity"
+      }
     }
   ]
 }
