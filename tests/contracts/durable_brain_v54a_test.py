@@ -70,6 +70,34 @@ def main() -> int:
         "CERTIFICATION operation must use certification analysis_mode",
     )
 
+    scheduled = {
+        "schema_version": 1,
+        "record_type": "APPLAB_EVENT",
+        "event_id": "evt_schedule",
+        "correlation_id": "cor_schedule",
+        "source": "github",
+        "source_event_type": "reconciliation",
+        "repository": "owner/app",
+        "source_ref": "refs/heads/main",
+        "resolved_sha": sha_b,
+        "window_id": "window-1",
+        "dedupe_key": "",
+        "admission": "ADMITTED",
+        "trust": {
+            "signature_verified": True,
+            "replay_window_valid": True,
+            "source_authenticated": True,
+        },
+    }
+    scheduled["dedupe_key"] = brain.event_dedupe_key(scheduled)
+    scheduled_next = copy.deepcopy(scheduled)
+    scheduled_next["event_id"] = "evt_schedule_next"
+    scheduled_next["window_id"] = "window-2"
+    scheduled_next["dedupe_key"] = brain.event_dedupe_key(scheduled_next)
+    assert scheduled["dedupe_key"] != scheduled_next["dedupe_key"]
+    brain.validate_event(scheduled, contract)
+    brain.validate_event(scheduled_next, contract)
+
     deterministic_attempt = brain._attempt_fixture(
         "att_bad_retry",
         "op_contract",
@@ -83,11 +111,27 @@ def main() -> int:
         "deterministic app/build failure cannot be marked retryable",
     )
 
+    unfinished_attempt = brain._attempt_fixture(
+        "att_running",
+        "op_contract",
+        1,
+        "RUNNING",
+        "INFRA_ERROR",
+        True,
+    )
+    assert brain.retry_decision(unfinished_attempt, 2, contract) == {
+        "retry": False,
+        "reason": "ATTEMPT_NOT_FAILED",
+    }
+
     assert_rejected(
         lambda: brain.validate_transition("SUCCEEDED", "RUNNING", contract),
         "illegal operation transition SUCCEEDED -> RUNNING",
     )
 
+    created = brain._operation_fixture(
+        "op_created_test", "owner/app", "main", sha_a, applab_sha, state="CREATED"
+    )
     older = brain._operation_fixture(
         "op_old_test", "owner/app", "main", sha_a, applab_sha
     )
@@ -99,6 +143,19 @@ def main() -> int:
     )
     assert allowed is True
     assert reason == "SAFE_PENDING_SUPERSESSION"
+
+    allowed, reason = brain.can_supersede(
+        created, newer, {sha_b: [sha_a]}, contract
+    )
+    assert allowed is False
+    assert reason == "STATE_NOT_SUPERSEDEABLE"
+
+    conflicting = copy.deepcopy(newer)
+    conflicting["operation_id"] = older["operation_id"]
+    assert_rejected(
+        lambda: brain.simulate_queue([older, conflicting], {sha_b: [sha_a]}, contract),
+        "operation_id reused with conflicting immutable identity",
+    )
 
     independent = brain._operation_fixture(
         "op_other_test", "owner/other", "main", sha_b, applab_sha
