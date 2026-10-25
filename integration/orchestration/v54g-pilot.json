@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "kill_switch": false,
+  "rollout": "SELF_REPO_MAIN_CANARY",
+  "max_live_operations_per_event": 1,
+  "ledger_authority": "NON_AUTHORITATIVE_PILOT_CONTINUITY",
+  "pilot_targets": [
+    {
+      "repository": "riccardopinato/AppLab",
+      "source_ref": "refs/heads/main",
+      "event_types": [
+        "push"
+      ],
+      "engine": "native_android",
+      "working_directory": "selftest",
+      "java_version": "17",
+      "gradle_version": "9.6.0",
+      "compile_sdk": "36",
+      "build_tools": "36.0.0",
+      "build_command": "gradle :app:assembleDebug --stacktrace",
+      "apk_path": "app/build/outputs/apk/debug/app-debug.apk",
+      "package_id": "dev.applab.selftest",
+      "api_level": "35",
+      "emulator_profile": "pixel_7_pro",
+      "run_maestro": false,
+      "history_key": "v54g-applab-selftest",
+      "analysis_mode": "fast"
+    }
+  ]
+}
