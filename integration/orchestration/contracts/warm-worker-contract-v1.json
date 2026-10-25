@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_WARM_TRUSTED_RUNTIME_WORKER",
+  "authority": "ORCHESTRATION_ONLY",
+  "worker_class": "WARM_TRUSTED_ANDROID",
+  "states": [
+    "STARTING",
+    "AVAILABLE",
+    "LEASED",
+    "SCRUBBING",
+    "UNHEALTHY",
+    "QUARANTINED",
+    "DRAINING",
+    "OFFLINE"
+  ],
+  "fallback_executor": "GITHUB_ACTIONS",
+  "required_capabilities": [
+    "kvm",
+    "android_runtime",
+    "disposable_avd",
+    "evidence_capture"
+  ],
+  "invariants": [
+    "worker_applab_sha_must_match_operation",
+    "one_active_trust_sensitive_lease_per_worker",
+    "heartbeat_must_be_fresh_before_lease",
+    "snapshot_digest_must_be_present",
+    "target_build_scripts_never_run_on_warm_host",
+    "worker_accepts_structured_runtime_commands_only",
+    "cleanup_attestation_required_before_return_to_available",
+    "uncertain_cleanup_quarantines_worker",
+    "expired_lease_quarantines_worker",
+    "capability_mismatch_falls_back_to_github_actions",
+    "worker_cannot_mint_verdicts"
+  ]
+}
