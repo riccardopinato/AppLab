@@ -73,39 +73,53 @@ def _repo(payload: dict[str, Any]) -> str:
     return brain._require_repository(repo.get("full_name"))
 
 
-def normalize_github_event(
-    event_type: str,
-    delivery_id: str,
-    payload: dict[str, Any],
-    received_at: str,
-) -> dict[str, Any]:
-    repository = _repo(payload)
-    if event_type == "push":
-        source_ref = brain._require_non_empty_string(payload.get("ref"), "push.ref")
-        resolved_sha = _require_sha(payload.get("after"), "push.after")
-        previous_sha = str(payload.get("before") or "")
-    elif event_type == "pull_request":
-        pr = brain._require_dict(payload.get("pull_request"), "pull_request")
-        head = brain._require_dict(pr.get("head"), "pull_request.head")
-        source_ref = brain._require_non_empty_string(head.get("ref"), "pull_request.head.ref")
-        resolved_sha = _require_sha(head.get("sha"), "pull_request.head.sha")
-        previous_sha = ""
-    elif event_type == "workflow_run":
-        run = brain._require_dict(payload.get("workflow_run"), "workflow_run")
-        source_ref = brain._require_non_empty_string(run.get("head_branch"), "workflow_run.head_branch")
-        resolved_sha = _require_sha(run.get("head_sha"), "workflow_run.head_sha")
-        previous_sha = ""
-    else:
-        raise GatewayError(f"unsupported github event {event_type}")
+def canonical_source_ref(value: Any, *, assume_branch: bool = False) -> str:
+    ref = brain._require_non_empty_string(value, "source_ref")
+    if ref.startswith("refs/"):
+        return ref
+    if assume_branch:
+        return "refs/heads/" + ref
+    return ref
 
+
+def event_id_for_delivery(event_type: str, delivery_id: str) -> str:
     identity_material = {
         "provider": "github",
         "delivery_id": delivery_id,
         "event_type": event_type,
     }
-    event_id = "evt_" + hashlib.sha256(
+    return "evt_" + hashlib.sha256(
         brain.canonical_json(identity_material).encode("utf-8")
     ).hexdigest()[:32]
+
+
+def normalize_github_event(
+    event_type: str,
+    delivery_id: str,
+    payload: dict[str, Any],
+    received_at: str,
+    provider_payload_sha256: str = "",
+) -> dict[str, Any]:
+    repository = _repo(payload)
+    if event_type == "push":
+        source_ref = canonical_source_ref(payload.get("ref"))
+        resolved_sha = _require_sha(payload.get("after"), "push.after")
+        previous_sha = str(payload.get("before") or "")
+    elif event_type == "pull_request":
+        pr = brain._require_dict(payload.get("pull_request"), "pull_request")
+        head = brain._require_dict(pr.get("head"), "pull_request.head")
+        source_ref = canonical_source_ref(head.get("ref"), assume_branch=True)
+        resolved_sha = _require_sha(head.get("sha"), "pull_request.head.sha")
+        previous_sha = ""
+    elif event_type == "workflow_run":
+        run = brain._require_dict(payload.get("workflow_run"), "workflow_run")
+        source_ref = canonical_source_ref(run.get("head_branch"), assume_branch=True)
+        resolved_sha = _require_sha(run.get("head_sha"), "workflow_run.head_sha")
+        previous_sha = ""
+    else:
+        raise GatewayError(f"unsupported github event {event_type}")
+
+    event_id = event_id_for_delivery(event_type, delivery_id)
     correlation_id = "cor_" + hashlib.sha256(
         f"{repository}|{source_ref}|{resolved_sha}".encode("utf-8")
     ).hexdigest()[:32]
@@ -122,6 +136,7 @@ def normalize_github_event(
         "source_ref": source_ref,
         "resolved_sha": resolved_sha,
         "previous_sha": previous_sha,
+        "provider_payload_sha256": provider_payload_sha256,
         "dedupe_key": "",
         "admission": "ADMITTED",
         "trust": {
@@ -169,7 +184,23 @@ def ingest_github_delivery(
     if not isinstance(payload, dict):
         raise GatewayError("github payload must be a JSON object")
 
-    event = normalize_github_event(event_type, delivery_id, payload, received_at)
+    payload_sha256 = "sha256:" + hashlib.sha256(body).hexdigest()
+    event_id = event_id_for_delivery(event_type, delivery_id)
+    existing = store.db.execute(
+        "SELECT payload_json FROM events WHERE event_id=?",
+        (event_id,),
+    ).fetchone()
+    immutable_observed_at = received_at
+    if existing is not None:
+        existing_payload = json.loads(existing["payload_json"])
+        immutable_observed_at = existing_payload.get("observed_at") or received_at
+    event = normalize_github_event(
+        event_type,
+        delivery_id,
+        payload,
+        immutable_observed_at,
+        provider_payload_sha256=payload_sha256,
+    )
     brain.validate_event(event, store.brain_contract)
     result = store.put_event(event)
     return {
@@ -193,7 +224,7 @@ def compare_reconciliation_snapshot(
     observations: list[dict[str, Any]],
 ) -> dict[str, Any]:
     rows = store.db.execute(
-        "SELECT payload_json FROM events ORDER BY created_at ASC, event_id ASC"
+        "SELECT payload_json FROM events ORDER BY rowid ASC"
     ).fetchall()
     events = [json.loads(row["payload_json"]) for row in rows]
     latest: dict[tuple[str, str], dict[str, Any]] = {}
@@ -208,7 +239,7 @@ def compare_reconciliation_snapshot(
     stale: list[dict[str, str]] = []
     for raw in observations:
         repository = brain._require_repository(raw.get("repository"))
-        source_ref = brain._require_non_empty_string(raw.get("source_ref"), "snapshot.source_ref")
+        source_ref = canonical_source_ref(raw.get("source_ref"), assume_branch=True)
         resolved_sha = _require_sha(raw.get("resolved_sha"), "snapshot.resolved_sha")
         key = (repository, source_ref)
         event = latest.get(key)
