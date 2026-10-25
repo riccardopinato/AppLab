@@ -354,7 +354,7 @@ def simulate_queue(
 
     runnable = [
         item for item in working
-        if item["state"] not in contract["operation"]["terminal_states"]
+        if item["state"] in {"QUEUED", "READY"}
     ]
     runnable.sort(key=lambda item: (-int(item["priority"]), int(item.get("arrival_order", 0)), item["operation_id"]))
     return {
