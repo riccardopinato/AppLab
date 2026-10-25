@@ -80,12 +80,14 @@ def normalize_authoritative_plan(
         repository = str(raw_plan.get("repository") or event["repository"])
         resolved_sha = str(raw_plan.get("head_sha") or "")
         analysis_mode = str(raw_plan.get("mode") or "").lower()
+        semantic_plan = dict(raw_plan)
+        semantic_plan.pop("planner_ms", None)
         normalized = {
             "repository": repository,
             "resolved_sha": resolved_sha,
             "analysis_mode": analysis_mode,
             "required_labs": sorted(name for name, enabled in selected.items() if enabled),
-            "plan_digest_sha256": brain.sha256_json(raw_plan),
+            "plan_digest_sha256": brain.sha256_json(semantic_plan),
             "lane": raw_plan.get("lane"),
             "planner_version": raw_plan.get("planner_version"),
             "source_shape": "SMART_TEST_PLAN",
