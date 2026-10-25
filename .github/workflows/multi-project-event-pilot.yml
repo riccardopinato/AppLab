@@ -1,0 +1,171 @@
+name: Multi-Project Event-Driven Pilot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "selftest/**"
+      - "integration/orchestration/v55-pilot.json"
+      - ".github/workflows/multi-project-event-pilot.yml"
+  repository_dispatch:
+    types: [applab-v55-pilot]
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: Allowlisted pilot repository
+        required: false
+        default: riccardopinato/AppLab
+        type: string
+      target_sha:
+        description: Immutable target SHA; defaults to current SHA only for AppLab
+        required: false
+        default: ""
+        type: string
+      live:
+        description: Execute the allowlisted pilot
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: applab-v55-pilot-${{ github.event.client_payload.repository || inputs.target_repository || github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  WATCHDOG_MODE: HOURLY_REPO_WATCHER
+
+jobs:
+  admit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      dispatch: ${{ steps.control.outputs.dispatch }}
+      operation_id: ${{ steps.control.outputs.operation_id }}
+      worker_id: ${{ steps.control.outputs.worker_id }}
+      repository: ${{ steps.control.outputs.repository }}
+      target_sha: ${{ steps.control.outputs.target_sha }}
+      source_ref: ${{ steps.control.outputs.source_ref }}
+      run_maestro: ${{ steps.control.outputs.run_maestro }}
+      history_key: ${{ steps.control.outputs.history_key }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Restore non-authoritative pilot ledger
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .applab-v55
+          key: applab-v55-ledger-${{ github.run_id }}
+          restore-keys: |
+            applab-v55-ledger-
+
+      - name: Admit bounded pilot event
+        id: control
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_REPOSITORY: ${{ github.event.client_payload.repository }}
+          DISPATCH_SHA: ${{ github.event.client_payload.sha }}
+          MANUAL_REPOSITORY: ${{ inputs.target_repository }}
+          MANUAL_SHA: ${{ inputs.target_sha }}
+          MANUAL_LIVE: ${{ inputs.live || false }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p .applab-v55
+          REPOSITORY="$GITHUB_REPOSITORY"
+          SOURCE_REF="refs/heads/main"
+          TARGET_SHA="$GITHUB_SHA"
+          LIVE_REQUESTED=false
+
+          if [[ "$EVENT_NAME" == "repository_dispatch" ]]; then
+            REPOSITORY="$DISPATCH_REPOSITORY"
+            TARGET_SHA="$DISPATCH_SHA"
+            LIVE_REQUESTED=true
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            REPOSITORY="${MANUAL_REPOSITORY:-riccardopinato/AppLab}"
+            TARGET_SHA="$MANUAL_SHA"
+            if [[ -z "$TARGET_SHA" && "$REPOSITORY" == "$GITHUB_REPOSITORY" ]]; then TARGET_SHA="$GITHUB_SHA"; fi
+            LIVE_REQUESTED="$MANUAL_LIVE"
+          elif [[ "$EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
+            LIVE_REQUESTED=true
+          fi
+
+          test -n "$REPOSITORY"
+          test -n "$TARGET_SHA"
+          APPLAB_SHA="$(git rev-parse HEAD)"
+          python scripts/controlled_event_v54g.py admit \
+            --db "$GITHUB_WORKSPACE/.applab-v55/control-plane.sqlite3" \
+            --config "$GITHUB_WORKSPACE/integration/orchestration/v55-pilot.json" \
+            --repository "$REPOSITORY" --source-ref "$SOURCE_REF" \
+            --resolved-sha "$TARGET_SHA" --applab-sha "$APPLAB_SHA" \
+            --delivery-id "$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT" \
+            --live-requested "$LIVE_REQUESTED" \
+            --output "$GITHUB_WORKSPACE/v55-admission.json" --github-output "$GITHUB_OUTPUT"
+
+      - name: Upload admission ledger
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-v55-admission-${{ github.run_id }}
+          path: |
+            .applab-v55/
+            v55-admission.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+
+  verify:
+    needs: admit
+    if: needs.admit.outputs.dispatch == 'true'
+    uses: ./.github/workflows/universal-project-runner.yml
+    with:
+      repository: ${{ needs.admit.outputs.repository }}
+      ref: ${{ needs.admit.outputs.target_sha }}
+      source_ref: ${{ needs.admit.outputs.source_ref }}
+      run_maestro: ${{ needs.admit.outputs.run_maestro == 'true' }}
+      history_key: ${{ needs.admit.outputs.history_key }}
+      cache_verification: false
+      contract_fingerprint: v55a-multiproject-pilot-v1
+      config_fingerprint: v55a-multiproject-pilot-v1
+      analysis_mode: fast
+      publish_release_artifact: false
+    secrets: inherit
+
+  finalize:
+    needs: [admit, verify]
+    if: always() && needs.admit.outputs.dispatch == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: applab-v55-admission-${{ github.run_id }}
+          path: .
+      - name: Finalize operation
+        env:
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          OPERATION_ID: ${{ needs.admit.outputs.operation_id }}
+          WORKER_ID: ${{ needs.admit.outputs.worker_id }}
+        run: |
+          set -Eeuo pipefail
+          python scripts/controlled_event_v54g.py finalize \
+            --db "$GITHUB_WORKSPACE/.applab-v55/control-plane.sqlite3" \
+            --operation-id "$OPERATION_ID" --worker-id "$WORKER_ID" \
+            --job-result "$VERIFY_RESULT" --output "$GITHUB_WORKSPACE/v55-final.json"
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .applab-v55
+          key: applab-v55-ledger-${{ github.run_id }}-${{ github.run_attempt }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-v55-final-${{ github.run_id }}
+          path: |
+            .applab-v55/
+            v55-admission.json
+            v55-final.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
