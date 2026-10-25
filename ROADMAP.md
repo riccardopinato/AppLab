@@ -1,8 +1,8 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.3.5 — Multi-Project Calibration & Delta Readiness**
+Current production baseline: **v5.3.5  Multi-Project Calibration & Delta Readiness**
 
-Next architecture candidate: **v5.4 — Durable Brain & Event-Driven Execution**  
+Next architecture candidate: **v5.4  Durable Brain & Event-Driven Execution**  
 Status: **design/audit only; no production activation**.
 
 ## Product rule
@@ -21,7 +21,7 @@ Target source -> Build job -> isolated APK contract -> Trusted verifier
 FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
 
-## Proposed — v5.4 Durable Brain & Event-Driven Execution
+## Proposed  v5.4 Durable Brain & Event-Driven Execution
 
 The v5.4 direction is to add a durable orchestration/control plane above the existing AppLab verification engines. It must improve continuity, queue isolation, recovery and startup latency without becoming a second verification authority.
 
@@ -47,7 +47,7 @@ Design artifacts:
 - [x] **v5.4A Contracts & Simulator:** versioned Event/Operation/Attempt contracts, executable state validator, deterministic per-repo queue/supersession simulator and replay corpus; offline only, no external integration.
 - [x] **v5.4B Durable Store Shadow:** provider-neutral durable persistence contract, file-backed restartable shadow adapter, PostgreSQL-compatible schema smoke, immutable Event/Attempt/Evidence/Transition history and transition-backed Operation projection; zero authority/dispatch.
 - [x] **v5.4C Event Gateway Shadow:** signed GitHub push/PR/workflow normalization, persistent delivery replay protection, logical Event dedupe and watcher-compatible reconciliation comparison; zero Operation creation/dispatch.
-- [ ] **v5.4D Conductor Shadow Pilot:** mirror real AppLab orchestration metadata, model expected DAG/state and compare against actual execution with zero dispatch capability.
+- [x] **v5.4D Conductor Shadow Pilot:** mirror real AppLab orchestration metadata, model expected DAG/state and compare against actual execution with zero dispatch capability.
 - [ ] **v5.4E Durable Per-Repo Queue:** replace global event-driven cancellation semantics with repository/lineage/class isolation, bounded retries and backpressure while GitHub Actions remains executor.
 - [ ] **v5.4F Warm Trusted-Runtime Pilot:** add one isolated KVM worker with lease/heartbeat, pristine AVD templates, disposable per-operation emulator state and automatic GitHub fallback.
 - [ ] **v5.4G Controlled Event-Driven Pilot:** enable real webhook-triggered operations only after A-F gates pass; retain hourly watcher as watchdog and keep certification authority unchanged.
@@ -62,7 +62,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 
 ## Completed
 
-### v5.3.5 — Multi-Project Calibration & Delta Readiness
+### v5.3.5  Multi-Project Calibration & Delta Readiness
 
 - [x] Operational hardening: move CamperBoss watcher lineage from stale `step-16-release-core` to `main`.
 - [x] Operational hardening: expand watcher coverage from the original 5-project pilot; current inventory has 14 enabled Android/Flutter targets after the intentional FrameLab private exclusion.
@@ -84,7 +84,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Keep `coverage_reduction_enabled=false`; Smart Test Plan remains the sole FAST/FULL authority.
 - [x] Preserve existing FAST/FULL/CERTIFICATION, trusted-runtime, exact-artifact and physical-device boundaries.
 
-### v5.3.4 — Evidence Schema Registry & Compatibility Contracts
+### v5.3.4  Evidence Schema Registry & Compatibility Contracts
 
 - [x] Add one deterministic registry for stable planning, trusted-runtime, release/certification and advisory evidence boundaries.
 - [x] Declare exact schema/component versions, producers, consumers and fixed authority/record-type fields for registered artifacts.
@@ -95,7 +95,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Add CI/audit coverage, maintainability ceilings and release documentation.
 - [x] Preserve FAST/FULL/CERTIFICATION, trusted-runtime, exact-artifact and physical-device authority boundaries.
 
-### v5.3.3 — Structural Hardening & Contract Test Foundation
+### v5.3.3  Structural Hardening & Contract Test Foundation
 
 - [x] Extract planner-feedback schema/digest/compatibility primitives from the saturated planner-feedback module without changing planner authority.
 - [x] Move large deterministic Studio and Evidence Graph fixtures out of production modules while preserving their self-test entrypoints.
@@ -107,7 +107,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Reconcile workflow authority documentation, classify the Flutter compatibility wrapper and APK diagnostic workflow, and remove the CamperBoss one-off workflow.
 - [x] Preserve all FAST/FULL/CERTIFICATION, exact-artifact and physical-evidence authority boundaries.
 
-### v5.3.2 — Graph-aware Planning Feedback Hardening
+### v5.3.2  Graph-aware Planning Feedback Hardening
 
 - [x] Define a versioned planner-feedback record derived only from prior Evidence Graph evidence.
 - [x] Bind feedback to repository, exact source/baseline SHA, lineage, graph version/digest and analysis-plan digest.
@@ -120,7 +120,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Include planner-feedback producer/restore logic in core contract fingerprints and watcher invalidation.
 - [x] Add self-tests, CI/audit/workflow contracts, documentation and maintainability ceilings.
 
-### v5.3.1 — Evidence-Driven Technical Hardening
+### v5.3.1  Evidence-Driven Technical Hardening
 
 - [x] Add one bounded browser-peer recovery for the observed WebRTC connected/no-decoded-frame infrastructure signature without weakening frame or input assertions.
 - [x] Capture video/track, gateway, runtime and browser-error diagnostics before every WebRTC recovery attempt.
@@ -132,7 +132,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Retain transient Live WebRTC diagnostic evidence for 7 days instead of one day.
 - [x] Preserve FAST/FULL/CERTIFICATION, exact-artifact provenance and physical-device authority boundaries.
 
-### v5.3.0 — Virtual Product Review Council
+### v5.3.0  Virtual Product Review Council
 
 - [x] Run specialized virtual reviewers for QA, UX, accessibility, product, design and market context.
 - [x] Preserve each reviewer's evidence, uncertainty, scope and source-record state instead of producing an opaque consensus score.
@@ -145,7 +145,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Integrate the Council into True Autonomous Review, Studio, Control Center and CI.
 - [x] Use the Council to reduce manual triage without replacing final product ownership.
 
-### v5.2.0 — Competitive Product Intelligence
+### v5.2.0  Competitive Product Intelligence
 
 - [x] Maintain source-traceable competitor sets per app/category with stable set identity.
 - [x] Compare capabilities, workflows, onboarding, pricing, visual patterns and recurring user pain points.
@@ -157,7 +157,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Integrate fail-closed competitive evidence into True Autonomous Review and AppLab Studio.
 - [x] Guarantee no automatic feature addition and no competitor feature copying.
 
-### v5.1.0 — Design System & UI Library Advisor
+### v5.1.0  Design System & UI Library Advisor
 
 - [x] Infer bounded product context and interaction style before reviewing visual-system fit.
 - [x] Review hierarchy, typography, spacing, density, component consistency, feedback, empty/loading/error states and interaction affordances.
@@ -169,7 +169,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Add fail-closed Studio projection, Control Center exposure, deterministic self-tests and CI/audit/workflow contract gates.
 - [x] Keep all design/product recommendations advisory and unable to override FAST/FULL/CERTIFICATION or Release Assurance.
 
-### v5.0.0 — Simulated Human QA
+### v5.0.0  Simulated Human QA
 
 - [x] Add task-driven simulated usability sessions over trusted product/runtime evidence and canonical Evidence Graph identity.
 - [x] Define exactly seven bounded personas: beginner, power user, older user, accessibility-focused, privacy-conscious, impatient and offline user.
@@ -182,7 +182,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Keep deterministic FAST/FULL/CERTIFICATION and release-assurance authorities independent from simulated review.
 - [x] Add fail-closed Studio projection, Control Center exposure, self-tests and CI/audit/workflow contract gates.
 
-### v4.9.0 — Autonomous Release Assurance
+### v4.9.0  Autonomous Release Assurance
 
 - [x] Reconcile source/build identity, static/test/CI, trusted runtime, Evidence Graph and risk-based validation into one release-assurance record.
 - [x] Preserve exact-artifact semantics and fail closed on repository, source SHA, package/version or APK SHA-256 mismatch.
@@ -194,7 +194,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Integrate Release Assurance into True Autonomous Review and AppLab Studio without introducing an opaque numeric score.
 - [x] Protect the contract with self-test, workflow/audit invariants and the normal AppLab CI/runtime/governance gates.
 
-### v4.8.0 — Cross-App Verification
+### v4.8.0  Cross-App Verification
 
 - [x] Define paired-artifact verification with producer and consumer source/artifact identities.
 - [x] Execute and evaluate explicit COPY, LINK, deep-link handoff and documented fallback transport scenarios.
@@ -205,7 +205,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Reconcile optional Release Reality identities and fail closed on source/artifact mismatch.
 - [x] Add trusted-main workflow attestation, deterministic pair digest, 90-day evidence retention and CI/audit-contract gates.
 
-### v4.7.0 — Certification Studio / Release Cockpit
+### v4.7.0  Certification Studio / Release Cockpit
 
 - [x] Show current Release Reality level per project/release.
 - [x] Show exact certification blockers and missing evidence.
@@ -216,7 +216,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Add deterministic preview fixture that cannot masquerade as trusted evidence.
 - [x] Add implementation self-test, Studio integration, frontend build and CI/version gates.
 
-### v4.6.0 — Evidence Graph 2: Impact, Freshness & Temporal Intelligence
+### v4.6.0  Evidence Graph 2: Impact, Freshness & Temporal Intelligence
 
 - [x] Extend the canonical graph with deterministic File and Component nodes without inventing semantic architecture.
 - [x] Track finding lifecycle as FIRST_OBSERVED, PERSISTENT, RETURNED and RESOLVED while preserving non-causal observation semantics.
@@ -229,7 +229,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Keep source reports authoritative and preserve trusted-runtime, Physical Evidence, Release Reality and Certification authority boundaries.
 - [x] Protect the new semantics with implementation-local self-tests, independent regression coverage and audit-contract invariants.
 
-### v4.5.0 — Physical Evidence Hub
+### v4.5.0  Physical Evidence Hub
 
 - [x] Define a trusted physical-validation record bound to the exact artifact SHA-256.
 - [x] Record device model/manufacturer, OS version/build, scenario, preconditions, steps, observed result and hashed evidence references.
@@ -241,7 +241,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Revalidate repository/SHA/package/version/exact APK bytes in Trusted APK Verifier before certification or Release Reality consumes the record.
 - [x] Keep v4.5 focused on operator-driven real devices already available to the App Factory instead of introducing a device farm.
 
-### v4.4.0 — Release Reality Engine
+### v4.4.0  Release Reality Engine
 
 - [x] Track the release-evidence ladder from IMPLEMENTED through PRODUCTION_RELEASED.
 - [x] Create a canonical release record bound to source SHA, package, version/build, APK SHA-256, signing identity and workflow run.
@@ -252,7 +252,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Generate release-reality.json / release-reality.md inside the Trusted APK Verifier before Trusted Evidence Manifest hashing.
 - [x] Carry Release Reality into Autonomous Review Studio-ready evidence for the future Release Cockpit.
 
-### v4.3.0 — External Project Certification Adapter
+### v4.3.0  External Project Certification Adapter
 
 - [x] Define one small per-project integration contract for repository/ref, package ID, project type, toolchain, release artifact pattern and critical journeys.
 - [x] Auto-detect Flutter versus native Android structure where safely possible.
@@ -263,7 +263,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Validate the adapter on pinned CamperBoss and Battery Guard revisions through the real-project integration workflow.
 - [x] Preserve FAST / FULL / CERTIFICATION semantics and all existing trust boundaries.
 
-### v4.2.0 — Evidence Graph
+### v4.2.0  Evidence Graph
 
 - [x] Add one deterministic graph model across Project, Revision, BuildArtifact, Capability, Surface, Journey, Finding, Claim, Evidence, Experiment and Result.
 - [x] Bind graph identity to repository, resolved SHA, workflow run, package and APK/build provenance when trusted runtime evidence is available.
@@ -276,7 +276,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Add self-test, independent regression coverage and audit-contract enforcement.
 - [x] Preserve FAST/FULL/CERTIFICATION, trusted runtime and Analyst authority boundaries.
 
-### v4.1.0 — Execution Acceleration Engine
+### v4.1.0  Execution Acceleration Engine
 
 - [x] Keep Smart Test Plan as the single change-aware test-selection authority.
 - [x] Add deterministic execution keys and a machine-readable execution DAG.
@@ -293,7 +293,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Encode v4.1 invariants in heavy-audit CI contracts.
 - [x] Close PR #73 with CI/security, CodeQL, canonical runtime fixture, Browser E2E, Emulator Self Test, True Autonomous Review and Repository Governance all green.
 
-### v4.0.2 — Residual Hardening
+### v4.0.2  Residual Hardening
 
 - [x] Refresh trusted longitudinal history monthly before 90-day artifact expiry.
 - [x] Add independent cross-engine regression corpus outside implementation-local self-tests.
@@ -304,7 +304,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Add repository-governance audit workflow for branch-protection visibility.
 - [x] Enable and verify GitHub branch protection/ruleset for `main`; Repository Governance Audit is green.
 
-### v4.0.1 — Heavy Audit Hardening
+### v4.0.1  Heavy Audit Hardening
 
 - [x] Bind the privileged Live Controller to loopback by default.
 - [x] Replace remote Maestro installer execution with versioned SHA-256-verified release bytes.
@@ -319,7 +319,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Add Dependabot governance for Python, npm and GitHub Actions.
 - [x] Enable GitHub branch protection/ruleset for `main` (completed during subsequent hardening; current Repository Governance Audit verifies it).
 
-### v4.0.0 — AppLab Analyst
+### v4.0.0  AppLab Analyst
 
 - [x] Synthesize product, runtime, evidence, longitudinal and experiment evidence into one deterministic report.
 - [x] Preserve source-report provenance rather than replacing underlying evidence.
@@ -332,7 +332,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Surface Analyst state, headline, observations and actions in AppLab Studio.
 - [x] Keep LLM usage optional: v4.0 core analysis is deterministic and local to AppLab evidence.
 
-### v3.6.0 — Autonomous Experiment Planner
+### v3.6.0  Autonomous Experiment Planner
 
 - [x] Convert Decision Brief VERIFY_NEXT/FIX_NOW signals into deterministic experiments.
 - [x] Promote longitudinal regression candidates into high-priority verification hypotheses.
@@ -344,7 +344,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Surface next experiment, priorities and target labs in AppLab Studio.
 - [x] Keep planner output advisory and independent from FAST/FULL/CERTIFICATION.
 
-### v3.5.0 — Longitudinal Product Intelligence
+### v3.5.0  Longitudinal Product Intelligence
 
 - [x] Persist a bounded repository-scoped history of trusted Autonomous Review snapshots.
 - [x] Classify findings as new, returned, persistent and resolved across revisions.
@@ -356,7 +356,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Expose longitudinal state, counts and top regression candidates in AppLab Studio.
 - [x] Keep FAST/FULL/CERTIFICATION outcomes independent from longitudinal analysis.
 
-### v3.4.0 — UX Friction & Discoverability Lab
+### v3.4.0  UX Friction & Discoverability Lab
 
 - [x] Detect safe runtime actions whose reduced crawler signature remains stable, without claiming visual feedback is absent.
 - [x] Detect repeated stable-signature patterns without treating them as automatic defects.
@@ -370,7 +370,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Expose UX friction metrics and findings in AppLab Studio.
 
 
-### v3.3.0 — User Journey Intelligence
+### v3.3.0  User Journey Intelligence
 
 - [x] Add bounded multi-step Safe Journey Crawler to trusted non-FAST verification.
 - [x] Reuse the existing safe-action allow/deny policy.
@@ -383,7 +383,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Preserve Trusted Evidence Manifest and release-verdict boundaries.
 
 
-### v3.2.0 — Evidence Confidence & Contradiction Engine
+### v3.2.0  Evidence Confidence & Contradiction Engine
 
 - [x] Normalize product evidence into one deterministic claim graph.
 - [x] Classify claims as CONFIRMED / CORROBORATED / CONTRADICTED / UNVERIFIED / STALE.
@@ -395,7 +395,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Preserve non-numeric confidence semantics and certification authority.
 
 
-### v3.1.0 — True Autonomous App Review
+### v3.1.0  True Autonomous App Review
 
 - [x] Resolve the target once to an immutable SHA.
 - [x] Auto-discover and build through Universal Project Runner.
@@ -406,7 +406,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Require strong static/runtime evidence relations.
 - [x] Validate the complete autonomous chain end-to-end.
 
-### v3.0.1 — Trusted Evidence Chain
+### v3.0.1  Trusted Evidence Chain
 
 - [x] Generate Trusted Evidence Manifest inside the isolated verifier.
 - [x] Bind runtime evidence to repository, SHA, package id and workflow run.
@@ -414,7 +414,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Reject altered, missing, extra or mismatched evidence.
 - [x] Reject target-authored runtime evidence in the legacy v3 workflow.
 
-### v3.0.0 — Autonomous App Review
+### v3.0.0  Autonomous App Review
 
 - [x] Orchestrate App Intelligence, Behavioral Product, State/Edge, Calibration, Contract and Decision Brief.
 - [x] Reuse the existing Autonomous Audit Plan for specialist-lab selection.
@@ -424,13 +424,13 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Surface autonomous review evidence in AppLab Studio.
 - [x] Preserve FAST/FULL/CERTIFICATION as independent authoritative gates.
 
-### v2.11.0 — Decision & Opportunity Brief
+### v2.11.0  Decision & Opportunity Brief
 
 - [x] Compress evidence into FIX_NOW, VERIFY_NEXT, IMPROVE and NO_ACTION.
 - [x] Preserve source, evidence basis and finding provenance for every action.
 - [x] Prevent automatic feature generation and opaque scoring.
 
-### v2.10.0 — Product Contract Audit
+### v2.10.0  Product Contract Audit
 
 - [x] Compare bounded product documentation with implementation provenance.
 - [x] Distinguish promised, implemented, runtime-reachable and runtime-verified capability states.
@@ -438,21 +438,21 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Flag promised capabilities without bounded implementation evidence.
 - [x] Flag implemented capabilities lacking runtime verification.
 
-### v2.9.0 — Evidence Calibration Engine
+### v2.9.0  Evidence Calibration Engine
 
 - [x] Reconcile Product Consistency with runtime Behavioral and Edge-State evidence.
 - [x] Distinguish runtime-confirmed, corroborated, static-only and contradicted findings.
 - [x] Suppress contradicted static findings for action without deleting their evidence.
 - [x] Preserve certification independence and avoid synthetic scores.
 
-### v2.8.0 — State & Edge-Case Lab
+### v2.8.0  State & Edge-Case Lab
 
 - [x] Aggregate existing Network, Persistence, Configuration, Resource, Storage, Background and System evidence.
 - [x] Track normal/offline/restart/configuration/process-death/storage/background/permissions states.
 - [x] Detect bounded empty/loading/error/auth/permission-denied observations when evidence exists.
 - [x] Mark applicable-but-unobserved states as REVIEW, never PASS.
 
-### v2.7.0 — Behavioral Product Lab
+### v2.7.0  Behavioral Product Lab
 
 - [x] Compare static Product Flow surfaces with Safe Interaction Crawler evidence.
 - [x] Record runtime controls, state transitions and conservative interaction failures.
@@ -460,7 +460,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Keep unobserved static surfaces informational because bounded crawling is incomplete by design.
 
 
-### v2.6.0 — CI Concurrency Isolation
+### v2.6.0  CI Concurrency Isolation
 
 - [x] Isolate Emulator Self Test concurrency by Git ref.
 - [x] Isolate Live Emulator Browser E2E concurrency by Git ref.
@@ -469,7 +469,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Keep existing runtime verification coverage unchanged.
 
 
-### v2.5.0 — Lifecycle Integrity
+### v2.5.0  Lifecycle Integrity
 
 - [x] Audit lifecycle semantics for each bounded domain entity.
 - [x] Distinguish delete, archive/trash and restore evidence.
@@ -481,7 +481,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Normalize lifecycle findings into Product Consistency and expose them in Studio.
 
 
-### v2.4.0 — Change Intelligence
+### v2.4.0  Change Intelligence
 
 - [x] Compare baseline/current App Intelligence snapshots deterministically.
 - [x] Track Feature Truth transitions and capability additions/removals.
@@ -492,7 +492,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Add CI self-test coverage for the Change Intelligence engine.
 
 
-### v2.3.0 — Product Consistency Engine
+### v2.3.0  Product Consistency Engine
 
 - [x] Normalize review evidence across Product Truth, Lifecycle, Flow, UX, Architecture and Data.
 - [x] Preserve source paths, subject, confidence and severity for every finding.
@@ -503,7 +503,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Correct the canonical roadmap baseline metadata to the current release.
 
 
-### v2.2.0 — Product Flow & Feature Truth
+### v2.2.0  Product Flow & Feature Truth
 
 - [x] Classify capability evidence as code, configuration, test or documentation provenance.
 - [x] Expose CODE_CONFIRMED and weaker evidence classes without generating an opaque score.
@@ -514,7 +514,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Preserve schema compatibility and runtime/certification boundaries.
 
 
-### v2.1.0 — Deep Product Model
+### v2.1.0  Deep Product Model
 
 - [x] Reconstruct bounded domain-entity candidates from source evidence.
 - [x] Map create/update/delete/archive/restore/ownership lifecycle signals.
@@ -524,36 +524,36 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Surface lifecycle and documentation-drift evidence in AppLab Studio.
 - [x] Preserve App Intelligence schema compatibility and certification boundaries.
 
-### v2.0.0 — AppLab Studio
+### v2.0.0  AppLab Studio
 
 - [x] Unify quality/runtime and advisory product-intelligence presentation.
 - [x] Keep trusted and advisory evidence planes independent.
 - [x] Expose Product, UX, Architecture, Market, Cross-App and Audit evidence.
 
-### v1.6.0 — Autonomous Audit Orchestrator
+### v1.6.0  Autonomous Audit Orchestrator
 
 - [x] Build deterministic per-project audit plans from current evidence.
 - [x] Broaden review when confidence is weak.
 - [x] Preserve FAST/FULL/CERTIFICATION authority.
 
-### v1.5.0 — Cross-App Intelligence
+### v1.5.0  Cross-App Intelligence
 
 - [x] Aggregate project-scoped App Intelligence into portfolio evidence.
 - [x] Detect recurrent patterns without automatic feature/code transfer.
 
-### v1.4.0 — Competitor & Market Lab
+### v1.4.0  Competitor & Market Lab
 
 - [x] Consume source-traceable market evidence.
 - [x] Emit parity, differentiator, gap-review, pricing and pain signals.
 
-### v1.1.0 → v1.3.0 — Product, UX & Architecture Intelligence
+### v1.1.0 � v1.3.0  Product, UX & Architecture Intelligence
 
 - [x] Product Analysis Engine.
 - [x] UX & Product Lab.
 - [x] Architecture & Data Intelligence.
 
 
-### v1.3.0 — Architecture & Data Intelligence
+### v1.3.0  Architecture & Data Intelligence
 
 - [x] Inventory repository/service/model/database structure from bounded source evidence.
 - [x] Detect local persistence, remote/sync and offline-handling signals.
@@ -562,14 +562,14 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Detect premium-policy scattering and secret-like tracked material as review signals.
 - [x] Keep architecture findings advisory and separate from runtime certification.
 
-### v1.2.0 — UX & Product Lab
+### v1.2.0  UX & Product Lab
 
 - [x] Detect loading, error, empty, confirmation, undo, onboarding, search and accessibility evidence.
 - [x] Inventory navigation/UI surface from repository structure.
 - [x] Add destructive-flow lifecycle evidence for delete/remove, trash/archive/restore and side-effect cleanup.
 - [x] Emit explicit REVIEW findings without converting static heuristics into build failures.
 
-### v1.1.0 — Product Analysis Engine
+### v1.1.0  Product Analysis Engine
 
 - [x] Detect stack, languages, product surface and test surface.
 - [x] Inventory source evidence for auth, persistence, network, background work, notifications, monetization, analytics, AI/ML, export/backup, media, maps/location and cloud/sync.
@@ -577,7 +577,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Add a reusable/manual App Intelligence workflow that scans each target repository once.
 - [x] Preserve the v1.0 trust boundary: product analysis cannot weaken verification or certification.
 
-### v1.0.0 — Autonomous Quality Platform
+### v1.0.0  Autonomous Quality Platform
 
 - [x] Use failure intelligence in Repo Watcher scheduling.
 - [x] Suppress repeated non-retryable app failures for the same SHA.
@@ -585,21 +585,21 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Surface autonomous-quality evidence in Control Center.
 - [x] Preserve all trust, certification and physical-device boundaries.
 
-### v0.12.0 — SHOS / AppLab Integration
+### v0.12.0  SHOS / AppLab Integration
 
 - [x] Classify changes into deterministic SHOS-oriented work categories.
 - [x] Add playbook-required specialist labs to FAST verification.
 - [x] Emit gate-based release-readiness evidence.
 - [x] Emit knowledge-feedback evidence after verification.
 
-### v0.11.0 — Project Intelligence
+### v0.11.0  Project Intelligence
 
 - [x] Emit compact project-state snapshots for chat/development handoff.
 - [x] Track per-project learning state and learning-applied labs.
 - [x] Add controlled cross-project signals as advisory evidence only.
 - [x] Preserve project-specific evidence as authoritative.
 
-### v0.10.0 — Self-Optimizing Verification
+### v0.10.0  Self-Optimizing Verification
 
 - [x] Learn recurrent specialist risk from watcher history after sufficient samples.
 - [x] Detect unstable/flaky specialist domains without overriding FAIL.
@@ -609,7 +609,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Add failure taxonomy for app, visual, infrastructure, build/quality and unknown failures.
 
 
-### v0.9.1 — Audit Hardening, Retry Safety & Measured FAST
+### v0.9.1  Audit Hardening, Retry Safety & Measured FAST
 
 - [x] Cache only successful PASS verification results; failed SHAs remain
   retryable by Repo Watcher.
@@ -635,7 +635,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
   v0.9.1.
 - [x] Update README, roadmap, adaptive engine docs and workflow contract tests.
 
-### v0.9.0 — Adaptive Impact Analysis & Incremental Verification
+### v0.9.0  Adaptive Impact Analysis & Incremental Verification
 
 - [x] Harden Configuration/Lifecycle background-return checks: allow one bounded cold relaunch when Android reclaims the process after foreground transition, while still failing on target ANR/fatal evidence.
 - [x] Move impact planning before expensive analyze/test/build/runtime work.
@@ -693,7 +693,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Make Flutter quality checks and native APK signature verification mandatory
   while keeping adaptive scope selection and centralized certification publication.
 
-### v0.8.1 — Certification Integrity & Release Artifact Hardening
+### v0.8.1  Certification Integrity & Release Artifact Hardening
 
 - [x] Last verified SHA range planning.
 - [x] Release build identity/signing validation.
@@ -703,13 +703,13 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Real-device-required projects remain BLOCKED when hosted CI cannot provide
   trusted physical-device evidence.
 
-### v0.8.0 — Production Certification Gate
+### v0.8.0  Production Certification Gate
 
 - [x] Explicit CERTIFICATION mode.
 - [x] Evidence bundle and APK identity integrity.
 - [x] Release publication restricted to certified evidence.
 
-### v0.7.x — Runtime specialist labs and FAST foundation
+### v0.7.x  Runtime specialist labs and FAST foundation
 
 - [x] Performance.
 - [x] Network/offline.
@@ -721,7 +721,7 @@ No v5.4 runtime component becomes production authority from a documentation merg
 - [x] Storage/data integrity.
 - [x] FAST/FULL smart specialist-lab orchestration.
 
-### v0.6.x and earlier — Trusted Android verification platform
+### v0.6.x and earlier  Trusted Android verification platform
 
 - [x] Smart Visual QA and visual regression.
 - [x] Multi-screen visual journeys.
@@ -742,23 +742,23 @@ The long-term direction is:
 
 ```
 Source / Product intent
-        ↓
+        �
 Technical analysis
-        ↓
+        �
 Trusted runtime verification
-        ↓
+        �
 Evidence Graph
-        ↓
+        �
 Release Reality
-        ↓
+        �
 Physical / distribution evidence
-        ↓
+        �
 Simulated human review
-        ↓
+        �
 UX / design / product review
-        ↓
+        �
 Competitive intelligence
-        ↓
+        �
 Release decision support
 ```
 
