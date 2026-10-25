@@ -215,6 +215,10 @@
       "QUEUED",
       "READY",
       "WAITING_RETRY"
+    ],
+    "dispatchable_states": [
+      "QUEUED",
+      "READY"
     ]
   }
 }
