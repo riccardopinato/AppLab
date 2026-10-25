@@ -109,6 +109,20 @@ def main() -> int:
     assert allowed is False
     assert reason == "DIFFERENT_QUEUE"
 
+    operational_workflows = [
+        path for path in (ROOT / ".github" / "workflows").glob("*.yml")
+        if path.name != "ci.yml"
+    ]
+    wired = [
+        path.name
+        for path in operational_workflows
+        if "durable_brain_v54a.py" in path.read_text(encoding="utf-8")
+    ]
+    assert wired == [], f"v5.4A must remain offline; unexpected workflow wiring: {wired}"
+
+    for forbidden in ("requests", "urllib.request", "socket", "psycopg", "conductor"):
+        assert forbidden not in (ROOT / "scripts" / "durable_brain_v54a.py").read_text(encoding="utf-8")
+
     first = brain.replay_corpus(contract=contract)
     second = brain.replay_corpus(contract=contract)
     assert first == second
