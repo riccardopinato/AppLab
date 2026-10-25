@@ -31,6 +31,16 @@ Implemented v5.4A/v5.4B/v5.4C/v5.4D/v5.4E plus v5.4F pilot artifacts:
 - `tests/contracts/durable_queue_v54e_test.py`
 - `integration/orchestration/V54E_DURABLE_PER_REPO_QUEUE.md`
 - `integration/orchestration/contracts/warm-worker-contract-v1.json`
+- `scripts/warm_worker_v54f.py`
+- `tests/contracts/warm_worker_v54f_test.py`
+- `integration/orchestration/V54F_WARM_TRUSTED_RUNTIME_PILOT.md`
+- `integration/orchestration/contracts/controlled-event-pilot-v1.json`
+- `integration/orchestration/v54g-pilot.json`
+- `scripts/controlled_event_v54g.py`
+- `tests/contracts/controlled_event_v54g_test.py`
+- `.github/workflows/controlled-event-pilot.yml`
+- `integration/orchestration/V54G_CONTROLLED_EVENT_DRIVEN_PILOT.md`
+- `integration/orchestration/contracts/warm-worker-contract-v1.json`
 - `integration/orchestration/sql/postgres-v54f-workers.sql`
 - `scripts/warm_worker_v54f.py`
 - `tests/contracts/warm_worker_v54f_test.py`
@@ -43,7 +53,7 @@ Architecture documents:
 - `integration/orchestration/EVENT_OPERATION_EVIDENCE_V54.md`
 - `integration/orchestration/CONDUCTOR_SHADOW_AND_WARM_WORKERS_V54.md`
 
-v5.4E still has no production webhook server, live PostgreSQL service, Conductor dispatch credential or worker-network dispatch. The queue emits only durable executor intents and cannot mint PASS/CERTIFIED. Smart Test Plan remains the FAST/FULL authority; trusted runtime, Release Assurance, Physical Evidence and Production Certification keep their existing semantics. Coverage reduction remains disabled.
+v5.4G adds one bounded live GitHub push canary for AppLab/selftest. It still has no public webhook server, no external-repository live allowlist, no live PostgreSQL service, no Conductor dispatch credential and no certification authority. Smart Test Plan and the existing trusted runner remain authoritative. Smart Test Plan remains the FAST/FULL authority; trusted runtime, Release Assurance, Physical Evidence and Production Certification keep their existing semantics. Coverage reduction remains disabled.
 
 The staged path remains: contracts/simulator -> shadow durable store -> shadow event gateway -> Conductor shadow -> durable per-repo queue -> warm trusted-runtime pilot -> controlled event-driven pilot. Every production-enablement step requires a separate change and validation gate.
 
