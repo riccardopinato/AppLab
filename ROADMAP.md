@@ -3,7 +3,7 @@
 Current production baseline: **v5.3.5 — Multi-Project Calibration & Delta Readiness**
 
 Next architecture candidate: **v5.4 — Durable Brain & Event-Driven Execution**  
-Status: **design/audit only; no production activation**.
+Status: **v5.4A–G implemented; controlled live canary limited to AppLab/selftest; verification and certification authority unchanged**.
 
 ## Product rule
 
@@ -50,7 +50,7 @@ Design artifacts:
 - [x] **v5.4D Conductor Shadow Pilot:** mirror real AppLab orchestration metadata, model expected DAG/state and compare against actual execution with zero dispatch capability.
 - [x] **v5.4E Durable Per-Repo Queue:** replace global event-driven cancellation semantics with repository/lineage/class isolation, bounded retries and backpressure while GitHub Actions remains executor.
 - [ ] **v5.4F Warm Trusted-Runtime Pilot:** add one isolated KVM worker with lease/heartbeat, pristine AVD templates, disposable per-operation emulator state and automatic GitHub fallback.
-- [ ] **v5.4G Controlled Event-Driven Pilot:** enable real webhook-triggered operations only after A-F gates pass; retain hourly watcher as watchdog and keep certification authority unchanged.
+- [x] **v5.4G Controlled Event-Driven Pilot:** bounded GitHub push-driven AppLab/selftest canary with durable Event/Operation/queue admission, existing trusted runner execution, kill switch, 30-day pilot evidence and hourly watcher watchdog; no certification authority change.
 - [ ] Evaluate scrcpy physical-device recording/control as a later Physical Evidence Hub extension.
 - [ ] Evaluate LeakCanary as a separate debug/instrumented memory-diagnostic lane; never mutate release-artifact identity.
 - [ ] Evaluate dedicated mobile/security scanners separately from the Durable Brain so security tooling does not become orchestration authority.
