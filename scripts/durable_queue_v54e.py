@@ -669,7 +669,7 @@ def self_test() -> None:
             )
 
             assert q.enqueue(old["operation_id"], now_ts=100)["state"] == "QUEUED"
-            second = q.enqueue(new["operation_id"], ancestor_shas={old["resolved_sha"]}, now_ts=101)
+            second = q.enqueue(new["operation_id"], ancestor_shas={old["resolved_sha"]}, ancestry_proven=True, now_ts=101)
             assert old["operation_id"] in second["superseded"]
             assert q._entry(old["operation_id"])["state"] == "SUPERSEDED"
 
