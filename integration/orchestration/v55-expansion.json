@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "authority": "ORCHESTRATION_ONLY",
+  "global_kill_switch": false,
+  "watcher_mode": "PRIMARY_SCHEDULER_PLUS_RECONCILIATION",
+  "watcher_demotion_allowed": false,
+  "promotion_order": [
+    "PILOT_3",
+    "EXPANDED_5",
+    "ALL_COMPATIBLE"
+  ],
+  "minimum_successful_operations_per_repository": 3,
+  "maximum_failure_rate": 0,
+  "stages": {
+    "PILOT_3": [
+      "riccardopinato/AppLab",
+      "riccardopinato/CamperBoss",
+      "riccardopinato/TrailPath"
+    ],
+    "EXPANDED_5": [
+      "riccardopinato/AppLab",
+      "riccardopinato/CamperBoss",
+      "riccardopinato/TrailPath",
+      "riccardopinato/Notes-Ecosistema",
+      "riccardopinato/World-Days"
+    ],
+    "ALL_COMPATIBLE": [
+      "riccardopinato/AppLab",
+      "riccardopinato/CamperBoss",
+      "riccardopinato/TrailPath",
+      "riccardopinato/Notes-Ecosistema",
+      "riccardopinato/World-Days",
+      "riccardopinato/Battery_Guard",
+      "riccardopinato/Send-to-pc",
+      "riccardopinato/app-fotografia",
+      "riccardopinato/Android-Omni-Cleaner",
+      "riccardopinato/PDF-Unifier",
+      "riccardopinato/Agenda-per-Anna",
+      "riccardopinato/App-corpo-umano",
+      "riccardopinato/TasteAI",
+      "riccardopinato/Notification-Control",
+      "riccardopinato/Wonderlog"
+    ]
+  },
+  "repository_kill_switches": {}
+}
