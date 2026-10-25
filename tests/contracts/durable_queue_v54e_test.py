@@ -61,7 +61,12 @@ def main() -> int:
                 priority=500,
             )
             preserve_old = queue_mod._persist_operation(
-                store, "op_preserve_old", "owner/c", "refs/heads/main", "5" * 40
+                store,
+                "op_preserve_old",
+                "owner/c",
+                "refs/heads/main",
+                "5" * 40,
+                preserve_for_calibration=True,
             )
             preserve_new = queue_mod._persist_operation(
                 store, "op_preserve_new", "owner/c", "refs/heads/main", "6" * 40,
@@ -104,7 +109,6 @@ def main() -> int:
             # Calibration-preserved work cannot be superseded.
             preserve_result = q.enqueue(
                 preserve_old["operation_id"],
-                preserve_for_calibration=True,
                 now_ts=15,
             )
             assert preserve_result["state"] == "DEFERRED"
@@ -117,21 +121,14 @@ def main() -> int:
             assert preserve_old["operation_id"] not in preserve_new_result["superseded"]
             assert q._entry(preserve_old["operation_id"])["state"] == "DEFERRED"
 
-            # Enqueue replay must preserve immutable queue configuration.
+            # Persisted Operation preservation cannot be weakened by the default argument.
             replay = q.enqueue(
                 preserve_old["operation_id"],
-                preserve_for_calibration=True,
+                preserve_for_calibration=False,
                 now_ts=17,
             )
             assert replay["status"] == "REPLAY"
-            expect_error(
-                lambda: q.enqueue(
-                    preserve_old["operation_id"],
-                    preserve_for_calibration=False,
-                    now_ts=17,
-                ),
-                "preserve_for_calibration",
-            )
+            assert q._entry(preserve_old["operation_id"])["preserve_for_calibration"] == 1
 
             # Highest-priority ready item is claimed first.
             first = q.claim_next("gha-1", now_ts=18)
@@ -268,6 +265,31 @@ def main() -> int:
             assert q2._entry(cert["operation_id"])["retry_count"] == 2
             assert q2.integrity_report()["ok"] is True
 
+    # Durable terminal Operation state is reconciled before claim.
+    with tempfile.TemporaryDirectory() as tmp:
+        terminal_db = Path(tmp) / "terminal-operation.sqlite3"
+        with storemod.SQLiteShadowStore(terminal_db) as store:
+            q = queue_for(store)
+            canceled = queue_mod._persist_operation(
+                store, "op_canceled", "owner/z", "refs/heads/main", "b" * 40
+            )
+            q.enqueue(canceled["operation_id"], now_ts=1)
+            transition = storemod._transition_fixture(
+                "trn_queue_cancel",
+                canceled["operation_id"],
+                "QUEUED",
+                "CANCELED",
+                "TEST_CANCEL",
+            )
+            store.transition_operation(transition)
+            assert q.claim_next("must-not-run", now_ts=2) is None
+            assert q._entry(canceled["operation_id"])["state"] == "BLOCKED"
+            assert any(
+                item["reason"] == "DURABLE_OPERATION_TERMINAL:CANCELED"
+                for item in q.history(canceled["operation_id"])
+            )
+            assert q.integrity_report()["ok"] is True
+
     # Hard pending bounds reject admission atomically rather than silently dropping work.
     with tempfile.TemporaryDirectory() as tmp:
         hard_db = Path(tmp) / "hard-bound.sqlite3"
@@ -323,6 +345,15 @@ def main() -> int:
             recovered = q.recover_expired_leases(now_ts=14)
             assert recovered and recovered[0]["retry"] is True
             assert q._entry(op["operation_id"])["retry_count"] == 1
+
+            fresh = q.claim_next("gha-expire", now_ts=15)
+            assert fresh is not None
+            assert q._entry(op["operation_id"])["lease_until"] == 17.0
+            # A recovery pass before the fresh lease expires must not consume
+            # another retry or revoke the replacement lease.
+            assert q.recover_expired_leases(now_ts=16) == []
+            assert q._entry(op["operation_id"])["state"] == "LEASED"
+            assert q._entry(op["operation_id"])["retry_count"] == 1
             assert q.integrity_report()["ok"] is True
 
     postgres_schema = (
@@ -339,6 +370,10 @@ def main() -> int:
         assert required in postgres_schema, required
 
     source = (ROOT / "scripts" / "durable_queue_v54e.py").read_text(encoding="utf-8")
+    recovery_source = source[source.index("def recover_expired_leases"):source.index("def history", source.index("def recover_expired_leases"))]
+    integrity_source = source[source.index("def integrity_report"):source.index("def _persist_operation", source.index("def integrity_report"))]
+    assert 'BEGIN IMMEDIATE' in recovery_source
+    assert 'self.db.execute("BEGIN")' in integrity_source
     for forbidden in (
         "requests.",
         "urllib.request",
