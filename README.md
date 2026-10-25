@@ -1,10 +1,10 @@
 ## v5.4 Durable Brain & Event-Driven Execution
 
-**Status: v5.4F WARM TRUSTED-RUNTIME PILOT / PROMOTION PENDING KVM EVIDENCE.**
+**Status: v5.4G CONTROLLED EVENT-DRIVEN CANARY IMPLEMENTED / AUTHORITY UNCHANGED.**
 
 The v5.4 architecture adds a persistent orchestration layer above AppLab v5.3.5 while preserving all current verification authority. **v5.4A** made Event/Operation/Attempt contracts and queue/state semantics executable offline. **v5.4B Durable Store Shadow** now adds restartable persistent operational memory, immutable EvidenceRef/Transition history and a PostgreSQL-compatible schema, still with zero dispatch and zero verdict authority.
 
-Implemented v5.4A/v5.4B/v5.4C/v5.4D/v5.4E plus v5.4F pilot artifacts:
+Implemented v5.4A/v5.4B/v5.4C/v5.4D/v5.4E/v5.4F/v5.4G artifacts:
 
 - `integration/orchestration/contracts/durable-brain-contract-v1.json`
 - `scripts/durable_brain_v54a.py`
@@ -36,6 +36,12 @@ Implemented v5.4A/v5.4B/v5.4C/v5.4D/v5.4E plus v5.4F pilot artifacts:
 - `tests/contracts/warm_worker_v54f_test.py`
 - `.github/workflows/warm-worker-pilot.yml`
 - `integration/orchestration/V54F_WARM_TRUSTED_RUNTIME_PILOT.md`
+- `integration/orchestration/contracts/controlled-event-pilot-v1.json`
+- `integration/orchestration/v54g-pilot.json`
+- `scripts/controlled_event_v54g.py`
+- `tests/contracts/controlled_event_v54g_test.py`
+- `.github/workflows/controlled-event-pilot.yml`
+- `integration/orchestration/V54G_CONTROLLED_EVENT_DRIVEN_PILOT.md`
 
 Architecture documents:
 
@@ -45,7 +51,9 @@ Architecture documents:
 
 v5.4E still has no production webhook server, live PostgreSQL service, Conductor dispatch credential or worker-network dispatch. The queue emits only durable executor intents and cannot mint PASS/CERTIFIED. Smart Test Plan remains the FAST/FULL authority; trusted runtime, Release Assurance, Physical Evidence and Production Certification keep their existing semantics. Coverage reduction remains disabled.
 
-The staged path remains: contracts/simulator -> shadow durable store -> shadow event gateway -> Conductor shadow -> durable per-repo queue -> warm trusted-runtime pilot -> controlled event-driven pilot. Every production-enablement step requires a separate change and validation gate.
+v5.4G adds one bounded live GitHub push canary for AppLab/selftest. There is still no external-repository live allowlist, no live PostgreSQL service, no Conductor dispatch credential and no certification-authority change. Smart Test Plan and the existing trusted runner remain authoritative; the hourly watcher remains the independent watchdog.
+
+The staged v5.4 path A–G is now implemented. Expansion beyond the self-repo canary remains a separate rollout decision.
 
 
 ## v5.3.5 runtime attribution hardening — crawler evidence windows
