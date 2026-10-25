@@ -195,6 +195,17 @@ def dispatch_once(
                 "event_id": event["event_id"],
                 "dispatch_performed": False,
             }
+        if (
+            row is not None
+            and row["status"] == "DISPATCHING"
+            and float(now_ts) - float(row["updated_at"]) < 60.0
+        ):
+            store.db.commit()
+            return {
+                "status": "IN_FLIGHT_REPLAY",
+                "event_id": event["event_id"],
+                "dispatch_performed": False,
+            }
         attempts = 1 if row is None else int(row["attempt_count"]) + 1
         if attempts > 3:
             raise HTTPException(status_code=503, detail="dispatch retry budget exhausted")
