@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_DURABLE_PER_REPO_QUEUE",
+  "authority": "ORCHESTRATION_ONLY",
+  "executor": "GITHUB_ACTIONS",
+  "dispatch_performed": false,
+  "queue_key": ["repository", "source_ref", "operation_class"],
+  "protected_classes": ["CERTIFICATION", "PHYSICAL_VALIDATION", "MANUAL_DIAGNOSTIC"],
+  "retryable_failure_classes": ["INFRA_ERROR", "UNKNOWN_FAILURE", "FLAKY_SUSPECT"],
+  "states": ["QUEUED", "DEFERRED", "LEASED", "DONE", "BLOCKED", "SUPERSEDED"],
+  "invariants": [
+    "unrelated_repositories_never_supersede_each_other",
+    "automatic_supersession_requires_same_lineage_class_and_explicit_ancestry",
+    "protected_work_is_not_auto_superseded",
+    "calibration_preserved_work_is_not_auto_superseded",
+    "one_active_lease_per_repository_initially",
+    "retry_is_bounded",
+    "deterministic_app_failures_are_not_retried_for_green",
+    "queue_history_is_append_only",
+    "queue_does_not_mint_verdicts",
+    "queue_does_not_perform_network_dispatch"
+  ]
+}
