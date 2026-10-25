@@ -23,6 +23,26 @@ services:
     devices:
       - /dev/kvm:/dev/kvm
 
+  event_gateway:
+    profiles: ["v54g"]
+    build:
+      context: .
+      dockerfile: gateway-v54g/Dockerfile
+    ports:
+      - "127.0.0.1:${APPLAB_V54G_PORT:-8090}:8090"
+    environment:
+      APPLAB_V54G_ENABLED: ${APPLAB_V54G_ENABLED:-false}
+      APPLAB_V54G_BIND_HOST: 0.0.0.0
+      APPLAB_V54G_STORE_PATH: /data/v54g.sqlite3
+      APPLAB_V54G_WEBHOOK_SECRET: ${APPLAB_V54G_WEBHOOK_SECRET:-}
+      APPLAB_V54G_DISPATCH_SECRET: ${APPLAB_V54G_DISPATCH_SECRET:-}
+      APPLAB_V54G_GITHUB_TOKEN: ${APPLAB_V54G_GITHUB_TOKEN:-}
+      APPLAB_V54G_APPLAB_REPOSITORY: ${APPLAB_V54G_APPLAB_REPOSITORY:-riccardopinato/AppLab}
+      APPLAB_V54G_PILOT_ALLOWLIST: ${APPLAB_V54G_PILOT_ALLOWLIST:-{}}
+    volumes:
+      - applab-live-data:/data
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
