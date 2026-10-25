@@ -62,6 +62,7 @@ jobs:
             scripts/conductor_shadow_v54d.py \
             scripts/durable_queue_v54e.py \
             scripts/warm_worker_v54f.py \
+            scripts/controlled_event_v54g.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -167,6 +168,7 @@ jobs:
           python scripts/conductor_shadow_v54d.py --self-test
           python scripts/durable_queue_v54e.py --self-test
           python scripts/warm_worker_v54f.py --self-test
+          python scripts/controlled_event_v54g.py self-test
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py
           python scripts/upgrade_lab.py --self-test
@@ -241,6 +243,7 @@ jobs:
           python tests/contracts/conductor_shadow_v54d_test.py
           python tests/contracts/durable_queue_v54e_test.py
           python tests/contracts/warm_worker_v54f_test.py
+          python tests/contracts/controlled_event_v54g_test.py
           python tests/contracts/crawler_runtime_window_test.py
           python tests/contracts/workflow_structure_test.py
           python tests/intelligence/intelligence_corpus_test.py

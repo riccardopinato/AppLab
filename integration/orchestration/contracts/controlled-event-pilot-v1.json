@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_CONTROLLED_EVENT_DRIVEN_PILOT",
+  "mode": "CONTROLLED_LIVE_PILOT",
+  "authority": "ORCHESTRATION_ONLY",
+  "pilot_executor": "GITHUB_ACTIONS",
+  "certification_authority_changed": false,
+  "watchdog": "HOURLY_REPO_WATCHER",
+  "live_event_source": "GITHUB_ACTIONS_PLATFORM_PUSH",
+  "invariants": [
+    "live_dispatch_is_allowlisted_and_kill_switchable",
+    "pull_request_runs_are_dry_run_only",
+    "event_is_persisted_before_operation_admission",
+    "operation_is_idempotent_for_repository_ref_sha_and_contract",
+    "queue_claim_precedes_runner_dispatch",
+    "smart_test_plan_remains_fast_full_authority",
+    "trusted_runner_remains_verdict_authority",
+    "certification_authority_is_unchanged",
+    "hourly_watcher_remains_independent_watchdog",
+    "pilot_failure_never_becomes_pass",
+    "ledger_cache_is_non_authoritative_pilot_continuity",
+    "no_external_repository_is_live_without_explicit_allowlist"
+  ]
+}
