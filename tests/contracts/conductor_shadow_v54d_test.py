@@ -38,12 +38,18 @@ def main() -> int:
             "upgrade": False,
         },
         "changed_files": ["lib/main.dart"],
+        "planner_ms": 12.34,
     }
     normalized = shadow.normalize_authoritative_plan(raw_plan, event)
     assert normalized["resolved_sha"] == event["resolved_sha"]
     assert normalized["analysis_mode"] == "full"
     assert normalized["required_labs"] == ["persistence", "system"]
     assert normalized["plan_digest_sha256"].startswith("sha256:")
+    same_semantics = dict(raw_plan, planner_ms=999.99)
+    assert (
+        shadow.normalize_authoritative_plan(same_semantics, event)["plan_digest_sha256"]
+        == normalized["plan_digest_sha256"]
+    )
 
     raw_actual = dict(actual, executed_labs=["system", "persistence"])
     raw_result = shadow.execute_shadow(event, raw_plan, raw_actual, inventory)
