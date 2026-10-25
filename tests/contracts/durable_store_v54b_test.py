@@ -119,7 +119,7 @@ def main() -> int:
                 "trn_contract_stale",
                 operation["operation_id"],
                 "QUEUED",
-                "RUNNING",
+                "PLANNING",
                 "STALE_WRITER",
             )
             assert_rejected(
