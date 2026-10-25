@@ -179,8 +179,9 @@ def main() -> int:
     postgres_schema = (
         ROOT / "integration" / "orchestration" / "sql" / "postgres-v54b-shadow.sql"
     ).read_text(encoding="utf-8")
-    assert postgres_schema.count("AS $") >= 2
-    assert postgres_schema.count("$;") >= 2
+    assert postgres_schema.count("CREATE OR REPLACE FUNCTION") == 2
+    assert "AS $applab$" in postgres_schema
+    assert "$applab$;" in postgres_schema
     assert "AS $\n" not in postgres_schema
     assert "\n$;\n" not in postgres_schema
 
