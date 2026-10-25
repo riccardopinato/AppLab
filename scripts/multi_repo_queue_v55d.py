@@ -156,6 +156,7 @@ def self_test()->dict[str,Any]:
                 if i<2: rq.enqueue(op["operation_id"],now_ts=100+i)
                 else: repo_rejection=expect_capacity_rejection(rq,op["operation_id"],102.0)
             assert rq._pending_count()==2 and rq._pending_count()<rq.max_pending_global
+            assert "repository pending" in repo_rejection
 
         # Global pending overflow with no repository at its per-repo cap.
         with storemod.SQLiteShadowStore(root/"global-cap.sqlite3") as store:
@@ -171,6 +172,7 @@ def self_test()->dict[str,Any]:
                 else: global_rejection=expect_capacity_rejection(gq,op["operation_id"],203.0)
             assert gq._pending_count()==3
             assert all(gq._repo_pending_count(r)<gq.max_pending_per_repo for r in repos[:3])
+            assert "global pending" in global_rejection
 
         return {
           "schema_version":1,"record_type":"APPLAB_V55D_MULTI_REPO_QUEUE_PROOF","status":"PASS",
@@ -179,8 +181,8 @@ def self_test()->dict[str,Any]:
           "priority":{"highest_priority_claimed_first":True,"aging_order_change_proven":True,"max_age_bonus":50},
           "backpressure":{
               "deferred_observed":True,
-              "global_pending_overflow_rejected":"global pending" in global_rejection,
-              "per_repo_pending_overflow_rejected":"repository pending" in repo_rejection,
+              "global_pending_overflow_rejected":True,
+              "per_repo_pending_overflow_rejected":True,
               "global_pending_limit":12,"per_repo_pending_limit":4,
           },
           "repository_isolation":{
