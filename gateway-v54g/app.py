@@ -334,6 +334,70 @@ def advance_operation(
         store.transition_operation(record)
 
 
+def advance_operation_to_running(
+    store: storemod.SQLiteShadowStore,
+    operation_id: str,
+) -> None:
+    operation = store.get_operation(operation_id)
+    current = operation["current_state"]
+    transitions_by_state = {
+        "QUEUED": [
+            ("QUEUED", "PLANNING", "AUTHORITATIVE_PLAN_RECEIVED"),
+            ("PLANNING", "READY", "EXECUTOR_LEASE_GRANTED"),
+            ("READY", "RUNNING", "GITHUB_ACTIONS_STARTED"),
+        ],
+        "PLANNING": [
+            ("PLANNING", "READY", "EXECUTOR_LEASE_GRANTED"),
+            ("READY", "RUNNING", "GITHUB_ACTIONS_STARTED"),
+        ],
+        "READY": [
+            ("READY", "RUNNING", "GITHUB_ACTIONS_STARTED"),
+        ],
+        "RUNNING": [],
+    }
+    if current not in transitions_by_state:
+        raise HTTPException(
+            status_code=409,
+            detail=f"operation cannot enter RUNNING from {current}",
+        )
+    advance_operation(store, operation_id, transitions_by_state[current])
+
+
+def existing_queue_lease(
+    queue: queue_mod.DurablePerRepoQueue,
+    operation_id: str,
+    worker_id: str,
+) -> dict[str, Any] | None:
+    entry = queue._entry(operation_id)
+    if entry is None:
+        return None
+    if entry["state"] == "LEASED" and entry["leased_by"] == worker_id:
+        return {
+            "operation_id": operation_id,
+            "repository": entry["repository"],
+            "source_ref": entry["source_ref"],
+            "resolved_sha": entry["resolved_sha"],
+            "operation_class": entry["operation_class"],
+            "executor": "GITHUB_ACTIONS",
+            "worker_id": worker_id,
+            "lease_until": entry["lease_until"],
+            "dispatch_performed": False,
+            "recovered_existing_lease": True,
+        }
+    return None
+
+
+def latest_claim_worker(
+    queue: queue_mod.DurablePerRepoQueue,
+    operation_id: str,
+) -> str | None:
+    rows = queue.history(operation_id)
+    for record in reversed(rows):
+        if record["action"] == "CLAIM":
+            return str(record["payload"].get("worker_id") or "") or None
+    return None
+
+
 class AuthorizeRequest(BaseModel):
     dispatch: dict[str, Any]
     plan: dict[str, Any]
@@ -458,14 +522,18 @@ async def authorize_execution(
             max_active_per_repo=1,
             lease_seconds=3600,
         )
-        queue.recover_expired_leases(now_ts=time.time())
-        queue.enqueue(operation_id, now_ts=time.time(), max_retries=0)
-        queue.rebalance(now_ts=time.time())
-        claim = queue.claim_next(
-            f"gha:{payload.run_id}",
-            now_ts=time.time(),
-            expected_operation_id=operation_id,
-        )
+        now_ts = time.time()
+        queue.recover_expired_leases(now_ts=now_ts)
+        queue.enqueue(operation_id, now_ts=now_ts, max_retries=0)
+        queue.rebalance(now_ts=now_ts)
+        worker_id = f"gha:{payload.run_id}"
+        claim = existing_queue_lease(queue, operation_id, worker_id)
+        if claim is None:
+            claim = queue.claim_next(
+                worker_id,
+                now_ts=now_ts,
+                expected_operation_id=operation_id,
+            )
         if claim is None:
             entry = queue._entry(operation_id)
             return {
@@ -476,15 +544,7 @@ async def authorize_execution(
                 "authority": "ORCHESTRATION_ONLY",
             }
 
-        advance_operation(
-            store,
-            operation_id,
-            [
-                ("QUEUED", "PLANNING", "AUTHORITATIVE_PLAN_RECEIVED"),
-                ("PLANNING", "READY", "EXECUTOR_LEASE_GRANTED"),
-                ("READY", "RUNNING", "GITHUB_ACTIONS_STARTED"),
-            ],
-        )
+        advance_operation_to_running(store, operation_id)
         return {
             "authorized": True,
             "operation_id": operation_id,
@@ -529,48 +589,75 @@ async def execution_callback(
         entry = queue._entry(payload.operation_id)
         if entry is None:
             raise HTTPException(status_code=404, detail="unknown operation queue entry")
-        if entry["state"] != "LEASED" or entry["leased_by"] != worker_id:
+        current_owner = (
+            entry["leased_by"]
+            if entry["state"] == "LEASED"
+            else latest_claim_worker(queue, payload.operation_id)
+        )
+        if current_owner != worker_id:
             raise HTTPException(status_code=409, detail="callback lease identity mismatch")
 
         conclusion = payload.conclusion.strip().lower()
+        now_ts = time.time()
+        operation = store.get_operation(payload.operation_id)
+        operation_state = operation["current_state"]
+
         if conclusion == "success":
-            queue.complete(payload.operation_id, worker_id, now_ts=time.time())
-            advance_operation(
-                store,
-                payload.operation_id,
-                [("RUNNING", "SUCCEEDED", "GITHUB_ACTIONS_COMPLETED")],
-            )
+            if entry["state"] == "LEASED":
+                queue.complete(payload.operation_id, worker_id, now_ts=now_ts)
+            elif entry["state"] != "DONE":
+                raise HTTPException(status_code=409, detail="success callback queue state mismatch")
+            if operation_state == "RUNNING":
+                advance_operation(
+                    store,
+                    payload.operation_id,
+                    [("RUNNING", "SUCCEEDED", "GITHUB_ACTIONS_COMPLETED")],
+                )
+            elif operation_state != "SUCCEEDED":
+                raise HTTPException(status_code=409, detail="success callback operation state mismatch")
             state = "SUCCEEDED"
         elif conclusion == "cancelled":
-            queue.record_failure(
-                payload.operation_id,
-                worker_id,
-                "UNKNOWN_FAILURE",
-                retryable=False,
-                now_ts=time.time(),
-            )
-            advance_operation(
-                store,
-                payload.operation_id,
-                [("RUNNING", "CANCELED", "GITHUB_ACTIONS_CANCELED")],
-            )
+            if entry["state"] == "LEASED":
+                queue.record_failure(
+                    payload.operation_id,
+                    worker_id,
+                    "UNKNOWN_FAILURE",
+                    retryable=False,
+                    now_ts=now_ts,
+                )
+            elif entry["state"] != "BLOCKED":
+                raise HTTPException(status_code=409, detail="cancel callback queue state mismatch")
+            if operation_state == "RUNNING":
+                advance_operation(
+                    store,
+                    payload.operation_id,
+                    [("RUNNING", "CANCELED", "GITHUB_ACTIONS_CANCELED")],
+                )
+            elif operation_state != "CANCELED":
+                raise HTTPException(status_code=409, detail="cancel callback operation state mismatch")
             state = "CANCELED"
         else:
             failure_class = payload.failure_class.strip().upper()
             if failure_class not in brain.load_contract()["attempt"]["failure_classes"]:
                 failure_class = "UNKNOWN_FAILURE"
-            queue.record_failure(
-                payload.operation_id,
-                worker_id,
-                failure_class,
-                retryable=False,
-                now_ts=time.time(),
-            )
-            advance_operation(
-                store,
-                payload.operation_id,
-                [("RUNNING", "FAILED", f"GITHUB_ACTIONS_{failure_class}")],
-            )
+            if entry["state"] == "LEASED":
+                queue.record_failure(
+                    payload.operation_id,
+                    worker_id,
+                    failure_class,
+                    retryable=False,
+                    now_ts=now_ts,
+                )
+            elif entry["state"] != "BLOCKED":
+                raise HTTPException(status_code=409, detail="failure callback queue state mismatch")
+            if operation_state == "RUNNING":
+                advance_operation(
+                    store,
+                    payload.operation_id,
+                    [("RUNNING", "FAILED", f"GITHUB_ACTIONS_{failure_class}")],
+                )
+            elif operation_state != "FAILED":
+                raise HTTPException(status_code=409, detail="failure callback operation state mismatch")
             state = "FAILED"
 
         return {
