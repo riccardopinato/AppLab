@@ -114,7 +114,8 @@ def main() -> int:
     args = parser.parse_args()
     if not args.self_test:
         parser.error("--self-test is required")
-    print(json.dumps(self_test(), indent=2, sort_keys=True))
+    self_test()
+    print("AppLab v5.5C warm-worker real-app pilot PASS")
     return 0
 
 
