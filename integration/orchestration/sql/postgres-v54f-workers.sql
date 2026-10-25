@@ -67,6 +67,45 @@ BEGIN
     THEN
         RAISE EXCEPTION 'AppLab v5.4F warm worker immutable identity mutation rejected';
     END IF;
+
+    IF NEW.state IS DISTINCT FROM OLD.state
+       AND NOT EXISTS (
+           SELECT 1
+           FROM applab_warm_worker_history h
+           WHERE h.worker_id = OLD.worker_id
+             AND h.from_state IS NOT DISTINCT FROM OLD.state
+             AND h.to_state = NEW.state
+             AND h.history_id = (
+                 SELECT MAX(h2.history_id)
+                 FROM applab_warm_worker_history h2
+                 WHERE h2.worker_id = OLD.worker_id
+             )
+       )
+    THEN
+        RAISE EXCEPTION 'AppLab v5.4F worker state update requires matching history';
+    END IF;
+
+    IF NEW.state IN ('LEASED','SCRUBBING')
+       AND (
+           NEW.current_lease_id IS NULL
+           OR NOT EXISTS (
+               SELECT 1
+               FROM applab_warm_worker_leases l
+               WHERE l.lease_id = NEW.current_lease_id
+                 AND l.worker_id = NEW.worker_id
+                 AND l.status = 'ACTIVE'
+           )
+       )
+    THEN
+        RAISE EXCEPTION 'AppLab v5.4F leased worker requires matching active lease';
+    END IF;
+
+    IF NEW.state NOT IN ('LEASED','SCRUBBING')
+       AND NEW.current_lease_id IS NOT NULL
+    THEN
+        RAISE EXCEPTION 'AppLab v5.4F non-leased worker cannot retain lease projection';
+    END IF;
+
     RETURN NEW;
 END;
 $applab_warm$;
@@ -79,6 +118,33 @@ FOR EACH ROW EXECUTE FUNCTION applab_guard_warm_worker_identity();
 DROP TRIGGER IF EXISTS applab_warm_worker_delete_guard ON applab_warm_workers;
 CREATE TRIGGER applab_warm_worker_delete_guard
 BEFORE DELETE ON applab_warm_workers
+FOR EACH ROW EXECUTE FUNCTION applab_reject_mutation();
+
+CREATE OR REPLACE FUNCTION applab_guard_warm_lease_identity()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $applab_lease$
+BEGIN
+    IF NEW.lease_id IS DISTINCT FROM OLD.lease_id
+       OR NEW.worker_id IS DISTINCT FROM OLD.worker_id
+       OR NEW.operation_id IS DISTINCT FROM OLD.operation_id
+       OR NEW.issued_at IS DISTINCT FROM OLD.issued_at
+       OR NEW.expires_at IS DISTINCT FROM OLD.expires_at
+    THEN
+        RAISE EXCEPTION 'AppLab v5.4F warm lease immutable identity mutation rejected';
+    END IF;
+    RETURN NEW;
+END;
+$applab_lease$;
+
+DROP TRIGGER IF EXISTS applab_warm_lease_identity_guard ON applab_warm_worker_leases;
+CREATE TRIGGER applab_warm_lease_identity_guard
+BEFORE UPDATE ON applab_warm_worker_leases
+FOR EACH ROW EXECUTE FUNCTION applab_guard_warm_lease_identity();
+
+DROP TRIGGER IF EXISTS applab_warm_lease_delete_guard ON applab_warm_worker_leases;
+CREATE TRIGGER applab_warm_lease_delete_guard
+BEFORE DELETE ON applab_warm_worker_leases
 FOR EACH ROW EXECUTE FUNCTION applab_reject_mutation();
 
 DROP TRIGGER IF EXISTS applab_warm_history_append_only_u ON applab_warm_worker_history;
