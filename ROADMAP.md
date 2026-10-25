@@ -47,7 +47,7 @@ Design artifacts:
 - [x] **v5.4A Contracts & Simulator:** versioned Event/Operation/Attempt contracts, executable state validator, deterministic per-repo queue/supersession simulator and replay corpus; offline only, no external integration.
 - [x] **v5.4B Durable Store Shadow:** provider-neutral durable persistence contract, file-backed restartable shadow adapter, PostgreSQL-compatible schema smoke, immutable Event/Attempt/Evidence/Transition history and transition-backed Operation projection; zero authority/dispatch.
 - [x] **v5.4C Event Gateway Shadow:** signed GitHub push/PR/workflow normalization, persistent delivery replay protection, logical Event dedupe and watcher-compatible reconciliation comparison; zero Operation creation/dispatch.
-- [ ] **v5.4D Conductor Shadow Pilot:** mirror real AppLab orchestration metadata, model expected DAG/state and compare against actual execution with zero dispatch capability.
+- [x] **v5.4D Conductor Shadow Pilot:** mirror real AppLab orchestration metadata, model expected DAG/state and compare against actual execution with zero dispatch capability.
 - [ ] **v5.4E Durable Per-Repo Queue:** replace global event-driven cancellation semantics with repository/lineage/class isolation, bounded retries and backpressure while GitHub Actions remains executor.
 - [ ] **v5.4F Warm Trusted-Runtime Pilot:** add one isolated KVM worker with lease/heartbeat, pristine AVD templates, disposable per-operation emulator state and automatic GitHub fallback.
 - [ ] **v5.4G Controlled Event-Driven Pilot:** enable real webhook-triggered operations only after A-F gates pass; retain hourly watcher as watchdog and keep certification authority unchanged.
