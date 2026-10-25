@@ -130,7 +130,7 @@ $$;
 CREATE OR REPLACE FUNCTION applab_guard_operation_identity()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $applab$
 BEGIN
     IF NEW.operation_id IS DISTINCT FROM OLD.operation_id
        OR NEW.idempotency_key IS DISTINCT FROM OLD.idempotency_key
@@ -172,7 +172,7 @@ BEGIN
     NEW.updated_at := NOW();
     RETURN NEW;
 END;
-$;
+$applab$;
 
 DROP TRIGGER IF EXISTS applab_events_append_only_u ON applab_events;
 DROP TRIGGER IF EXISTS applab_events_append_only_d ON applab_events;
