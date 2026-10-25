@@ -19,6 +19,23 @@ def main()->int:
         assert row["target_build_executor"]=="GITHUB_ACTIONS_UNTRUSTED_BUILD_JOB"
         assert row["trusted_runtime_executor"]=="WARM_TRUSTED_ANDROID"
         assert row["fallback_executor"]=="GITHUB_ACTIONS"
+    identity={
+        "repository":"outside/pilot",
+        "resolved_sha":"1"*40,
+        "applab_sha":"a"*40,
+        "apk_sha256":"outside-apk-digest",
+        "package_id":"outside.pilot",
+        "analysis_mode":"full",
+        "result":"PASS",
+        "labs":{"launch":"PASS"},
+        "startup_seconds":1.0,
+    }
+    try:
+        mod.evaluate_pair(mod.REAL_APP_REPOSITORIES[0],identity,dict(identity),isolation_clean=True)
+    except mod.WarmRealAppPilotError:
+        pass
+    else:
+        raise AssertionError("cross-repository equivalence evidence was accepted")
     print("v5.5C warm-worker real-app contract PASS")
     return 0
 if __name__=="__main__":
