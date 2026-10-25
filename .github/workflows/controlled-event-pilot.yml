@@ -1,0 +1,196 @@
+name: Controlled Event-Driven Pilot
+
+on:
+  pull_request:
+    paths:
+      - "scripts/controlled_event_v54g.py"
+      - "tests/contracts/controlled_event_v54g_test.py"
+      - "integration/orchestration/contracts/controlled-event-pilot-v1.json"
+      - "integration/orchestration/v54g-pilot.json"
+      - ".github/workflows/controlled-event-pilot.yml"
+      - "selftest/**"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/controlled_event_v54g.py"
+      - "tests/contracts/controlled_event_v54g_test.py"
+      - "integration/orchestration/contracts/controlled-event-pilot-v1.json"
+      - "integration/orchestration/v54g-pilot.json"
+      - ".github/workflows/controlled-event-pilot.yml"
+      - "selftest/**"
+  workflow_dispatch:
+    inputs:
+      live:
+        description: Execute the allowlisted main-branch canary instead of dry-run admission
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: applab-v54g-controlled-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  WATCHDOG_MODE: HOURLY_REPO_WATCHER
+
+jobs:
+  admit:
+    name: Durable event admission
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      admitted: ${{ steps.control.outputs.admitted }}
+      live: ${{ steps.control.outputs.live }}
+      dispatch: ${{ steps.control.outputs.dispatch }}
+      operation_id: ${{ steps.control.outputs.operation_id }}
+      worker_id: ${{ steps.control.outputs.worker_id }}
+      repository: ${{ steps.control.outputs.repository }}
+      target_sha: ${{ steps.control.outputs.target_sha }}
+      source_ref: ${{ steps.control.outputs.source_ref }}
+      working_directory: ${{ steps.control.outputs.working_directory }}
+      java_version: ${{ steps.control.outputs.java_version }}
+      gradle_version: ${{ steps.control.outputs.gradle_version }}
+      compile_sdk: ${{ steps.control.outputs.compile_sdk }}
+      build_tools: ${{ steps.control.outputs.build_tools }}
+      build_command: ${{ steps.control.outputs.build_command }}
+      apk_path: ${{ steps.control.outputs.apk_path }}
+      package_id: ${{ steps.control.outputs.package_id }}
+      api_level: ${{ steps.control.outputs.api_level }}
+      emulator_profile: ${{ steps.control.outputs.emulator_profile }}
+      run_maestro: ${{ steps.control.outputs.run_maestro }}
+      history_key: ${{ steps.control.outputs.history_key }}
+      analysis_mode: ${{ steps.control.outputs.analysis_mode }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Restore non-authoritative pilot ledger
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .applab-v54g
+          key: applab-v54g-ledger-${{ github.repository_id }}-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            applab-v54g-ledger-${{ github.repository_id }}-${{ github.ref_name }}-
+
+      - name: Admit platform event
+        id: control
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MANUAL_LIVE: ${{ inputs.live || false }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p .applab-v54g
+
+          SOURCE_REF="$GITHUB_REF"
+          TARGET_SHA="$GITHUB_SHA"
+          LIVE_REQUESTED=false
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            SOURCE_REF="refs/heads/main"
+            TARGET_SHA="$PR_HEAD_SHA"
+          elif [[ "$EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
+            LIVE_REQUESTED=true
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$GITHUB_REF" == "refs/heads/main" && "$MANUAL_LIVE" == "true" ]]; then
+            LIVE_REQUESTED=true
+          fi
+
+          APPLAB_SHA="$(git rev-parse HEAD)"
+          python scripts/controlled_event_v54g.py admit             --db "$GITHUB_WORKSPACE/.applab-v54g/control-plane.sqlite3"             --config "$GITHUB_WORKSPACE/integration/orchestration/v54g-pilot.json"             --repository "$GITHUB_REPOSITORY"             --source-ref "$SOURCE_REF"             --resolved-sha "$TARGET_SHA"             --applab-sha "$APPLAB_SHA"             --delivery-id "$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT"             --live-requested "$LIVE_REQUESTED"             --output "$GITHUB_WORKSPACE/v54g-admission.json"             --github-output "$GITHUB_OUTPUT"
+
+          cat "$GITHUB_WORKSPACE/v54g-admission.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload admission and durable ledger
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-v54g-admission-${{ github.run_id }}
+          path: |
+            .applab-v54g/
+            v54g-admission.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
+
+  verify:
+    name: Trusted canary verification
+    needs: admit
+    if: needs.admit.outputs.dispatch == 'true'
+    uses: ./.github/workflows/external-native-android-runner.yml
+    with:
+      repository: ${{ needs.admit.outputs.repository }}
+      ref: ${{ needs.admit.outputs.target_sha }}
+      source_ref: ${{ needs.admit.outputs.source_ref }}
+      working_directory: ${{ needs.admit.outputs.working_directory }}
+      java_version: ${{ needs.admit.outputs.java_version }}
+      gradle_version: ${{ needs.admit.outputs.gradle_version }}
+      compile_sdk: ${{ needs.admit.outputs.compile_sdk }}
+      build_tools: ${{ needs.admit.outputs.build_tools }}
+      prepare_command: ""
+      test_command: ""
+      lint_command: ""
+      build_command: ${{ needs.admit.outputs.build_command }}
+      apk_path: ${{ needs.admit.outputs.apk_path }}
+      package_id: ${{ needs.admit.outputs.package_id }}
+      android_prepare_command: ""
+      api_level: ${{ needs.admit.outputs.api_level }}
+      emulator_profile: ${{ needs.admit.outputs.emulator_profile }}
+      run_maestro: ${{ needs.admit.outputs.run_maestro == 'true' }}
+      maestro_flow: ""
+      history_key: ${{ needs.admit.outputs.history_key }}
+      cache_verification: false
+      config_fingerprint: v54g-self-repo-canary-v1
+      analysis_mode: fast
+      baseline_sha: ""
+      physical_evidence_run_id: ""
+    secrets: inherit
+
+  finalize:
+    name: Finalize durable canary evidence
+    needs: [admit, verify]
+    if: always() && needs.admit.outputs.dispatch == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Restore admission ledger artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: applab-v54g-admission-${{ github.run_id }}
+          path: .
+
+      - name: Finalize operation
+        shell: bash
+        env:
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          OPERATION_ID: ${{ needs.admit.outputs.operation_id }}
+          WORKER_ID: ${{ needs.admit.outputs.worker_id }}
+        run: |
+          set -Eeuo pipefail
+          test -s .applab-v54g/control-plane.sqlite3
+          python scripts/controlled_event_v54g.py finalize             --db "$GITHUB_WORKSPACE/.applab-v54g/control-plane.sqlite3"             --operation-id "$OPERATION_ID"             --worker-id "$WORKER_ID"             --job-result "$VERIFY_RESULT"             --output "$GITHUB_WORKSPACE/v54g-final.json"
+          cat "$GITHUB_WORKSPACE/v54g-final.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save updated non-authoritative pilot ledger
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .applab-v54g
+          key: applab-v54g-ledger-${{ github.repository_id }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Upload final pilot evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-v54g-final-${{ github.run_id }}
+          path: |
+            .applab-v54g/
+            v54g-admission.json
+            v54g-final.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
