@@ -1,0 +1,169 @@
+name: Warm Trusted Runtime Pilot
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/warm_worker_v54f.py"
+      - "tests/contracts/warm_worker_v54f_test.py"
+      - "integration/orchestration/contracts/warm-worker-v1.json"
+      - "integration/orchestration/V54F_WARM_TRUSTED_RUNTIME_PILOT.md"
+      - ".github/workflows/warm-worker-pilot.yml"
+
+concurrency:
+  group: applab-warm-worker-pilot-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  warm-runtime-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+
+      - name: Install Android SDK components
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Install Maestro
+        run: |
+          chmod +x scripts/install_maestro.sh
+          ./scripts/install_maestro.sh
+
+      - name: Restore canonical runtime fixture
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          chmod +x scripts/restore_runtime_fixture.sh
+          ./scripts/restore_runtime_fixture.sh "$GITHUB_WORKSPACE/runtime-fixture"
+          sha256sum "$GITHUB_WORKSPACE/runtime-fixture/app-debug.apk" | awk '{print $1}' > "$GITHUB_WORKSPACE/apk.sha256"
+
+      - name: Prepare immutable FAST plan
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          labs=["system","performance","network","persistence","configuration","resource_pressure","background","storage","upgrade"]
+          payload={"schema_version":1,"planner_version":"0.8.0","mode":"fast","changed_files":["README.md"],"selected_labs":{k:False for k in labs},"reasons":{k:[] for k in labs},"fallback_full":False}
+          Path("warm-fast-plan.json").write_text(json.dumps(payload,indent=2)+"\n",encoding="utf-8")
+          PY
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Mark cold start
+        run: date +%s%3N > cold-start.ms
+
+      - name: Cold trusted runtime and pristine snapshot
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          avd-name: applab-warm-pilot
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-load -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -Eeuo pipefail
+            if adb shell pm path dev.applab.selftest 2>/dev/null | grep -q '^package:'; then
+              echo "Target package unexpectedly present before cold verification"
+              exit 1
+            fi
+            adb emu avd snapshot save applab-pristine
+            sleep 2
+            adb emu avd snapshot list | tee cold-snapshots.txt
+            grep -Fq "applab-pristine" cold-snapshots.txt
+            rm -rf "$GITHUB_WORKSPACE/applab-report-warm-cold"
+            RUN_MAESTRO=false REPORT_DIR="$GITHUB_WORKSPACE/applab-report-warm-cold" APPLAB_TARGET_ROOT="$GITHUB_WORKSPACE" APPLAB_PROJECT_ROOT="$GITHUB_WORKSPACE" APPLAB_VERSION="5.3.5" APPLAB_ANALYSIS_MODE="fast" APPLAB_ANALYSIS_PLAN_JSON="$GITHUB_WORKSPACE/warm-fast-plan.json" ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/runtime-fixture/app-debug.apk" "dev.applab.selftest"
+            python -c 'import json,pathlib; r=json.loads(pathlib.Path("applab-report-warm-cold/result.json").read_text()); assert r["result"]=="PASS",r; assert r["analysis_mode"]=="fast",r'
+
+      - name: Mark cold end
+        run: date +%s%3N > cold-end.ms
+
+      - name: Mark warm start
+        run: date +%s%3N > warm-start.ms
+
+      - name: Warm trusted runtime from pristine snapshot
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          avd-name: applab-warm-pilot
+          force-avd-creation: false
+          emulator-options: -snapshot applab-pristine -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -Eeuo pipefail
+            if adb shell pm path dev.applab.selftest 2>/dev/null | grep -q '^package:'; then
+              echo "Cross-run app state leaked into pristine warm snapshot"
+              exit 1
+            fi
+            echo "clean" > warm-clean-start.txt
+            rm -rf "$GITHUB_WORKSPACE/applab-report-warm-restored"
+            RUN_MAESTRO=false REPORT_DIR="$GITHUB_WORKSPACE/applab-report-warm-restored" APPLAB_TARGET_ROOT="$GITHUB_WORKSPACE" APPLAB_PROJECT_ROOT="$GITHUB_WORKSPACE" APPLAB_VERSION="5.3.5" APPLAB_ANALYSIS_MODE="fast" APPLAB_ANALYSIS_PLAN_JSON="$GITHUB_WORKSPACE/warm-fast-plan.json" ./scripts/verify_apk.sh "$GITHUB_WORKSPACE/runtime-fixture/app-debug.apk" "dev.applab.selftest"
+            python -c 'import json,pathlib; r=json.loads(pathlib.Path("applab-report-warm-restored/result.json").read_text()); assert r["result"]=="PASS",r; assert r["analysis_mode"]=="fast",r'
+
+      - name: Mark warm end
+        run: date +%s%3N > warm-end.ms
+
+      - name: Compare cold and warm evidence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          apk=Path("runtime-fixture/app-debug.apk")
+          apk_sha=hashlib.sha256(apk.read_bytes()).hexdigest()
+          recorded=Path("apk.sha256").read_text().strip()
+          cold=json.loads(Path("applab-report-warm-cold/result.json").read_text())
+          warm=json.loads(Path("applab-report-warm-restored/result.json").read_text())
+          cold_ms=int(Path("cold-end.ms").read_text())-int(Path("cold-start.ms").read_text())
+          warm_ms=int(Path("warm-end.ms").read_text())-int(Path("warm-start.ms").read_text())
+          evidence={"schema_version":1,"record_type":"APPLAB_WARM_WORKER_EQUIVALENCE","authority":"NONE_WORKER_PILOT","apk_sha256":"sha256:"+apk_sha,"apk_identity_match":apk_sha==recorded,"cold_result":cold["result"],"warm_result":warm["result"],"analysis_mode":warm["analysis_mode"],"result_match":cold["result"]==warm["result"],"clean_snapshot_restore":Path("warm-clean-start.txt").read_text().strip()=="clean","cold_wall_ms":cold_ms,"warm_wall_ms":warm_ms,"improvement_ms":cold_ms-warm_ms,"warm_faster":warm_ms<cold_ms,"dispatch_authority_changed":False}
+          Path("warm-worker-equivalence.json").write_text(json.dumps(evidence,indent=2,sort_keys=True)+"\n")
+          assert evidence["apk_identity_match"], evidence
+          assert evidence["result_match"], evidence
+          assert evidence["clean_snapshot_restore"], evidence
+          assert evidence["cold_result"]=="PASS" and evidence["warm_result"]=="PASS", evidence
+          assert evidence["warm_faster"], evidence
+          print(json.dumps(evidence,indent=2,sort_keys=True))
+          PY
+          cat warm-worker-equivalence.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload warm pilot evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-warm-worker-pilot
+          path: |
+            warm-worker-equivalence.json
+            cold-snapshots.txt
+            apk.sha256
+            applab-report-warm-cold/
+            applab-report-warm-restored/
+          if-no-files-found: warn
+          retention-days: 7
