@@ -26,7 +26,15 @@
       "signature_verified",
       "replay_window_valid",
       "source_authenticated"
-    ]
+    ],
+    "conditional_identity": {
+      "manual": [
+        "source_delivery_id"
+      ],
+      "schedule_or_reconciliation": [
+        "window_id"
+      ]
+    }
   },
   "operation": {
     "required": [
@@ -174,6 +182,9 @@
       "APP_RUNTIME_FAILURE",
       "APP_VISUAL_FAILURE",
       "BUILD_OR_QUALITY_FAILURE"
+    ],
+    "retry_source_states": [
+      "FAILED"
     ]
   },
   "queue_policy": {
@@ -199,6 +210,11 @@
       "CERTIFICATION",
       "PHYSICAL_VALIDATION",
       "MANUAL_DIAGNOSTIC"
+    ],
+    "supersedeable_pending_states": [
+      "QUEUED",
+      "READY",
+      "WAITING_RETRY"
     ]
   }
 }
