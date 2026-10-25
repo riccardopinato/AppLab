@@ -16,6 +16,7 @@ jobs:
   authorize:
     name: Verify event and authorize durable operation
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     outputs:
       authorized: ${{ steps.authorize.outputs.authorized }}
       operation_id: ${{ steps.authorize.outputs.operation_id }}
@@ -131,13 +132,25 @@ jobs:
           pathlib.Path("v54g-authorize.json").write_bytes(raw)
           pathlib.Path("v54g-authorize.signature").write_text(signature, encoding="utf-8")
           PY
-          curl -fsS \
-            -H "Content-Type: application/json" \
-            -H "X-AppLab-Pilot-Signature: $(cat v54g-authorize.signature)" \
-            --data-binary @v54g-authorize.json \
-            "$GATEWAY_URL/authorize" \
-            > v54g-authorize-response.json
-          cat v54g-authorize-response.json
+          AUTHORIZED=false
+          for attempt in $(seq 1 120); do
+            curl -fsS \
+              -H "Content-Type: application/json" \
+              -H "X-AppLab-Pilot-Signature: $(cat v54g-authorize.signature)" \
+              --data-binary @v54g-authorize.json \
+              "$GATEWAY_URL/authorize" \
+              > v54g-authorize-response.json
+            cat v54g-authorize-response.json
+            AUTHORIZED="$(python -c 'import json; print(str(bool(json.load(open("v54g-authorize-response.json")).get("authorized"))).lower())')"
+            if [[ "$AUTHORIZED" == "true" ]]; then
+              break
+            fi
+            sleep 15
+          done
+          if [[ "$AUTHORIZED" != "true" ]]; then
+            echo "Durable operation did not obtain a lease within the pilot authorization window"
+            exit 1
+          fi
           python - <<'PY'
           import json
           import os
