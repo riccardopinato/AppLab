@@ -557,7 +557,6 @@
           }
         ],
         "dispatch_order": [
-          "op_running_p",
           "op_after_p"
         ]
       }
@@ -797,7 +796,6 @@
           }
         ],
         "dispatch_order": [
-          "op_created",
           "op_after_created"
         ]
       }
