@@ -106,7 +106,7 @@ Its identity remains immutable:
 
 Only `current_state` and its projection timestamp may change.
 
-Every state change requires an append-only OperationTransition in the same transaction.
+Every state change requires an append-only OperationTransition in the same transaction. The database also rejects direct `current_state` changes when the latest matching Transition is absent.
 
 ## 6. Crash/restart recovery
 
@@ -204,7 +204,7 @@ A transition succeeds only when:
 5. the append-only transition is inserted;
 6. Operation projection is updated in the same database transaction.
 
-A stale writer therefore cannot silently overwrite a newer durable state.
+A stale writer therefore cannot silently overwrite a newer durable state. Re-delivery of the exact same `transition_id` + payload is idempotent and returns `REPLAY` even after the projection has already advanced.
 
 ## 12. Local persistent reference adapter
 
