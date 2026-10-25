@@ -358,6 +358,40 @@ jobs:
             exit 1
           fi
 
+          docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c "
+            INSERT INTO applab_warm_workers(
+              worker_id,worker_class,state,applab_sha,capabilities,
+              capability_digest_sha256,snapshot_digest_sha256,heartbeat_at,
+              current_lease_id,quarantine_reason,registered_at,updated_at
+            ) VALUES (
+              'warm-pg','WARM_TRUSTED_ANDROID','AVAILABLE',repeat('b',40),
+              '{\"kvm\":true,\"android_runtime\":true,\"disposable_avd\":true,\"evidence_capture\":true,\"runtime_profiles\":[\"android-default\"]}'::jsonb,
+              'sha256:capability-fixture','sha256:snapshot-fixture',NOW(),
+              NULL,NULL,NOW(),NOW()
+            );
+            INSERT INTO applab_warm_worker_history(
+              worker_id,lease_id,action,from_state,to_state,reason,occurred_at,payload
+            ) VALUES (
+              'warm-pg',NULL,'REGISTER',NULL,'STARTING','CI_SMOKE',NOW(),'{}'::jsonb
+            ),(
+              'warm-pg',NULL,'ACTIVATE','STARTING','AVAILABLE','CI_SMOKE',NOW(),'{}'::jsonb
+            );"
+
+          if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "UPDATE applab_warm_workers SET applab_sha=repeat('c',40) WHERE worker_id='warm-pg';" >/dev/null 2>&1; then
+            echo "PostgreSQL warm-worker identity mutation unexpectedly succeeded"
+            exit 1
+          fi
+
+          if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "UPDATE applab_warm_worker_history SET reason='tampered' WHERE worker_id='warm-pg';" >/dev/null 2>&1; then
+            echo "PostgreSQL warm-worker history mutation unexpectedly succeeded"
+            exit 1
+          fi
+
+          if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "DELETE FROM applab_warm_workers WHERE worker_id='warm-pg';" >/dev/null 2>&1; then
+            echo "PostgreSQL warm-worker DELETE unexpectedly succeeded"
+            exit 1
+          fi
+
       - name: Frontend build
         run: |
           cd frontend
