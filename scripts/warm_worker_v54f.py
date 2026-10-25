@@ -534,6 +534,8 @@ class WarmWorkerRegistry:
     ) -> dict[str, Any]:
         if worker["state"] == "OFFLINE":
             raise WorkerError("offline worker cannot be quarantined")
+        if lease_id is not None and worker["current_lease_id"] != lease_id:
+            raise WorkerError("quarantine lease does not own current worker projection")
         current_lease = lease_id or worker["current_lease_id"]
         self._history(
             worker["worker_id"],
@@ -609,30 +611,40 @@ class WarmWorkerRegistry:
             for name in REQUIRED_CLEANUP_ATTESTATIONS
             if cleanup_attestation.get(name) is not True
         ]
-        lease = self._lease(lease_id)
-        if lease is None:
-            raise WorkerError("unknown lease")
-        worker = self._worker(lease["worker_id"])
-        if worker is None:
-            raise WorkerError("unknown worker")
-        if missing:
-            return self.quarantine(
-                worker["worker_id"],
-                "CLEANUP_ATTESTATION_FAILED:" + ",".join(sorted(missing)),
-                now_ts=now_ts,
-                lease_id=lease_id,
-            )
 
         try:
             self.db.execute("BEGIN IMMEDIATE")
             lease = self._lease(lease_id)
-            worker = self._worker(worker["worker_id"])
             if lease is None or lease["status"] != "ACTIVE":
                 raise WorkerError("lease is not active")
-            if worker is None or worker["state"] != "SCRUBBING":
+            worker = self._worker(lease["worker_id"])
+            if worker is None:
+                raise WorkerError("unknown worker")
+            if worker["state"] != "SCRUBBING":
                 raise WorkerError("worker must be SCRUBBING before release")
             if worker["current_lease_id"] != lease_id:
                 raise WorkerError("worker/lease projection mismatch")
+
+            if float(lease["expires_at"]) < float(now_ts):
+                result = self._quarantine_locked(
+                    worker,
+                    "LEASE_EXPIRED_UNCERTAIN_CLEANUP",
+                    now_ts=now_ts,
+                    lease_id=lease_id,
+                )
+                self.db.commit()
+                return result
+
+            if missing:
+                result = self._quarantine_locked(
+                    worker,
+                    "CLEANUP_ATTESTATION_FAILED:" + ",".join(sorted(missing)),
+                    now_ts=now_ts,
+                    lease_id=lease_id,
+                )
+                self.db.commit()
+                return result
+
             self._history(
                 worker["worker_id"],
                 "RELEASE",
@@ -647,19 +659,23 @@ class WarmWorkerRegistry:
                 """
                 UPDATE warm_worker_leases
                 SET status='RELEASED',cleanup_attested=1,released_at=?
-                WHERE lease_id=?
+                WHERE lease_id=? AND status='ACTIVE'
                 """,
                 (float(now_ts), lease_id),
             )
+            if self.db.execute("SELECT changes() AS n").fetchone()["n"] != 1:
+                raise WorkerError("lease release lost ownership")
             self.db.execute(
                 """
                 UPDATE warm_workers
                 SET state='AVAILABLE',current_lease_id=NULL,
                     quarantine_reason=NULL,heartbeat_at=?,updated_at=?
-                WHERE worker_id=?
+                WHERE worker_id=? AND current_lease_id=? AND state='SCRUBBING'
                 """,
-                (float(now_ts), float(now_ts), worker["worker_id"]),
+                (float(now_ts), float(now_ts), worker["worker_id"], lease_id),
             )
+            if self.db.execute("SELECT changes() AS n").fetchone()["n"] != 1:
+                raise WorkerError("worker release lost lease projection")
             self.db.commit()
             return {
                 "worker_id": worker["worker_id"],
