@@ -44,7 +44,10 @@ def self_test()->dict[str,Any]:
                 lease_seconds=30,retry_base_seconds=2,max_age_bonus=50,
             )
             enqueued:dict[str,float]={}; n=0
-            priorities=[200,400,300,500]
+            # Keep the base-priority spread wider than max_age_bonus so this
+            # workload proves base priority deterministically; aging has its
+            # own bounded scenario below.
+            priorities=[100,200,300,400]
             for round_no in range(4):
                 for repo_no,repo in enumerate(PILOT_REPOSITORIES):
                     n+=1; opid=f"op_v55d-{repo_no}-{round_no}"; now=1000.0+n
