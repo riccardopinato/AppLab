@@ -1,0 +1,58 @@
+{
+  "name": "applab_v54d_shadow_compare",
+  "description": "AppLab v5.4D zero-dispatch shadow workflow",
+  "version": 1,
+  "schemaVersion": 2,
+  "restartable": true,
+  "workflowStatusListenerEnabled": false,
+  "inputParameters": [
+    "event",
+    "authoritative_plan",
+    "actual_execution",
+    "worker_inventory",
+    "workflow_version"
+  ],
+  "outputParameters": {},
+  "metadata": {
+    "mode": "SHADOW_NO_DISPATCH",
+    "authority": "NONE",
+    "reference_sha": "1488804170d159021c7e62dce61514b8f31ef9ff"
+  },
+  "tasks": [
+    {
+      "name": "applab_shadow_validate_identity",
+      "taskReferenceName": "validate_identity",
+      "type": "SIMPLE",
+      "retryCount": 0,
+      "inputParameters": {}
+    },
+    {
+      "name": "applab_shadow_consume_authoritative_plan",
+      "taskReferenceName": "consume_plan",
+      "type": "SIMPLE",
+      "retryCount": 0,
+      "inputParameters": {}
+    },
+    {
+      "name": "applab_shadow_model_queue",
+      "taskReferenceName": "model_queue",
+      "type": "SIMPLE",
+      "retryCount": 0,
+      "inputParameters": {}
+    },
+    {
+      "name": "applab_shadow_model_worker",
+      "taskReferenceName": "model_worker",
+      "type": "SIMPLE",
+      "retryCount": 0,
+      "inputParameters": {}
+    },
+    {
+      "name": "applab_shadow_compare_actual",
+      "taskReferenceName": "compare_actual",
+      "type": "SIMPLE",
+      "retryCount": 0,
+      "inputParameters": {}
+    }
+  ]
+}
