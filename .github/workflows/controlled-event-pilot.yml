@@ -113,6 +113,7 @@ jobs:
             .applab-v54g/
             v54g-admission.json
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30
 
   verify:
@@ -191,4 +192,5 @@ jobs:
             v54g-admission.json
             v54g-final.json
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30
