@@ -331,11 +331,7 @@ def advance_operation(
             to_state,
             reason,
         )
-        try:
-            store.transition_operation(record)
-        except storemod.StoreError as exc:
-            if "from_state does not match" not in str(exc):
-                raise
+        store.transition_operation(record)
 
 
 class AuthorizeRequest(BaseModel):
@@ -439,7 +435,7 @@ async def authorize_execution(
         operation = brain._operation_fixture(
             operation_id,
             event["repository"],
-            gateway.canonical_source_ref(event["source_ref"], assume_branch=True),
+            event_gateway.canonical_source_ref(event["source_ref"], assume_branch=True),
             event["resolved_sha"],
             applab_sha,
             operation_class="VERIFICATION",
