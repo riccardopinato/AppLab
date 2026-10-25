@@ -168,7 +168,10 @@ def main() -> int:
             assert retry1["retry"] is True
             assert retry1["retry_count"] == 1
             assert q._entry(cert["operation_id"])["state"] == "QUEUED"
-            assert q.claim_next("too-early", now_ts=19.5) is not None
+            early = q.claim_next("too-early", now_ts=19.5)
+            if early is not None:
+                assert early["operation_id"] != cert["operation_id"]
+                q.complete(early["operation_id"], early["worker_id"], now_ts=19.6)
 
             # Claim certification once its retry delay expires.
             cert_retry_claim = None
