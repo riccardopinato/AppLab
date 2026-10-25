@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -193,12 +195,18 @@ def _operation(
     return operation
 
 
+def _iso_utc(now_ts: float) -> str:
+    return datetime.fromtimestamp(float(now_ts), tz=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def _transition(
     operation_id: str,
     index: int,
     from_state: str,
     to_state: str,
     reason: str,
+    *,
+    occurred_at: str,
 ) -> dict[str, Any]:
     metadata = {
         "operation_id": operation_id,
@@ -216,7 +224,7 @@ def _transition(
         "to_state": to_state,
         "reason_code": reason,
         "actor": "v54g-controlled-event-pilot",
-        "occurred_at": "2026-10-25T00:00:00Z",
+        "occurred_at": occurred_at,
         "metadata_digest_sha256": brain.sha256_json(metadata),
     }
 
@@ -252,6 +260,7 @@ def admit(
     applab_sha: str,
     delivery_id: str,
     live_requested: bool,
+    now_ts: float | None = None,
 ) -> dict[str, Any]:
     contract = load_contract()
     config = load_config(config_path)
@@ -260,6 +269,8 @@ def admit(
     resolved_sha = brain._require_sha(resolved_sha, "resolved_sha")
     applab_sha = brain._require_sha(applab_sha, "applab_sha")
     delivery_id = brain._require_non_empty_string(delivery_id, "delivery_id")
+    clock = time.time() if now_ts is None else float(now_ts)
+    occurred_at = _iso_utc(clock)
 
     target = _target_for(config, repository, source_ref, "push")
     if target is None:
@@ -296,12 +307,12 @@ def admit(
         operation_result = store.put_operation(operation)
 
         queue = queue_mod.DurablePerRepoQueue(store, **QUEUE_LIMITS)
-        queue_result = queue.enqueue(operation["operation_id"], now_ts=1.0)
+        queue_result = queue.enqueue(operation["operation_id"], now_ts=clock)
 
         worker_id = f"gha-v54g-{delivery_id}".replace(":", "-")
         claim: dict[str, Any] | None = None
         if live and queue_result["state"] == "QUEUED":
-            claim = queue.claim_next(worker_id, now_ts=2.0)
+            claim = queue.claim_next(worker_id, now_ts=clock)
             if claim is not None and claim["operation_id"] == operation["operation_id"]:
                 # Planning is delegated to the existing trusted runner. This state
                 # transition records dispatch preparation only; it is not a plan verdict.
@@ -312,6 +323,7 @@ def admit(
                         "QUEUED",
                         "PLANNING",
                         "TRUSTED_RUNNER_DISPATCH_PREPARED",
+                        occurred_at=occurred_at,
                     )
                 )
 
@@ -340,7 +352,8 @@ def admit(
             "source_ref": source_ref,
             "resolved_sha": resolved_sha,
             "applab_sha": applab_sha,
-            "event_id": event["event_id"],
+            "event_id": event_result["event_id"],
+            "source_delivery_id": delivery_id,
             "event_persistence": event_result["status"],
             "operation_id": operation_result["operation_id"],
             "operation_persistence": operation_result["status"],
@@ -361,6 +374,8 @@ def admit(
 def _advance_to_running(
     store: storemod.SQLiteShadowStore,
     operation_id: str,
+    *,
+    occurred_at: str,
 ) -> None:
     current = store.get_operation(operation_id)["current_state"]
     sequence = len(store.list_transitions(operation_id)) + 1
@@ -372,7 +387,14 @@ def _advance_to_running(
     while current in path:
         next_state, reason = path[current]
         store.transition_operation(
-            _transition(operation_id, sequence, current, next_state, reason)
+            _transition(
+                operation_id,
+                sequence,
+                current,
+                next_state,
+                reason,
+                occurred_at=occurred_at,
+            )
         )
         sequence += 1
         current = next_state
@@ -384,10 +406,13 @@ def finalize(
     operation_id: str,
     worker_id: str,
     job_result: str,
+    now_ts: float | None = None,
 ) -> dict[str, Any]:
     operation_id = brain._require_non_empty_string(operation_id, "operation_id")
     worker_id = brain._require_non_empty_string(worker_id, "worker_id")
     normalized = str(job_result).strip().lower()
+    clock = time.time() if now_ts is None else float(now_ts)
+    occurred_at = _iso_utc(clock)
     if normalized not in {"success", "failure", "cancelled", "skipped"}:
         raise PilotError(f"unsupported verification job result {job_result!r}")
 
@@ -401,7 +426,7 @@ def finalize(
         if entry["leased_by"] != worker_id:
             raise PilotError("finalize worker/lease ownership mismatch")
 
-        _advance_to_running(store, operation_id)
+        _advance_to_running(store, operation_id, occurred_at=occurred_at)
         current = store.get_operation(operation_id)["current_state"]
         if current != "RUNNING":
             raise PilotError(f"operation did not reach RUNNING: {current}")
@@ -428,7 +453,7 @@ def finalize(
 
         sequence = len(store.list_transitions(operation_id)) + 1
         if success:
-            queue.complete(operation_id, worker_id, now_ts=10.0)
+            queue.complete(operation_id, worker_id, now_ts=clock)
             store.transition_operation(
                 _transition(
                     operation_id,
@@ -436,6 +461,7 @@ def finalize(
                     "RUNNING",
                     "SUCCEEDED",
                     "TRUSTED_RUNNER_JOB_SUCCEEDED",
+                    occurred_at=occurred_at,
                 )
             )
             terminal = "SUCCEEDED"
@@ -446,7 +472,7 @@ def finalize(
                 worker_id,
                 "UNKNOWN_FAILURE",
                 retryable=False,
-                now_ts=10.0,
+                now_ts=clock,
             )
             store.transition_operation(
                 _transition(
@@ -455,6 +481,7 @@ def finalize(
                     "RUNNING",
                     "FAILED",
                     "TRUSTED_RUNNER_JOB_FAILED",
+                    occurred_at=occurred_at,
                 )
             )
             terminal = "FAILED"
