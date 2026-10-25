@@ -104,7 +104,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            set -Eeuo pipefail
+            set -eu
             if adb shell pm path dev.applab.selftest | grep -q '^package:'; then
               echo "Pristine template unexpectedly contains target package"
               exit 1
@@ -145,7 +145,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            set -Eeuo pipefail
+            set -eu
             python - <<'PY'
             import os
             import time
@@ -194,7 +194,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            set -Eeuo pipefail
+            set -eu
             python - <<'PY'
             import os
             import time
@@ -228,8 +228,6 @@ jobs:
 
       - name: Destroy disposable clone and compare equivalence
         shell: bash
-        env:
-          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -Eeuo pipefail
           rm -rf "$HOME/.android/avd"
@@ -247,7 +245,17 @@ jobs:
 
           apk = Path("runtime-fixture/app-debug.apk")
           apk_digest = "sha256:" + hashlib.sha256(apk.read_bytes()).hexdigest()
-          source_sha = os.environ["SOURCE_SHA"]
+          fixture_manifest = json.loads(
+              Path("runtime-fixture/manifest.json").read_text(encoding="utf-8")
+          )
+          source_sha = str(fixture_manifest["source_sha"])
+          applab_sha = __import__("subprocess").check_output(
+              ["git", "rev-parse", "HEAD"], text=True
+          ).strip()
+          if applab_sha != source_sha:
+              raise SystemExit(
+                  f"tested checkout/fixture identity mismatch: {applab_sha} != {source_sha}"
+              )
           lab_keys = [
               "system_lab", "performance_lab", "network_lab", "persistence_lab",
               "configuration_lab", "resource_pressure_lab", "background_lab",
@@ -259,7 +267,7 @@ jobs:
               return {
                   "repository": os.environ.get("GITHUB_REPOSITORY", "unknown/unknown"),
                   "resolved_sha": source_sha,
-                  "applab_sha": source_sha,
+                  "applab_sha": applab_sha,
                   "apk_sha256": apk_digest,
                   "package_id": "dev.applab.selftest",
                   "analysis_mode": result.get("analysis_mode"),
