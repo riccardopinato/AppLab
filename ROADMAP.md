@@ -2,6 +2,9 @@
 
 Current production baseline: **v5.3.5 — Multi-Project Calibration & Delta Readiness**
 
+Next architecture candidate: **v5.4 — Durable Brain & Event-Driven Execution**  
+Status: **design/audit only; no production activation**.
+
 ## Product rule
 
 AppLab optimizes for the shortest verification path that preserves trustworthy
@@ -17,6 +20,45 @@ Target source -> Build job -> isolated APK contract -> Trusted verifier
 
 FAST/FULL results are not production certification. Only CERTIFICATION can
 publish a certified release artifact.
+
+## Proposed — v5.4 Durable Brain & Event-Driven Execution
+
+The v5.4 direction is to add a durable orchestration/control plane above the existing AppLab verification engines. It must improve continuity, queue isolation, recovery and startup latency without becoming a second verification authority.
+
+Design artifacts:
+
+- `integration/orchestration/DURABLE_BRAIN_V54_DESIGN_AUDIT.md`
+- `integration/orchestration/EVENT_OPERATION_EVIDENCE_V54.md`
+- `integration/orchestration/CONDUCTOR_SHADOW_AND_WARM_WORKERS_V54.md`
+
+### Design/audit completed
+
+- [x] Audit current watcher persistence, cancellation, polling, runner-latency and retry/rerun semantics.
+- [x] Define the Durable Brain architecture while preserving Smart Test Plan, Trusted APK Verifier, Release Assurance and Production Certification authority.
+- [x] Define versioned Event, Operation, Attempt, EvidenceRef, Worker, Lease and transition semantics.
+- [x] Define per-repository queue isolation, priority, coalescing, supersession, backpressure and reconciliation policy.
+- [x] Define a Conductor `SHADOW_NO_DISPATCH` pilot with no production credentials or evidence authority.
+- [x] Define a warm trusted-runtime worker model that never executes untrusted target build scripts.
+- [x] Define security, observability, rollback and promotion guardrails.
+- [x] Keep `coverage_reduction_enabled=false` and make delta coverage reduction explicitly independent from v5.4 orchestration work.
+
+### Implementation sequence — not started
+
+- [ ] **v5.4A Contracts & Simulator:** implement schema/state validators, queue simulator and replay corpus with no external integration.
+- [ ] **v5.4B Durable Store Shadow:** add provider-neutral Postgres-compatible operational persistence plus immutable evidence references; no authority consumers.
+- [ ] **v5.4C Event Gateway Shadow:** ingest signed GitHub events with replay protection/deduplication and compare against periodic reconciliation.
+- [ ] **v5.4D Conductor Shadow Pilot:** mirror real AppLab orchestration metadata, model expected DAG/state and compare against actual execution with zero dispatch capability.
+- [ ] **v5.4E Durable Per-Repo Queue:** replace global event-driven cancellation semantics with repository/lineage/class isolation, bounded retries and backpressure while GitHub Actions remains executor.
+- [ ] **v5.4F Warm Trusted-Runtime Pilot:** add one isolated KVM worker with lease/heartbeat, pristine AVD templates, disposable per-operation emulator state and automatic GitHub fallback.
+- [ ] **v5.4G Controlled Event-Driven Pilot:** enable real webhook-triggered operations only after A-F gates pass; retain hourly watcher as watchdog and keep certification authority unchanged.
+- [ ] Evaluate scrcpy physical-device recording/control as a later Physical Evidence Hub extension.
+- [ ] Evaluate LeakCanary as a separate debug/instrumented memory-diagnostic lane; never mutate release-artifact identity.
+- [ ] Evaluate dedicated mobile/security scanners separately from the Durable Brain so security tooling does not become orchestration authority.
+- [ ] Consider autonomous diagnosis/fix/PR proposals only after durable orchestration is stable; autonomous merge/release remains a separate governance decision.
+
+### Promotion gate
+
+No v5.4 runtime component becomes production authority from a documentation merge or from successful shadow execution. Production enablement requires a separate exact-head change, independent contract/chaos tests, bounded pilot evidence, rollback path and no weakening of existing authority boundaries.
 
 ## Completed
 
