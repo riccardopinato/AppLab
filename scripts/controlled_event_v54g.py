@@ -159,6 +159,7 @@ def _operation(
         "repository": event["repository"],
         "source_ref": event["source_ref"],
         "resolved_sha": event["resolved_sha"],
+        "applab_sha": applab_sha,
         "operation_class": "VERIFICATION",
         "contract": contract["contract_name"],
     }
