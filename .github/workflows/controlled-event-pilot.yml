@@ -1,0 +1,219 @@
+name: Controlled Event-Driven Pilot
+
+on:
+  repository_dispatch:
+    types: [applab-v54g-event]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: v54g-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.source_ref }}-${{ github.event.client_payload.operation_class }}
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    name: Verify event and authorize durable operation
+    runs-on: ubuntu-latest
+    outputs:
+      authorized: ${{ steps.authorize.outputs.authorized }}
+      operation_id: ${{ steps.authorize.outputs.operation_id }}
+      repository: ${{ steps.plan.outputs.repository }}
+      resolved_sha: ${{ steps.plan.outputs.resolved_sha }}
+      source_ref: ${{ steps.plan.outputs.source_ref }}
+      analysis_mode: ${{ steps.authorize.outputs.analysis_mode }}
+
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: .applab
+          persist-credentials: false
+
+      - name: Verify gateway attestation
+        shell: bash
+        env:
+          DISPATCH_JSON: ${{ toJSON(github.event.client_payload) }}
+          DISPATCH_SECRET: ${{ secrets.APPLAB_V54G_DISPATCH_SECRET }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$DISPATCH_SECRET"
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          sys.path.insert(0, ".applab/scripts")
+          import controlled_event_v54g as pilot
+
+          payload = json.loads(os.environ["DISPATCH_JSON"])
+          pilot.verify_dispatch_payload(
+              payload,
+              os.environ["DISPATCH_SECRET"].encode("utf-8"),
+          )
+          print("Gateway dispatch attestation verified")
+          PY
+
+      - name: Checkout exact target SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ github.event.client_payload.repository }}
+          ref: ${{ github.event.client_payload.resolved_sha }}
+          path: target
+          persist-credentials: false
+          token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
+
+      - name: Compute authoritative Smart Test Plan
+        id: plan
+        shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
+          TARGET_SHA: ${{ github.event.client_payload.resolved_sha }}
+          SOURCE_REF: ${{ github.event.client_payload.source_ref }}
+        run: |
+          set -Eeuo pipefail
+          ACTUAL_SHA="$(git -C target rev-parse HEAD)"
+          test "$ACTUAL_SHA" = "$TARGET_SHA"
+          python .applab/scripts/smart_test_plan.py \
+            --repo-root "$GITHUB_WORKSPACE/target" \
+            --mode fast \
+            --baseline-sha "" \
+            --repository "$TARGET_REPOSITORY" \
+            --history-key "v54g-event-pilot" \
+            --source-ref "$SOURCE_REF" \
+            --shadow-every 0 \
+            --output "$GITHUB_WORKSPACE/v54g-plan.json"
+          PLAN_MODE="$(python -c 'import json; print(json.load(open("v54g-plan.json"))["mode"])')"
+          if [[ "$PLAN_MODE" == "certification" ]]; then
+            echo "Webhook pilot must never enter certification"
+            exit 1
+          fi
+          echo "repository=$TARGET_REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "resolved_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
+          echo "source_ref=$SOURCE_REF" >> "$GITHUB_OUTPUT"
+
+      - name: Ask Durable Brain for lease
+        id: authorize
+        shell: bash
+        env:
+          DISPATCH_JSON: ${{ toJSON(github.event.client_payload) }}
+          DISPATCH_SECRET: ${{ secrets.APPLAB_V54G_DISPATCH_SECRET }}
+          GATEWAY_URL: ${{ secrets.APPLAB_V54G_GATEWAY_URL }}
+          RUN_ID_VALUE: ${{ github.run_id }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$DISPATCH_SECRET"
+          test -n "$GATEWAY_URL"
+          APPLAB_SHA="$(git -C .applab rev-parse HEAD)"
+          export APPLAB_SHA
+          python - <<'PY'
+          import hashlib
+          import hmac
+          import json
+          import os
+          import pathlib
+
+          dispatch = json.loads(os.environ["DISPATCH_JSON"])
+          plan = json.loads(pathlib.Path("v54g-plan.json").read_text(encoding="utf-8"))
+          body = {
+              "dispatch": dispatch,
+              "plan": plan,
+              "applab_sha": os.environ["APPLAB_SHA"],
+              "run_id": os.environ["RUN_ID_VALUE"],
+          }
+          raw = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
+          signature = "sha256=" + hmac.new(
+              os.environ["DISPATCH_SECRET"].encode("utf-8"),
+              raw,
+              hashlib.sha256,
+          ).hexdigest()
+          pathlib.Path("v54g-authorize.json").write_bytes(raw)
+          pathlib.Path("v54g-authorize.signature").write_text(signature, encoding="utf-8")
+          PY
+          curl -fsS \
+            -H "Content-Type: application/json" \
+            -H "X-AppLab-Pilot-Signature: $(cat v54g-authorize.signature)" \
+            --data-binary @v54g-authorize.json \
+            "$GATEWAY_URL/authorize" \
+            > v54g-authorize-response.json
+          cat v54g-authorize-response.json
+          python - <<'PY'
+          import json
+          import os
+
+          response = json.load(open("v54g-authorize-response.json"))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"authorized={str(bool(response.get('authorized'))).lower()}\n")
+              out.write(f"operation_id={response.get('operation_id','')}\n")
+              out.write(f"analysis_mode={response.get('analysis_mode','none')}\n")
+          PY
+
+  execute:
+    name: Existing AppLab executor
+    needs: authorize
+    if: needs.authorize.outputs.authorized == 'true'
+    uses: ./.github/workflows/universal-project-runner.yml
+    with:
+      repository: ${{ needs.authorize.outputs.repository }}
+      ref: ${{ needs.authorize.outputs.resolved_sha }}
+      source_ref: ${{ needs.authorize.outputs.source_ref }}
+      run_maestro: true
+      history_key: v54g-event-pilot
+      cache_verification: false
+      contract_fingerprint: v54g-event-pilot
+      config_fingerprint: v54g-event-pilot
+      analysis_mode: ${{ needs.authorize.outputs.analysis_mode }}
+      baseline_sha: ""
+      force_release_build: false
+      publish_release_artifact: false
+    secrets: inherit
+
+  callback:
+    name: Close durable orchestration state
+    runs-on: ubuntu-latest
+    needs: [authorize, execute]
+    if: always() && needs.authorize.outputs.authorized == 'true'
+    steps:
+      - name: Send signed completion callback
+        shell: bash
+        env:
+          DISPATCH_SECRET: ${{ secrets.APPLAB_V54G_DISPATCH_SECRET }}
+          GATEWAY_URL: ${{ secrets.APPLAB_V54G_GATEWAY_URL }}
+          OPERATION_ID: ${{ needs.authorize.outputs.operation_id }}
+          RUN_ID_VALUE: ${{ github.run_id }}
+          EXECUTION_RESULT: ${{ needs.execute.result }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$DISPATCH_SECRET"
+          test -n "$GATEWAY_URL"
+          python - <<'PY'
+          import hashlib
+          import hmac
+          import json
+          import os
+          import pathlib
+
+          conclusion = os.environ["EXECUTION_RESULT"].lower()
+          if conclusion not in {"success", "failure", "cancelled"}:
+              conclusion = "failure"
+          body = {
+              "operation_id": os.environ["OPERATION_ID"],
+              "run_id": os.environ["RUN_ID_VALUE"],
+              "conclusion": conclusion,
+              "failure_class": "UNKNOWN_FAILURE",
+          }
+          raw = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
+          signature = "sha256=" + hmac.new(
+              os.environ["DISPATCH_SECRET"].encode("utf-8"),
+              raw,
+              hashlib.sha256,
+          ).hexdigest()
+          pathlib.Path("v54g-callback.json").write_bytes(raw)
+          pathlib.Path("v54g-callback.signature").write_text(signature, encoding="utf-8")
+          PY
+          curl -fsS \
+            -H "Content-Type: application/json" \
+            -H "X-AppLab-Pilot-Signature: $(cat v54g-callback.signature)" \
+            --data-binary @v54g-callback.json \
+            "$GATEWAY_URL/callback"
