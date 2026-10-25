@@ -60,6 +60,7 @@ jobs:
             scripts/durable_store_v54b.py \
             scripts/event_gateway_v54c.py \
             scripts/conductor_shadow_v54d.py \
+            scripts/durable_queue_v54e.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -163,6 +164,7 @@ jobs:
           python scripts/durable_store_v54b.py --self-test
           python scripts/event_gateway_v54c.py --self-test
           python scripts/conductor_shadow_v54d.py --self-test
+          python scripts/durable_queue_v54e.py --self-test
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py
           python scripts/upgrade_lab.py --self-test
@@ -235,12 +237,13 @@ jobs:
           python tests/contracts/durable_store_v54b_test.py
           python tests/contracts/event_gateway_v54c_test.py
           python tests/contracts/conductor_shadow_v54d_test.py
+          python tests/contracts/durable_queue_v54e_test.py
           python tests/contracts/crawler_runtime_window_test.py
           python tests/contracts/workflow_structure_test.py
           python tests/intelligence/intelligence_corpus_test.py
           python tests/intelligence/evidence_graph_test.py
 
-      - name: PostgreSQL v5.4B shadow schema smoke
+      - name: PostgreSQL v5.4B + v5.4E durable schema smoke
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -269,6 +272,13 @@ jobs:
               -U postgres \
               -d applab_shadow \
               < integration/orchestration/sql/postgres-v54b-shadow.sql
+          done
+          for _ in 1 2; do
+            docker exec -i "$NAME" psql \
+              -v ON_ERROR_STOP=1 \
+              -U postgres \
+              -d applab_shadow \
+              < integration/orchestration/sql/postgres-v54e-queue.sql
           done
           test "$(docker exec "$NAME" psql -Atq -U postgres -d applab_shadow -c "SELECT value FROM applab_store_meta WHERE key='mode';")" = "SHADOW_NO_DISPATCH"
           test "$(docker exec "$NAME" psql -Atq -U postgres -d applab_shadow -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'applab_%';")" -ge 6
@@ -306,6 +316,37 @@ jobs:
             SET current_state='PLANNING'
             WHERE operation_id='op_pg_shadow';"
           test "$(docker exec "$NAME" psql -Atq -U postgres -d applab_shadow -c "SELECT current_state FROM applab_operations WHERE operation_id='op_pg_shadow';")" = "PLANNING"
+
+          docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c "
+            INSERT INTO applab_queue_entries(
+              operation_id,repository,source_ref,operation_class,resolved_sha,priority,
+              state,protected,preserve_for_calibration,enqueued_at,available_at,
+              retry_count,max_retries,updated_at
+            ) VALUES (
+              'op_pg_shadow','owner/app','main','VERIFICATION',repeat('a',40),200,
+              'QUEUED',FALSE,FALSE,NOW(),NOW(),0,2,NOW()
+            );
+            INSERT INTO applab_queue_history(
+              operation_id,action,from_state,to_state,reason,occurred_at,payload
+            ) VALUES (
+              'op_pg_shadow','ENQUEUE',NULL,'QUEUED','CI_SMOKE',NOW(),'{}'::jsonb
+            );"
+          test "$(docker exec "$NAME" psql -Atq -U postgres -d applab_shadow -c "SELECT state FROM applab_queue_entries WHERE operation_id='op_pg_shadow';")" = "QUEUED"
+
+          if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "UPDATE applab_queue_entries SET resolved_sha=repeat('c',40) WHERE operation_id='op_pg_shadow';" >/dev/null 2>&1; then
+            echo "PostgreSQL queue identity mutation unexpectedly succeeded"
+            exit 1
+          fi
+
+          if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "UPDATE applab_queue_history SET reason='tampered' WHERE operation_id='op_pg_shadow';" >/dev/null 2>&1; then
+            echo "PostgreSQL queue history mutation unexpectedly succeeded"
+            exit 1
+          fi
+
+          if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "DELETE FROM applab_queue_entries WHERE operation_id='op_pg_shadow';" >/dev/null 2>&1; then
+            echo "PostgreSQL queue DELETE unexpectedly succeeded"
+            exit 1
+          fi
 
       - name: Frontend build
         run: |
