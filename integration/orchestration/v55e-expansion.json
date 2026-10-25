@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "authority": "ORCHESTRATION_ONLY",
+  "rollout_sequence": [
+    "3",
+    "5",
+    "all"
+  ],
+  "global_kill_switch": false,
+  "repository_kill_switches": {},
+  "github_actions_fallback": true,
+  "watcher_reconciliation": true,
+  "coverage_reduction_enabled": false,
+  "watcher_role_transition": {
+    "before_sufficient_all_stage_evidence": "PRIMARY_SCHEDULER_AND_RECONCILIATION",
+    "after_sufficient_all_stage_evidence": "RECONCILIATION_WATCHDOG"
+  }
+}
