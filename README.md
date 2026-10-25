@@ -1,10 +1,10 @@
 ## v5.4 Durable Brain & Event-Driven Execution
 
-**Status: v5.4G CONTROLLED EVENT-DRIVEN CANARY IMPLEMENTED / AUTHORITY UNCHANGED.**
+**Status: v5.4 PROGRAM COMPLETE / CONTROLLED EVENT-DRIVEN CANARY ENABLED / AUTHORITY UNCHANGED.**
 
 The v5.4 architecture adds a persistent orchestration layer above AppLab v5.3.5 while preserving all current verification authority. **v5.4A** made Event/Operation/Attempt contracts and queue/state semantics executable offline. **v5.4B Durable Store Shadow** now adds restartable persistent operational memory, immutable EvidenceRef/Transition history and a PostgreSQL-compatible schema, still with zero dispatch and zero verdict authority.
 
-Implemented v5.4A/v5.4B/v5.4C/v5.4D/v5.4E/v5.4F/v5.4G artifacts:
+Implemented v5.4A→G artifacts plus completed post-implementation architecture evaluations:
 
 - `integration/orchestration/contracts/durable-brain-contract-v1.json`
 - `scripts/durable_brain_v54a.py`
@@ -42,6 +42,8 @@ Implemented v5.4A/v5.4B/v5.4C/v5.4D/v5.4E/v5.4F/v5.4G artifacts:
 - `tests/contracts/controlled_event_v54g_test.py`
 - `.github/workflows/controlled-event-pilot.yml`
 - `integration/orchestration/V54G_CONTROLLED_EVENT_DRIVEN_PILOT.md`
+- `integration/orchestration/v54-post-implementation-decisions.json`
+- `integration/orchestration/V54_POST_IMPLEMENTATION_EVALUATIONS.md`
 
 Architecture documents:
 
