@@ -195,6 +195,25 @@ BEGIN
     SELECT RAISE(ABORT, 'operation immutable identity');
 END;
 
+CREATE TRIGGER IF NOT EXISTS operations_state_requires_transition
+BEFORE UPDATE OF current_state ON operations
+WHEN NEW.current_state <> OLD.current_state
+AND NOT EXISTS (
+    SELECT 1
+    FROM operation_transitions t
+    WHERE t.operation_id = OLD.operation_id
+      AND t.from_state = OLD.current_state
+      AND t.to_state = NEW.current_state
+      AND t.sequence_number = (
+          SELECT MAX(t2.sequence_number)
+          FROM operation_transitions t2
+          WHERE t2.operation_id = OLD.operation_id
+      )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'operation state update requires transition');
+END;
+
 CREATE TRIGGER IF NOT EXISTS operations_no_delete
 BEFORE DELETE ON operations BEGIN SELECT RAISE(ABORT, 'operations cannot be deleted'); END;
 """
@@ -375,6 +394,24 @@ class SQLiteShadowStore:
 
     def transition_operation(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_transition_record(payload, self.store_contract, self.brain_contract)
+        digest = self._payload_digest(payload)
+        existing_row = self.db.execute(
+            """
+            SELECT payload_sha256,sequence_number,to_state
+            FROM operation_transitions
+            WHERE transition_id=?
+            """,
+            (payload["transition_id"],),
+        ).fetchone()
+        if existing_row:
+            if existing_row["payload_sha256"] != digest:
+                raise StoreError("transition_id reused with conflicting immutable payload")
+            return {
+                "status": "REPLAY",
+                "transition_id": payload["transition_id"],
+                "sequence_number": existing_row["sequence_number"],
+                "current_state": existing_row["to_state"],
+            }
         row = self.db.execute(
             "SELECT current_state FROM operations WHERE operation_id=?",
             (payload["operation_id"],),
@@ -383,14 +420,6 @@ class SQLiteShadowStore:
             raise StoreError("transition references unknown operation")
         if row["current_state"] != payload["from_state"]:
             raise StoreError("transition from_state does not match durable current_state")
-        digest = self._payload_digest(payload)
-        existing = self._existing_payload(
-            "operation_transitions", "transition_id", payload["transition_id"]
-        )
-        if existing:
-            if existing[0] != digest:
-                raise StoreError("transition_id reused with conflicting immutable payload")
-            return {"status": "REPLAY", "transition_id": payload["transition_id"]}
         next_sequence = self.db.execute(
             "SELECT COALESCE(MAX(sequence_number),0)+1 AS n FROM operation_transitions WHERE operation_id=?",
             (payload["operation_id"],),
@@ -570,7 +599,9 @@ def self_test() -> None:
                 "trn_store_2", "op_store", "PLANNING", "READY", "SHADOW_PLAN_READY"
             )
             assert store.transition_operation(first)["sequence_number"] == 1
+            assert store.transition_operation(first)["status"] == "REPLAY"
             assert store.transition_operation(second)["sequence_number"] == 2
+            assert store.transition_operation(second)["status"] == "REPLAY"
             assert store.rebuild_operation_state("op_store") == "READY"
             assert store.get_operation("op_store")["current_state"] == "READY"
 
