@@ -290,9 +290,11 @@ jobs:
 
           docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c "
             INSERT INTO applab_operation_transitions(
-              transition_id,operation_id,sequence_number,from_state,to_state,payload_sha256,payload
+              transition_id,operation_id,sequence_number,from_state,to_state,
+              reason_code,actor,occurred_at,metadata_digest_sha256,payload_sha256,payload
             ) VALUES (
-              'trn_pg_shadow','op_pg_shadow',1,'QUEUED','PLANNING','sha256:fixture','{}'::jsonb
+              'trn_pg_shadow','op_pg_shadow',1,'QUEUED','PLANNING',
+              'SHADOW_SMOKE','ci-v54b',NOW(),'sha256:metadata-fixture','sha256:fixture','{}'::jsonb
             );
             UPDATE applab_operations
             SET current_state='PLANNING'
