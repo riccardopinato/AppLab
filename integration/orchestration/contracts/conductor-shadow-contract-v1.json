@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_CONDUCTOR_SHADOW_COMPARISON",
+  "mode": "SHADOW_NO_DISPATCH",
+  "authority": "NONE_SHADOW_ONLY",
+  "workflow_version": "applab-v54d-shadow-v1",
+  "conductor_reference_sha": "1488804170d159021c7e62dce61514b8f31ef9ff",
+  "phases": [
+    "validate_identity",
+    "consume_plan",
+    "model_queue",
+    "model_worker",
+    "compare_actual"
+  ],
+  "required_comparisons": [
+    "identity_match",
+    "analysis_mode_match",
+    "required_labs_all_executed",
+    "lab_set_exact_match",
+    "worker_model_match"
+  ],
+  "invariants": [
+    "authoritative_plan_is_input_not_mutated",
+    "shadow_lane_never_replaces_smart_test_plan",
+    "checkpoint_resume_is_deterministic",
+    "changed_checkpoint_inputs_are_rejected",
+    "shadow_has_no_dispatch_capability",
+    "shadow_has_no_verdict_authority"
+  ]
+}
