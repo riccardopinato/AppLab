@@ -111,14 +111,38 @@ def self_test()->dict[str,Any]:
                 max_pending_global=8,max_pending_per_repo=8,
                 max_active_global=1,max_active_per_repo=1,max_age_bonus=50,
             )
-            aged=persist(store,"op_aged","owner/aging","refs",200)
-            fresh=persist(store,"op_fresh","owner/aging","refs2",230)
+            aged=persist(store,"op_aged","owner/aging",300,200)
+            fresh=persist(store,"op_fresh","owner/aging",301,230)
             aq.enqueue(aged["operation_id"],now_ts=1000.0)
             aq.enqueue(fresh["operation_id"],now_ts=2860.0)
             assert aq._effective_priority(aq._entry(aged["operation_id"]),2860.0)==231
             assert aq._effective_priority(aq._entry(fresh["operation_id"]),2860.0)==230
             aging_claim=aq.claim_next("aging-worker",now_ts=2860.0)
             assert aging_claim and aging_claim["operation_id"]==aged["operation_id"]
+
+        # Repository isolation proof: with global capacity still available and
+        # only same-repository work ready, a second lease must be refused while
+        # the first lease remains active. This isolates the per-repository gate
+        # from global capacity and priority/fairness ordering.
+        with storemod.SQLiteShadowStore(root/"repo-isolation.sqlite3") as store:
+            iq=queue_mod.DurablePerRepoQueue(
+                store,max_ready_global=3,max_ready_per_repo=3,
+                max_pending_global=4,max_pending_per_repo=4,
+                max_active_global=2,max_active_per_repo=1,
+            )
+            iso_a=persist(store,"op_iso-a","owner/isolation",400,300)
+            iso_b=persist(store,"op_iso-b","owner/isolation",401,200)
+            iq.enqueue(iso_a["operation_id"],now_ts=400.0)
+            iq.enqueue(iso_b["operation_id"],now_ts=401.0)
+            iso_first=iq.claim_next("iso-worker-0",now_ts=402.0)
+            assert iso_first is not None
+            assert iq._active_count()==1 < iq.max_active_global
+            assert iq._repo_active_count("owner/isolation")==1
+            assert iq.claim_next("iso-worker-1",now_ts=402.1) is None
+            assert iq._entry(iso_b["operation_id"])["state"]=="QUEUED"
+            iq.complete(iso_first["operation_id"],iso_first["worker_id"],now_ts=403.0)
+            iso_second=iq.claim_next("iso-worker-1",now_ts=403.1)
+            assert iso_second is not None and iso_second["operation_id"]==iso_b["operation_id"]
 
         # Per-repository pending overflow while global capacity remains free.
         with storemod.SQLiteShadowStore(root/"repo-cap.sqlite3") as store:
