@@ -93,6 +93,9 @@ def event_dedupe_key(event: dict[str, Any]) -> str:
     }
     if event_type in {"manual", "manual_request"} and delivery:
         normalized["source_delivery_id"] = delivery
+    if event_type in {"schedule", "reconciliation"}:
+        window_id = _require_non_empty_string(event.get("window_id"), "event.window_id")
+        normalized["window_id"] = window_id
     return sha256_json(normalized)
 
 
@@ -263,7 +266,7 @@ def can_supersede(
     state = existing["state"]
     if state in contract["operation"]["terminal_states"]:
         return False, "EXISTING_TERMINAL"
-    if state in {"CREATED", "QUEUED", "READY", "WAITING_RETRY"}:
+    if state in {"QUEUED", "READY", "WAITING_RETRY"}:
         return True, "SAFE_PENDING_SUPERSESSION"
     if state == "RUNNING":
         if existing.get("protected_stage_started") is True:
@@ -280,6 +283,8 @@ def retry_decision(attempt: dict[str, Any], max_infra_attempts: int, contract: d
         raise ContractError("max_infra_attempts must be >= 1")
     if attempt["state"] == "SUCCEEDED":
         return {"retry": False, "reason": "ATTEMPT_SUCCEEDED"}
+    if attempt["state"] != "FAILED":
+        return {"retry": False, "reason": "ATTEMPT_NOT_FAILED"}
     if attempt["failure_class"] in contract["attempt"]["never_retry_failure_classes"]:
         return {"retry": False, "reason": "DETERMINISTIC_FAILURE"}
     if not attempt["retryable"]:
@@ -299,10 +304,21 @@ def simulate_queue(
     working: list[dict[str, Any]] = []
     actions: list[dict[str, Any]] = []
     seen_idempotency: dict[str, str] = {}
+    seen_operation_ids: dict[str, str] = {}
     for index, original in enumerate(operations):
         operation = dict(original)
         validate_operation(operation, contract)
+        operation_id = operation["operation_id"]
         key = operation["idempotency_key"]
+        if operation_id in seen_operation_ids:
+            if seen_operation_ids[operation_id] != key:
+                raise ContractError("operation_id reused with conflicting immutable identity")
+            actions.append({
+                "action": "OPERATION_ID_REPLAY",
+                "operation_id": operation_id,
+            })
+            continue
+        seen_operation_ids[operation_id] = key
         if key in seen_idempotency:
             actions.append({
                 "action": "IDEMPOTENT_REUSE",
@@ -467,6 +483,13 @@ def run_replay_case(case: dict[str, Any], contract: dict[str, Any]) -> dict[str,
             "actions": simulation["actions"],
             "dispatch_order": simulation["dispatch_order"],
         }
+
+    if kind == "queue_reject":
+        try:
+            simulate_queue(case.get("operations", []), case.get("parents", {}), contract)
+        except ContractError as exc:
+            return {"rejected": True, "error": str(exc)}
+        return {"rejected": False, "error": ""}
 
     raise ContractError(f"unknown replay case kind: {kind}")
 
