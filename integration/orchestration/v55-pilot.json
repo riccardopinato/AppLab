@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "kill_switch": false,
+  "rollout": "MULTI_PROJECT_PILOT_SET",
+  "max_live_operations_per_event": 1,
+  "ledger_authority": "NON_AUTHORITATIVE_PILOT_CONTINUITY",
+  "pilot_targets": [
+    {
+      "repository": "riccardopinato/AppLab",
+      "source_ref": "refs/heads/main",
+      "event_types": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "run_maestro": false,
+      "history_key": "v55-applab-selftest",
+      "analysis_mode": "fast",
+      "engine": "native_android"
+    },
+    {
+      "repository": "riccardopinato/CamperBoss",
+      "source_ref": "refs/heads/main",
+      "event_types": [
+        "push",
+        "repository_dispatch",
+        "workflow_dispatch"
+      ],
+      "run_maestro": true,
+      "history_key": "v55-camperboss",
+      "analysis_mode": "fast",
+      "engine": "flutter"
+    },
+    {
+      "repository": "riccardopinato/TrailPath",
+      "source_ref": "refs/heads/main",
+      "event_types": [
+        "push",
+        "repository_dispatch",
+        "workflow_dispatch"
+      ],
+      "run_maestro": true,
+      "history_key": "v55-trailpath",
+      "analysis_mode": "fast",
+      "engine": "flutter"
+    }
+  ]
+}

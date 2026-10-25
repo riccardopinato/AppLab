@@ -70,7 +70,11 @@ def load_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
     if not isinstance(targets, list) or not targets:
         raise PilotError("pilot_targets must be a non-empty list")
     if int(payload.get("max_live_operations_per_event", 0)) != 1:
-        raise PilotError("v5.4G canary must allow exactly one live operation per event")
+        raise PilotError("controlled pilot must allow exactly one live operation per event")
+    rollout = payload.get("rollout")
+    allowed_rollouts = {"SELF_REPO_MAIN_CANARY", "MULTI_PROJECT_PILOT_SET"}
+    if rollout not in allowed_rollouts:
+        raise PilotError("unsupported controlled-pilot rollout")
     seen: set[tuple[str, str]] = set()
     for item in targets:
         if not isinstance(item, dict):
@@ -86,8 +90,11 @@ def load_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
             raise PilotError("pilot target must explicitly allow push")
         if item.get("analysis_mode") != "fast":
             raise PilotError("controlled canary must request fast; Smart Test Plan may escalate")
-        if item.get("engine") != "native_android":
+        engine = item.get("engine")
+        if rollout == "SELF_REPO_MAIN_CANARY" and engine != "native_android":
             raise PilotError("initial v5.4G canary is native_android only")
+        if rollout == "MULTI_PROJECT_PILOT_SET" and engine not in {"native_android", "flutter", "auto"}:
+            raise PilotError("multi-project pilot target requires a supported Android engine")
     return payload
 
 
