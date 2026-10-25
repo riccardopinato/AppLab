@@ -62,24 +62,72 @@ def workflow_digest(workflow: dict[str, Any]) -> str:
     return brain.sha256_json(workflow)
 
 
-def _require_plan(plan: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
-    if not isinstance(plan, dict):
+def normalize_authoritative_plan(
+    raw_plan: dict[str, Any],
+    event: dict[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(raw_plan, dict):
         raise ShadowError("authoritative_plan must be object")
-    for field in ("repository", "resolved_sha", "analysis_mode", "required_labs", "plan_digest_sha256"):
-        if field not in plan:
+
+    # Native Smart Test Plan shape.
+    if "selected_labs" in raw_plan or "head_sha" in raw_plan:
+        selected = raw_plan.get("selected_labs")
+        if not isinstance(selected, dict) or any(
+            not isinstance(name, str) or not isinstance(enabled, bool)
+            for name, enabled in selected.items()
+        ):
+            raise ShadowError("authoritative Smart Test Plan selected_labs mismatch")
+        repository = str(raw_plan.get("repository") or event["repository"])
+        resolved_sha = str(raw_plan.get("head_sha") or "")
+        analysis_mode = str(raw_plan.get("mode") or "").lower()
+        normalized = {
+            "repository": repository,
+            "resolved_sha": resolved_sha,
+            "analysis_mode": analysis_mode,
+            "required_labs": sorted(name for name, enabled in selected.items() if enabled),
+            "plan_digest_sha256": brain.sha256_json(raw_plan),
+            "lane": raw_plan.get("lane"),
+            "planner_version": raw_plan.get("planner_version"),
+            "source_shape": "SMART_TEST_PLAN",
+        }
+    else:
+        normalized = dict(raw_plan)
+        normalized.setdefault("source_shape", "NORMALIZED")
+
+    for field in (
+        "repository",
+        "resolved_sha",
+        "analysis_mode",
+        "required_labs",
+        "plan_digest_sha256",
+    ):
+        if field not in normalized:
             raise ShadowError(f"authoritative_plan missing {field}")
-    if plan["repository"] != event["repository"]:
+    if normalized["repository"] != event["repository"]:
         raise ShadowError("plan repository identity mismatch")
-    if plan["resolved_sha"] != event["resolved_sha"]:
+    brain._require_sha(normalized["resolved_sha"], "authoritative_plan.resolved_sha")
+    if normalized["resolved_sha"] != event["resolved_sha"]:
         raise ShadowError("plan source SHA identity mismatch")
-    if plan["analysis_mode"] not in {"fast", "full", "certification", "diagnostic", "none"}:
+    if normalized["analysis_mode"] not in {
+        "fast",
+        "full",
+        "certification",
+        "diagnostic",
+        "none",
+    }:
         raise ShadowError("invalid authoritative analysis_mode")
-    labs = plan["required_labs"]
-    if not isinstance(labs, list) or any(not isinstance(x, str) or not x for x in labs):
+    labs = normalized["required_labs"]
+    if not isinstance(labs, list) or any(
+        not isinstance(x, str) or not x for x in labs
+    ):
         raise ShadowError("required_labs must be string list")
-    if not str(plan["plan_digest_sha256"]).startswith("sha256:"):
+    if not str(normalized["plan_digest_sha256"]).startswith("sha256:"):
         raise ShadowError("plan digest missing sha256 identity")
-    return plan
+    return normalized
+
+
+def _require_plan(plan: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    return normalize_authoritative_plan(plan, event)
 
 
 def _require_actual(actual: dict[str, Any]) -> dict[str, Any]:
@@ -186,6 +234,76 @@ def checkpoint(
     }
 
 
+def _apply_phase(
+    partial: dict[str, Any],
+    phase: str,
+    event: dict[str, Any],
+    plan: dict[str, Any],
+    actual: dict[str, Any],
+    worker_inventory: list[dict[str, Any]],
+) -> None:
+    if phase == "validate_identity":
+        partial["identity"] = {
+            "event_repository": event["repository"],
+            "event_sha": event["resolved_sha"],
+            "actual_repository": actual["repository"],
+            "actual_sha": actual["resolved_sha"],
+            "repository_match": event["repository"] == actual["repository"],
+            "sha_match": event["resolved_sha"] == actual["resolved_sha"],
+        }
+    elif phase == "consume_plan":
+        partial["plan"] = {
+            "analysis_mode": plan["analysis_mode"],
+            "required_labs": sorted(set(plan["required_labs"])),
+            "plan_digest_sha256": plan["plan_digest_sha256"],
+        }
+    elif phase == "model_queue":
+        partial["queue"] = model_queue(event, plan)
+    elif phase == "model_worker":
+        partial["worker"] = model_worker(
+            actual["applab_sha"],
+            str(actual.get("runtime_profile") or "android-default"),
+            worker_inventory,
+        )
+    elif phase == "compare_actual":
+        required = set(partial["plan"]["required_labs"])
+        executed = set(actual["executed_labs"])
+        partial["comparison"] = {
+            "identity_match": bool(
+                partial["identity"]["repository_match"]
+                and partial["identity"]["sha_match"]
+            ),
+            "analysis_mode_match": (
+                actual["analysis_mode"] == partial["plan"]["analysis_mode"]
+            ),
+            "required_labs_all_executed": required.issubset(executed),
+            "lab_set_exact_match": required == executed,
+            "worker_model_match": (
+                actual.get("worker_class") is None
+                or actual.get("worker_class")
+                == partial["worker"]["worker_model"]
+            ),
+            "actual_terminal_state": actual["terminal_state"],
+        }
+    else:
+        raise ShadowError(f"unknown shadow phase {phase}")
+
+
+def _recompute_partial(
+    completed_phase_count: int,
+    event: dict[str, Any],
+    plan: dict[str, Any],
+    actual: dict[str, Any],
+    worker_inventory: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not 0 <= completed_phase_count <= len(PHASES):
+        raise ShadowError("invalid checkpoint phase")
+    partial: dict[str, Any] = {}
+    for phase in PHASES[:completed_phase_count]:
+        _apply_phase(partial, phase, event, plan, actual, worker_inventory)
+    return partial
+
+
 def execute_shadow(
     event: dict[str, Any],
     authoritative_plan: dict[str, Any],
@@ -213,47 +331,17 @@ def execute_shadow(
         if resume_from.get("input_digest_sha256") != digest:
             raise ShadowError("checkpoint input digest mismatch")
         start = int(resume_from.get("next_phase_index", -1))
-        partial = dict(resume_from.get("partial") or {})
+        provided_partial = dict(resume_from.get("partial") or {})
+        expected_partial = _recompute_partial(
+            start, event, plan, actual, worker_inventory
+        )
+        if brain.sha256_json(provided_partial) != brain.sha256_json(expected_partial):
+            raise ShadowError("checkpoint partial state mismatch")
+        partial = expected_partial
 
     for idx in range(start, len(PHASES)):
         phase = PHASES[idx]
-        if phase == "validate_identity":
-            partial["identity"] = {
-                "event_repository": event["repository"],
-                "event_sha": event["resolved_sha"],
-                "actual_repository": actual["repository"],
-                "actual_sha": actual["resolved_sha"],
-                "repository_match": event["repository"] == actual["repository"],
-                "sha_match": event["resolved_sha"] == actual["resolved_sha"],
-            }
-        elif phase == "consume_plan":
-            partial["plan"] = {
-                "analysis_mode": plan["analysis_mode"],
-                "required_labs": sorted(set(plan["required_labs"])),
-                "plan_digest_sha256": plan["plan_digest_sha256"],
-            }
-        elif phase == "model_queue":
-            partial["queue"] = model_queue(event, plan)
-        elif phase == "model_worker":
-            partial["worker"] = model_worker(
-                actual["applab_sha"],
-                str(actual.get("runtime_profile") or "android-default"),
-                worker_inventory,
-            )
-        elif phase == "compare_actual":
-            required = set(partial["plan"]["required_labs"])
-            executed = set(actual["executed_labs"])
-            partial["comparison"] = {
-                "identity_match": bool(partial["identity"]["repository_match"] and partial["identity"]["sha_match"]),
-                "analysis_mode_match": actual["analysis_mode"] == partial["plan"]["analysis_mode"],
-                "required_labs_all_executed": required.issubset(executed),
-                "lab_set_exact_match": required == executed,
-                "worker_model_match": (
-                    actual.get("worker_class") is None
-                    or actual.get("worker_class") == partial["worker"]["worker_model"]
-                ),
-                "actual_terminal_state": actual["terminal_state"],
-            }
+        _apply_phase(partial, phase, event, plan, actual, worker_inventory)
 
         if stop_after_phase is not None and idx + 1 == stop_after_phase:
             return checkpoint(idx + 1, digest, partial)
