@@ -282,6 +282,8 @@ def main() -> int:
         "CREATE TABLE IF NOT EXISTS applab_warm_worker_history",
         "applab_warm_active_lease_one_per_worker",
         "applab_guard_warm_worker_identity",
+        "applab_guard_warm_lease_identity",
+        "applab_warm_lease_delete_guard",
         "applab_warm_history_append_only_u",
     ):
         assert required in postgres_schema, required
