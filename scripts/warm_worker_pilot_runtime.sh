@@ -65,9 +65,9 @@ case "$MODE" in
       "$RUNNER_TEMP/control-startup-seconds.txt"
     assert_package_absent
     run_fast_verifier "$GITHUB_WORKSPACE/warm-control-report"
-    adb shell run-as "$PACKAGE_ID" sh -c \
-      'mkdir -p files && echo control-state > files/applab-warm-marker'
-    adb shell run-as "$PACKAGE_ID" cat files/applab-warm-marker | grep -q '^control-state$'
+    adb shell run-as "$PACKAGE_ID" mkdir -p files
+    adb shell run-as "$PACKAGE_ID" touch files/applab-warm-marker
+    adb shell run-as "$PACKAGE_ID" ls files/applab-warm-marker | grep -q 'applab-warm-marker'
     ;;
 
   warm)
@@ -77,7 +77,7 @@ case "$MODE" in
     assert_package_absent
     echo true > "$RUNNER_TEMP/isolation-clean.txt"
     run_fast_verifier "$GITHUB_WORKSPACE/warm-clone-report"
-    if adb shell run-as "$PACKAGE_ID" cat files/applab-warm-marker 2>/dev/null | grep -q control-state; then
+    if adb shell run-as "$PACKAGE_ID" ls files/applab-warm-marker >/dev/null 2>&1; then
       echo "Warm clone leaked private app data from cold control"
       exit 1
     fi
