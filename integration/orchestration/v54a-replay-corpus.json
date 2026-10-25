@@ -1,0 +1,639 @@
+{
+  "schema_version": 1,
+  "contract_version": 1,
+  "purpose": "Offline deterministic replay corpus for AppLab v5.4A Durable Brain contracts and queue semantics.",
+  "cases": [
+    {
+      "name": "duplicate push deliveries converge",
+      "kind": "event_dedupe",
+      "events": [
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_EVENT",
+          "correlation_id": "cor_replay",
+          "source": "github",
+          "source_event_type": "push",
+          "source_delivery_id": "delivery",
+          "repository": "owner/app",
+          "source_ref": "refs/heads/main",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "dedupe_key": "sha256:7f1175ccc7a17933dee8e2e98e1ab30841892ddbb1c5dee0bea1a24c17d27047",
+          "admission": "ADMITTED",
+          "trust": {
+            "signature_verified": true,
+            "replay_window_valid": true,
+            "source_authenticated": true
+          },
+          "event_id": "evt_dup_1"
+        },
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_EVENT",
+          "correlation_id": "cor_replay",
+          "source": "github",
+          "source_event_type": "push",
+          "source_delivery_id": "delivery",
+          "repository": "owner/app",
+          "source_ref": "refs/heads/main",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "dedupe_key": "sha256:7f1175ccc7a17933dee8e2e98e1ab30841892ddbb1c5dee0bea1a24c17d27047",
+          "admission": "ADMITTED",
+          "trust": {
+            "signature_verified": true,
+            "replay_window_valid": true,
+            "source_authenticated": true
+          },
+          "event_id": "evt_dup_2"
+        }
+      ],
+      "expected": {
+        "dedupe_keys": [
+          "sha256:7f1175ccc7a17933dee8e2e98e1ab30841892ddbb1c5dee0bea1a24c17d27047",
+          "sha256:7f1175ccc7a17933dee8e2e98e1ab30841892ddbb1c5dee0bea1a24c17d27047"
+        ],
+        "unique_count": 1
+      }
+    },
+    {
+      "name": "legal queue transition accepted",
+      "kind": "transition",
+      "from_state": "QUEUED",
+      "to_state": "PLANNING",
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "name": "terminal operation cannot mutate",
+      "kind": "transition",
+      "from_state": "FAILED",
+      "to_state": "SUCCEEDED",
+      "expected": {
+        "accepted": false,
+        "error": "illegal operation transition FAILED -> SUCCEEDED"
+      }
+    },
+    {
+      "name": "bounded infrastructure retry stays on operation",
+      "kind": "retry",
+      "attempt": {
+        "schema_version": 1,
+        "record_type": "APPLAB_ATTEMPT",
+        "attempt_id": "att_infra",
+        "operation_id": "op_retry",
+        "attempt_number": 1,
+        "executor": "simulation",
+        "state": "FAILED",
+        "failure_class": "INFRA_ERROR",
+        "retryable": true
+      },
+      "max_infra_attempts": 2,
+      "expected": {
+        "retry": true,
+        "reason": "BOUNDED_RETRY_ALLOWED"
+      }
+    },
+    {
+      "name": "deterministic app failure is not retried",
+      "kind": "retry",
+      "attempt": {
+        "schema_version": 1,
+        "record_type": "APPLAB_ATTEMPT",
+        "attempt_id": "att_app",
+        "operation_id": "op_retry",
+        "attempt_number": 1,
+        "executor": "simulation",
+        "state": "FAILED",
+        "failure_class": "APP_RUNTIME_FAILURE",
+        "retryable": false
+      },
+      "max_infra_attempts": 2,
+      "expected": {
+        "retry": false,
+        "reason": "DETERMINISTIC_FAILURE"
+      }
+    },
+    {
+      "name": "new descendant supersedes queued normal verification",
+      "kind": "queue",
+      "parents": {
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "cccccccccccccccccccccccccccccccccccccccc": [
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ],
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ]
+      },
+      "operations": [
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_old",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:31e96307cfca4e7a6cb9994a20ee5bde11375055bf313c9793d796b48dca5d04",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        },
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_new",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:8b5e519dd2673c3a5b6b583353cb66705561babe33d72233b942e019de07f991",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        }
+      ],
+      "expected": {
+        "states": {
+          "op_old": "SUPERSEDED",
+          "op_new": "QUEUED"
+        },
+        "superseded_by": {
+          "op_old": "op_new"
+        },
+        "actions": [
+          {
+            "action": "SUPERSEDE",
+            "operation_id": "op_old",
+            "by_operation_id": "op_new",
+            "previous_state": "QUEUED",
+            "reason": "SAFE_PENDING_SUPERSESSION"
+          }
+        ],
+        "dispatch_order": [
+          "op_new"
+        ]
+      }
+    },
+    {
+      "name": "unrelated repositories never cancel each other",
+      "kind": "queue",
+      "parents": {
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "cccccccccccccccccccccccccccccccccccccccc": [
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ],
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ]
+      },
+      "operations": [
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_app",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:31e96307cfca4e7a6cb9994a20ee5bde11375055bf313c9793d796b48dca5d04",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        },
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_other",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/other",
+          "source_ref": "main",
+          "resolved_sha": "cccccccccccccccccccccccccccccccccccccccc",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:c010ef52fbdf257f232f86129325a414e0484396a5b2d7a21db13b47dd2c3318",
+          "queue_key": "owner/other|main|VERIFICATION",
+          "priority": 400,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        }
+      ],
+      "expected": {
+        "states": {
+          "op_app": "QUEUED",
+          "op_other": "QUEUED"
+        },
+        "superseded_by": {},
+        "actions": [],
+        "dispatch_order": [
+          "op_other",
+          "op_app"
+        ]
+      }
+    },
+    {
+      "name": "non descendant commit cannot supersede",
+      "kind": "queue",
+      "parents": {
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "cccccccccccccccccccccccccccccccccccccccc": [
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ],
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ]
+      },
+      "operations": [
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_old_nd",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:8b5e519dd2673c3a5b6b583353cb66705561babe33d72233b942e019de07f991",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        },
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_new_nd",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:f07b4b105d46e5dc43c7b9facec3278d7c19736aa90121c904f4f9ce26fef083",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        }
+      ],
+      "expected": {
+        "states": {
+          "op_old_nd": "QUEUED",
+          "op_new_nd": "QUEUED"
+        },
+        "superseded_by": {},
+        "actions": [
+          {
+            "action": "KEEP",
+            "operation_id": "op_old_nd",
+            "incoming_operation_id": "op_new_nd",
+            "reason": "NOT_PROVEN_DESCENDANT"
+          }
+        ],
+        "dispatch_order": [
+          "op_old_nd",
+          "op_new_nd"
+        ]
+      }
+    },
+    {
+      "name": "certification is isolated from normal verification",
+      "kind": "queue",
+      "parents": {
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "cccccccccccccccccccccccccccccccccccccccc": [
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ],
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ]
+      },
+      "operations": [
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_cert",
+          "correlation_id": "cor_replay",
+          "operation_class": "CERTIFICATION",
+          "analysis_mode": "certification",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:2c4522d1380f820ff095475284f92c3414e60326947c4bc71fd8d138c0dddd85",
+          "queue_key": "owner/app|main|CERTIFICATION",
+          "priority": 500,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        },
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_verify",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:8b5e519dd2673c3a5b6b583353cb66705561babe33d72233b942e019de07f991",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        }
+      ],
+      "expected": {
+        "states": {
+          "op_cert": "QUEUED",
+          "op_verify": "QUEUED"
+        },
+        "superseded_by": {},
+        "actions": [],
+        "dispatch_order": [
+          "op_cert",
+          "op_verify"
+        ]
+      }
+    },
+    {
+      "name": "cancel safe running verification can be superseded",
+      "kind": "queue",
+      "parents": {
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "cccccccccccccccccccccccccccccccccccccccc": [
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ],
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ]
+      },
+      "operations": [
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_running",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:31e96307cfca4e7a6cb9994a20ee5bde11375055bf313c9793d796b48dca5d04",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "RUNNING",
+          "authority": "ORCHESTRATION_ONLY",
+          "cancel_safe": true
+        },
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_after",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:8b5e519dd2673c3a5b6b583353cb66705561babe33d72233b942e019de07f991",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        }
+      ],
+      "expected": {
+        "states": {
+          "op_running": "SUPERSEDED",
+          "op_after": "QUEUED"
+        },
+        "superseded_by": {
+          "op_running": "op_after"
+        },
+        "actions": [
+          {
+            "action": "SUPERSEDE",
+            "operation_id": "op_running",
+            "by_operation_id": "op_after",
+            "previous_state": "RUNNING",
+            "reason": "SAFE_RUNNING_SUPERSESSION"
+          }
+        ],
+        "dispatch_order": [
+          "op_after"
+        ]
+      }
+    },
+    {
+      "name": "protected running stage blocks supersession",
+      "kind": "queue",
+      "parents": {
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "cccccccccccccccccccccccccccccccccccccccc": [
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ],
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ]
+      },
+      "operations": [
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_running_p",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:31e96307cfca4e7a6cb9994a20ee5bde11375055bf313c9793d796b48dca5d04",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "RUNNING",
+          "authority": "ORCHESTRATION_ONLY",
+          "cancel_safe": true,
+          "protected_stage_started": true
+        },
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_after_p",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:8b5e519dd2673c3a5b6b583353cb66705561babe33d72233b942e019de07f991",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        }
+      ],
+      "expected": {
+        "states": {
+          "op_running_p": "RUNNING",
+          "op_after_p": "QUEUED"
+        },
+        "superseded_by": {},
+        "actions": [
+          {
+            "action": "KEEP",
+            "operation_id": "op_running_p",
+            "incoming_operation_id": "op_after_p",
+            "reason": "PROTECTED_STAGE_STARTED"
+          }
+        ],
+        "dispatch_order": [
+          "op_running_p",
+          "op_after_p"
+        ]
+      }
+    },
+    {
+      "name": "idempotent duplicate operation reuses existing identity",
+      "kind": "queue",
+      "parents": {
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "cccccccccccccccccccccccccccccccccccccccc": [
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ],
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ]
+      },
+      "operations": [
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_same_1",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:31e96307cfca4e7a6cb9994a20ee5bde11375055bf313c9793d796b48dca5d04",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        },
+        {
+          "schema_version": 1,
+          "record_type": "APPLAB_OPERATION",
+          "operation_id": "op_same_2",
+          "correlation_id": "cor_replay",
+          "operation_class": "VERIFICATION",
+          "analysis_mode": "fast",
+          "repository": "owner/app",
+          "source_ref": "main",
+          "resolved_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "applab_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "contract_fingerprint": "sha256:fixture-contract",
+          "plan_digest_sha256": "sha256:fixture-plan",
+          "force_generation": 0,
+          "idempotency_key": "sha256:31e96307cfca4e7a6cb9994a20ee5bde11375055bf313c9793d796b48dca5d04",
+          "queue_key": "owner/app|main|VERIFICATION",
+          "priority": 200,
+          "state": "QUEUED",
+          "authority": "ORCHESTRATION_ONLY"
+        }
+      ],
+      "expected": {
+        "states": {
+          "op_same_1": "QUEUED"
+        },
+        "superseded_by": {},
+        "actions": [
+          {
+            "action": "IDEMPOTENT_REUSE",
+            "operation_id": "op_same_2",
+            "reused_operation_id": "op_same_1"
+          }
+        ],
+        "dispatch_order": [
+          "op_same_1"
+        ]
+      }
+    }
+  ]
+}
