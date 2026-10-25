@@ -27,6 +27,8 @@ The v5.4 direction is to add a durable orchestration/control plane above the exi
 
 Design artifacts:
 
+- `integration/orchestration/V54_POST_IMPLEMENTATION_EVALUATIONS.md`
+- `integration/orchestration/v54-post-implementation-decisions.json`
 - `integration/orchestration/DURABLE_BRAIN_V54_DESIGN_AUDIT.md`
 - `integration/orchestration/EVENT_OPERATION_EVIDENCE_V54.md`
 - `integration/orchestration/CONDUCTOR_SHADOW_AND_WARM_WORKERS_V54.md`
@@ -51,10 +53,10 @@ Design artifacts:
 - [x] **v5.4E Durable Per-Repo Queue:** replace global event-driven cancellation semantics with repository/lineage/class isolation, bounded retries and backpressure while GitHub Actions remains executor.
 - [x] **v5.4F Warm Trusted-Runtime Pilot:** isolated KVM lifecycle, lease/heartbeat/quarantine controls, pristine/disposable AVD evidence and cold-vs-warm equivalence PASS; GitHub Actions remains fallback.
 - [x] **v5.4G Controlled Event-Driven Pilot:** bounded GitHub push-driven AppLab/selftest canary with durable Event/Operation/queue admission, existing trusted runner execution, kill switch, 30-day pilot evidence and hourly watcher watchdog; no certification authority change.
-- [ ] Evaluate scrcpy physical-device recording/control as a later Physical Evidence Hub extension.
-- [ ] Evaluate LeakCanary as a separate debug/instrumented memory-diagnostic lane; never mutate release-artifact identity.
-- [ ] Evaluate dedicated mobile/security scanners separately from the Durable Brain so security tooling does not become orchestration authority.
-- [ ] Consider autonomous diagnosis/fix/PR proposals only after durable orchestration is stable; autonomous merge/release remains a separate governance decision.
+- [x] Evaluate scrcpy physical-device recording/control: **FUTURE_PILOT** as Physical Evidence Hub capture, evidence-only authority.
+- [x] Evaluate LeakCanary: **FUTURE_PILOT** as a separate debug/instrumented memory-diagnostic lane with independent artifact identity; never mutate release-artifact identity.
+- [x] Evaluate dedicated security scanners: **Semgrep + Trivy FIRST-WAVE PILOT**, **MobSF SECOND-WAVE MOBILE PILOT**; all remain registered security-evidence producers, not orchestration/verdict authority.
+- [x] Consider autonomous diagnosis/fix/PR: **ELIGIBLE FOR A SEPARATE PROPOSAL-ONLY PILOT**; autonomous merge/release remains explicitly outside v5.4 and requires a separate governance decision.
 
 ### Promotion gate
 
