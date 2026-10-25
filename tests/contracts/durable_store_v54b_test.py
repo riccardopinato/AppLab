@@ -168,6 +168,34 @@ def main() -> int:
             assert report["mode"] == "SHADOW_NO_DISPATCH"
             assert report["authority"] == "NONE"
 
+            concurrent = brain._operation_fixture(
+                "op_concurrent_store",
+                "owner/app",
+                "main",
+                target_sha,
+                applab_sha,
+                force_generation=1,
+            )
+            assert store.put_operation(concurrent)["status"] == "INSERTED"
+            contender = storemod.SQLiteShadowStore(db_path, brain_contract, store_contract)
+            contender.db.execute("PRAGMA busy_timeout=50")
+            concurrent_transition = storemod._transition_fixture(
+                "trn_concurrent",
+                concurrent["operation_id"],
+                "QUEUED",
+                "PLANNING",
+                "CONCURRENT_WRITER",
+            )
+            store.db.execute("BEGIN IMMEDIATE")
+            assert_rejected(
+                lambda: contender.transition_operation(concurrent_transition),
+                "locked",
+            )
+            store.db.rollback()
+            assert contender.transition_operation(concurrent_transition)["status"] == "INSERTED"
+            assert contender.get_operation(concurrent["operation_id"])["current_state"] == "PLANNING"
+            contender.close()
+
         # Restart persistence: exact operation state and immutable history survive reopen.
         with storemod.SQLiteShadowStore(db_path, brain_contract, store_contract) as reopened:
             assert reopened.get_operation(operation["operation_id"])["current_state"] == "READY"
@@ -193,6 +221,7 @@ def main() -> int:
         "CREATE TABLE IF NOT EXISTS applab_operation_transitions",
         "applab_reject_mutation",
         "applab_guard_operation_identity",
+        "applab_operations_delete_guard",
         "SHADOW_NO_DISPATCH",
     ):
         assert required in postgres_schema, required
