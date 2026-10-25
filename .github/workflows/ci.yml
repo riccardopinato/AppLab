@@ -267,6 +267,38 @@ jobs:
           test "$(docker exec "$NAME" psql -Atq -U postgres -d applab_shadow -c "SELECT value FROM applab_store_meta WHERE key='mode';")" = "SHADOW_NO_DISPATCH"
           test "$(docker exec "$NAME" psql -Atq -U postgres -d applab_shadow -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'applab_%';")" -ge 6
 
+          docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c "
+            INSERT INTO applab_operations(
+              operation_id,idempotency_key,correlation_id,repository,source_ref,
+              resolved_sha,applab_sha,operation_class,analysis_mode,queue_key,
+              priority,authority,initial_state,current_state,immutable_identity_sha256,payload
+            ) VALUES (
+              'op_pg_shadow','idem_pg_shadow','cor_pg_shadow','owner/app','main',
+              repeat('a',40),repeat('b',40),'VERIFICATION','fast','owner/app|main|VERIFICATION',
+              200,'ORCHESTRATION_ONLY','QUEUED','QUEUED','sha256:fixture','{}'::jsonb
+            );"
+
+          if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "DELETE FROM applab_operations WHERE operation_id='op_pg_shadow';" >/dev/null 2>&1; then
+            echo "PostgreSQL operation DELETE unexpectedly succeeded"
+            exit 1
+          fi
+
+          if docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c             "UPDATE applab_operations SET current_state='PLANNING' WHERE operation_id='op_pg_shadow';" >/dev/null 2>&1; then
+            echo "PostgreSQL state update without Transition unexpectedly succeeded"
+            exit 1
+          fi
+
+          docker exec "$NAME" psql -v ON_ERROR_STOP=1 -U postgres -d applab_shadow -c "
+            INSERT INTO applab_operation_transitions(
+              transition_id,operation_id,sequence_number,from_state,to_state,payload_sha256,payload
+            ) VALUES (
+              'trn_pg_shadow','op_pg_shadow',1,'QUEUED','PLANNING','sha256:fixture','{}'::jsonb
+            );
+            UPDATE applab_operations
+            SET current_state='PLANNING'
+            WHERE operation_id='op_pg_shadow';"
+          test "$(docker exec "$NAME" psql -Atq -U postgres -d applab_shadow -c "SELECT current_state FROM applab_operations WHERE operation_id='op_pg_shadow';")" = "PLANNING"
+
       - name: Frontend build
         run: |
           cd frontend
