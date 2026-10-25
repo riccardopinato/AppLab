@@ -58,9 +58,9 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-v55
-          key: applab-v55-ledger-${{ github.run_id }}
+          key: applab-v55-ledger-${{ github.event.client_payload.repository || inputs.target_repository || github.repository }}-${{ github.run_id }}
           restore-keys: |
-            applab-v55-ledger-
+            applab-v55-ledger-${{ github.event.client_payload.repository || inputs.target_repository || github.repository }}-
 
       - name: Admit bounded pilot event
         id: control
@@ -158,7 +158,7 @@ jobs:
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-v55
-          key: applab-v55-ledger-${{ github.run_id }}-${{ github.run_attempt }}
+          key: applab-v55-ledger-${{ github.event.client_payload.repository || inputs.target_repository || github.repository }}-${{ github.run_id }}-${{ github.run_attempt }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-v55-final-${{ github.run_id }}
