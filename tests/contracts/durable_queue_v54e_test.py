@@ -73,6 +73,7 @@ def main() -> int:
             supersede = q.enqueue(
                 a2["operation_id"],
                 ancestor_shas={a1["resolved_sha"]},
+                ancestry_proven=True,
                 now_ts=11,
             )
             assert supersede["superseded"] == [a1["operation_id"]]
@@ -105,6 +106,7 @@ def main() -> int:
             preserve_new_result = q.enqueue(
                 preserve_new["operation_id"],
                 ancestor_shas={preserve["resolved_sha"]},
+                ancestry_proven=True,
                 now_ts=15,
             )
             assert preserve["operation_id"] not in preserve_new_result["superseded"]
