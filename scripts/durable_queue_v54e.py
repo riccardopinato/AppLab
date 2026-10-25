@@ -473,8 +473,18 @@ class DurablePerRepoQueue:
                 self.db.rollback()
             raise
 
-    def claim_next(self, worker_id: str, *, now_ts: float) -> dict[str, Any] | None:
+    def claim_next(
+        self,
+        worker_id: str,
+        *,
+        now_ts: float,
+        expected_operation_id: str | None = None,
+    ) -> dict[str, Any] | None:
         worker_id = brain._require_non_empty_string(worker_id, "worker_id")
+        if expected_operation_id is not None:
+            expected_operation_id = brain._require_non_empty_string(
+                expected_operation_id, "expected_operation_id"
+            )
         try:
             self.db.execute("BEGIN IMMEDIATE")
             if self._active_count() >= self.max_active_global:
@@ -507,6 +517,12 @@ class DurablePerRepoQueue:
                 )
             )
             row = eligible[0]
+            if (
+                expected_operation_id is not None
+                and row["operation_id"] != expected_operation_id
+            ):
+                self.db.commit()
+                return None
             lease_until = float(now_ts) + self.lease_seconds
             self._history(
                 row["operation_id"],
