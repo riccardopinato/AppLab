@@ -18,6 +18,37 @@ def main() -> int:
     assert all(task.get("retryCount") == 0 for task in workflow["tasks"])
 
     event, plan, actual, inventory = shadow._fixture()
+
+    raw_plan = {
+        "schema_version": 2,
+        "planner_version": "1.1.0",
+        "repository": event["repository"],
+        "head_sha": event["resolved_sha"],
+        "mode": "full",
+        "lane": "FULL_RUNTIME",
+        "selected_labs": {
+            "system": True,
+            "performance": False,
+            "network": False,
+            "persistence": True,
+            "configuration": False,
+            "resource_pressure": False,
+            "background": False,
+            "storage": False,
+            "upgrade": False,
+        },
+        "changed_files": ["lib/main.dart"],
+    }
+    normalized = shadow.normalize_authoritative_plan(raw_plan, event)
+    assert normalized["resolved_sha"] == event["resolved_sha"]
+    assert normalized["analysis_mode"] == "full"
+    assert normalized["required_labs"] == ["persistence", "system"]
+    assert normalized["plan_digest_sha256"].startswith("sha256:")
+
+    raw_actual = dict(actual, executed_labs=["system", "persistence"])
+    raw_result = shadow.execute_shadow(event, raw_plan, raw_actual, inventory)
+    assert raw_result["comparison"]["required_labs_all_executed"] is True
+
     baseline = shadow.execute_shadow(event, plan, actual, inventory)
     assert baseline["authority"] == "NONE_SHADOW_ONLY"
     assert baseline["mode"] == "SHADOW_NO_DISPATCH"
@@ -68,6 +99,26 @@ def main() -> int:
     assert modeled["comparison"]["worker_model_match"] is True
 
     wrong_checkpoint = shadow.execute_shadow(event, plan, actual, inventory, stop_after_phase=2)
+
+    tampered_checkpoint = {
+        **wrong_checkpoint,
+        "partial": {
+            **wrong_checkpoint["partial"],
+            "plan": {
+                **wrong_checkpoint["partial"]["plan"],
+                "required_labs": ["system"],
+            },
+        },
+    }
+    try:
+        shadow.execute_shadow(
+            event, plan, actual, inventory, resume_from=tampered_checkpoint
+        )
+    except shadow.ShadowError as exc:
+        assert "partial state mismatch" in str(exc)
+    else:
+        raise AssertionError("tampered checkpoint partial state was accepted")
+
     changed_plan = dict(plan, plan_digest_sha256="sha256:" + ("9" * 64))
     try:
         shadow.execute_shadow(event, changed_plan, actual, inventory, resume_from=wrong_checkpoint)
