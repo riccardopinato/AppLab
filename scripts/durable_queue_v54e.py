@@ -860,7 +860,7 @@ def self_test() -> None:
             cert = _persist_operation(
                 store,
                 "op_cert",
-                "owner/a",
+                "owner/c",
                 "refs/heads/release",
                 "4" * 40,
                 operation_class="CERTIFICATION",
