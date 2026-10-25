@@ -314,6 +314,7 @@ def admit(
         operation_result = store.put_operation(operation)
 
         queue = queue_mod.DurablePerRepoQueue(store, **QUEUE_LIMITS)
+        recovered_expired_leases = queue.recover_expired_leases(now_ts=clock)
         queue_result = queue.enqueue(operation["operation_id"], now_ts=clock)
 
         worker_id = f"gha-v54g-{delivery_id}".replace(":", "-")
@@ -321,18 +322,32 @@ def admit(
         if live and queue_result["state"] == "QUEUED":
             claim = queue.claim_next(worker_id, now_ts=clock)
             if claim is not None and claim["operation_id"] == operation["operation_id"]:
-                # Planning is delegated to the existing trusted runner. This state
-                # transition records dispatch preparation only; it is not a plan verdict.
-                store.transition_operation(
-                    _transition(
-                        operation["operation_id"],
-                        1,
-                        "QUEUED",
-                        "PLANNING",
-                        "TRUSTED_RUNNER_DISPATCH_PREPARED",
-                        occurred_at=occurred_at,
+                # Planning is delegated to the existing trusted runner. A recovered
+                # expired lease may already have durable PLANNING/RUNNING state; in
+                # that case re-dispatch resumes the same operation and must not mint
+                # a duplicate QUEUED -> PLANNING transition.
+                durable_state = store.get_operation(operation["operation_id"])["current_state"]
+                if durable_state == "QUEUED":
+                    store.transition_operation(
+                        _transition(
+                            operation["operation_id"],
+                            1,
+                            "QUEUED",
+                            "PLANNING",
+                            "TRUSTED_RUNNER_DISPATCH_PREPARED",
+                            occurred_at=occurred_at,
+                        )
                     )
-                )
+                elif durable_state not in {
+                    "PLANNING",
+                    "READY",
+                    "RUNNING",
+                    "WAITING_RETRY",
+                    "WAITING_EXTERNAL",
+                }:
+                    raise PilotError(
+                        f"recovered queue lease cannot dispatch durable state {durable_state}"
+                    )
 
         dispatch = bool(
             live
@@ -365,6 +380,7 @@ def admit(
             "operation_id": operation_result["operation_id"],
             "operation_persistence": operation_result["status"],
             "queue_state": queue._entry(operation["operation_id"])["state"],
+            "recovered_expired_leases": recovered_expired_leases,
             "worker_id": worker_id if dispatch else "",
             "executor": "GITHUB_ACTIONS" if dispatch else "",
             "watchdog": "HOURLY_REPO_WATCHER",
