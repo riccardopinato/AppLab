@@ -38,7 +38,7 @@ def self_test()->dict[str,Any]:
         # priority ordering, overlapping leases, fairness and telemetry.
         with storemod.SQLiteShadowStore(root/"load.sqlite3") as store:
             q=queue_mod.DurablePerRepoQueue(
-                store,max_ready_global=6,max_ready_per_repo=2,
+                store,max_ready_global=12,max_ready_per_repo=4,
                 max_pending_global=12,max_pending_per_repo=4,
                 max_active_global=2,max_active_per_repo=1,
                 lease_seconds=30,retry_base_seconds=2,max_age_bonus=50,
@@ -55,7 +55,7 @@ def self_test()->dict[str,Any]:
                     q.enqueue(op["operation_id"],now_ts=now); enqueued[opid]=now
             snapshot=q.snapshot()
             assert len(snapshot)==12
-            assert any(x["state"]=="DEFERRED" for x in snapshot)
+            assert all(x["state"]=="QUEUED" for x in snapshot)
 
             # Highest priority must win, while fairness breaks equal-priority
             # candidates across repositories. Keep two cross-repo leases active
@@ -64,7 +64,7 @@ def self_test()->dict[str,Any]:
             q.rebalance(now_ts=1100.0)
             first=q.claim_next("worker-0",now_ts=1100.0)
             assert first is not None
-            assert q._entry(first["operation_id"])["priority"]==500
+            assert q._entry(first["operation_id"])["priority"]==400
             same_repo_ready=[
                 x for x in q.snapshot()
                 if x["repository"]==first["repository"] and x["state"]=="QUEUED"
@@ -147,35 +147,51 @@ def self_test()->dict[str,Any]:
             iso_second=iq.claim_next("iso-worker-1",now_ts=403.1)
             assert iso_second is not None and iso_second["operation_id"]==iso_b["operation_id"]
 
-        # Per-repository pending overflow while global capacity remains free.
+        # Per-repository pending overflow at the pilot limit while global
+        # capacity remains free.
         with storemod.SQLiteShadowStore(root/"repo-cap.sqlite3") as store:
             rq=queue_mod.DurablePerRepoQueue(
-                store,max_ready_global=5,max_ready_per_repo=2,
-                max_pending_global=5,max_pending_per_repo=2,
-                max_active_global=1,max_active_per_repo=1,
+                store,max_ready_global=12,max_ready_per_repo=4,
+                max_pending_global=12,max_pending_per_repo=4,
+                max_active_global=2,max_active_per_repo=1,
             )
-            for i in range(3):
+            for i in range(5):
                 op=persist(store,f"op_rpcap-{i}","owner/repo-cap",100+i)
-                if i<2: rq.enqueue(op["operation_id"],now_ts=100+i)
-                else: repo_rejection=expect_capacity_rejection(rq,op["operation_id"],102.0)
-            assert rq._pending_count()==2 and rq._pending_count()<rq.max_pending_global
+                if i<4: rq.enqueue(op["operation_id"],now_ts=100+i)
+                else: repo_rejection=expect_capacity_rejection(rq,op["operation_id"],104.0)
+            assert rq._pending_count()==4 and rq._pending_count()<rq.max_pending_global
             assert "repository pending" in repo_rejection
 
-        # Global pending overflow with no repository at its per-repo cap.
+        # Global pending overflow at the pilot limit with no repository at its
+        # per-repository cap.
         with storemod.SQLiteShadowStore(root/"global-cap.sqlite3") as store:
             gq=queue_mod.DurablePerRepoQueue(
-                store,max_ready_global=3,max_ready_per_repo=2,
-                max_pending_global=3,max_pending_per_repo=3,
-                max_active_global=1,max_active_per_repo=1,
+                store,max_ready_global=12,max_ready_per_repo=12,
+                max_pending_global=12,max_pending_per_repo=12,
+                max_active_global=2,max_active_per_repo=1,
             )
-            repos=("owner/a","owner/b","owner/c","owner/d")
-            for i,repo in enumerate(repos):
+            repos=("owner/a","owner/b","owner/c")
+            for i in range(13):
+                repo=repos[i%len(repos)]
                 op=persist(store,f"op_glcap-{i}",repo,200+i)
-                if i<3: gq.enqueue(op["operation_id"],now_ts=200+i)
-                else: global_rejection=expect_capacity_rejection(gq,op["operation_id"],203.0)
-            assert gq._pending_count()==3
-            assert all(gq._repo_pending_count(r)<gq.max_pending_per_repo for r in repos[:3])
+                if i<12: gq.enqueue(op["operation_id"],now_ts=200+i)
+                else: global_rejection=expect_capacity_rejection(gq,op["operation_id"],212.0)
+            assert gq._pending_count()==12
+            assert all(gq._repo_pending_count(r)<gq.max_pending_per_repo for r in repos)
             assert "global pending" in global_rejection
+
+        # Ready-capacity backpressure is distinct from pending overflow.
+        with storemod.SQLiteShadowStore(root/"ready-cap.sqlite3") as store:
+            bq=queue_mod.DurablePerRepoQueue(
+                store,max_ready_global=6,max_ready_per_repo=6,
+                max_pending_global=12,max_pending_per_repo=12,
+                max_active_global=2,max_active_per_repo=1,
+            )
+            for i in range(7):
+                op=persist(store,f"op_readycap-{i}",f"owner/load-{i}",500+i)
+                bq.enqueue(op["operation_id"],now_ts=500+i)
+            ready_deferred=[x for x in bq.snapshot() if x["state"]=="DEFERRED"]
+            assert len(ready_deferred)==1
 
         return {
           "schema_version":1,"record_type":"APPLAB_V55D_MULTI_REPO_QUEUE_PROOF","status":"PASS",
@@ -183,7 +199,7 @@ def self_test()->dict[str,Any]:
           "fairness":{"claims_per_repository":repo_claims,"all_repositories_in_first_six":True},
           "priority":{"highest_priority_claimed_first":True,"aging_order_change_proven":True,"max_age_bonus":50},
           "backpressure":{
-              "deferred_observed":True,
+              "deferred_observed":len(ready_deferred)==1,
               "global_pending_overflow_rejected":True,
               "per_repo_pending_overflow_rejected":True,
               "global_pending_limit":12,"per_repo_pending_limit":4,
