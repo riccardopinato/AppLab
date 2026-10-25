@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "record_type": "APPLAB_V54_POST_IMPLEMENTATION_DECISIONS",
+  "authority": "ARCHITECTURE_DECISION_ONLY",
+  "production_activation": false,
+  "evaluated_against_main": "cccf82e8bbbd56686f6a0bc77b3b13311a593159",
+  "decisions": [
+    {
+      "topic": "scrcpy_physical_evidence",
+      "decision": "FUTURE_PILOT",
+      "reference": "Genymobile/scrcpy@a60891aea193d92e7e5c3942700eca63f9d19a5f",
+      "role": "PHYSICAL_EVIDENCE_HUB_EXTENSION",
+      "default_control_mode": "RECORDING_FIRST_CONTROL_EXPLICIT",
+      "authority": "EVIDENCE_CAPTURE_ONLY"
+    },
+    {
+      "topic": "leakcanary_memory_diagnostics",
+      "decision": "FUTURE_PILOT",
+      "reference": "square/leakcanary@eb60b0be53732aa016c79b7774b497770ad1e4f3",
+      "role": "DEBUG_INSTRUMENTED_MEMORY_DIAGNOSTIC",
+      "release_artifact_mutation_allowed": false,
+      "authority": "DIAGNOSTIC_ONLY"
+    },
+    {
+      "topic": "security_scanners",
+      "decision": "STAGED_PILOT",
+      "first_wave": [
+        "semgrep/semgrep@087e93b3a1fdf44f97bc92b5b9c2ba221cb2488b",
+        "aquasecurity/trivy@3a0164d6cd627645220730d48d51dc71e10e7156"
+      ],
+      "later_mobile_specific": [
+        "MobSF/Mobile-Security-Framework-MobSF@c47c1957e54a98477eed5e527d2671bef790fad6"
+      ],
+      "authority": "SECURITY_EVIDENCE_ONLY"
+    },
+    {
+      "topic": "autonomous_diagnosis_fix_pr",
+      "decision": "ELIGIBLE_FOR_SEPARATE_PROPOSAL_ONLY_PILOT",
+      "allowed_future_scope": [
+        "diagnose",
+        "propose_patch",
+        "create_isolated_branch",
+        "open_pull_request"
+      ],
+      "forbidden_scope": [
+        "merge",
+        "release",
+        "store_publish",
+        "secret_mutation",
+        "certification_authority"
+      ],
+      "authority": "PROPOSAL_ONLY"
+    }
+  ]
+}
