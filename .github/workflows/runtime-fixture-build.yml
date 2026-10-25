@@ -3,6 +3,10 @@ name: Canonical Runtime Fixture Build
 on:
   push:
     branches: [main]
+      - "tests/contracts/warm_worker_v54f_test.py"
+      - "integration/orchestration/contracts/warm-worker-contract-v1.json"
+      - "integration/orchestration/sql/postgres-v54f-workers.sql"
+      - ".github/workflows/warm-worker-pilot.yml"
     paths:
       - "backend/**"
       - "frontend/**"
@@ -16,6 +20,10 @@ on:
       - ".github/workflows/runtime-fixture-build.yml"
   pull_request:
     paths:
+      - "tests/contracts/warm_worker_v54f_test.py"
+      - "integration/orchestration/contracts/warm-worker-contract-v1.json"
+      - "integration/orchestration/sql/postgres-v54f-workers.sql"
+      - ".github/workflows/warm-worker-pilot.yml"
       - "backend/**"
       - "frontend/**"
       - "scripts/**"
