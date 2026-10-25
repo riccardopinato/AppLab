@@ -66,6 +66,7 @@ jobs:
             scripts/reconciliation_recovery_v55b.py \
             scripts/warm_real_app_v55c.py \
             scripts/multi_repo_queue_v55d.py \
+            scripts/controlled_expansion_v55e.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -178,6 +179,8 @@ jobs:
           python tests/contracts/warm_real_app_v55c_test.py
           python scripts/multi_repo_queue_v55d.py --self-test
           python tests/contracts/multi_repo_queue_v55d_test.py
+          python scripts/controlled_expansion_v55e.py --self-test
+          python tests/contracts/controlled_expansion_v55e_test.py
           python tests/contracts/multi_project_event_v55a_test.py
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py
