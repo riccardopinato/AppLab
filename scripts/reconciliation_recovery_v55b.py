@@ -3,8 +3,19 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass, asdict
+import tempfile
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
+
+import controlled_event_v54g as pilot
+import durable_brain_v54a as brain
+import durable_queue_v54e as queue_mod
+import durable_store_v54b as storemod
+
+ROOT = Path(__file__).resolve().parent.parent
+V55_CONFIG = ROOT / "integration" / "orchestration" / "v55-pilot.json"
+WATCHLIST = ROOT / "watchlist.json"
 
 PILOT_REPOSITORIES = (
     "riccardopinato/AppLab",
@@ -21,7 +32,7 @@ SCENARIOS = (
     "SUPERSEDING_SHA",
     "WATCHER_RECOVERY",
 )
-TERMINAL = {"SUCCEEDED", "FAILED", "CANCELLED", "SUPERSEDED"}
+TERMINAL = frozenset(brain.load_contract()["operation"]["terminal_states"])
 
 
 class ReconciliationError(ValueError):
@@ -71,7 +82,11 @@ def reconcile(repository: str, scenario: str, state: dict[str, Any]) -> Recovery
         else:
             action = "WAIT_FOR_WATCHER"
     elif scenario == "DUPLICATE_DELIVERY":
-        action = "DEDUPE_EXISTING_OPERATION" if duplicate_delivery or durable_operation else "ADMIT_ONCE"
+        action = (
+            "DEDUPE_EXISTING_OPERATION"
+            if duplicate_delivery or durable_operation
+            else "ADMIT_ONCE"
+        )
         dispatch = action == "ADMIT_ONCE"
         executor = "GITHUB_ACTIONS" if dispatch else ""
     elif scenario == "ACTIONS_OUTAGE":
@@ -84,18 +99,22 @@ def reconcile(repository: str, scenario: str, state: dict[str, Any]) -> Recovery
         executor = "GITHUB_ACTIONS"
     elif scenario == "BRAIN_RESTART":
         action = "RESTORE_DURABLE_OPERATION" if durable_operation else "WATCHER_RECONCILE"
-        dispatch = False
     elif scenario == "EXPIRED_LEASE":
         action = "REQUEUE_EXPIRED_LEASE" if lease_expired else "KEEP_LEASE"
-        dispatch = False
     elif scenario == "SUPERSEDING_SHA":
         action = "MARK_SUPERSEDED" if superseded else "KEEP_CURRENT"
-        dispatch = False
     elif scenario == "WATCHER_RECOVERY":
         if watcher_observed_sha and operation_state == "MISSING":
             action, dispatch, executor = "WATCHER_RECOVER", True, "GITHUB_ACTIONS"
         else:
             action = "WATCHER_RECONCILED"
+
+    # GitHub Actions is the only live executor in v5.5B. Any recovery path
+    # that would dispatch must hold durable pending work while Actions is down.
+    if dispatch and not actions_available:
+        action = "HOLD_DURABLE_PENDING"
+        dispatch = False
+        executor = ""
 
     return RecoveryDecision(repository, scenario, action, dispatch, executor)
 
@@ -103,19 +122,182 @@ def reconcile(repository: str, scenario: str, state: dict[str, Any]) -> Recovery
 def scenario_corpus() -> list[dict[str, Any]]:
     templates = {
         "EVENT_LOSS": {"operation_state": "MISSING", "watcher_observed_sha": True},
-        "DUPLICATE_DELIVERY": {"operation_state": "QUEUED", "duplicate_delivery": True, "durable_operation": True},
-        "ACTIONS_OUTAGE": {"operation_state": "QUEUED", "actions_available": False, "durable_operation": True},
-        "INTERRUPTED_OPERATION": {"operation_state": "RUNNING", "durable_operation": True},
-        "BRAIN_RESTART": {"operation_state": "QUEUED", "durable_operation": True},
-        "EXPIRED_LEASE": {"operation_state": "READY", "lease_expired": True, "durable_operation": True},
-        "SUPERSEDING_SHA": {"operation_state": "QUEUED", "superseded": True, "durable_operation": True},
-        "WATCHER_RECOVERY": {"operation_state": "MISSING", "watcher_observed_sha": True},
+        "DUPLICATE_DELIVERY": {
+            "operation_state": "QUEUED",
+            "duplicate_delivery": True,
+            "durable_operation": True,
+        },
+        "ACTIONS_OUTAGE": {
+            "operation_state": "QUEUED",
+            "actions_available": False,
+            "durable_operation": True,
+        },
+        "INTERRUPTED_OPERATION": {
+            "operation_state": "RUNNING",
+            "durable_operation": True,
+        },
+        "BRAIN_RESTART": {
+            "operation_state": "QUEUED",
+            "durable_operation": True,
+        },
+        "EXPIRED_LEASE": {
+            "operation_state": "READY",
+            "lease_expired": True,
+            "durable_operation": True,
+        },
+        "SUPERSEDING_SHA": {
+            "operation_state": "QUEUED",
+            "superseded": True,
+            "durable_operation": True,
+        },
+        "WATCHER_RECOVERY": {
+            "operation_state": "MISSING",
+            "watcher_observed_sha": True,
+        },
     }
     return [
         {"repository": repo, "scenario": scenario, "state": dict(templates[scenario])}
         for repo in PILOT_REPOSITORIES
         for scenario in SCENARIOS
     ]
+
+
+def _enabled_v55_config(root: Path) -> tuple[Path, dict[str, Any]]:
+    config = pilot.load_config(V55_CONFIG)
+    config = json.loads(json.dumps(config))
+    config["enabled"] = True
+    config["kill_switch"] = False
+    path = root / "v55-enabled.json"
+    path.write_text(json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path, config
+
+
+def _assert_watcher_coverage() -> None:
+    watchlist = json.loads(WATCHLIST.read_text(encoding="utf-8"))
+    watched = {
+        (item.get("repository"), item.get("ref"))
+        for item in watchlist["repositories"]
+        if item.get("enabled")
+    }
+    for repository in PILOT_REPOSITORIES:
+        if (repository, "main") not in watched:
+            raise ReconciliationError(f"pilot repository is not watcher-covered: {repository}")
+
+
+def durable_pilot_proof() -> list[dict[str, Any]]:
+    """Exercise recovery against the same durable admission/store/queue path as v5.5A."""
+    _assert_watcher_coverage()
+    rows: list[dict[str, Any]] = []
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config_path, config = _enabled_v55_config(root)
+        targets = {item["repository"]: item for item in config["pilot_targets"]}
+
+        for index, repository in enumerate(PILOT_REPOSITORIES, start=1):
+            target = targets[repository]
+            db_path = root / f"pilot-{index}.sqlite3"
+            resolved_sha = str(index) * 40
+            applab_sha = "a" * 40
+            started_at = 1000.0 + index * 100.0
+
+            first = pilot.admit(
+                db_path=db_path,
+                config_path=config_path,
+                repository=repository,
+                source_ref=target["source_ref"],
+                resolved_sha=resolved_sha,
+                applab_sha=applab_sha,
+                delivery_id=f"repo-{index}-first",
+                live_requested=True,
+                now_ts=started_at,
+            )
+            assert first["dispatch"] is True
+            assert first["queue_state"] == "LEASED"
+            operation_id = first["operation_id"]
+
+            duplicate = pilot.admit(
+                db_path=db_path,
+                config_path=config_path,
+                repository=repository,
+                source_ref=target["source_ref"],
+                resolved_sha=resolved_sha,
+                applab_sha=applab_sha,
+                delivery_id=f"repo-{index}-first",
+                live_requested=True,
+                now_ts=started_at + 1.0,
+            )
+            assert duplicate["event_persistence"] == "REPLAY"
+            assert duplicate["operation_persistence"] == "REPLAY"
+            assert duplicate["dispatch"] is False
+            assert duplicate["queue_state"] == "LEASED"
+
+            # Re-open the durable store to prove a Brain/process restart retains
+            # the same operation and queue lease.
+            with storemod.SQLiteShadowStore(db_path) as store:
+                queue = queue_mod.DurablePerRepoQueue(store, **pilot.QUEUE_LIMITS)
+                assert store.get_operation(operation_id)["current_state"] == "PLANNING"
+                assert queue._entry(operation_id)["state"] == "LEASED"
+                assert queue.integrity_report()["ok"] is True
+
+            expired_at = started_at + pilot.QUEUE_LIMITS["lease_seconds"] + 1.0
+            expired = pilot.admit(
+                db_path=db_path,
+                config_path=config_path,
+                repository=repository,
+                source_ref=target["source_ref"],
+                resolved_sha=resolved_sha,
+                applab_sha=applab_sha,
+                delivery_id=f"repo-{index}-expired",
+                live_requested=True,
+                now_ts=expired_at,
+            )
+            recovered_ids = {
+                item["operation_id"] for item in expired["recovered_expired_leases"]
+            }
+            assert operation_id in recovered_ids
+            assert expired["queue_state"] == "QUEUED"
+            assert expired["dispatch"] is False
+
+            resumed = pilot.admit(
+                db_path=db_path,
+                config_path=config_path,
+                repository=repository,
+                source_ref=target["source_ref"],
+                resolved_sha=resolved_sha,
+                applab_sha=applab_sha,
+                delivery_id=f"repo-{index}-resume",
+                live_requested=True,
+                now_ts=expired_at + pilot.QUEUE_LIMITS["retry_base_seconds"] + 1.0,
+            )
+            assert resumed["operation_id"] == operation_id
+            assert resumed["dispatch"] is True
+            assert resumed["queue_state"] == "LEASED"
+
+            final = pilot.finalize(
+                db_path=db_path,
+                operation_id=operation_id,
+                worker_id=resumed["worker_id"],
+                job_result="success",
+                now_ts=expired_at + pilot.QUEUE_LIMITS["retry_base_seconds"] + 2.0,
+            )
+            assert final["operation_terminal_state"] == "SUCCEEDED"
+            assert final["queue_state"] == "DONE"
+
+            rows.append(
+                {
+                    "repository": repository,
+                    "operation_id": operation_id,
+                    "duplicate_deduped": True,
+                    "brain_restart_persisted": True,
+                    "expired_lease_requeued": True,
+                    "interrupted_operation_resumed": True,
+                    "watcher_covered": True,
+                    "terminal_state": "SUCCEEDED",
+                }
+            )
+
+    return rows
 
 
 def self_test() -> dict[str, Any]:
@@ -131,7 +313,11 @@ def self_test() -> dict[str, Any]:
             assert payload["executor"] == "GITHUB_ACTIONS"
         rows.append(payload)
 
-    by_scenario = {row["scenario"]: row["action"] for row in rows if row["repository"] == PILOT_REPOSITORIES[0]}
+    by_scenario = {
+        row["scenario"]: row["action"]
+        for row in rows
+        if row["repository"] == PILOT_REPOSITORIES[0]
+    }
     assert by_scenario == {
         "EVENT_LOSS": "WATCHER_RECOVER",
         "DUPLICATE_DELIVERY": "DEDUPE_EXISTING_OPERATION",
@@ -142,6 +328,8 @@ def self_test() -> dict[str, Any]:
         "SUPERSEDING_SHA": "MARK_SUPERSEDED",
         "WATCHER_RECOVERY": "WATCHER_RECOVER",
     }
+
+    durable_rows = durable_pilot_proof()
     return {
         "schema_version": 1,
         "record_type": "APPLAB_V55B_RECONCILIATION_PROOF",
@@ -149,6 +337,9 @@ def self_test() -> dict[str, Any]:
         "repositories": list(PILOT_REPOSITORIES),
         "scenario_count": len(SCENARIOS),
         "proof_count": len(rows),
+        "durable_proof_count": len(durable_rows),
+        "durable_proofs": durable_rows,
+        "terminal_states": sorted(TERMINAL),
         "authority": "ORCHESTRATION_ONLY",
         "github_actions_fallback": True,
         "coverage_reduction_enabled": False,
@@ -157,7 +348,9 @@ def self_test() -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="AppLab v5.5B reconciliation/recovery proof harness")
+    parser = argparse.ArgumentParser(
+        description="AppLab v5.5B reconciliation/recovery proof harness"
+    )
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if not args.self_test:
