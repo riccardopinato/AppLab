@@ -1,16 +1,21 @@
 ## v5.4 Durable Brain & Event-Driven Execution
 
-**Status: v5.4A OFFLINE IMPLEMENTED / NOT ACTIVE IN PRODUCTION.**
+**Status: v5.4B DURABLE STORE SHADOW IMPLEMENTED / NOT ACTIVE IN PRODUCTION.**
 
-The v5.4 architecture adds a persistent orchestration layer above AppLab v5.3.5 while preserving all current verification authority. The first implementation slice, **v5.4A Contracts & Simulator**, makes Event/Operation/Attempt contracts, operation state transitions, queue/supersession policy and deterministic replay executable entirely offline.
+The v5.4 architecture adds a persistent orchestration layer above AppLab v5.3.5 while preserving all current verification authority. **v5.4A** made Event/Operation/Attempt contracts and queue/state semantics executable offline. **v5.4B Durable Store Shadow** now adds restartable persistent operational memory, immutable EvidenceRef/Transition history and a PostgreSQL-compatible schema, still with zero dispatch and zero verdict authority.
 
-Implemented v5.4A artifacts:
+Implemented v5.4A/v5.4B artifacts:
 
 - `integration/orchestration/contracts/durable-brain-contract-v1.json`
 - `scripts/durable_brain_v54a.py`
 - `integration/orchestration/v54a-replay-corpus.json`
 - `tests/contracts/durable_brain_v54a_test.py`
 - `integration/orchestration/V54A_CONTRACTS_SIMULATOR.md`
+- `integration/orchestration/contracts/durable-store-shadow-contract-v1.json`
+- `integration/orchestration/sql/postgres-v54b-shadow.sql`
+- `scripts/durable_store_v54b.py`
+- `tests/contracts/durable_store_v54b_test.py`
+- `integration/orchestration/V54B_DURABLE_STORE_SHADOW.md`
 
 Architecture documents:
 
@@ -18,7 +23,7 @@ Architecture documents:
 - `integration/orchestration/EVENT_OPERATION_EVIDENCE_V54.md`
 - `integration/orchestration/CONDUCTOR_SHADOW_AND_WARM_WORKERS_V54.md`
 
-v5.4A has no webhook receiver, database client, Conductor client, worker dispatch or production queue. Smart Test Plan remains the FAST/FULL authority; trusted runtime, Release Assurance, Physical Evidence and Production Certification keep their existing semantics. Coverage reduction remains disabled.
+v5.4B still has no webhook receiver, live PostgreSQL connection, Conductor client, worker dispatch or production queue. Its persistent store is shadow-only and cannot mint PASS/CERTIFIED. Smart Test Plan remains the FAST/FULL authority; trusted runtime, Release Assurance, Physical Evidence and Production Certification keep their existing semantics. Coverage reduction remains disabled.
 
 The staged path remains: contracts/simulator -> shadow durable store -> shadow event gateway -> Conductor shadow -> durable per-repo queue -> warm trusted-runtime pilot -> controlled event-driven pilot. Every production-enablement step requires a separate change and validation gate.
 
