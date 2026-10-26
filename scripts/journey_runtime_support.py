@@ -30,6 +30,32 @@ class TransientInfrastructure(RuntimeError):
     pass
 
 
+def parse_journey_ids_json(raw: str) -> list[str] | None:
+    if not raw:
+        return None
+    try:
+        values = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError("invalid requested journey JSON") from exc
+    if not isinstance(values, list) or not values or not all(isinstance(value, str) for value in values):
+        raise ValueError("requested journeys must be a non-empty JSON string array")
+    if len(values) != len(set(values)):
+        raise ValueError("requested journeys must be unique")
+    return values
+
+
+def filter_requested_journeys(
+    rows: list[tuple[str, Path]],
+    requested: list[str] | None,
+) -> list[tuple[str, Path]]:
+    if requested is None:
+        return rows
+    selected_ids = {journey_id for journey_id, _ in rows}
+    if not set(requested).issubset(selected_ids):
+        raise ValueError("requested journey subset is not contained in trusted selection")
+    return [row for row in rows if row[0] in set(requested)]
+
+
 def adb(*args: str, timeout: int = 30) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
