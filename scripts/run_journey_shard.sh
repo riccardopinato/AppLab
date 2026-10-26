@@ -11,6 +11,7 @@ PACKAGE_ID="${APPLAB_PACKAGE_ID:?APPLAB_PACKAGE_ID is required}"
 JOURNEY_IDS_JSON="${APPLAB_JOURNEY_IDS_JSON:?APPLAB_JOURNEY_IDS_JSON is required}"
 SHARD_ID="${APPLAB_SHARD_ID:?APPLAB_SHARD_ID is required}"
 ANDROID_PREPARE_COMMAND="${APPLAB_ANDROID_PREPARE_COMMAND:-}"
+BUILD_CONTRACT_JSON="${APPLAB_BUILD_CONTRACT_JSON:?APPLAB_BUILD_CONTRACT_JSON is required}"
 
 validate_prepare_hook() {
   local line trimmed
@@ -25,6 +26,7 @@ validate_prepare_hook() {
 }
 
 mkdir -p "$REPORT_DIR"
+cp "$BUILD_CONTRACT_JSON" "$REPORT_DIR/contract.json"
 adb install -r -t "$APK_FILE"
 if [[ -n "$ANDROID_PREPARE_COMMAND" ]]; then
   validate_prepare_hook
@@ -32,5 +34,3 @@ if [[ -n "$ANDROID_PREPARE_COMMAND" ]]; then
 fi
 
 python3 "$TRUSTED_ROOT/scripts/journey_shard_runtime.py"   --target-root "$TARGET_ROOT"   --trusted-root "$TRUSTED_ROOT"   --plan "$PLAN_FILE"   --repository "$REPOSITORY"   --package-id "$PACKAGE_ID"   --report-dir "$REPORT_DIR"   --journey-ids-json "$JOURNEY_IDS_JSON"   --shard-id "$SHARD_ID"
-
-cp "$APPLAB_BUILD_CONTRACT_JSON" "$REPORT_DIR/contract.json"
