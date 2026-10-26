@@ -16,6 +16,7 @@ def main() -> int:
     trusted = (ROOT / ".github/workflows/trusted-apk-verifier.yml").read_text(encoding="utf-8")
     review_workflow = (ROOT / ".github/workflows/external-review-watchdog.yml").read_text(encoding="utf-8")
     supersession_workflow = (ROOT / ".github/workflows/supersession-watchdog.yml").read_text(encoding="utf-8")
+    live_validation = (ROOT / ".github/workflows/v59e-live-watchdog-validation.yml").read_text(encoding="utf-8")
     review_policy = (ROOT / "scripts/external_review_watchdog_v59e.py").read_text(encoding="utf-8")
     review_reconcile = (ROOT / "scripts/external_review_reconcile_v59e.py").read_text(encoding="utf-8")
     review_config = json.loads((ROOT / "config/external-review-watchdog.json").read_text(encoding="utf-8"))
@@ -78,6 +79,15 @@ def main() -> int:
     require(
         "actions: write" in supersession_workflow,
         "supersession watchdog needs bounded Actions cancellation authority",
+    )
+    require(
+        "actions: read" in live_validation
+        and "issues: read" in live_validation
+        and "pull-requests: read" in live_validation
+        and "--dry-run" in live_validation
+        and "actions: write" not in live_validation
+        and "issues: write" not in live_validation,
+        "PR live watchdog validation must remain read-only dry-run evidence",
     )
 
     print("AppLab v5.9E warm runtime/watchdog contract PASS")
