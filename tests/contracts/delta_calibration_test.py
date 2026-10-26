@@ -78,7 +78,8 @@ def main() -> int:
     planner = (ROOT / "scripts/smart_test_plan.py").read_text(encoding="utf-8")
     assert "import delta_calibration" not in planner
     assert "from delta_calibration" not in planner
-    assert "coverage_reduction_enabled" not in planner
+    assert "MULTI_PROJECT_DELTA_CALIBRATION" not in planner
+    assert "READY_FOR_EXPERIMENT" not in planner
 
     registry = (ROOT / "scripts/evidence_contract_registry.py").read_text(encoding="utf-8")
     assert '"delta-calibration.json"' in registry

@@ -315,14 +315,14 @@ def check_project_adapter_contract() -> None:
         encoding="utf-8"
     )
     for needle in (
-        'ADAPTER_VERSION = "4.3.0"',
+        'ADAPTER_VERSION = "4.4.0"',
         '"release_artifact_pattern"',
         '"journeys"',
         '"physical_validation"',
         '"profile_fingerprint"',
         "resolved_sha",
     ):
-        require(needle in adapter, f"v4.3 project adapter missing contract: {needle}")
+        require(needle in adapter, f"v4.4 project adapter missing contract: {needle}")
     require(
         "scripts/project_adapter.py" in universal
         and "project-profile.json" in universal

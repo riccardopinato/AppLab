@@ -23,6 +23,7 @@ LIMITS = {
     "scripts/delta_calibration.py": 420,
     "scripts/audit_contract_delta.py": 150,
     "scripts/smart_test_plan.py": 1000,
+    "scripts/journey_planner.py": 300,
     "scripts/planner_feedback.py": 280,
     "scripts/planner_feedback_contract.py": 260,
     "scripts/evidence_graph.py": 2400,

@@ -19,6 +19,8 @@ from history_learning import (
     refresh_lane_telemetry,
 )
 from planner_feedback import evaluate_feedback, read_json as read_feedback_json
+import project_adapter
+import journey_planner
 
 LABS = (
     "system", "performance", "network", "persistence", "configuration",
@@ -600,6 +602,9 @@ def analyze_repository(repo_root: Path, mode: str, baseline_sha: str = "", histo
     )
     plan = apply_graph_planner_feedback(plan, feedback_evaluation)
     plan = refresh_lane_telemetry(plan)
+    plan = journey_planner.select_journeys(
+        repo_root, plan, is_static_only_path=is_static_only_path
+    )
     plan["head_sha"] = head_sha
     plan["history_key"] = history_key
     plan["source_ref"] = source_ref
@@ -702,6 +707,17 @@ def validate_plan(payload: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("invalid risk score")
         if not 0.0 <= float(payload.get("confidence", -1)) <= 1.0:
             raise ValueError("invalid confidence")
+        selected_journeys = payload.get("selected_journeys", [])
+        if not isinstance(selected_journeys, list) or len(selected_journeys) > project_adapter.MAX_JOURNEY_CATALOG:
+            raise ValueError("invalid selected_journeys")
+        if not all(isinstance(value, str) and re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,63}", value) for value in selected_journeys):
+            raise ValueError("invalid selected_journeys entry")
+        journey_selection = payload.get("journey_selection")
+        if journey_selection is not None:
+            if not isinstance(journey_selection, dict):
+                raise ValueError("invalid journey_selection")
+            if journey_selection.get("coverage_reduction_enabled") is not False:
+                raise ValueError("v5.9A journey planning may not reduce runtime coverage")
         feedback = payload.get("planner_feedback")
         if feedback is not None:
             if not isinstance(feedback, dict):
@@ -727,6 +743,7 @@ def regression_corpus_test() -> None:
 
 def self_test() -> None:
     regression_corpus_test()
+    journey_planner.self_test()
     docs = classify(["README.md"], "fast", "a"*40)
     assert docs["lane"] == "NO_RUNTIME_CHANGE"
     db = classify(["app/src/main/java/x/AppDatabase.kt"], "fast", "a"*40)

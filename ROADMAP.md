@@ -2,9 +2,9 @@
 
 Current production baseline: **v5.8 — Autonomous Triage & Factory Learning**
 
-Active program: **v5.7B/E downstream evidence accrual (non-blocking)**
+Active program: **v5.9 — Journey-Aware Throughput**
 
-Status: **v5.8R and v5.8A–E completed and merged; v5.7B/E remain open only for real downstream promotion evidence.**
+Status: **v5.9A implemented for exact-head validation; v5.7B/E continue downstream evidence accrual in parallel.**
 
 ## Completed — v5.5 Multi-Project Event-Driven Rollout
 
@@ -147,6 +147,39 @@ next independent roadmap step.
   until a separate deterministic-scaffold contract is proven.
 - Codex/review latency may block merge but does not block preparing the next
   independent roadmap step.
+
+## Active — v5.9 Journey-Aware Throughput
+
+v5.9 targets the measured commit-to-green critical path without weakening trusted
+runtime, exact-artifact identity, physical/store boundaries or certification.
+
+- [x] **v5.9A Journey-Aware Planner:** extend the project adapter with a bounded
+  journey catalog and produce deterministic `selected_journeys` from exact diff,
+  dependency impact and specialist-lab selection. The selection is frozen into
+  the immutable build contract. Runtime coverage reduction remains disabled.
+- [ ] **v5.9B Atomic Journey Execution:** execute selected Maestro journeys as
+  independent evidence units with journey-local infrastructure retry. Legacy
+  monolithic primary-flow execution remains the fail-safe fallback.
+- [ ] **v5.9C Parallel Runtime Sharding:** shard independent journey groups across
+  isolated runtimes while aggregating one verdict for the exact same APK bytes.
+- [ ] **v5.9D Build Once Promotion:** promote exact-artifact reuse across
+  compatible downstream gates, prove deterministic generated scaffold inputs and
+  benchmark/remove unnecessary ABI builds.
+- [ ] **v5.9E Warm Runtime + Watchdogs:** bounded production warm-runtime routing,
+  supersession cancellation and external-review watchdog/retrigger semantics with
+  GitHub Actions fallback.
+
+### v5.9 safety rules
+
+- Smart Test Plan remains the FAST/FULL authority.
+- Missing/invalid journey metadata keeps legacy/full coverage; target metadata
+  can never mint PASS or CERTIFIED.
+- v5.9A is planning-only: `coverage_reduction_enabled=false`.
+- FULL/CERTIFICATION select every declared journey.
+- Exact source/build/artifact identity is preserved through every later shard.
+- Physical-device, distribution/store and cross-app evidence remain separate.
+
+See `integration/performance/JOURNEY_AWARE_RUNTIME_V59.md`.
 
 ## Product rule
 

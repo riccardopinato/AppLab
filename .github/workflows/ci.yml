@@ -44,6 +44,7 @@ jobs:
             scripts/background_lab.py \
             scripts/storage_lab.py \
             scripts/smart_test_plan.py \
+            scripts/journey_planner.py \
             scripts/planner_feedback.py \
             scripts/planner_feedback_contract.py \
             scripts/evidence_contract_registry.py \
@@ -170,6 +171,7 @@ jobs:
           python scripts/background_lab.py --self-test
           python scripts/storage_lab.py --self-test
           python scripts/smart_test_plan.py --self-test
+          python scripts/journey_planner.py
           python scripts/planner_feedback.py --self-test
           python scripts/evidence_contract_registry.py self-test
           bash scripts/restore_planner_feedback.sh --self-test
