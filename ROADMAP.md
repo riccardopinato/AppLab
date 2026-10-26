@@ -124,7 +124,7 @@ next independent roadmap step.
 - [x] **v5.8B Fix Candidate Planner:** turn triage evidence into a bounded
   change plan with files/surfaces, acceptance criteria, rollback and authority
   boundaries. No repository mutation.
-- [ ] **v5.8C Proposal-Only PR Package:** produce an agent/Codex-ready package
+- [x] **v5.8C Proposal-Only PR Package:** produce an agent/Codex-ready package
   containing scope, change plan, tests and PR acceptance criteria. No
   autonomous merge or release.
 - [ ] **v5.8D Factory Feedback Packager:** combine Pattern-3 and Reuse Planner
