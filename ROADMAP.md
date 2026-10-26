@@ -1,11 +1,11 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.3.5 — Multi-Project Calibration & Delta Readiness**
+Current production baseline: **v5.5 — Multi-Project Event-Driven Rollout**
 
-Next architecture candidate: **v5.4 — Durable Brain & Event-Driven Execution**  
-Status: **v5.4A–G implemented; controlled live canary limited to AppLab/selftest; verification and certification authority unchanged**.
+Next architecture sequence: **v5.6 — Evidence-Efficient Reliability & Physical Proof**  
+Status: **v5.5A–E completed and merged; verification/certification authority boundaries preserved; v5.6 is the next execution sequence**.
 
-## Proposed — v5.5 Multi-Project Event-Driven Rollout
+## Completed — v5.5 Multi-Project Event-Driven Rollout
 
 The v5.5 program promotes the v5.4 control plane from a self-repository canary to bounded real-project orchestration while preserving every existing verification and certification authority.
 
@@ -16,6 +16,32 @@ The v5.5 program promotes the v5.4 control plane from a self-repository canary t
 - [x] **v5.5E Controlled Expansion:** expand 3 -> 5 -> all compatible repositories with global/per-repo kill switches; only after sufficient evidence may the hourly watcher become reconciliation/watchdog rather than primary scheduler.
 
 Promotion remains evidence-gated. v5.5 cannot mint PASS/CERTIFIED, cannot reduce Smart Test Plan coverage and cannot remove GitHub Actions fallback or watcher reconciliation by documentation alone.
+
+## Planned — v5.6 Evidence-Efficient Reliability & Physical Proof
+
+The v5.6 program converts the remaining open hardening priorities into five independently mergeable stages. The objective is to make AppLab faster and more operationally efficient without weakening trusted evidence, exact-artifact identity, physical-device boundaries or certification authority.
+
+- [ ] **v5.6A Runtime Stability & Failure Diagnostics:** reduce Browser E2E / emulator / WebRTC / frame / codec infrastructure flakiness without weakening assertions; preserve fail-closed app failures; improve pre-recovery diagnostics, recurrence classification and p50/p95 runtime visibility.
+- [ ] **v5.6B Evidence Lifecycle & Retention:** extend the existing TTL model into an explicit evidence retention / garbage-collection policy; pin release-critical, certification, physical/distribution and cross-app evidence; make cleanup provenance-aware and prevent GC from deleting evidence still required by release history.
+- [ ] **v5.6C Delta Execution Controlled Experiment:** use accumulated multi-project calibration to run a bounded shadow/controlled experiment for invalidation-based execution. Keep `coverage_reduction_enabled=false` by default; no production coverage reduction is permitted until false-negative, missed-warning and confidence thresholds are satisfied on real history and an explicit promotion gate passes.
+- [ ] **v5.6D Multi-Project Heuristic Calibration:** tune FAST/FULL selection, recurrence thresholds, risk/confidence inputs and scheduling heuristics from real multi-project history rather than speculative complexity; require repository/category diversity, stale-data handling and measurable before/after evidence.
+- [ ] **v5.6E Physical Evidence & Advanced Hardening Pilots:** introduce bounded physical-device evidence where emulator proof is insufficient and evaluate the already-approved evidence-only pilots: scrcpy Physical Evidence Hub, LeakCanary diagnostic lane, Semgrep + Trivy first-wave security scanning and MobSF second-wave mobile scanning. These producers remain evidence sources only and cannot mint PASS/CERTIFIED or alter release-artifact identity.
+
+### v5.6 execution rules
+
+Each A→E stage is intentionally smaller than v5.5E and must be independently branchable, reviewable, exact-head validated and mergeable. A later stage must not be bundled into an earlier PR merely to reduce PR count.
+
+Cross-cutting guardrails for every v5.6 stage:
+- keep Smart Test Plan as the sole FAST/FULL authority unless a separately approved contract explicitly changes that;
+- keep Production Certification as the only certification authority;
+- keep emulator/runtime, physical-device, distribution/store and cross-app evidence distinct;
+- keep GitHub Actions fallback and recovery paths until real evidence supports a separate removal decision;
+- keep performance, security, dependency, artifact-provenance and maintainability gates healthy as part of each stage rather than creating a sixth catch-all step;
+- prefer measured reuse of existing AppLab engines and evidence producers over parallel implementations.
+
+### v5.6 promotion rule
+
+Completing documentation or a shadow simulation does not promote production behavior. Any coverage reduction, scheduler-role change, physical-evidence authority change or new security verdict path requires its own exact-head evidence, rollback path and explicit promotion criteria.
 
 ## Product rule
 
@@ -792,14 +818,14 @@ Completed evidence-driven hardening:
 - [x] Add deterministic regression coverage proving stale-ANR isolation and
   fresh post-action ANR failure semantics.
 
-Continuous priorities:
-- [ ] Reduce runtime/browser E2E flakiness without weakening assertions. v5.3.1 adds a bounded single reconnect for the observed connected/no-frame signature; continue measuring recurrence.
-- [ ] Improve diagnostics for WebRTC/frame/codec/runtime infrastructure failures. v5.3.1 records browser video/track, runtime, gateway and console evidence before recovery.
-- [x] Add schema/version contracts for new evidence producers and consumers. v5.3.4 introduces the canonical compatibility registry and fail-closed producer/consumer checks.
-- [ ] Add evidence retention/garbage-collection policy while pinning release-critical evidence. v5.3.1 introduces the first enforced TTL policy; expand it as new evidence classes become release-critical.
-- [ ] Improve delta execution so small changes rerun only the evidence that can actually be invalidated. v5.3.5 adds multi-project readiness calibration, but coverage reduction remains disabled until real history reaches READY_FOR_EXPERIMENT and a later explicit controlled-experiment step is approved.
-- [ ] Tune heuristics from real multi-project data rather than speculative complexity. v5.3.5 now collects and classifies the required evidence; tuning remains gated on observed history rather than synthetic assumptions.
-- [ ] Keep performance, security, dependency, artifact-provenance and maintainability gates healthy as AppLab grows. v5.3.3 adds structural ceilings for Evidence Graph, audit contracts, Studio frontend and external runners, plus independent contract tests.
+Continuous priorities are no longer an unowned backlog. They are now mapped into the formal v5.6 sequence:
+
+- **v5.6A** owns Browser E2E / emulator / WebRTC stability and diagnostics.
+- **v5.6B** owns evidence retention, pinning and garbage collection.
+- **v5.6C** owns delta-execution experiments and any future coverage-reduction promotion.
+- **v5.6D** owns real-data heuristic calibration across repositories.
+- **v5.6E** owns physical-device evidence and bounded advanced diagnostic/security pilots.
+- Performance, dependency, artifact-provenance and maintainability remain cross-cutting gates in every v5.6 stage.
 
 ## v1.0 evidence contract
 
