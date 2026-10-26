@@ -84,6 +84,8 @@ def build_execution_plan(
         "impacted_files",
         "selected_labs",
         "predicted_selected_labs",
+        "selected_journeys",
+        "journey_selection",
         "risk_score",
         "confidence",
         "fallback_full",
@@ -193,6 +195,19 @@ def build_execution_plan(
         "run_runtime": run_runtime,
         "selected_labs": selected,
         "selected_lab_count": len(selected),
+        "selected_journeys": [
+            value for value in analysis_plan.get("selected_journeys", [])
+            if isinstance(value, str)
+        ],
+        "selected_journey_count": len([
+            value for value in analysis_plan.get("selected_journeys", [])
+            if isinstance(value, str)
+        ]),
+        "journey_selection": (
+            analysis_plan.get("journey_selection")
+            if isinstance(analysis_plan.get("journey_selection"), dict)
+            else {}
+        ),
         "identity": identity,
         "dag": {
             "nodes": nodes,
@@ -223,6 +238,7 @@ def write_github_output(path: Path, report: dict[str, Any]) -> None:
         "run_build": str(report["run_build"]).lower(),
         "run_runtime": str(report["run_runtime"]).lower(),
         "selected_lab_count": str(report["selected_lab_count"]),
+        "selected_journey_count": str(report["selected_journey_count"]),
     }
     with path.open("a", encoding="utf-8") as handle:
         for key, value in values.items():
