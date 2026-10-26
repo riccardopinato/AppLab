@@ -12,6 +12,7 @@ RUN_MAESTRO="${RUN_MAESTRO:-false}"
 APPLAB_VERSION="${APPLAB_VERSION:-1.0.0}"
 ANALYSIS_PLAN_JSON="${APPLAB_ANALYSIS_PLAN_JSON:-}"
 ANALYSIS_MODE="${APPLAB_ANALYSIS_MODE:-full}"
+JOURNEY_IDS_JSON="${APPLAB_JOURNEY_IDS_JSON:-}"
 REPOSITORY="${APPLAB_REPOSITORY:-}"
 TRUSTED_ROOT="${APPLAB_TRUSTED_ROOT:-}"
 export APPLAB_EFFECTIVE_ANALYSIS_MODE="$ANALYSIS_MODE"
@@ -411,7 +412,11 @@ if [[ -n "$MAESTRO_FLOW" ]] || is_true "$RUN_MAESTRO"; then
   JOURNEY_RUNTIME_STATUS=3
   if [[ -n "$TARGET_ROOT" && -n "$TRUSTED_ROOT" && -n "$REPOSITORY" && -n "$ANALYSIS_PLAN_JSON" && -s "$ANALYSIS_PLAN_JSON" ]]; then
     set +e
-    python3 "$(dirname "$0")/journey_runtime.py"       --target-root "$TARGET_ROOT"       --trusted-root "$TRUSTED_ROOT"       --plan "$ANALYSIS_PLAN_JSON"       --repository "$REPOSITORY"       --package-id "$PACKAGE_ID"       --report-dir "$REPORT_DIR"
+    JOURNEY_SUBSET_ARGS=()
+    if [[ -n "$JOURNEY_IDS_JSON" ]]; then
+      JOURNEY_SUBSET_ARGS=(--journey-ids-json "$JOURNEY_IDS_JSON")
+    fi
+    python3 "$(dirname "$0")/journey_runtime.py"       --target-root "$TARGET_ROOT"       --trusted-root "$TRUSTED_ROOT"       --plan "$ANALYSIS_PLAN_JSON"       --repository "$REPOSITORY"       --package-id "$PACKAGE_ID"       --report-dir "$REPORT_DIR"       "${JOURNEY_SUBSET_ARGS[@]}"
     JOURNEY_RUNTIME_STATUS="$?"
     set -e
   fi
