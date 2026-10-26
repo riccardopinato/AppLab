@@ -111,6 +111,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
+          rm -f \
+            .applab-maintenance/factory-adoption-observatory.json \
+            .applab-maintenance/factory-adoption-observatory.md \
+            .applab-maintenance/factory-throughput.json \
+            .applab-maintenance/pattern3-candidates.json \
+            .applab-maintenance/factory-reuse-plan.json \
+            .applab-maintenance/verification-reuse.json
           python scripts/factory_adoption_observatory_v57a.py \
             --watchlist watchlist.json \
             --pilots integration/factory/v57-pilots.json \
