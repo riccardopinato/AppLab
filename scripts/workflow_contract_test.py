@@ -100,6 +100,9 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "BASELINE_FALLBACK",
         "effective FULL fallback",
         "Evaluate verification cache eligibility",
+        "Evaluate v5.7E exact-artifact reuse promotion",
+        "Enforce v5.7E promotion gate on reused build",
+        "steps.reuse_promotion.outputs.promotion_ready == 'true'",
         "github_run_started_at.py",
     ),
     ".github/workflows/autonomous-app-review-v31.yml": (
@@ -220,6 +223,15 @@ def validate() -> None:
         text = (ROOT / relative).read_text(encoding="utf-8")
         for needle in needles:
             assert needle not in text, f"{relative}: forbidden stale contract {needle!r}"
+
+    trusted = (ROOT / ".github/workflows/trusted-apk-verifier.yml").read_text(encoding="utf-8")
+    promotion_index = trusted.index("Evaluate v5.7E exact-artifact reuse promotion")
+    assert promotion_index < trusted.index("Prepare PASS-only visual baseline"), (
+        "reuse promotion must fail before PASS-only baselines can be promoted"
+    )
+    assert promotion_index < trusted.index("Finalize trusted result contract"), (
+        "reuse promotion must affect job.status before aggregate PASS finalization"
+    )
 
     for relative in (
         ".github/workflows/external-project-runner.yml",
