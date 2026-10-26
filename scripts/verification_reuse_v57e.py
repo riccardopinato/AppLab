@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse, json, os, shlex, urllib.error, urllib.parse, urllib.request
+import argparse, json, os, urllib.error, urllib.parse, urllib.request
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -50,13 +50,7 @@ def trusted_applab_hook_safe(command:str)->bool:
     raw=command.strip()
     if not raw:
         return True
-    try:
-        parts=shlex.split(raw)
-    except ValueError:
-        return False
-    if len(parts)!=2 or parts[0]!="bash":
-        return False
-    match=reuse.TRUSTED_APPLAB_HOOK.fullmatch(parts[1])
+    match=reuse.TRUSTED_APPLAB_HOOK_COMMAND.fullmatch(raw)
     if not match:
         return False
     path=Path(__file__).resolve().parents[1]/"watch-profiles"/match.group(1)
@@ -190,7 +184,12 @@ def self_test()->None:
     trusted_command='bash "$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh"'
     trusted=dict(flutter,prepare_command=trusted_command)
     assert trusted_applab_hook_safe(trusted_command) is True
-    assert trusted_applab_hook_safe("bash setup.sh") is False
+    for rejected_hook in (
+      "bash setup.sh",
+      "bash '$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh'",
+      'bash "\\$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh"',
+    ):
+      assert trusted_applab_hook_safe(rejected_hook) is False
     assert evaluate(
       trusted,
       has_pub_lock=True,
