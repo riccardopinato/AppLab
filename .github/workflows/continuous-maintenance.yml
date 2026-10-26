@@ -14,6 +14,8 @@ on:
       - "scripts/pattern3_discovery_v57c.py"
       - "scripts/factory_reuse_planner_v57d.py"
       - "scripts/verification_reuse_v57e.py"
+      - "scripts/factory_runtime_acceleration_v58r.py"
+      - "integration/factory/v58r-runtime-acceleration.json"
   schedule:
     - cron: "47 * * * *"
   workflow_run:
@@ -117,7 +119,9 @@ jobs:
             .applab-maintenance/factory-throughput.json \
             .applab-maintenance/pattern3-candidates.json \
             .applab-maintenance/factory-reuse-plan.json \
-            .applab-maintenance/verification-reuse.json
+            .applab-maintenance/verification-reuse.json \
+            .applab-maintenance/factory-runtime-acceleration.json \
+            .applab-maintenance/factory-runtime-acceleration.md
           python scripts/factory_adoption_observatory_v57a.py \
             --watchlist watchlist.json \
             --pilots integration/factory/v57-pilots.json \
@@ -127,6 +131,10 @@ jobs:
             --observatory .applab-maintenance/factory-adoption-observatory.json \
             --pilots integration/factory/v57-pilots.json \
             --output .applab-maintenance/factory-throughput.json
+          python scripts/factory_runtime_acceleration_v58r.py \
+            --observatory .applab-maintenance/factory-adoption-observatory.json \
+            --output-json .applab-maintenance/factory-runtime-acceleration.json \
+            --output-md .applab-maintenance/factory-runtime-acceleration.md
           if [[ -f .applab-maintenance/maintenance-queue.json ]]; then
             python scripts/pattern3_discovery_v57c.py \
               --queue .applab-maintenance/maintenance-queue.json \
@@ -141,6 +149,7 @@ jobs:
             --watchlist watchlist.json \
             --output .applab-maintenance/verification-reuse.json
           cat .applab-maintenance/factory-adoption-observatory.md >> "$GITHUB_STEP_SUMMARY"
+          cat .applab-maintenance/factory-runtime-acceleration.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save maintenance queue
         if: always()
