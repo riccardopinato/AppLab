@@ -8,7 +8,7 @@ from typing import Any
 
 ENGINE_VERSION = "5.9E"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-VALID_STATUS = {"missing", "running", "completed"}
+VALID_STATUS = {"missing", "running", "completed", "failed"}
 
 
 def _sha(value: Any, label: str) -> str:
@@ -68,6 +68,11 @@ def evaluate(
             state, action, reason = "RETRIGGER", "REQUEST_REVIEW", "REVIEW_TIMEOUT"
         else:
             state, reason = "BLOCKED", "REVIEW_TIMEOUT_RETRY_EXHAUSTED"
+    elif status == "failed":
+        if can_retry:
+            state, action, reason = "RETRIGGER", "REQUEST_REVIEW", "REVIEW_FAILED"
+        else:
+            state, reason = "BLOCKED", "REVIEW_FAILED_RETRY_EXHAUSTED"
     elif status == "missing":
         if can_retry:
             state, action, reason = "RETRIGGER", "REQUEST_REVIEW", "REVIEW_MISSING"
@@ -142,6 +147,18 @@ def self_test() -> None:
     )
     assert timed_out["state"] == "RETRIGGER"
     assert timed_out["reason"] == "REVIEW_TIMEOUT"
+
+    failed = evaluate(
+        expected_head_sha=head,
+        review_head_sha=head,
+        review_status="failed",
+        has_unresolved_findings=True,
+        elapsed_seconds=0,
+        retry_count=0,
+    )
+    assert failed["state"] == "RETRIGGER"
+    assert failed["reason"] == "REVIEW_FAILED"
+    assert failed["action"] == "REQUEST_REVIEW"
 
     exhausted = evaluate(
         expected_head_sha=head,
