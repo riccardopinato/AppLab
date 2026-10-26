@@ -65,8 +65,10 @@ def load_json_inventory(path: Path) -> list[dict[str, Any]]:
 def referenced_ids(path: Path | None) -> tuple[set[str], set[str]]:
     ids: set[str] = set()
     hashes: set[str] = set()
-    if path is None or not path.is_file():
+    if path is None:
         return ids, hashes
+    if not path.is_file():
+        raise ValueError("explicit release-history path is unavailable")
     raw = path.read_text(encoding="utf-8", errors="ignore")
     rows: list[Any] = []
     try:
@@ -170,6 +172,12 @@ def self_test() -> None:
     assert states["active"] == "KEEP_ACTIVE"
     assert states["missing"] == "KEEP_FAIL_CLOSED"
     assert report["automatic_action"] is False
+    try:
+        referenced_ids(Path("missing-release-history-v56b.json"))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("explicit missing release history must fail closed")
     print("AppLab v5.6B retention review self-test PASS")
 
 
