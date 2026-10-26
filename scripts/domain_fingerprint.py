@@ -123,6 +123,8 @@ def self_test(root: Path) -> None:
         "scripts/finalize_journey_shard_result.py",
         "scripts/run_journey_shard.sh",
         "config/journey-sharding-pilots.json",
+        "scripts/warm_runtime_route_v59e.py",
+        "config/warm-runtime-production.json",
         "scripts/planner_feedback.py",
         "scripts/planner_feedback_contract.py",
         "scripts/restore_planner_feedback.sh",

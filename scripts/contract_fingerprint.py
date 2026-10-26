@@ -59,6 +59,8 @@ CONTRACT_FILES = (
     "scripts/verification_intelligence.py",
     "scripts/verification_reuse_promotion_v57e.py",
     "scripts/build_once_promotion_v59d.py",
+    "scripts/warm_runtime_route_v59e.py",
+    "config/warm-runtime-production.json",
     "scripts/upgrade_lab.py",
     "scripts/prepare_upgrade_baseline.py",
     "scripts/prepare_performance_baseline.py",

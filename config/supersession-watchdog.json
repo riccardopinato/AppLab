@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "program": "AppLab v5.9E Supersession Watchdog",
+  "enabled": true,
+  "global_kill_switch": false,
+  "workflow_names": [
+    "Controlled Event-Driven Pilot",
+    "AppLab True Autonomous App Review v5.3.5"
+  ],
+  "protected_workflow_names": [
+    "Production Certification"
+  ],
+  "allowed_events": [
+    "push",
+    "pull_request"
+  ],
+  "max_cancellations_per_run": 4
+}

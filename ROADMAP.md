@@ -1,10 +1,10 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.8 — Autonomous Triage & Factory Learning**
+Current production baseline after this merge: **v5.9 — Journey-Aware Throughput**
 
-Active program: **v5.9 — Journey-Aware Throughput**
+Active program: **v5.9 complete; downstream adoption and evidence accrual continue in parallel.**
 
-Status: **v5.9A merged; v5.9B implemented for exact-head validation; v5.7B/E continue downstream evidence accrual in parallel.**
+Status: **v5.9A-E implemented and evidence-gated; merge remains subject to exact-head required checks and review.**
 
 ## Completed — v5.5 Multi-Project Event-Driven Rollout
 
@@ -148,7 +148,7 @@ next independent roadmap step.
 - Codex/review latency may block merge but does not block preparing the next
   independent roadmap step.
 
-## Active — v5.9 Journey-Aware Throughput
+## Completed — v5.9 Journey-Aware Throughput
 
 v5.9 targets the measured commit-to-green critical path without weakening trusted
 runtime, exact-artifact identity, physical/store boundaries or certification.
@@ -166,19 +166,30 @@ runtime, exact-artifact identity, physical/store boundaries or certification.
   across isolated runtimes, keep the coordinator group in the primary trusted
   verifier and aggregate one exact-artifact verdict. Admission is centrally
   evidence-gated; shadow mode cannot reduce primary coverage.
-- [ ] **v5.9D Build Once Promotion:** promote exact-artifact reuse across
+- [x] **v5.9D Build Once Promotion:** promote exact-artifact reuse across
   compatible downstream gates, prove deterministic generated scaffold inputs and
   benchmark/remove unnecessary ABI builds.
-  - Central carrier implemented on the stacked branch: trusted AppLab-owned
-    prepare/post-dependency hooks are fingerprinted as build material.
-  - Anna is the first runtime carrier: one Android x64 APK replaces AppLab's
-    previous split-per-ABI runtime build; production size/release artifacts stay
-    independent.
-  - Completion gate: exact-head AppLab CI plus a real downstream Anna run pinned
-    to the final immutable AppLab commit.
-- [ ] **v5.9E Warm Runtime + Watchdogs:** bounded production warm-runtime routing,
+  - AppLab-owned prepare/post-dependency hooks are fingerprinted as immutable
+    build material and exact-artifact reuse remains promotion-gated.
+  - Anna proved the production carrier end to end against immutable AppLab
+    candidate `05814036f3bbce1640cb1881215e2689d7110b76`: Development checks,
+    Android size audit and trusted AppLab runtime all passed before merge.
+  - The fresh AppLab carrier built one 58 MB Android x64 `app-release.apk` in
+    405.469 seconds instead of the previous split-per-ABI runtime build; signed,
+    obfuscated size/release artifacts remain independent.
+- [x] **v5.9E Warm Runtime + Watchdogs:** bounded production warm-runtime routing,
   supersession cancellation and external-review watchdog/retrigger semantics with
   GitHub Actions fallback.
+  - Cache-backed pristine AVD routing is centrally admitted for AppLab and Anna;
+    cache miss, profile mismatch or kill switch falls back to cold GitHub Actions.
+  - Supersession cancellation is limited to allowlisted workflow/ref/PR/source
+    lineage, requires GitHub-proven descendant ancestry and protects Production
+    Certification.
+  - External review reconciliation paginates complete comment history, rotates a
+    bounded open-PR window, authenticates bot markers and can retrigger stale or
+    missing Codex review without resolving findings or changing merge authority.
+  - Post-v5.9D live read-only watchdog validation is PASS; the PR remains draft
+    until this final documentation head also passes exact-head CI/runtime/review.
 
 ### v5.9 safety rules
 

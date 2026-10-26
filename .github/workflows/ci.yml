@@ -88,6 +88,15 @@ jobs:
             scripts/verification_reuse_v57e.py \
             scripts/verification_reuse_promotion_v57e.py \
             scripts/build_once_promotion_v59d.py \
+            scripts/external_review_watchdog_v59e.py \
+            scripts/watchdog_github_v59e.py \
+            scripts/external_review_support_v59e.py \
+            scripts/external_review_reconcile_v59e.py \
+            scripts/warm_runtime_route_v59e.py \
+            scripts/supersession_support_v59e.py \
+            scripts/supersession_watchdog_v59e.py \
+            scripts/audit_contract_v59e.py \
+            scripts/warm_runtime_route_v59e.py \
             scripts/factory_runtime_acceleration_v58r.py \
             scripts/autonomous_failure_triage_v58a.py \
             scripts/fix_candidate_planner_v58b.py \
@@ -169,6 +178,7 @@ jobs:
             tests/contracts/evidence_schema_registry_test.py \
             tests/contracts/delta_calibration_test.py \
             tests/contracts/journey_runtime_v59b_test.py \
+            tests/contracts/watchdogs_v59e_test.py \
             tests/contracts/workflow_structure_test.py
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/interaction_crawler.py --self-test
@@ -233,7 +243,15 @@ jobs:
           python scripts/verification_reuse_v57e.py --self-test
           python scripts/verification_reuse_promotion_v57e.py --self-test
           python scripts/build_once_promotion_v59d.py --self-test
+          python scripts/external_review_watchdog_v59e.py --self-test
+          python scripts/external_review_support_v59e.py
+          python scripts/external_review_reconcile_v59e.py --self-test
+          python scripts/supersession_support_v59e.py
+          python scripts/supersession_watchdog_v59e.py --self-test
+          python tests/contracts/watchdogs_v59e_test.py
+          python scripts/audit_contract_v59e.py
           python scripts/build_once_promotion_v59d.py --trusted-root . --require-ready
+          python scripts/warm_runtime_route_v59e.py --self-test
           python scripts/factory_runtime_acceleration_v58r.py --self-test
           python scripts/autonomous_failure_triage_v58a.py --self-test
           python scripts/fix_candidate_planner_v58b.py --self-test

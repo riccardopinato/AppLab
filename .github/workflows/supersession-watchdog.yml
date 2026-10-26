@@ -1,0 +1,56 @@
+name: Supersession Watchdog
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Evaluate but do not cancel stale runs
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: applab-supersession-watchdog
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout AppLab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Validate supersession policy
+        run: python scripts/supersession_watchdog_v59e.py --self-test
+
+      - name: Reconcile proven descendant supersession
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
+        run: |
+          set -Eeuo pipefail
+          ARGS=(
+            --repository "$GITHUB_REPOSITORY"
+            --config config/supersession-watchdog.json
+            --output supersession-watchdog-v59e.json
+          )
+          if [[ "$DRY_RUN" == "true" ]]; then
+            ARGS+=(--dry-run)
+          fi
+          python scripts/supersession_watchdog_v59e.py "${ARGS[@]}"
+
+      - name: Upload supersession evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: supersession-watchdog-${{ github.run_id }}
+          path: supersession-watchdog-v59e.json
+          if-no-files-found: warn
+          retention-days: 7

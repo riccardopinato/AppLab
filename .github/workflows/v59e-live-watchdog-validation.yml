@@ -1,0 +1,89 @@
+name: v5.9E Live Watchdog Validation
+
+on:
+  pull_request:
+    paths:
+      - "scripts/external_review_watchdog_v59e.py"
+      - "scripts/external_review_reconcile_v59e.py"
+      - "scripts/supersession_watchdog_v59e.py"
+      - "scripts/warm_runtime_route_v59e.py"
+      - "scripts/audit_contract_v59e.py"
+      - "config/external-review-watchdog.json"
+      - "config/supersession-watchdog.json"
+      - "config/warm-runtime-production.json"
+      - ".github/workflows/external-review-watchdog.yml"
+      - ".github/workflows/supersession-watchdog.yml"
+      - ".github/workflows/v59e-live-watchdog-validation.yml"
+      - ".github/workflows/trusted-apk-verifier.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: applab-v59e-live-watchdog-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout AppLab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Validate v5.9E contracts
+        run: |
+          python scripts/external_review_watchdog_v59e.py --self-test
+          python scripts/external_review_reconcile_v59e.py --self-test
+          python scripts/warm_runtime_route_v59e.py --self-test
+          python scripts/supersession_watchdog_v59e.py --self-test
+          python scripts/audit_contract_v59e.py
+
+      - name: Live external review reconciliation dry-run
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/external_review_reconcile_v59e.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --config config/external-review-watchdog.json \
+            --dry-run \
+            --output external-review-watchdog-live-v59e.json
+
+      - name: Live supersession reconciliation dry-run
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/supersession_watchdog_v59e.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --config config/supersession-watchdog.json \
+            --dry-run \
+            --output supersession-watchdog-live-v59e.json
+
+      - name: Assert dry-run authority boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          review = json.loads(Path("external-review-watchdog-live-v59e.json").read_text())
+          supersession = json.loads(Path("supersession-watchdog-live-v59e.json").read_text())
+          assert review["dry_run"] is True
+          assert review["merge_authority_unchanged"] is True
+          assert supersession["dry_run"] is True
+          assert supersession["ancestry_required"] is True
+          assert supersession["protected_stages_unchanged"] is True
+          PY
+
+      - name: Upload live dry-run evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v59e-live-watchdog-validation-${{ github.run_id }}
+          path: |
+            external-review-watchdog-live-v59e.json
+            supersession-watchdog-live-v59e.json
+          if-no-files-found: error
+          retention-days: 7

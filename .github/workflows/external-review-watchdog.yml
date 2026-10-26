@@ -1,0 +1,46 @@
+name: External Review Watchdog
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: applab-external-review-watchdog
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout AppLab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Validate watchdog contracts
+        run: |
+          python scripts/external_review_watchdog_v59e.py --self-test
+          python scripts/external_review_reconcile_v59e.py --self-test
+
+      - name: Reconcile exact-head external reviews
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/external_review_reconcile_v59e.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --config config/external-review-watchdog.json \
+            --output external-review-watchdog-v59e.json
+
+      - name: Upload watchdog evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: external-review-watchdog-${{ github.run_id }}
+          path: external-review-watchdog-v59e.json
+          if-no-files-found: warn
+          retention-days: 7

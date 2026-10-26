@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "program": "AppLab v5.9E Warm Runtime Production",
+  "enabled": true,
+  "global_kill_switch": false,
+  "repositories": {
+    "riccardopinato/AppLab": {
+      "enabled": true,
+      "api_level": 35,
+      "emulator_profile": "pixel_7_pro"
+    },
+    "riccardopinato/Agenda-per-Anna": {
+      "enabled": true,
+      "api_level": 35,
+      "emulator_profile": "pixel_7_pro"
+    }
+  }
+}

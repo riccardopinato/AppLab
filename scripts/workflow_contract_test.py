@@ -86,7 +86,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "Restore clean AVD snapshot",
         "Ensure Android system image with retry",
         "scripts/ensure_android_system_image.sh",
-        "Create pristine AVD snapshot on cache miss",
+        "Create pristine AVD snapshot on cold route",
         "Save pristine AVD snapshot before target execution",
         "force-avd-creation: false",
         "Cache pinned Maestro",
