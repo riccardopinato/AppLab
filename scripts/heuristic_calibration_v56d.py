@@ -47,27 +47,44 @@ def build_profile(rows:list[dict[str,Any]],now:datetime)->dict[str,Any]:
     stale=0
     for row in rows:
         ts=parse_time(row.get("recorded_at",row.get("observed_at")))
-        if ts is None or now-ts>timedelta(days=MAX_STALE_DAYS):
+        if ts is None or ts>now or now-ts>timedelta(days=MAX_STALE_DAYS):
             stale+=1; continue
         fresh.append(row)
-    repos=Counter(str(r.get("repository","")).strip().lower() for r in fresh if str(r.get("repository","")).strip())
-    cats=Counter(category(r) for r in fresh if category(r)!="unknown")
-    risks=[float(r["risk_score"]) for r in fresh if isinstance(r.get("risk_score"),(int,float))]
-    confidences=[float(r["confidence"]) for r in fresh if isinstance(r.get("confidence"),(int,float))]
+
+    usable=[]
+    for r in fresh:
+        metrics=r.get("pipeline_metrics")
+        lane=str(r.get("analysis_lane","")).strip()
+        if (
+            isinstance(r.get("risk_score"),(int,float))
+            and not isinstance(r.get("risk_score"),bool)
+            and isinstance(r.get("confidence"),(int,float))
+            and not isinstance(r.get("confidence"),bool)
+            and isinstance(metrics,dict)
+            and isinstance(metrics.get("wall_clock_seconds"),(int,float))
+            and not isinstance(metrics.get("wall_clock_seconds"),bool)
+            and lane
+            and lane!="UNKNOWN"
+        ):
+            usable.append(r)
+
+    repos=Counter(str(r.get("repository","")).strip().lower() for r in usable if str(r.get("repository","")).strip())
+    cats=Counter(category(r) for r in usable if category(r)!="unknown")
+    risks=[float(r["risk_score"]) for r in usable]
+    confidences=[float(r["confidence"]) for r in usable]
     wall=[]
     lane_counts=Counter()
     failures=Counter()
-    for r in fresh:
-        lane=str(r.get("analysis_lane","UNKNOWN"))
+    for r in usable:
+        lane=str(r.get("analysis_lane","")).strip()
         lane_counts[lane]+=1
         metrics=r.get("pipeline_metrics")
-        if isinstance(metrics,dict) and isinstance(metrics.get("wall_clock_seconds"),(int,float)):
-            wall.append(float(metrics["wall_clock_seconds"]))
+        wall.append(float(metrics["wall_clock_seconds"]))
         fi=r.get("failure_intelligence")
         if isinstance(fi,dict):
             kind=str(fi.get("kind","")).strip()
             if kind and kind!="NONE": failures[kind]+=1
-    ready=len(repos)>=MIN_REPOSITORIES and len(cats)>=MIN_CATEGORIES and len(fresh)>=MIN_SAMPLES
+    ready=len(repos)>=MIN_REPOSITORIES and len(cats)>=MIN_CATEGORIES and len(usable)>=MIN_SAMPLES
     candidate={
         "risk_median":round(median(risks),3) if risks else None,
         "confidence_median":round(median(confidences),3) if confidences else None,
@@ -82,7 +99,7 @@ def build_profile(rows:list[dict[str,Any]],now:datetime)->dict[str,Any]:
       "authority":"ADVISORY_CANDIDATE_ONLY",
       "state":"CANDIDATE_READY" if ready else "COLLECTING",
       "applied_to_production":False,
-      "freshness":{"max_age_days":MAX_STALE_DAYS,"fresh_samples":len(fresh),"stale_or_undated":stale},
+      "freshness":{"max_age_days":MAX_STALE_DAYS,"fresh_samples":len(fresh),"usable_samples":len(usable),"stale_undated_or_future":stale},
       "diversity":{"repositories":len(repos),"categories":len(cats),"repository_samples":dict(sorted(repos.items())),"category_samples":dict(sorted(cats.items()))},
       "before_after":{
         "before":"current production Smart Test Plan thresholds unchanged",
@@ -108,7 +125,16 @@ def self_test():
     report=build_profile(rows,now)
     assert report["state"]=="CANDIDATE_READY"
     assert report["applied_to_production"] is False
-    assert report["freshness"]["stale_or_undated"]==1
+    assert report["freshness"]["stale_undated_or_future"]==1
+    incomplete=[
+        {"repository":f"owner/app-{i%4}","recorded_at":"2026-10-20T00:00:00Z","playbook":{"category":cats[i%4]}}
+        for i in range(24)
+    ]
+    assert build_profile(incomplete,now)["state"]=="COLLECTING"
+    future=[dict(row,recorded_at="2036-10-20T00:00:00Z") for row in rows[:24]]
+    future_report=build_profile(future,now)
+    assert future_report["state"]=="COLLECTING"
+    assert future_report["freshness"]["usable_samples"]==0
     assert report["diversity"]["repositories"]==4
     sparse=build_profile(rows[:3],now)
     assert sparse["state"]=="COLLECTING"
