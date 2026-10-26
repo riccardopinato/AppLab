@@ -17,6 +17,8 @@ def main() -> int:
     review_workflow = (ROOT / ".github/workflows/external-review-watchdog.yml").read_text(encoding="utf-8")
     supersession_workflow = (ROOT / ".github/workflows/supersession-watchdog.yml").read_text(encoding="utf-8")
     review_policy = (ROOT / "scripts/external_review_watchdog_v59e.py").read_text(encoding="utf-8")
+    review_reconcile = (ROOT / "scripts/external_review_reconcile_v59e.py").read_text(encoding="utf-8")
+    review_config = json.loads((ROOT / "config/external-review-watchdog.json").read_text(encoding="utf-8"))
     supersession_policy = (ROOT / "scripts/supersession_watchdog_v59e.py").read_text(encoding="utf-8")
     warm_policy = (ROOT / "scripts/warm_runtime_route_v59e.py").read_text(encoding="utf-8")
     warm_config = json.loads((ROOT / "config/warm-runtime-production.json").read_text(encoding="utf-8"))
@@ -51,6 +53,13 @@ def main() -> int:
         '"review_findings_never_auto_resolved": True' in review_policy
         and '"retrigger_is_idempotent_request_only": True' in review_policy,
         "review watchdog must never auto-resolve findings",
+    )
+    require(
+        review_config.get("review_bot_login") == "chatgpt-codex-connector[bot]"
+        and review_config.get("watchdog_actor_login") == "github-actions[bot]"
+        and "author != review_bot_login" in review_reconcile
+        and "author != watchdog_actor_login" in review_reconcile,
+        "review watchdog markers must be actor-authenticated",
     )
 
     protected = set(supersession_config.get("protected_workflow_names", []))
