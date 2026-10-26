@@ -84,7 +84,7 @@ def decision_for_pr(
         watchdog_actor_login,
     )
 
-    anchor = str(pr.get("updated_at") or pr.get("created_at") or "")
+    marker_times: list[str] = []
     for item in comments:
         body = str(item.get("body", ""))
         author = str((item.get("user") or {}).get("login", ""))
@@ -96,8 +96,13 @@ def decision_for_pr(
             )
         )
         created = str(item.get("created_at") or "")
-        if trusted and created > anchor:
-            anchor = created
+        if trusted and created:
+            marker_times.append(created)
+    anchor = (
+        max(marker_times)
+        if marker_times
+        else str(pr.get("updated_at") or pr.get("created_at") or "")
+    )
 
     elapsed = (
         max(0, int((now - iso_datetime(anchor)).total_seconds()))
@@ -225,6 +230,24 @@ def self_test() -> None:
     )
     assert spoof["state"] == "RETRIGGER"
     assert spoof["reason"] == "REVIEW_MISSING"
+
+    noisy_pr = dict(pr)
+    noisy_pr["updated_at"] = "2026-10-26T19:59:30Z"
+    old_running = decision_for_pr(
+        pr=noisy_pr,
+        comments=[
+            _review_comment(
+                head,
+                status="running",
+                created="2026-10-26T19:00:00Z",
+            )
+        ],
+        now=now,
+        timeout_seconds=900,
+        max_retries=2,
+    )
+    assert old_running["state"] == "RETRIGGER"
+    assert old_running["reason"] == "REVIEW_TIMEOUT"
     print("AppLab v5.9E external review support self-test PASS")
 
 if __name__ == "__main__":
