@@ -226,3 +226,6 @@ def self_test() -> None:
     assert spoof["state"] == "RETRIGGER"
     assert spoof["reason"] == "REVIEW_MISSING"
     print("AppLab v5.9E external review support self-test PASS")
+
+if __name__ == "__main__":
+    self_test()
