@@ -63,7 +63,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "6c866bf8884b78703401db8ce08dbcf97d3f893c",
         "riccardopinato/Battery_Guard",
         "7d3e0b8257628dea65cedcf174357f9bc06d21bc",
-        "AppLab v4.3 real-project adapter integration PASS",
+        "AppLab v4.4 real-project adapter integration PASS",
     ),
     ".github/workflows/repo-watcher.yml": (
         "source_ref: ${{ matrix.ref }}",
