@@ -59,8 +59,10 @@ def main() -> int:
     )
     require(
         '"review_findings_never_auto_resolved": True' in review_policy
-        and '"retrigger_is_idempotent_request_only": True' in review_policy,
-        "review watchdog must never auto-resolve findings",
+        and '"retrigger_is_idempotent_request_only": True' in review_policy
+        and '"failed"' in review_policy
+        and "REVIEW_FAILED" in review_policy,
+        "review watchdog must fail safe on findings and reviewer failure",
     )
     require(
         review_config.get("review_bot_login") == "chatgpt-codex-connector[bot]"
