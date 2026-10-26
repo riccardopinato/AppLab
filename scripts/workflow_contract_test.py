@@ -183,6 +183,7 @@ FORBIDDEN: dict[str, tuple[str, ...]] = {
         "AppLab v0.8.0 Trusted APK Verification",
         "needs.prepare_avd",
         "if: always() && inputs.cache_verification\n        uses: actions/cache/save",
+        'json.dumps(payload, indent=2, sort_keys=True) + "\\\\n"',
     ),
 }
 
