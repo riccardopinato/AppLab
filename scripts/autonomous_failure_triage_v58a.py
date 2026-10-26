@@ -64,9 +64,13 @@ def build_triage(result: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
         required_regressions.append("collect deterministic diagnostics before any retry")
 
     hypotheses = []
-    reason = str(result.get("reason", "") or intelligence.get("reason", "")).strip()
-    if reason:
-        hypotheses.append(reason[:500])
+    for key in ("reason", "build_error", "error"):
+        diagnostic = str(result.get(key, "") or "").strip()
+        if diagnostic:
+            hypotheses.append(diagnostic[:500])
+    classifier_reason = str(intelligence.get("reason", "") or "").strip()
+    if classifier_reason:
+        hypotheses.append(classifier_reason[:500])
     for lab in failed_labs:
         hypotheses.append(f"{lab} failure is causally related to the current changed-file impact set")
 
@@ -122,6 +126,16 @@ def self_test() -> None:
     assert infra["classification"] == "INFRA_ERROR"
     assert infra["recommended_action"] == "TARGETED_SAME_HEAD_RETRY_ALLOWED"
     assert infra["guardrails"]["automatic_retry"] is False
+
+    build = build_triage(
+        {
+            "result": "FAIL",
+            "build_error": "unit test failed: reconnect expected 2 messages, got 0",
+        },
+        plan,
+    )
+    assert build["classification"] == "BUILD_OR_QUALITY_FAILURE"
+    assert any("reconnect expected 2 messages" in item for item in build["root_cause_hypotheses"])
 
     unknown = build_triage(
         {"result": "FAIL", "reason": "unclassified stop"},
