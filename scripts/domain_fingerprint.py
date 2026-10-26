@@ -119,6 +119,7 @@ def self_test(root: Path) -> None:
         "scripts/journey_sharding.py",
         "scripts/journey_shard_runtime.py",
         "scripts/journey_shard_aggregate.py",
+        "scripts/finalize_journey_shard_result.py",
         "scripts/run_journey_shard.sh",
         "config/journey-sharding-pilots.json",
         "scripts/planner_feedback.py",
