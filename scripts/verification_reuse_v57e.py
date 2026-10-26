@@ -46,6 +46,16 @@ def tree_paths(repository:str,ref:str,token:str="")->list[str]:
 def under_workdir(path:str,working:PurePosixPath)->bool:
     return reuse.under_workdir(path,working)
 
+def trusted_applab_hook_safe(command:str)->bool:
+    raw=command.strip()
+    if not raw:
+        return True
+    match=reuse.TRUSTED_APPLAB_HOOK_COMMAND.fullmatch(raw)
+    if not match:
+        return False
+    path=Path(__file__).resolve().parents[1]/"watch-profiles"/match.group(1)
+    return path.is_file() and not path.is_symlink()
+
 def evaluate(
     entry:dict[str,Any],
     *,
@@ -54,17 +64,20 @@ def evaluate(
     has_verification:bool=False,
     native_commands_safe:bool=True,
     dynamic_gradle:bool=False,
+    trusted_hooks_safe:bool=True,
 )->dict[str,Any]:
     engine=str(entry.get("engine","auto"))
     if engine=="flutter" or (engine=="auto" and has_pub_lock):
+        has_hooks=bool(str(entry.get("prepare_command","")).strip() or str(entry.get("post_pub_get_command","")).strip())
         if not str(entry.get("flutter_version","")).strip():
             eligible=False; reason="FLOATING_FLUTTER_TOOLCHAIN"
-        elif str(entry.get("prepare_command","")).strip() or str(entry.get("post_pub_get_command","")).strip():
+        elif has_hooks and not trusted_hooks_safe:
             eligible=False; reason="MUTABLE_HOOK_COMMAND"
         elif not has_pub_lock:
             eligible=False; reason="MISSING_TRACKED_PUBSPEC_LOCK"
         else:
-            eligible=True; reason="LOCKED_FLUTTER_INPUTS"
+            eligible=True
+            reason="LOCKED_FLUTTER_INPUTS_WITH_TRUSTED_APPLAB_HOOKS" if has_hooks else "LOCKED_FLUTTER_INPUTS"
     elif engine=="native_android":
         if str(entry.get("prepare_command","")).strip():
             eligible=False; reason="MUTABLE_HOOK_COMMAND"
@@ -119,13 +132,16 @@ def build_report(observatory:dict[str,Any],watchlist:dict[str,Any],token:str="")
     by_repo={str(x.get("repository","")):x for x in watchlist.get("repositories",[]) if isinstance(x,dict)}
     rows=[]
     for row in observatory.get("repositories",[]):
-        if not isinstance(row,dict) or not row.get("pilot"):
+        if not isinstance(row,dict):
             continue
         repo=row["repository"]; ref=row.get("ref","main")
+        entry=by_repo.get(repo)
+        reuse_carrier=bool(row.get("pilot")) or bool(entry and entry.get("reuse_pilot"))
+        if not reuse_carrier:
+            continue
         if row.get("status")!="ADOPTED":
             rows.append({"repository":repo,"state":"WAITING_ADOPTION_MANIFEST","production_reuse_enabled":False})
             continue
-        entry=by_repo.get(repo)
         if not entry:
             rows.append({"repository":repo,"state":"NOT_WATCHLISTED","production_reuse_enabled":False})
             continue
@@ -134,6 +150,10 @@ def build_report(observatory:dict[str,Any],watchlist:dict[str,Any],token:str="")
         prefix="" if working==PurePosixPath(".") else working.as_posix().rstrip("/")+"/"
         paths=set(tree_paths(repo,ref,token))
         has_pub=(prefix+"pubspec.lock") in paths
+        hooks_safe=(
+            trusted_applab_hook_safe(str(entry.get("prepare_command","")))
+            and trusted_applab_hook_safe(str(entry.get("post_pub_get_command","")))
+        )
         if engine=="native_android":
             lock,verification,commands_safe,dynamic=native_source_assessment(repo,ref,entry,token)
             assessment=evaluate(
@@ -144,7 +164,7 @@ def build_report(observatory:dict[str,Any],watchlist:dict[str,Any],token:str="")
                 dynamic_gradle=dynamic,
             )
         else:
-            assessment=evaluate(entry,has_pub_lock=has_pub)
+            assessment=evaluate(entry,has_pub_lock=has_pub,trusted_hooks_safe=hooks_safe)
         assessment.update({
           "repository":repo,
           "state":"SHADOW_READY" if assessment["eligible_for_shadow_reuse"] else "HOLD"
@@ -161,7 +181,25 @@ def build_report(observatory:dict[str,Any],watchlist:dict[str,Any],token:str="")
 def self_test()->None:
     flutter={"engine":"flutter","flutter_version":"3.47.5","prepare_command":"","post_pub_get_command":""}
     assert evaluate(flutter,has_pub_lock=True)["eligible_for_shadow_reuse"] is True
-    assert evaluate(dict(flutter,prepare_command="bash setup.sh"),has_pub_lock=True)["eligible_for_shadow_reuse"] is False
+    trusted_command='bash "$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh"'
+    trusted=dict(flutter,prepare_command=trusted_command)
+    assert trusted_applab_hook_safe(trusted_command) is True
+    for rejected_hook in (
+      "bash setup.sh",
+      "bash '$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh'",
+      'bash "\\$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh"',
+    ):
+      assert trusted_applab_hook_safe(rejected_hook) is False
+    assert evaluate(
+      trusted,
+      has_pub_lock=True,
+      trusted_hooks_safe=trusted_applab_hook_safe(trusted_command),
+    )["eligible_for_shadow_reuse"] is True
+    assert evaluate(
+      dict(flutter,prepare_command="bash setup.sh"),
+      has_pub_lock=True,
+      trusted_hooks_safe=trusted_applab_hook_safe("bash setup.sh"),
+    )["eligible_for_shadow_reuse"] is False
     native={
       "engine":"native_android","prepare_command":"",
       "build_command":"./gradlew :app:assembleDebug --stacktrace",
