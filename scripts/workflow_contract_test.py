@@ -26,6 +26,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "--planner-feedback",
         "${{ inputs.baseline_sha }}",
         "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}",
+        '--trusted-root "$GITHUB_WORKSPACE/.applab"',
     ),
     ".github/workflows/external-native-android-runner.yml": (
         "source_ref:",
