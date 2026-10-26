@@ -247,18 +247,25 @@ def build_queue(
         item_id = _signal_id(signal)
         lane = classify_signal(signal, policy)
         old = items.get(item_id)
+        observation_key = signal["evidence_ref"] or (
+            signal["source"] + "|" + signal["observed_at"]
+        )
         if old:
             old_lane = _safe(old.get("lane"))
             if LANE_RANK.get(lane, 99) < LANE_RANK.get(old_lane, 99):
                 old["lane"] = lane
             old["severity"] = signal["severity"]
-            old["last_seen"] = signal["observed_at"]
-            old["occurrences"] = int(old.get("occurrences", 1)) + 1
-            if signal["evidence_ref"]:
-                refs = list(old.get("evidence_refs") or [])
-                if signal["evidence_ref"] not in refs:
-                    refs.append(signal["evidence_ref"])
-                old["evidence_refs"] = refs[-10:]
+            keys = list(old.get("observation_keys") or [])
+            if observation_key not in keys:
+                old["last_seen"] = signal["observed_at"]
+                old["occurrences"] = int(old.get("occurrences", 1)) + 1
+                keys.append(observation_key)
+                old["observation_keys"] = keys[-20:]
+                if signal["evidence_ref"]:
+                    refs = list(old.get("evidence_refs") or [])
+                    if signal["evidence_ref"] not in refs:
+                        refs.append(signal["evidence_ref"])
+                    old["evidence_refs"] = refs[-10:]
             continue
 
         items[item_id] = {
@@ -275,6 +282,7 @@ def build_queue(
             "last_seen": signal["observed_at"],
             "occurrences": 1,
             "evidence_refs": [signal["evidence_ref"]] if signal["evidence_ref"] else [],
+            "observation_keys": [observation_key],
             "status": "OPEN",
         }
 
@@ -413,6 +421,13 @@ def self_test() -> dict[str, Any]:
     assert lanes["CLEANUP"] == "FUTURE"
     infra_item = next(item for item in queue["items"] if item["code"] == "INFRA_ERROR")
     assert infra_item["occurrences"] == 2
+    rerun = build_queue(
+        policy=policy,
+        history=history,
+        explicit_findings=[],
+        previous={item["id"]: item for item in safe["items"]} if False else {},
+        generated_at="2026-10-26T03:00:00+00:00",
+    )
     assert queue["roadmap_gate"] == "BLOCKED"
     assert queue["authority"]["can_mint_pass"] is False
     assert queue["authority"]["can_mutate_active_roadmap_pr"] is False
