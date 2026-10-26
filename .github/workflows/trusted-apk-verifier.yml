@@ -410,6 +410,26 @@ jobs:
           )
           PY
 
+      - name: Evaluate v5.7E exact-artifact reuse promotion
+        id: reuse_promotion
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/verification_reuse_promotion_v57e.py \
+            --contract "$GITHUB_WORKSPACE/.applab-build/contract.json" \
+            --execution-plan "$GITHUB_WORKSPACE/applab-report/execution-plan.json" \
+            --result "$GITHUB_WORKSPACE/applab-report/result.json" \
+            --output "$GITHUB_WORKSPACE/applab-report/verification-reuse-promotion-v57e.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Enforce v5.7E promotion gate on reused build
+        if: always() && steps.reuse_promotion.outputs.cache_hit == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "${{ steps.reuse_promotion.outputs.promotion_ready }}" = "true"
+
       - name: Evaluate production certification
         id: certification
         if: always() && steps.analysis.outputs.effective_mode == 'certification'
@@ -572,26 +592,6 @@ jobs:
             --run-id "$GITHUB_RUN_ID" \
             --analysis-mode "${{ steps.analysis.outputs.effective_mode || inputs.analysis_mode }}"
 
-      - name: Evaluate v5.7E exact-artifact reuse promotion
-        id: reuse_promotion
-        if: always()
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          python .applab/scripts/verification_reuse_promotion_v57e.py \
-            --contract "$GITHUB_WORKSPACE/.applab-build/contract.json" \
-            --execution-plan "$GITHUB_WORKSPACE/applab-report/execution-plan.json" \
-            --result "$GITHUB_WORKSPACE/applab-report/result.json" \
-            --output "$GITHUB_WORKSPACE/applab-report/verification-reuse-promotion-v57e.json" \
-            --github-output "$GITHUB_OUTPUT"
-
-      - name: Enforce v5.7E promotion gate on reused build
-        if: always() && steps.reuse_promotion.outputs.cache_hit == 'true'
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          test "${{ steps.reuse_promotion.outputs.promotion_ready }}" = "true"
-
       - name: Build Release Reality record
         if: always()
         shell: bash
@@ -621,7 +621,7 @@ jobs:
           PY
 
       - name: Bind trusted runtime evidence
-        if: always() && steps.verify.outcome == 'success'
+        if: always() && steps.verify.outcome == 'success' && (steps.reuse_promotion.outputs.cache_hit != 'true' || steps.reuse_promotion.outputs.promotion_ready == 'true')
         shell: bash
         run: |
           set -Eeuo pipefail
