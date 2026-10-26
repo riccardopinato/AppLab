@@ -6,37 +6,13 @@ import json
 import os
 import urllib.error
 import urllib.parse
-import urllib.request
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import watchdog_github_v59e as github
+
 ENGINE_VERSION = "5.9E"
 ACTIVE = {"queued", "in_progress"}
-
-
-def _api(
-    url: str,
-    token: str,
-    *,
-    method: str = "GET",
-    payload: dict[str, Any] | None = None,
-) -> Any:
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "User-Agent": "AppLab-Supersession-Watchdog/5.9E",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    data = None
-    if payload is not None:
-        data = json.dumps(payload).encode("utf-8")
-        headers["Content-Type"] = "application/json"
-    request = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(request, timeout=30) as response:
-        raw = response.read().decode("utf-8")
-        return json.loads(raw) if raw else {}
 
 
 def load_config(path: Path) -> dict[str, Any]:
@@ -117,9 +93,10 @@ def descendant_status(
         return False, "IDENTICAL_SHA"
     base = urllib.parse.quote(old_sha, safe="")
     head = urllib.parse.quote(new_sha, safe="")
-    payload = _api(
+    payload = github.api(
         f"https://api.github.com/repos/{repository}/compare/{base}...{head}",
         token,
+        user_agent="AppLab-Supersession-Watchdog/5.9E",
     )
     status = str(payload.get("status", "")).lower()
     return status == "ahead", status or "UNKNOWN"
@@ -242,9 +219,10 @@ def main() -> int:
             "rows": [],
         }
     else:
-        runs_payload = _api(
+        runs_payload = github.api(
             f"https://api.github.com/repos/{args.repository}/actions/runs?per_page=100",
             args.token,
+            user_agent="AppLab-Supersession-Watchdog/5.9E",
         )
         runs = list(runs_payload.get("workflow_runs", []))
         candidates = plan_candidates(
@@ -282,10 +260,11 @@ def main() -> int:
                 decision["error"] = str(exc)
             if decision["decision"] == "CANCEL":
                 if not args.dry_run:
-                    _api(
+                    github.api(
                         f"https://api.github.com/repos/{args.repository}/actions/runs/{old['id']}/cancel",
                         args.token,
                         method="POST",
+                        user_agent="AppLab-Supersession-Watchdog/5.9E",
                     )
                     decision["dispatch"] = "CANCEL_REQUESTED"
                 else:
