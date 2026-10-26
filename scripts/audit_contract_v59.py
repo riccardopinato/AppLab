@@ -28,6 +28,8 @@ def run_check(namespace: dict[str, Any]) -> None:
         "journey_shards:",
         "journey_aggregate:",
         "fromJSON(needs.journey_plan.outputs.matrix)",
+        "Finalize journey sharding admission",
+        "journey_sharding_admission.py",
         "journey-shard-${{ github.run_id }}-coordinator",
         "Finalize authoritative canonical evidence",
         "Publish authoritative canonical evidence",
