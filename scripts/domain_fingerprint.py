@@ -114,6 +114,7 @@ def self_test(root: Path) -> None:
         "scripts/project_adapter.py",
         "scripts/journey_planner.py",
         "scripts/journey_runtime.py",
+        "scripts/journey_runtime_support.py",
         "config/journey-runtime-pilots.json",
         "scripts/planner_feedback.py",
         "scripts/planner_feedback_contract.py",
