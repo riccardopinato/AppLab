@@ -4,7 +4,7 @@ Current production baseline: **v5.8 — Autonomous Triage & Factory Learning**
 
 Active program: **v5.9 — Journey-Aware Throughput**
 
-Status: **v5.9A implemented for exact-head validation; v5.7B/E continue downstream evidence accrual in parallel.**
+Status: **v5.9A merged; v5.9B implemented for exact-head validation; v5.7B/E continue downstream evidence accrual in parallel.**
 
 ## Completed — v5.5 Multi-Project Event-Driven Rollout
 
@@ -157,9 +157,11 @@ runtime, exact-artifact identity, physical/store boundaries or certification.
   journey catalog and produce deterministic `selected_journeys` from exact diff,
   dependency impact and specialist-lab selection. The selection is frozen into
   the immutable build contract. Runtime coverage reduction remains disabled.
-- [ ] **v5.9B Atomic Journey Execution:** execute selected Maestro journeys as
-  independent evidence units with journey-local infrastructure retry. Legacy
-  monolithic primary-flow execution remains the fail-safe fallback.
+- [x] **v5.9B Atomic Journey Execution:** execute selected Maestro journeys as
+  independent evidence units with journey-local infrastructure retry. Production
+  enforcement is admitted only by a trusted AppLab pilot allowlist; invalid,
+  incomplete or non-admitted plans fall back to the legacy monolithic primary
+  flow without reducing coverage.
 - [ ] **v5.9C Parallel Runtime Sharding:** shard independent journey groups across
   isolated runtimes while aggregating one verdict for the exact same APK bytes.
 - [ ] **v5.9D Build Once Promotion:** promote exact-artifact reuse across
@@ -174,8 +176,11 @@ runtime, exact-artifact identity, physical/store boundaries or certification.
 - Smart Test Plan remains the FAST/FULL authority.
 - Missing/invalid journey metadata keeps legacy/full coverage; target metadata
   can never mint PASS or CERTIFIED.
-- v5.9A is planning-only: `coverage_reduction_enabled=false`.
-- FULL/CERTIFICATION select every declared journey.
+- v5.9A planning evidence remains non-authoritative for coverage reduction.
+- v5.9B selective execution is enabled only by trusted AppLab admission; target
+  metadata alone cannot activate it.
+- FULL/CERTIFICATION select every declared journey; incomplete full selection
+  falls back to legacy monolithic execution.
 - Exact source/build/artifact identity is preserved through every later shard.
 - Physical-device, distribution/store and cross-app evidence remain separate.
 
