@@ -170,6 +170,15 @@ exit 0
         finally:
             journey_runtime_support.adb = original_adb
 
+        original_checked_adb = journey_runtime_support.checked_adb
+        journey_runtime_support.checked_adb = lambda *a, **k: (_ for _ in ()).throw(
+            journey_runtime_support.TransientInfrastructure("device offline")
+        )
+        try:
+            assert journey_runtime_support.system_transient(root, 10) is True
+        finally:
+            journey_runtime_support.checked_adb = original_checked_adb
+
     print("AppLab v5.9B independent atomic journey runtime PASS")
     return 0
 
