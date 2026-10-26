@@ -35,6 +35,8 @@ CONTRACT_FILES = (
     "scripts/storage_lab.py",
     "scripts/smart_test_plan.py",
     "scripts/journey_planner.py",
+    "scripts/journey_runtime.py",
+    "config/journey-runtime-pilots.json",
     "scripts/planner_feedback.py",
     "scripts/planner_feedback_contract.py",
     "scripts/restore_planner_feedback.sh",
