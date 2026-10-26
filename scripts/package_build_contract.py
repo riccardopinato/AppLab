@@ -434,6 +434,7 @@ def package(args: argparse.Namespace) -> dict:
         immutable_keys = (
             "mode", "lane", "baseline_sha", "changed_files", "changes",
             "impacted_files", "selected_labs", "predicted_selected_labs",
+            "selected_journeys", "journey_selection", "journey_reasons",
             "risk_score", "confidence", "fallback_full", "shadow_full",
             "run_static", "run_build", "run_runtime", "targets",
             "planner_feedback",
@@ -450,6 +451,8 @@ def package(args: argparse.Namespace) -> dict:
     contract["analysis_lane"] = plan.get("lane", "FULL_RUNTIME")
     contract["analysis_risk_score"] = plan.get("risk_score", 100)
     contract["analysis_confidence"] = plan.get("confidence", 0.0)
+    contract["selected_journeys"] = plan.get("selected_journeys", [])
+    contract["journey_selection"] = plan.get("journey_selection", {})
     contract["domain_fingerprints"] = domain_fingerprint.compute(Path(__file__).resolve().parent.parent)
     if args.quality_json and Path(args.quality_json).is_file():
         quality_payload = json.loads(Path(args.quality_json).read_text(encoding="utf-8"))
