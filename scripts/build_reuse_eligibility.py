@@ -14,6 +14,9 @@ DYNAMIC_GRADLE = re.compile(
     r"""(?i)(?:\bSNAPSHOT\b|latest\.(?:release|integration)|\d+(?:\.\d+)*\.\+|["']\+["'])"""
 )
 SAFE_GRADLE_COMMAND = re.compile(r"^(?:\./gradlew|gradle)(?:\s+[-A-Za-z0-9_:.=/]+)+$")
+TRUSTED_APPLAB_HOOK_COMMAND = re.compile(
+    r"""^bash "\$GITHUB_WORKSPACE/\.applab/watch-profiles/([A-Za-z0-9_.-]+\.sh)"$"""
+)
 
 
 def safe_relative(raw: str) -> PurePosixPath:
@@ -58,6 +61,37 @@ def material_digest(repo_root: Path, files: list[str]) -> str:
     return digest.hexdigest()
 
 
+def trusted_hook_material(
+    command: str,
+    trusted_root: Path | None,
+) -> tuple[str, Path] | None:
+    raw = command.strip()
+    if not raw:
+        return ("", Path())
+    if trusted_root is None:
+        return None
+    match = TRUSTED_APPLAB_HOOK_COMMAND.fullmatch(raw)
+    if not match:
+        return None
+    relative = f"watch-profiles/{match.group(1)}"
+    path = trusted_root / relative
+    if not path.is_file() or path.is_symlink():
+        return None
+    return (f"trusted:{relative}", path)
+
+
+def combined_material_digest(items: list[tuple[str, Path]]) -> str:
+    digest = hashlib.sha256()
+    for label, path in sorted(items, key=lambda item: item[0]):
+        if not label or not path.is_file() or path.is_symlink():
+            raise ValueError(f"material file is missing or unsafe: {label}")
+        digest.update(label.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(hashlib.sha256(path.read_bytes()).digest())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def result(
     *,
     eligible: bool,
@@ -85,10 +119,14 @@ def evaluate_flutter(
     flutter_version: str,
     prepare_command: str,
     post_command: str,
+    trusted_root: Path | None = None,
 ) -> dict[str, Any]:
     if not flutter_version.strip():
         return result(eligible=False, reason="floating-flutter-channel")
-    if prepare_command.strip() or post_command.strip():
+
+    prepare_material = trusted_hook_material(prepare_command, trusted_root)
+    post_material = trusted_hook_material(post_command, trusted_root)
+    if prepare_material is None or post_material is None:
         return result(eligible=False, reason="mutable-hook-command")
 
     lock = (
@@ -99,11 +137,22 @@ def evaluate_flutter(
     if lock not in tracked:
         return result(eligible=False, reason="missing-tracked-pubspec-lock")
 
+    items = [(lock, repo_root / lock)]
+    material_files = [lock]
+    for label, path in (prepare_material, post_material):
+        if label:
+            items.append((label, path))
+            material_files.append(label)
+
     return result(
         eligible=True,
-        reason="locked-flutter-inputs",
-        files=[lock],
-        digest=material_digest(repo_root, [lock]),
+        reason=(
+            "locked-flutter-inputs-with-trusted-applab-hooks"
+            if len(items) > 1
+            else "locked-flutter-inputs"
+        ),
+        files=material_files,
+        digest=combined_material_digest(items),
     )
 
 
@@ -241,6 +290,43 @@ def self_test() -> None:
             post_command="",
         )["eligible"] is False
 
+        trusted = root / "trusted"
+        (trusted / "watch-profiles").mkdir(parents=True)
+        (trusted / "watch-profiles/battery_guard.sh").write_text(
+            "#!/usr/bin/env bash\nset -Eeuo pipefail\n",
+            encoding="utf-8",
+        )
+        canonical_hook = 'bash "$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh"'
+        trusted_hook = evaluate_flutter(
+            repo_root=root,
+            working=PurePosixPath("."),
+            tracked=["pubspec.lock"],
+            flutter_version="3.35.4",
+            prepare_command=canonical_hook,
+            post_command="",
+            trusted_root=trusted,
+        )
+        assert trusted_hook["eligible"] is True
+        assert trusted_hook["reason"] == "locked-flutter-inputs-with-trusted-applab-hooks"
+        assert trusted_hook["material_file_count"] == 2
+        assert "trusted:watch-profiles/battery_guard.sh" in trusted_hook["material_files"]
+
+        for rejected_hook in (
+            "bash tool/target-controlled.sh",
+            "bash '$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh'",
+            'bash "\\$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh"',
+            'bash "$GITHUB_WORKSPACE/.applab/watch-profiles/../battery_guard.sh"',
+        ):
+            assert evaluate_flutter(
+                repo_root=root,
+                working=PurePosixPath("."),
+                tracked=["pubspec.lock"],
+                flutter_version="3.35.4",
+                prepare_command=rejected_hook,
+                post_command="",
+                trusted_root=trusted,
+            )["eligible"] is False
+
         (root / "gradle").mkdir()
         (root / "gradle.lockfile").write_text("com.example:lib:1.0.0=runtime\n", encoding="utf-8")
         (root / "gradle/verification-metadata.xml").write_text(
@@ -296,6 +382,7 @@ def main() -> int:
     parser.add_argument("--flutter-version", default="")
     parser.add_argument("--prepare-command", default="")
     parser.add_argument("--post-command", default="")
+    parser.add_argument("--trusted-root", default="")
     parser.add_argument("--build-command", default="")
     parser.add_argument("--test-command", default="")
     parser.add_argument("--lint-command", default="")
@@ -322,6 +409,7 @@ def main() -> int:
             flutter_version=args.flutter_version,
             prepare_command=args.prepare_command,
             post_command=args.post_command,
+            trusted_root=Path(args.trusted_root).resolve() if args.trusted_root else None,
         )
     else:
         report = evaluate_native(
