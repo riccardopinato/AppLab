@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import external_review_reconcile_v59e as reconcile  # noqa: E402
 import external_review_support_v59e as review  # noqa: E402
 import supersession_watchdog_v59e as supersession  # noqa: E402
 import watchdog_github_v59e as github  # noqa: E402
@@ -251,10 +252,26 @@ def test_comment_pagination() -> None:
         github.api = original
 
 
+def test_bounded_pr_rotation() -> None:
+    rows = [{"number": number} for number in range(1, 26)]
+    seen: set[int] = set()
+    for slot in range(25):
+        selected = reconcile.bounded_rotation(
+            rows,
+            limit=20,
+            now=datetime.fromtimestamp(slot, tz=timezone.utc),
+            rotation_seconds=1,
+        )
+        assert len(selected) == 20
+        seen.update(int(item["number"]) for item in selected)
+    assert seen == set(range(1, 26))
+
+
 def main() -> int:
     test_review_watchdog()
     test_supersession_identity()
     test_comment_pagination()
+    test_bounded_pr_rotation()
     print("AppLab v5.9E watchdog regression contract PASS")
     return 0
 
