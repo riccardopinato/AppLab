@@ -917,6 +917,8 @@ jobs:
           path: journey-shard-evidence
 
       - name: Aggregate exact-artifact journey verdict
+        id: aggregate
+        continue-on-error: true
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -936,33 +938,75 @@ jobs:
           if-no-files-found: warn
           retention-days: 1
 
-      - name: Download coordinator trusted evidence for cache
-        if: inputs.cache_verification
+      - name: Download coordinator trusted evidence
+        if: always()
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: applab-${{ inputs.history_key }}-${{ github.run_id }}
           path: coordinator-trusted-evidence
 
+      - name: Finalize authoritative canonical evidence
+        id: canonical
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          python .applab/scripts/finalize_journey_shard_result.py \
+            --coordinator-dir "$GITHUB_WORKSPACE/coordinator-trusted-evidence" \
+            --aggregate "$GITHUB_WORKSPACE/journey-shard-aggregate.json" \
+            --artifact "$GITHUB_WORKSPACE/.applab-build/app.apk" \
+            --output-dir "$GITHUB_WORKSPACE/authoritative-trusted-evidence" \
+            --repository "${{ inputs.repository }}" \
+            --resolved-sha "${{ inputs.resolved_sha }}" \
+            --run-id "$GITHUB_RUN_ID" \
+            --analysis-mode "${{ inputs.analysis_mode }}" \
+            --contract-fingerprint "${{ inputs.contract_fingerprint }}" \
+            --config-fingerprint "${{ inputs.config_fingerprint }}" \
+            --trusted-applab-sha "${{ job.workflow_sha }}"
+          STATUS=$?
+          set -e
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Publish authoritative canonical evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-${{ inputs.history_key }}-${{ github.run_id }}
+          path: authoritative-trusted-evidence/
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
       - name: Prepare authoritative verification cache
-        if: inputs.cache_verification
+        if: inputs.cache_verification && steps.canonical.outputs.status == '0'
         shell: bash
         run: |
           set -Eeuo pipefail
-          AGGREGATE="$(python -c 'import json; print(str(json.load(open("journey-shard-aggregate.json")).get("result","FAIL")).upper())')"
-          RESULT="$(python -c 'import json; print(str(json.load(open("coordinator-trusted-evidence/result.json")).get("result","FAIL")).upper())')"
-          if [[ "$AGGREGATE" != "PASS" || "$RESULT" != "PASS" ]]; then
-            echo "Authoritative sharding did not produce aggregate + coordinator PASS; cache remains disabled."
-            exit 1
-          fi
+          RESULT="$(python -c 'import json; print(str(json.load(open("authoritative-trusted-evidence/result.json")).get("result","FAIL")).upper())')"
+          [[ "$RESULT" == "PASS" ]]
           rm -rf "$GITHUB_WORKSPACE/.applab-watch-cache"
           mkdir -p "$GITHUB_WORKSPACE/.applab-watch-cache"
-          cp "$GITHUB_WORKSPACE/coordinator-trusted-evidence/result.json"              "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
-          cp "$GITHUB_WORKSPACE/coordinator-trusted-evidence/summary.md"              "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
-          cp "$GITHUB_WORKSPACE/journey-shard-aggregate.json"              "$GITHUB_WORKSPACE/.applab-watch-cache/journey-shard-aggregate.json"
+          cp "$GITHUB_WORKSPACE/authoritative-trusted-evidence/result.json" "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
+          cp "$GITHUB_WORKSPACE/authoritative-trusted-evidence/summary.md" "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
+          cp "$GITHUB_WORKSPACE/authoritative-trusted-evidence/journey-shard-aggregate.json" "$GITHUB_WORKSPACE/.applab-watch-cache/journey-shard-aggregate.json"
 
       - name: Mark authoritative PASS commit as checked
-        if: inputs.cache_verification
+        if: inputs.cache_verification && steps.canonical.outputs.status == '0'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .applab-watch-cache
           key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
+
+      - name: Enforce authoritative aggregate verdict
+        if: always()
+        shell: bash
+        env:
+          AGGREGATE_OUTCOME: ${{ steps.aggregate.outcome }}
+          CANONICAL_STATUS: ${{ steps.canonical.outputs.status }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$AGGREGATE_OUTCOME" != "success" || "$CANONICAL_STATUS" != "0" ]]; then
+            echo "Authoritative journey sharding did not produce a final PASS." >&2
+            exit 1
+          fi
