@@ -73,6 +73,11 @@ jobs:
             scripts/delta_execution_experiment_v56c.py \
             scripts/heuristic_calibration_v56d.py \
             scripts/advanced_hardening_v56e.py \
+            scripts/factory_adoption_observatory_v57a.py \
+            scripts/factory_throughput_v57b.py \
+            scripts/pattern3_discovery_v57c.py \
+            scripts/factory_reuse_planner_v57d.py \
+            scripts/verification_reuse_v57e.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -195,6 +200,11 @@ jobs:
           python scripts/delta_execution_experiment_v56c.py --self-test
           python scripts/heuristic_calibration_v56d.py --self-test
           python scripts/advanced_hardening_v56e.py --self-test
+          python scripts/factory_adoption_observatory_v57a.py --self-test
+          python scripts/factory_throughput_v57b.py --self-test
+          python scripts/pattern3_discovery_v57c.py --self-test
+          python scripts/factory_reuse_planner_v57d.py --self-test
+          python scripts/verification_reuse_v57e.py --self-test
           python tests/contracts/multi_project_event_v55a_test.py
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "program": "APPLAB_V57_FACTORY_THROUGHPUT",
+  "pilots": [
+    {
+      "repository": "riccardopinato/Agenda-per-Anna",
+      "label": "Anna's Diary",
+      "ref": "main"
+    },
+    {
+      "repository": "riccardopinato/In-Cucina-con-gli-Anime",
+      "label": "In cucina con gli anime",
+      "ref": "main"
+    }
+  ],
+  "throughput": {
+    "window_days": 30,
+    "max_merged_prs_per_repo": 10,
+    "minimum_merged_samples_for_promotion": 3
+  },
+  "authority": {
+    "advisory_only": true,
+    "can_change_repo": false,
+    "can_mint_pass": false,
+    "can_mint_certified": false,
+    "coverage_reduction_enabled": false
+  }
+}

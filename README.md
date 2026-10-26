@@ -1,3 +1,23 @@
+## v5.7 Factory Throughput Acceleration
+
+AppLab now extends the v5.6 speed model across Factory-adopted repositories.
+
+- **Adoption Observatory:** read-only detection of `APP_FACTORY_ADOPTION.yaml`,
+  profile drift and existing workflow inventory.
+- **Throughput pilots:** Anna's Diary and In cucina con gli anime are measured
+  from real GitHub merge evidence; missing adoption evidence remains WAITING.
+- **Pattern-3:** the third recurring pattern creates a Factory reuse/promotion
+  review proposal, never an automatic promotion.
+- **Reuse Planner:** current App-Factory-Core Golden Registry entries are
+  surfaced as compatibility-review candidates for adopted repositories.
+- **Verification reuse:** Build Once -> Verify Many eligibility is measured in
+  shadow; production reuse stays disabled until exact-artifact and promotion
+  gates are satisfied.
+
+All v5.7 outputs are advisory/read-only toward downstream repositories.
+Smart Test Plan, trusted runtime, physical/store evidence and Production
+Certification retain their existing authority.
+
 ## v5.6 execution mode — Roadmap Fast + Continuous Maintenance
 
 AppLab now separates delivery from background maintenance so the platform can
