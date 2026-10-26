@@ -99,16 +99,16 @@ jobs:
           test -n "$REPOSITORY"
           test -n "$TARGET_SHA"
           APPLAB_SHA="$(git rev-parse HEAD)"
-          python scripts/controlled_expansion_v55e.py \\
-            --materialize-live-config "$GITHUB_WORKSPACE/.applab-v55/v55e-live-config.json" \\
+          python scripts/controlled_expansion_v55e.py \
+            --materialize-live-config "$GITHUB_WORKSPACE/.applab-v55/v55e-live-config.json" \
             --repository "$REPOSITORY"
-          python scripts/controlled_event_v54g.py admit \\
-            --db "$GITHUB_WORKSPACE/.applab-v55/control-plane.sqlite3" \\
-            --config "$GITHUB_WORKSPACE/.applab-v55/v55e-live-config.json" \\
-            --repository "$REPOSITORY" --source-ref "$SOURCE_REF" \\
-            --resolved-sha "$TARGET_SHA" --applab-sha "$APPLAB_SHA" \\
-            --delivery-id "$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT" \\
-            --live-requested "$LIVE_REQUESTED" \\
+          python scripts/controlled_event_v54g.py admit \
+            --db "$GITHUB_WORKSPACE/.applab-v55/control-plane.sqlite3" \
+            --config "$GITHUB_WORKSPACE/.applab-v55/v55e-live-config.json" \
+            --repository "$REPOSITORY" --source-ref "$SOURCE_REF" \
+            --resolved-sha "$TARGET_SHA" --applab-sha "$APPLAB_SHA" \
+            --delivery-id "$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT" \
+            --live-requested "$LIVE_REQUESTED" \
             --output "$GITHUB_WORKSPACE/v55-admission.json" --github-output "$GITHUB_OUTPUT"
 
       - name: Upload admission ledger
@@ -157,9 +157,9 @@ jobs:
           WORKER_ID: ${{ needs.admit.outputs.worker_id }}
         run: |
           set -Eeuo pipefail
-          python scripts/controlled_event_v54g.py finalize \\
-            --db "$GITHUB_WORKSPACE/.applab-v55/control-plane.sqlite3" \\
-            --operation-id "$OPERATION_ID" --worker-id "$WORKER_ID" \\
+          python scripts/controlled_event_v54g.py finalize \
+            --db "$GITHUB_WORKSPACE/.applab-v55/control-plane.sqlite3" \
+            --operation-id "$OPERATION_ID" --worker-id "$WORKER_ID" \
             --job-result "$VERIFY_RESULT" --output "$GITHUB_WORKSPACE/v55-final.json"
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
