@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "mode": "ROADMAP_FAST_PLUS_CONTINUOUS_MAINTENANCE",
+  "roadmap_lane": {
+    "name": "ROADMAP_FAST",
+    "rule": "Keep roadmap stages small, independently mergeable and exact-head validated.",
+    "blocks_on_lanes": ["BLOCKING_NOW", "FIX_CURRENT_STEP"]
+  },
+  "maintenance_lane": {
+    "name": "CONTINUOUS_MAINTENANCE",
+    "rule": "Collect, deduplicate and retain non-blocking findings without mutating the active roadmap PR.",
+    "default_lane": "BACKGROUND_MAINTENANCE",
+    "idle_runtime_policy": "EVIDENCE_ONLY_NO_EMULATOR"
+  },
+  "blocking_severities": ["P0", "P1"],
+  "blocking_categories": [
+    "TRUST_BOUNDARY",
+    "FALSE_PASS",
+    "ARTIFACT_IDENTITY",
+    "DATA_LOSS",
+    "CRITICAL_SECURITY"
+  ],
+  "current_step_blocks_when_introduced": true,
+  "future_categories": [
+    "PRODUCT_OPPORTUNITY",
+    "OPTIONAL_REFACTOR",
+    "ADVISORY_IDEA"
+  ],
+  "history": {
+    "max_records": 250,
+    "recurrence_threshold": 2,
+    "infrastructure_failure_classes": ["INFRA_ERROR", "FLAKY_SUSPECT", "UNKNOWN_FAILURE"]
+  },
+  "authority": {
+    "can_mint_pass": false,
+    "can_mint_certified": false,
+    "can_reduce_test_coverage": false,
+    "can_change_release_artifact_identity": false,
+    "can_treat_emulator_as_physical": false,
+    "can_mutate_active_roadmap_pr": false
+  }
+}

@@ -1,0 +1,85 @@
+name: AppLab Continuous Maintenance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/continuous_maintenance_v56.py"
+      - "integration/orchestration/contracts/continuous-maintenance-v56.json"
+      - "integration/orchestration/V56_CONTINUOUS_MAINTENANCE_MODE.md"
+      - ".github/workflows/continuous-maintenance.yml"
+  schedule:
+    - cron: "47 * * * *"
+  workflow_run:
+    workflows: ["AppLab Repo Watcher"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-continuous-maintenance
+  cancel-in-progress: true
+
+jobs:
+  sweep:
+    name: Evidence-only maintenance sweep
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Restore central watcher history
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .applab-history
+          key: applab-watch-history-maintenance-${{ github.run_id }}
+          restore-keys: |
+            applab-watch-history-
+
+      - name: Restore maintenance queue
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .applab-maintenance
+          key: applab-maintenance-queue-restore-${{ github.run_id }}
+          restore-keys: |
+            applab-maintenance-queue-
+
+      - name: Build continuous maintenance queue
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p .applab-maintenance
+          ARGS=(
+            --policy integration/orchestration/contracts/continuous-maintenance-v56.json
+            --output-json .applab-maintenance/maintenance-queue.next.json
+            --output-md .applab-maintenance/maintenance-queue.md
+          )
+          if [[ -f .applab-history/history.jsonl ]]; then
+            ARGS+=(--history-file .applab-history/history.jsonl)
+          fi
+          if [[ -f .applab-maintenance/maintenance-queue.json ]]; then
+            ARGS+=(--previous-queue .applab-maintenance/maintenance-queue.json)
+          fi
+          python scripts/continuous_maintenance_v56.py "${ARGS[@]}"
+          mv .applab-maintenance/maintenance-queue.next.json .applab-maintenance/maintenance-queue.json
+          cat .applab-maintenance/maintenance-queue.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save maintenance queue
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .applab-maintenance
+          key: applab-maintenance-queue-${{ github.run_id }}
+
+      - name: Upload maintenance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-continuous-maintenance-${{ github.run_id }}
+          path: |
+            .applab-maintenance/maintenance-queue.json
+            .applab-maintenance/maintenance-queue.md
+          if-no-files-found: error
+          retention-days: 14

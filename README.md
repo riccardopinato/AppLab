@@ -1,3 +1,27 @@
+## v5.6 execution mode — Roadmap Fast + Continuous Maintenance
+
+AppLab now separates delivery from background maintenance so the platform can
+evolve quickly without turning every new finding into roadmap scope.
+
+- **ROADMAP_FAST:** small independently mergeable roadmap changes, early PR,
+  exact-head validation, no unrelated maintenance work pulled into the active PR.
+- **CONTINUOUS_MAINTENANCE:** lightweight evidence/history analysis runs after
+  Repo Watcher and hourly while idle, deduplicating findings into a persistent
+  maintenance queue.
+- **Blocking is explicit:** only P0/P1, trust-boundary, false-PASS,
+  artifact-identity, data-loss, critical-security or proven current-step
+  regressions stop roadmap progress.
+- **Everything else stays visible without stalling delivery:** infrastructure
+  flakiness, technical debt, diagnostics and optional improvements remain in
+  BACKGROUND_MAINTENANCE or FUTURE.
+- **Idle means evidence-only:** the maintenance sweep does not launch emulator
+  runtime solely because AppLab is otherwise idle.
+- **Authority unchanged:** the maintenance lane cannot mint PASS/CERTIFIED,
+  reduce Smart Test Plan coverage, alter release-artifact identity, mutate the
+  active roadmap PR or treat emulator evidence as physical-device evidence.
+
+See `integration/orchestration/V56_CONTINUOUS_MAINTENANCE_MODE.md`.
+
 ## v5.4 Durable Brain & Event-Driven Execution
 
 **Status: v5.4 PROGRAM COMPLETE / CONTROLLED EVENT-DRIVEN CANARY ENABLED / AUTHORITY UNCHANGED.**
