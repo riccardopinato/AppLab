@@ -27,6 +27,8 @@ LIMITS = {
     "scripts/journey_runtime.py": 360,
     "scripts/journey_runtime_support.py": 300,
     "scripts/journey_sharding.py": 300,
+    "scripts/journey_shard_runtime.py": 180,
+    "scripts/journey_shard_aggregate.py": 220,
     "scripts/planner_feedback.py": 280,
     "scripts/planner_feedback_contract.py": 260,
     "scripts/evidence_graph.py": 2400,
