@@ -421,13 +421,6 @@ def self_test() -> dict[str, Any]:
     assert lanes["CLEANUP"] == "FUTURE"
     infra_item = next(item for item in queue["items"] if item["code"] == "INFRA_ERROR")
     assert infra_item["occurrences"] == 2
-    rerun = build_queue(
-        policy=policy,
-        history=history,
-        explicit_findings=[],
-        previous={item["id"]: item for item in safe["items"]} if False else {},
-        generated_at="2026-10-26T03:00:00+00:00",
-    )
     assert queue["roadmap_gate"] == "BLOCKED"
     assert queue["authority"]["can_mint_pass"] is False
     assert queue["authority"]["can_mutate_active_roadmap_pr"] is False
@@ -440,6 +433,18 @@ def self_test() -> dict[str, Any]:
     )
     assert safe["roadmap_gate"] == "CONTINUE"
     assert safe["summary"]["background_safe"] is True
+    safe_infra = next(item for item in safe["items"] if item["code"] == "INFRA_ERROR")
+    assert safe_infra["occurrences"] == 2
+
+    rerun = build_queue(
+        policy=policy,
+        history=history,
+        explicit_findings=[],
+        previous={item["id"]: dict(item) for item in safe["items"]},
+        generated_at="2026-10-26T04:00:00+00:00",
+    )
+    rerun_infra = next(item for item in rerun["items"] if item["code"] == "INFRA_ERROR")
+    assert rerun_infra["occurrences"] == 2
     return {
         "status": "PASS",
         "mode": queue["mode"],
