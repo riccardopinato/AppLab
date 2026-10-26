@@ -314,6 +314,10 @@ def check_project_adapter_contract() -> None:
     integration = (ROOT / ".github/workflows/project-adapter-integration.yml").read_text(
         encoding="utf-8"
     )
+    journey_runtime = (ROOT / "scripts/journey_runtime.py").read_text(encoding="utf-8")
+    trusted_verifier = (ROOT / ".github/workflows/trusted-apk-verifier.yml").read_text(
+        encoding="utf-8"
+    )
     for needle in (
         'ADAPTER_VERSION = "4.4.0"',
         '"release_artifact_pattern"',
@@ -356,6 +360,18 @@ def check_project_adapter_contract() -> None:
         "riccardopinato/CamperBoss" in integration
         and "riccardopinato/Battery_Guard" in integration,
         "v4.3 adapter must keep real App Factory integration coverage",
+    )
+    require(
+        'ENGINE_VERSION = "5.9B"' in journey_runtime
+        and "LEGACY_FALLBACK" in journey_runtime
+        and "functional Maestro failure; not retried" in journey_runtime
+        and "journey-runtime-pilots.json" in journey_runtime,
+        "v5.9B atomic journey runtime must remain trusted, bounded and fail-safe",
+    )
+    require(
+        "APPLAB_REPOSITORY" in trusted_verifier
+        and "journey_runtime.py" in (ROOT / "scripts/verify_apk.sh").read_text(encoding="utf-8"),
+        "Trusted Verifier must bind repository identity before atomic journey execution",
     )
 
 
