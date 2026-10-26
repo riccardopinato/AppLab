@@ -187,12 +187,20 @@ def build_report(observatory:dict[str,Any],watchlist:dict[str,Any],token:str="")
 def self_test()->None:
     flutter={"engine":"flutter","flutter_version":"3.47.5","prepare_command":"","post_pub_get_command":""}
     assert evaluate(flutter,has_pub_lock=True)["eligible_for_shadow_reuse"] is True
-    trusted=dict(
-      flutter,
-      prepare_command='bash "$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh"',
-    )
-    assert evaluate(trusted,has_pub_lock=True,trusted_hooks_safe=True)["eligible_for_shadow_reuse"] is True
-    assert evaluate(dict(flutter,prepare_command="bash setup.sh"),has_pub_lock=True,trusted_hooks_safe=False)["eligible_for_shadow_reuse"] is False
+    trusted_command='bash "$GITHUB_WORKSPACE/.applab/watch-profiles/battery_guard.sh"'
+    trusted=dict(flutter,prepare_command=trusted_command)
+    assert trusted_applab_hook_safe(trusted_command) is True
+    assert trusted_applab_hook_safe("bash setup.sh") is False
+    assert evaluate(
+      trusted,
+      has_pub_lock=True,
+      trusted_hooks_safe=trusted_applab_hook_safe(trusted_command),
+    )["eligible_for_shadow_reuse"] is True
+    assert evaluate(
+      dict(flutter,prepare_command="bash setup.sh"),
+      has_pub_lock=True,
+      trusted_hooks_safe=trusted_applab_hook_safe("bash setup.sh"),
+    )["eligible_for_shadow_reuse"] is False
     native={
       "engine":"native_android","prepare_command":"",
       "build_command":"./gradlew :app:assembleDebug --stacktrace",
