@@ -580,7 +580,14 @@ jobs:
       - name: Resolve dependencies
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
         working-directory: target/${{ inputs.working_directory }}
-        run: flutter pub get
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "${{ steps.reuse_eligibility.outputs.eligible }}" == "true" ]]; then
+            flutter pub get --enforce-lockfile
+          else
+            flutter pub get
+          fi
 
       - name: Post dependency preparation
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true' && inputs.post_pub_get_command != ''
