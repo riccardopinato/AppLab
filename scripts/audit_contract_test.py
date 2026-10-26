@@ -315,6 +315,7 @@ def check_project_adapter_contract() -> None:
         encoding="utf-8"
     )
     journey_runtime = (ROOT / "scripts/journey_runtime.py").read_text(encoding="utf-8")
+    journey_support = (ROOT / "scripts/journey_runtime_support.py").read_text(encoding="utf-8")
     trusted_verifier = (ROOT / ".github/workflows/trusted-apk-verifier.yml").read_text(
         encoding="utf-8"
     )
@@ -367,6 +368,13 @@ def check_project_adapter_contract() -> None:
         and "functional Maestro failure; not retried" in journey_runtime
         and "journey-runtime-pilots.json" in journey_runtime,
         "v5.9B atomic journey runtime must remain trusted, bounded and fail-safe",
+    )
+    require(
+        "runtime_health" in journey_support
+        and "FLUTTER_FAILURE_RE" in journey_support
+        and "TransientInfrastructure" in journey_support
+        and "subprocess.TimeoutExpired" in journey_support,
+        "v5.9B must preserve health evidence before restart and bound ADB transport failures",
     )
     require(
         "APPLAB_REPOSITORY" in trusted_verifier
