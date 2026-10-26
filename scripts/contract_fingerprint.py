@@ -56,6 +56,7 @@ CONTRACT_FILES = (
     "scripts/github_run_started_at.py",
     "scripts/history_learning.py",
     "scripts/verification_intelligence.py",
+    "scripts/verification_reuse_promotion_v57e.py",
     "scripts/upgrade_lab.py",
     "scripts/prepare_upgrade_baseline.py",
     "scripts/prepare_performance_baseline.py",
