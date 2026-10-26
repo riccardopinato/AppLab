@@ -1,9 +1,8 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.5 — Multi-Project Event-Driven Rollout**
+Current production baseline: **v5.6 — Evidence-Efficient Reliability & Physical Proof**
 
-Next architecture sequence: **v5.6 — Evidence-Efficient Reliability & Physical Proof**  
-Status: **v5.5A–E completed and merged; verification/certification authority boundaries preserved; v5.6 is the next execution sequence**.
+Status: **v5.6A–E completed and merged; verification/certification authority boundaries preserved.**
 
 ## Completed — v5.5 Multi-Project Event-Driven Rollout
 
@@ -17,7 +16,7 @@ The v5.5 program promotes the v5.4 control plane from a self-repository canary t
 
 Promotion remains evidence-gated. v5.5 cannot mint PASS/CERTIFIED, cannot reduce Smart Test Plan coverage and cannot remove GitHub Actions fallback or watcher reconciliation by documentation alone.
 
-## Planned — v5.6 Evidence-Efficient Reliability & Physical Proof
+## Completed — v5.6 Evidence-Efficient Reliability & Physical Proof
 
 The v5.6 program converts the remaining open hardening priorities into five independently mergeable stages. The objective is to make AppLab faster and more operationally efficient without weakening trusted evidence, exact-artifact identity, physical-device boundaries or certification authority.
 

@@ -111,4 +111,5 @@ jobs:
           name: applab-continuous-maintenance-${{ github.run_id }}
           path: .applab-maintenance/
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14
