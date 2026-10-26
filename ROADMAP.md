@@ -50,6 +50,59 @@ Cross-cutting guardrails for every v5.6 stage:
 
 Completing documentation or a shadow simulation does not promote production behavior. Any coverage reduction, scheduler-role change, physical-evidence authority change or new security verdict path requires its own exact-head evidence, rollback path and explicit promotion criteria.
 
+## Active — v5.7 Factory Throughput Acceleration
+
+v5.7 moves the v5.6 speed model outward: AppLab should make adopted App Factory
+repositories faster without becoming a second repository, verification or
+certification authority.
+
+Primary throughput metric:
+**first source commit -> green merge**, with PR-open -> merge as a secondary
+observable proxy. Missing downstream evidence remains incomplete, never PASS.
+
+- [x] **v5.7A Factory Adoption Observatory:** read-only discovery of
+  `APP_FACTORY_ADOPTION.yaml`, profile drift, workflow inventory and adoption
+  gaps across watchlist repositories plus explicit Factory pilots.
+- [ ] **v5.7B Real Adoption Pilots & Speed Evidence:** instrumentation is
+  implemented for Anna's Diary (`riccardopinato/Agenda-per-Anna`) and
+  In cucina con gli anime (`riccardopinato/In-Cucina-con-gli-Anime`).
+  Promotion remains OPEN until both repositories expose a valid adoption
+  manifest and each supplies at least three real merged-PR samples.
+- [x] **v5.7C Pattern-3 / Donor Discovery Engine:** recurring maintenance
+  signatures at occurrence >= 3 produce an explicit
+  APP-SPECIFIC / DONOR / FACTORY PROCESS / GOLDEN CANDIDATE review proposal.
+  The engine never auto-promotes.
+- [x] **v5.7D Factory Reuse Planner:** resolve the current App-Factory-Core
+  Golden Registry and produce compatibility-review candidates for adopted
+  repositories; never write downstream code automatically.
+- [ ] **v5.7E Throughput & Verification Reuse:** shadow admission for
+  Build Once -> Verify Many is implemented using exact build-input readiness.
+  Production reuse remains disabled until a real adopted repository is eligible,
+  exact-artifact identity is present and a separate promotion gate passes.
+
+### v5.7 execution rules
+
+- AppLab may read downstream Factory adoption/workflow metadata but does not
+  mutate downstream repositories from this program.
+- Existing custom workflows remain owned by the app repository; v5.7 observes
+  them but never replaces them.
+- Factory reuse output is advisory. A Golden/donor suggestion is not equivalent
+  to compatibility proof.
+- Pattern-3 classification is a review trigger, not promotion authority.
+- `coverage_reduction_enabled=false` remains unchanged.
+- Smart Test Plan remains FAST/FULL authority.
+- Production Certification remains certification authority.
+- Build-reuse readiness never changes artifact identity or skips an exact-head
+  verification requirement by itself.
+- Missing adoption/evidence/watchlist coverage is reported as WAITING/HOLD,
+  never inferred as success.
+
+### v5.7 promotion rule
+
+v5.7B and v5.7E are intentionally evidence-gated. Their implementation may be
+merged while their roadmap promotion checkboxes remain open. They close only
+after downstream real-project evidence satisfies the stated gates.
+
 ## Product rule
 
 AppLab optimizes for the shortest verification path that preserves trustworthy
