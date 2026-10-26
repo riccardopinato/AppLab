@@ -23,6 +23,7 @@ def review_comment(
     findings: bool = False,
     actor: str = "chatgpt-codex-connector[bot]",
     created: str = "2026-10-26T19:00:00Z",
+    updated: str | None = None,
 ) -> dict:
     marker = {
         "code_review": {
@@ -35,6 +36,7 @@ def review_comment(
     return {
         "user": {"login": actor},
         "created_at": created,
+        "updated_at": updated,
         "body": (
             "<!-- codex-review-state:v1 "
             + json.dumps(marker, separators=(",", ":"))
@@ -89,6 +91,23 @@ def test_review_watchdog() -> None:
     )
     assert running["state"] == "RETRIGGER"
     assert running["reason"] == "REVIEW_TIMEOUT"
+
+    freshly_updated = review.decision_for_pr(
+        pr=pr,
+        comments=[
+            review_comment(
+                head,
+                status="running",
+                created="2026-10-26T18:00:00Z",
+                updated="2026-10-26T19:59:00Z",
+            )
+        ],
+        now=now,
+        timeout_seconds=900,
+        max_retries=2,
+    )
+    assert freshly_updated["state"] == "WAIT"
+    assert freshly_updated["reason"] == "REVIEW_IN_PROGRESS"
 
     spoof = review.decision_for_pr(
         pr=pr,
@@ -267,11 +286,47 @@ def test_bounded_pr_rotation() -> None:
     assert seen == set(range(1, 26))
 
 
+def test_workflow_run_pagination_and_disabled_payload() -> None:
+    original = github.api
+    calls: list[str] = []
+
+    def fake(url: str, token: str, **kwargs):
+        calls.append(url)
+        if "&page=1" in url:
+            return {"workflow_runs": [{"id": index} for index in range(100)]}
+        if "&page=2" in url:
+            return {"workflow_runs": [{"id": 100}]}
+        raise AssertionError(url)
+
+    github.api = fake
+    try:
+        rows = supersession.fetch_workflow_runs(
+            "owner/app",
+            "",
+            max_pages=3,
+        )
+    finally:
+        github.api = original
+    assert len(rows) == 101
+    assert len(calls) == 2
+
+    disabled = supersession.disabled_payload(
+        "owner/app",
+        dry_run=True,
+    )
+    assert disabled["status"] == "DISABLED"
+    assert disabled["dry_run"] is True
+    assert disabled["ancestry_required"] is True
+    assert disabled["protected_stages_unchanged"] is True
+    assert disabled["cancellation_count"] == 0
+
+
 def main() -> int:
     test_review_watchdog()
     test_supersession_identity()
     test_comment_pagination()
     test_bounded_pr_rotation()
+    test_workflow_run_pagination_and_disabled_payload()
     print("AppLab v5.9E watchdog regression contract PASS")
     return 0
 
