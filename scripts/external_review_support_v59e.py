@@ -88,16 +88,19 @@ def decision_for_pr(
     for item in comments:
         body = str(item.get("body", ""))
         author = str((item.get("user") or {}).get("login", ""))
-        trusted = (
-            (author == review_bot_login and STATE_RE.search(body))
-            or (
-                author == watchdog_actor_login
-                and WATCHDOG_RE.search(body)
-            )
+        review_state = author == review_bot_login and STATE_RE.search(body)
+        watchdog_request = (
+            author == watchdog_actor_login and WATCHDOG_RE.search(body)
         )
-        created = str(item.get("created_at") or "")
-        if trusted and created:
-            marker_times.append(created)
+        activity = ""
+        if review_state:
+            activity = str(
+                item.get("updated_at") or item.get("created_at") or ""
+            )
+        elif watchdog_request:
+            activity = str(item.get("created_at") or "")
+        if activity:
+            marker_times.append(activity)
     anchor = (
         max(marker_times)
         if marker_times
