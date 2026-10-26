@@ -812,7 +812,7 @@ jobs:
 
       - name: Evaluate verification cache eligibility
         id: verification_cache
-        if: always() && inputs.cache_verification
+        if: always() && inputs.cache_verification && needs.journey_plan.outputs.authoritative != 'true'
         shell: bash
         env:
           APPLAB_JOB_STATUS: ${{ job.status }}
@@ -935,3 +935,34 @@ jobs:
           path: journey-shard-aggregate.json
           if-no-files-found: warn
           retention-days: 1
+
+      - name: Download coordinator trusted evidence for cache
+        if: inputs.cache_verification
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: applab-${{ inputs.history_key }}-${{ github.run_id }}
+          path: coordinator-trusted-evidence
+
+      - name: Prepare authoritative verification cache
+        if: inputs.cache_verification
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          AGGREGATE="$(python -c 'import json; print(str(json.load(open("journey-shard-aggregate.json")).get("result","FAIL")).upper())')"
+          RESULT="$(python -c 'import json; print(str(json.load(open("coordinator-trusted-evidence/result.json")).get("result","FAIL")).upper())')"
+          if [[ "$AGGREGATE" != "PASS" || "$RESULT" != "PASS" ]]; then
+            echo "Authoritative sharding did not produce aggregate + coordinator PASS; cache remains disabled."
+            exit 1
+          fi
+          rm -rf "$GITHUB_WORKSPACE/.applab-watch-cache"
+          mkdir -p "$GITHUB_WORKSPACE/.applab-watch-cache"
+          cp "$GITHUB_WORKSPACE/coordinator-trusted-evidence/result.json"              "$GITHUB_WORKSPACE/.applab-watch-cache/result.json"
+          cp "$GITHUB_WORKSPACE/coordinator-trusted-evidence/summary.md"              "$GITHUB_WORKSPACE/.applab-watch-cache/summary.md"
+          cp "$GITHUB_WORKSPACE/journey-shard-aggregate.json"              "$GITHUB_WORKSPACE/.applab-watch-cache/journey-shard-aggregate.json"
+
+      - name: Mark authoritative PASS commit as checked
+        if: inputs.cache_verification
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .applab-watch-cache
+          key: applab-c${{ inputs.contract_fingerprint }}-p${{ inputs.config_fingerprint }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
