@@ -140,6 +140,7 @@ def validate(
         raise ValueError("Declared package id cannot be verified because APK package id is unavailable")
     if package_id and package_id != apk_package_id:
         raise ValueError("Declared package id does not match APK package id")
+    effective_package_id = package_id or apk_package_id
 
     certification_policy = payload.get("certification_policy")
     if not isinstance(certification_policy, dict) or certification_policy.get("schema_version") != 1:
@@ -250,7 +251,7 @@ def validate(
         "target_root": str(evidence),
         "project_root": str(evidence / Path(working)),
         "maestro_flow": str(evidence / Path(flow)) if flow else "",
-        "package_id": package_id,
+        "package_id": effective_package_id,
         "working_directory": str(working),
         "evidence_bytes": total,
         "analysis_mode": analysis_mode,
@@ -334,6 +335,12 @@ def self_test() -> None:
         (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
         result = validate(root, "owner/repo", "a"*40, "flutter", "fast", "c"*40)
         assert result["package_id"] == "com.example.app"
+        payload["package_id"] = ""
+        (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
+        auto_result = validate(root, "owner/repo", "a"*40, "flutter", "fast", "c"*40)
+        assert auto_result["package_id"] == "com.example.app"
+        payload["package_id"] = "com.example.app"
+        (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
         assert result["analysis_mode"] == "fast"
         assert result["trusted_applab_sha"] == "c" * 40
         for field in ("package_id", "version_name", "version_code"):
