@@ -162,8 +162,10 @@ runtime, exact-artifact identity, physical/store boundaries or certification.
   enforcement is admitted only by a trusted AppLab pilot allowlist; invalid,
   incomplete or non-admitted plans fall back to the legacy monolithic primary
   flow without reducing coverage.
-- [ ] **v5.9C Parallel Runtime Sharding:** shard independent journey groups across
-  isolated runtimes while aggregating one verdict for the exact same APK bytes.
+- [x] **v5.9C Parallel Runtime Sharding:** shard independent FAST journey groups
+  across isolated runtimes, keep the coordinator group in the primary trusted
+  verifier and aggregate one exact-artifact verdict. Admission is centrally
+  evidence-gated; shadow mode cannot reduce primary coverage.
 - [ ] **v5.9D Build Once Promotion:** promote exact-artifact reuse across
   compatible downstream gates, prove deterministic generated scaffold inputs and
   benchmark/remove unnecessary ABI builds.

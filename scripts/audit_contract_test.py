@@ -1254,6 +1254,10 @@ def check_v535_multi_project_delta_calibration_contract() -> None:
     run_check(globals())
 
 
+def check_v59c_parallel_sharding_contract() -> None:
+    from audit_contract_v59 import run_check
+    run_check(globals())
+
 def main() -> int:
     check_version_alignment()
     check_local_controller_boundary()
@@ -1277,6 +1281,7 @@ def main() -> int:
     check_v533_structural_hardening_contract()
     check_v534_evidence_schema_registry_contract()
     check_v535_multi_project_delta_calibration_contract()
+    check_v59c_parallel_sharding_contract()
     check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")

@@ -1,6 +1,6 @@
 # AppLab v5.9 — Journey-Aware Runtime
 
-Status: **v5.9A MERGED / v5.9B IMPLEMENTED FOR EXACT-HEAD VALIDATION**
+Status: **v5.9A–B MERGED / v5.9C IMPLEMENTED FOR EXACT-HEAD VALIDATION**
 
 ## Goal
 
@@ -110,6 +110,37 @@ The durable record is `journey-runtime.json`. It records selected journeys,
 per-journey attempts, transient classification, duration and whether selective
 coverage was actually enforced. `LEGACY_FALLBACK` always records
 `coverage_reduction_enabled=false`.
+
+## v5.9C parallel runtime sharding
+
+v5.9C adds a trusted sharding planner and isolated Android runtime matrix for
+eligible FAST runs. The sharding admission lives in
+`config/journey-sharding-pilots.json` and supports `shadow` and
+`authoritative` modes.
+
+The planner keeps core/normal selected journeys in a coordinator group and may
+move selected `risk_class=deep` journeys into at most two additional isolated
+AVDs. A maximum of three runtime groups is therefore active for one verification.
+
+In `shadow` mode the primary verifier still executes the complete v5.9B
+selection. Shard failures are advisory and cannot reduce coverage or mint PASS.
+
+In `authoritative` mode:
+
+1. the primary verifier executes only the coordinator subset;
+2. each deep shard runs on a separate emulator against the same packaged APK;
+3. every runtime bundle includes the trusted build contract;
+4. the final aggregate job verifies repository, resolved SHA and APK SHA-256;
+5. the union of coordinator + shard journeys must equal the exact
+   `selected_journeys` set with no duplicates;
+6. any missing/failed/mismatched evidence prevents a green workflow.
+
+FULL/CERTIFICATION remain outside v5.9C sharding. They continue through the
+existing full atomic/legacy safety paths.
+
+Anna's Diary is admitted to `shadow` only at this stage. Authoritative
+promotion remains evidence-gated and requires a real downstream journey catalog
+plus measured equivalence before the central mode can change.
 
 ## Expected Anna's Diary pilot
 

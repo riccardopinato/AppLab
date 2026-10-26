@@ -52,6 +52,7 @@ def selected_catalog(
     plan: dict[str, Any],
     repository: str,
     trusted_root: Path,
+    requested_journeys: list[str] | None = None,
 ) -> list[tuple[str, Path]]:
     if repository.lower() not in pilot_repositories(trusted_root):
         raise LegacyFallback("repository is not admitted to atomic journey execution")
@@ -103,7 +104,10 @@ def selected_catalog(
         if not flow.is_file():
             raise LegacyFallback(f"journey flow is missing: {journey_id}")
         result.append((journey_id, flow))
-    return result
+    try:
+        return runtime_support.filter_requested_journeys(result, requested_journeys)
+    except ValueError as exc:
+        raise LegacyFallback(str(exc)) from exc
 
 
 def run_journey(
@@ -181,13 +185,15 @@ def execute(args: argparse.Namespace) -> int:
     plan = read_json(Path(args.plan).resolve())
     started = time.monotonic()
     try:
+        requested_journeys = runtime_support.parse_journey_ids_json(getattr(args, "journey_ids_json", ""))
         journeys = selected_catalog(
             target_root=target_root,
             plan=plan,
             repository=args.repository,
             trusted_root=trusted_root,
+            requested_journeys=requested_journeys,
         )
-    except LegacyFallback as exc:
+    except (ValueError, LegacyFallback) as exc:
         write_report(
             output,
             {
@@ -330,6 +336,7 @@ def main() -> int:
     parser.add_argument("--package-id", default="")
     parser.add_argument("--report-dir", default="applab-report")
     parser.add_argument("--max-attempts", type=int, default=3)
+    parser.add_argument("--journey-ids-json", default="")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
