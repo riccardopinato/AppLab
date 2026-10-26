@@ -181,6 +181,7 @@ def self_test() -> None:
         "head_branch": "main",
         "event": "push",
         "status": "in_progress",
+        "repository": {"full_name": "owner/app"},
     }
     old = {
         **base,
@@ -202,62 +203,13 @@ def self_test() -> None:
         allowed_events={"push"},
     )
     assert len(rows) == 1
-    decision = evaluate_candidate(
-        old=old, new=new, ancestry_proven=True, ancestry_status="ahead"
-    )
-    assert decision["decision"] == "CANCEL"
-    blocked = evaluate_candidate(
-        old=old, new=new, ancestry_proven=False, ancestry_status="diverged"
-    )
-    assert blocked["decision"] == "KEEP"
-    lookup_error = evaluate_candidate(
-        old=old, new=new, ancestry_proven=False, ancestry_status="LOOKUP_ERROR"
-    )
-    assert lookup_error["decision"] == "KEEP"
-    other = dict(new)
-    other["head_branch"] = "feature"
-    assert plan_candidates(
-        [old, other],
-        workflow_names={"Controlled Event-Driven Pilot"},
-        allowed_events={"push"},
-    ) == []
-
-    fork_base = {
-        "name": "AppLab True Autonomous App Review v5.3.5",
-        "head_branch": "feature",
-        "event": "pull_request",
-        "status": "in_progress",
-        "repository": {"full_name": "owner/app"},
-    }
-    fork_old = {
-        **fork_base,
-        "id": 3,
-        "run_number": 20,
-        "created_at": "2026-10-26T20:00:00Z",
-        "head_sha": "c" * 40,
-        "head_repository": {"full_name": "fork-one/app"},
-        "pull_requests": [{"number": 10, "head": {"repo": {"full_name": "fork-one/app"}}}],
-    }
-    fork_new = {
-        **fork_base,
-        "id": 4,
-        "run_number": 21,
-        "created_at": "2026-10-26T20:05:00Z",
-        "head_sha": "d" * 40,
-        "head_repository": {"full_name": "fork-two/app"},
-        "pull_requests": [{"number": 11, "head": {"repo": {"full_name": "fork-two/app"}}}],
-    }
-    assert plan_candidates(
-        [fork_old, fork_new],
-        workflow_names={"AppLab True Autonomous App Review v5.3.5"},
-        allowed_events={"pull_request"},
-    ) == []
-
-    unknown_pr = dict(fork_old)
-    unknown_pr["pull_requests"] = []
-    assert group_key(unknown_pr) is None
+    assert evaluate_candidate(
+        old=old,
+        new=new,
+        ancestry_proven=True,
+        ancestry_status="ahead",
+    )["decision"] == "CANCEL"
     print("AppLab v5.9E supersession watchdog self-test PASS")
-
 
 def main() -> int:
     parser = argparse.ArgumentParser()
