@@ -147,6 +147,7 @@ jobs:
             scripts/audit_contract_hardening.py \
             scripts/audit_contract_schema.py \
             scripts/audit_contract_delta.py \
+            scripts/audit_contract_v59.py \
             scripts/studio_snapshot_self_test.py \
             scripts/evidence_graph_self_test.py \
             scripts/studio_snapshot.py \
