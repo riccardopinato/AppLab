@@ -84,24 +84,24 @@ jobs:
     name: Plan journey sharding
     runs-on: ubuntu-latest
     outputs:
-      enabled: \${{ steps.plan.outputs.enabled }}
-      mode: \${{ steps.plan.outputs.mode }}
-      authoritative: \${{ steps.plan.outputs.authoritative }}
-      matrix: \${{ steps.plan.outputs.matrix }}
-      coordinator_journeys: \${{ steps.plan.outputs.coordinator_journeys }}
+      enabled: ${{ steps.plan.outputs.enabled }}
+      mode: ${{ steps.plan.outputs.mode }}
+      authoritative: ${{ steps.plan.outputs.authoritative }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      coordinator_journeys: ${{ steps.plan.outputs.coordinator_journeys }}
     steps:
       - name: Checkout trusted AppLab
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          repository: \${{ job.workflow_repository }}
-          ref: \${{ job.workflow_sha }}
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           path: .applab
           persist-credentials: false
 
       - name: Download untrusted build contract
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          name: \${{ inputs.build_artifact_name }}
+          name: ${{ inputs.build_artifact_name }}
           path: .applab-build
 
       - name: Validate sharding input contract
@@ -110,17 +110,17 @@ jobs:
           set -Eeuo pipefail
           python .applab/scripts/validate_build_contract.py \
             --root "$GITHUB_WORKSPACE/.applab-build" \
-            --expected-repository "\${{ inputs.repository }}" \
-            --expected-sha "\${{ inputs.resolved_sha }}" \
-            --expected-engine "\${{ inputs.engine }}" \
-            --expected-analysis-mode "\${{ inputs.analysis_mode }}" \
-            --expected-trusted-applab-sha "\${{ job.workflow_sha }}"
+            --expected-repository "${{ inputs.repository }}" \
+            --expected-sha "${{ inputs.resolved_sha }}" \
+            --expected-engine "${{ inputs.engine }}" \
+            --expected-analysis-mode "${{ inputs.analysis_mode }}" \
+            --expected-trusted-applab-sha "${{ job.workflow_sha }}"
 
       - name: Plan isolated journey shards
         id: plan
         shell: bash
         env:
-          RUN_MAESTRO: \${{ inputs.run_maestro }}
+          RUN_MAESTRO: ${{ inputs.run_maestro }}
         run: |
           set -Eeuo pipefail
           if [[ "$RUN_MAESTRO" != "true" ]]; then
@@ -134,7 +134,7 @@ jobs:
           python .applab/scripts/journey_sharding.py \
             --contract-root "$GITHUB_WORKSPACE/.applab-build" \
             --trusted-root "$GITHUB_WORKSPACE/.applab" \
-            --repository "\${{ inputs.repository }}" \
+            --repository "${{ inputs.repository }}" \
             --output "$GITHUB_WORKSPACE/journey-sharding-plan.json" \
             --github-output "$GITHUB_OUTPUT"
 
@@ -142,34 +142,34 @@ jobs:
         if: steps.plan.outputs.enabled == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: journey-sharding-plan-\${{ github.run_id }}
+          name: journey-sharding-plan-${{ github.run_id }}
           path: journey-sharding-plan.json
           if-no-files-found: error
           retention-days: 1
 
   journey_shards:
-    name: Journey shard \${{ matrix.id }}
+    name: Journey shard ${{ matrix.id }}
     needs: journey_plan
     if: needs.journey_plan.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: \${{ needs.journey_plan.outputs.authoritative != 'true' }}
+    continue-on-error: ${{ needs.journey_plan.outputs.authoritative != 'true' }}
     strategy:
       fail-fast: false
-      matrix: \${{ fromJSON(needs.journey_plan.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.journey_plan.outputs.matrix) }}
     steps:
       - name: Checkout trusted AppLab
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          repository: \${{ job.workflow_repository }}
-          ref: \${{ job.workflow_sha }}
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           path: .applab
           persist-credentials: false
 
       - name: Download build contract
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          name: \${{ inputs.build_artifact_name }}
+          name: ${{ inputs.build_artifact_name }}
           path: .applab-build
 
       - name: Validate shard build contract
@@ -179,11 +179,11 @@ jobs:
           set -Eeuo pipefail
           python .applab/scripts/validate_build_contract.py \
             --root "$GITHUB_WORKSPACE/.applab-build" \
-            --expected-repository "\${{ inputs.repository }}" \
-            --expected-sha "\${{ inputs.resolved_sha }}" \
-            --expected-engine "\${{ inputs.engine }}" \
-            --expected-analysis-mode "\${{ inputs.analysis_mode }}" \
-            --expected-trusted-applab-sha "\${{ job.workflow_sha }}" \
+            --expected-repository "${{ inputs.repository }}" \
+            --expected-sha "${{ inputs.resolved_sha }}" \
+            --expected-engine "${{ inputs.engine }}" \
+            --expected-analysis-mode "${{ inputs.analysis_mode }}" \
+            --expected-trusted-applab-sha "${{ job.workflow_sha }}" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Enable KVM
@@ -201,12 +201,12 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.android/avd
-          key: applab-clean-avd-schema1-google_apis-api\${{ inputs.api_level }}-x86_64-\${{ inputs.emulator_profile }}
+          key: applab-clean-avd-schema1-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
 
       - name: Ensure Android system image
         shell: bash
         env:
-          APPLAB_ANDROID_API_LEVEL: \${{ inputs.api_level }}
+          APPLAB_ANDROID_API_LEVEL: ${{ inputs.api_level }}
           APPLAB_ANDROID_TARGET: google_apis
           APPLAB_ANDROID_ARCH: x86_64
           APPLAB_ANDROID_CHANNEL: "0"
@@ -220,22 +220,22 @@ jobs:
       - name: Execute isolated journey shard
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         env:
-          APPLAB_APK_FILE: \${{ steps.contract.outputs.apk_file }}
-          APPLAB_TARGET_ROOT: \${{ steps.contract.outputs.target_root }}
-          APPLAB_TRUSTED_ROOT: \${{ github.workspace }}/.applab
-          APPLAB_ANALYSIS_PLAN_JSON: \${{ steps.contract.outputs.analysis_plan_file }}
-          APPLAB_REPORT_DIR: \${{ github.workspace }}/journey-shard-report
-          APPLAB_REPOSITORY: \${{ inputs.repository }}
-          APPLAB_PACKAGE_ID: \${{ steps.contract.outputs.package_id }}
-          APPLAB_JOURNEY_IDS_JSON: \${{ toJSON(matrix.journeys) }}
-          APPLAB_SHARD_ID: \${{ matrix.id }}
-          APPLAB_ANDROID_PREPARE_COMMAND: \${{ inputs.android_prepare_command }}
-          APPLAB_BUILD_CONTRACT_JSON: \${{ github.workspace }}/.applab-build/contract.json
+          APPLAB_APK_FILE: ${{ steps.contract.outputs.apk_file }}
+          APPLAB_TARGET_ROOT: ${{ steps.contract.outputs.target_root }}
+          APPLAB_TRUSTED_ROOT: ${{ github.workspace }}/.applab
+          APPLAB_ANALYSIS_PLAN_JSON: ${{ steps.contract.outputs.analysis_plan_file }}
+          APPLAB_REPORT_DIR: ${{ github.workspace }}/journey-shard-report
+          APPLAB_REPOSITORY: ${{ inputs.repository }}
+          APPLAB_PACKAGE_ID: ${{ steps.contract.outputs.package_id }}
+          APPLAB_JOURNEY_IDS_JSON: ${{ toJSON(matrix.journeys) }}
+          APPLAB_SHARD_ID: ${{ matrix.id }}
+          APPLAB_ANDROID_PREPARE_COMMAND: ${{ inputs.android_prepare_command }}
+          APPLAB_BUILD_CONTRACT_JSON: ${{ github.workspace }}/.applab-build/contract.json
         with:
-          api-level: \${{ inputs.api_level }}
+          api-level: ${{ inputs.api_level }}
           target: google_apis
           arch: x86_64
-          profile: \${{ inputs.emulator_profile }}
+          profile: ${{ inputs.emulator_profile }}
           force-avd-creation: false
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
@@ -245,7 +245,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: journey-shard-\${{ github.run_id }}-\${{ matrix.id }}
+          name: journey-shard-${{ github.run_id }}-${{ matrix.id }}
           path: journey-shard-report/
           if-no-files-found: warn
           retention-days: 1
@@ -899,21 +899,21 @@ jobs:
       - name: Checkout trusted AppLab
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          repository: \${{ job.workflow_repository }}
-          ref: \${{ job.workflow_sha }}
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           path: .applab
           persist-credentials: false
 
       - name: Download build contract
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          name: \${{ inputs.build_artifact_name }}
+          name: ${{ inputs.build_artifact_name }}
           path: .applab-build
 
       - name: Download all journey shard evidence
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          pattern: journey-shard-\${{ github.run_id }}-*
+          pattern: journey-shard-${{ github.run_id }}-*
           path: journey-shard-evidence
 
       - name: Aggregate exact-artifact journey verdict
@@ -931,7 +931,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: journey-shard-aggregate-\${{ github.run_id }}
+          name: journey-shard-aggregate-${{ github.run_id }}
           path: journey-shard-aggregate.json
           if-no-files-found: warn
           retention-days: 1
