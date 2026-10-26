@@ -10,6 +10,7 @@ from typing import Any
 
 import release_reality
 import trusted_evidence_manifest
+import verification_intelligence
 
 ENGINE_VERSION = "5.9C"
 
@@ -108,6 +109,10 @@ def finalize(
         "exact_artifact_verified": aggregate.get("exact_artifact_verified") is True,
         "shard_count": int(aggregate.get("shard_count", 0) or 0),
     }
+    plan_path = output_dir / "analysis-plan.json"
+    plan = read_json(plan_path) if plan_path.is_file() else {}
+    result = verification_intelligence.enrich_result(result, plan)
+    verification_intelligence.write_sidecars(output_dir, result)
     result_path.write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -180,6 +185,19 @@ def self_test() -> None:
         (coordinator / "result.json").write_text(json.dumps(result), encoding="utf-8")
         (coordinator / "build-contract.json").write_text(json.dumps(contract), encoding="utf-8")
         (coordinator / "summary.md").write_text("# AppLab report\n\n- Result: PASS\n", encoding="utf-8")
+        (coordinator / "analysis-plan.json").write_text(
+            json.dumps({"lane":"FAST_RUNTIME","baseline_sha":"c"*40,"head_sha":"a"*40}),
+            encoding="utf-8",
+        )
+        (coordinator / "failure-intelligence.json").write_text(
+            json.dumps({"kind":"NONE","retryable":False}), encoding="utf-8"
+        )
+        (coordinator / "release-readiness.json").write_text(
+            json.dumps({"status":"VERIFIED_NOT_CERTIFIED"}), encoding="utf-8"
+        )
+        (coordinator / "project-state.json").write_text(
+            json.dumps({"result":"PASS"}), encoding="utf-8"
+        )
         aggregate = root / "aggregate.json"
         aggregate.write_text(json.dumps({"result":"FAIL","authoritative":True,"coverage_union_verified":False,"exact_artifact_verified":True,"reason":"deep shard failed"}), encoding="utf-8")
         final = finalize(
@@ -192,6 +210,12 @@ def self_test() -> None:
         persisted = read_json(output / "result.json")
         assert persisted["result"] == "FAIL", persisted
         assert read_json(output / "trusted-evidence-manifest.json")["result"]["result"] == "FAIL"
+        assert persisted["failure_intelligence"]["kind"] != "NONE", persisted
+        assert persisted["release_readiness"]["status"] == "BLOCKED", persisted
+        assert persisted["project_state"]["result"] == "FAIL", persisted
+        assert read_json(output / "failure-intelligence.json")["kind"] != "NONE"
+        assert read_json(output / "release-readiness.json")["status"] == "BLOCKED"
+        assert read_json(output / "project-state.json")["result"] == "FAIL"
         reality = read_json(output / "release-reality.json")
         states = {row["key"]: row["state"] for row in reality["levels"]}
         assert states["TRUSTED_RUNTIME_VERIFIED"] == "FAIL", reality
