@@ -87,6 +87,7 @@ jobs:
             scripts/factory_reuse_planner_v57d.py \
             scripts/verification_reuse_v57e.py \
             scripts/verification_reuse_promotion_v57e.py \
+            scripts/build_once_promotion_v59d.py \
             scripts/factory_runtime_acceleration_v58r.py \
             scripts/autonomous_failure_triage_v58a.py \
             scripts/fix_candidate_planner_v58b.py \
@@ -231,6 +232,8 @@ jobs:
           python scripts/factory_reuse_planner_v57d.py --self-test
           python scripts/verification_reuse_v57e.py --self-test
           python scripts/verification_reuse_promotion_v57e.py --self-test
+          python scripts/build_once_promotion_v59d.py --self-test
+          python scripts/build_once_promotion_v59d.py --trusted-root . --require-ready
           python scripts/factory_runtime_acceleration_v58r.py --self-test
           python scripts/autonomous_failure_triage_v58a.py --self-test
           python scripts/fix_candidate_planner_v58b.py --self-test
