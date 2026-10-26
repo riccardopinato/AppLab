@@ -670,6 +670,9 @@ jobs:
         if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
         id: contract
         shell: bash
+        env:
+          APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}
+          APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}
         run: |
           set -Eeuo pipefail
           CURRENT_PLAN_SHA256="$(sha256sum "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" | awk '{print $1}')"
@@ -714,8 +717,8 @@ jobs:
             --toolchain "java:${{ steps.java_identity.outputs.version }}" \
             --toolchain "runner:${RUNNER_OS:-unknown}:${RUNNER_ARCH:-unknown}:${ImageOS:-unknown}:${ImageVersion:-unknown}" \
             --toolchain "flutter:${{ inputs.flutter_version != '' && inputs.flutter_version || inputs.flutter_channel }}" \
-            --build-input "prepare:${{ inputs.prepare_command }}" \
-            --build-input "post-pub-get:${{ inputs.post_pub_get_command }}" \
+            --build-input "prepare:$APPLAB_PREPARE_COMMAND" \
+            --build-input "post-pub-get:$APPLAB_POST_PUB_GET_COMMAND" \
             --build-input "package-id:${{ inputs.package_id }}" \
             --build-input "maestro-flow:${{ inputs.maestro_flow }}" \
             --build-input "dependency-material:${{ steps.reuse_eligibility.outputs.material_digest }}" \
