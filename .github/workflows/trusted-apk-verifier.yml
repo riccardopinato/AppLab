@@ -251,6 +251,7 @@ jobs:
           key: applab-clean-avd-schema1-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
 
       - name: Record v5.9E shard runtime route
+        id: shard_runtime_route
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -261,7 +262,13 @@ jobs:
             --config "$GITHUB_WORKSPACE/.applab/config/warm-runtime-production.json" \
             --api-level "${{ inputs.api_level }}" \
             --emulator-profile "${{ inputs.emulator_profile }}" \
-            --output "$GITHUB_WORKSPACE/journey-shard-report/runtime-route-v59e.json"
+            --output "$GITHUB_WORKSPACE/journey-shard-report/runtime-route-v59e.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Reset shard AVD for cold fallback
+        if: steps.shard_runtime_route.outputs.warm_runtime_admitted != 'true'
+        shell: bash
+        run: rm -rf "$HOME/.android/avd"
 
       - name: Ensure Android system image
         shell: bash
@@ -363,6 +370,11 @@ jobs:
             --output "$GITHUB_WORKSPACE/applab-report/runtime-route-v59e.json" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Reset primary AVD for cold fallback
+        if: steps.runtime_route.outputs.warm_runtime_admitted != 'true'
+        shell: bash
+        run: rm -rf "$HOME/.android/avd"
+
       - name: Ensure Android system image with retry
         shell: bash
         env:
@@ -372,8 +384,8 @@ jobs:
           APPLAB_ANDROID_CHANNEL: "0"
         run: bash .applab/scripts/ensure_android_system_image.sh
 
-      - name: Create pristine AVD snapshot on cache miss
-        if: steps.avd_cache.outputs.cache-hit != 'true'
+      - name: Create pristine AVD snapshot on cold route
+        if: steps.runtime_route.outputs.warm_runtime_admitted != 'true'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
           api-level: ${{ inputs.api_level }}
