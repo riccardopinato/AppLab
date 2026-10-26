@@ -121,7 +121,7 @@ next independent roadmap step.
 - [x] **v5.8A Autonomous Failure Triage:** failure evidence -> deterministic
   classification, bounded root-cause hypotheses, likely components and required
   regression evidence. Proposal only.
-- [ ] **v5.8B Fix Candidate Planner:** turn triage evidence into a bounded
+- [x] **v5.8B Fix Candidate Planner:** turn triage evidence into a bounded
   change plan with files/surfaces, acceptance criteria, rollback and authority
   boundaries. No repository mutation.
 - [ ] **v5.8C Proposal-Only PR Package:** produce an agent/Codex-ready package
