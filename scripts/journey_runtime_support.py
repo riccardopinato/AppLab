@@ -10,7 +10,7 @@ from typing import Any
 
 TRANSIENT_RE = re.compile(
     r"Broken pipe|Failure calling service package|device offline|device not found|"
-    r"connection reset|closed.*transport|transport.*error",
+    r"connection reset|closed.*transport|transport.*error|no devices/emulators found",
     re.IGNORECASE,
 )
 SYSTEM_TRANSIENT_RE = re.compile(
@@ -132,8 +132,20 @@ def runtime_health(
     attempt: int,
 ) -> dict[str, Any]:
     pid_result = adb("shell", "pidof", package_id, timeout=15)
+    pid_text = (pid_result.stdout or "") + (pid_result.stderr or "")
     pid = pid_result.stdout.strip().split()
-    if pid_result.returncode != 0 or not pid:
+    if pid_result.returncode != 0:
+        if TRANSIENT_RE.search(pid_text):
+            raise TransientInfrastructure(
+                "adb pid query transport failure: " + pid_text.strip()[:240]
+            )
+        if not pid:
+            return {
+                "result": "FAIL",
+                "reason": "application process died during journey",
+                "pid": "",
+            }
+    if not pid:
         return {
             "result": "FAIL",
             "reason": "application process died during journey",
@@ -195,6 +207,7 @@ def run_attempt(
 ) -> dict[str, Any]:
     started = time.monotonic()
     try:
+        checked_adb("logcat", "-b", "all", "-c", timeout=10)
         relaunch(package_id)
     except TransientInfrastructure as exc:
         return _infra_attempt(
