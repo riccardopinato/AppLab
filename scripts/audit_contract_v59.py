@@ -39,8 +39,8 @@ def run_check(namespace: dict[str, Any]) -> None:
         require(needle in workflow, f"v5.9C trusted workflow missing: {needle}")
 
     require(
-        '".applab-visual-baseline"' in workflow
-        and '".applab-upgrade-baseline"' in workflow,
+        "path: .applab-visual-baseline" in workflow
+        and "path: .applab-upgrade-baseline" in workflow,
         "v5.9C admission must restore canonical runtime baseline cache paths",
     )
     require(
