@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-ADAPTER_VERSION = "4.3.0"
+ADAPTER_VERSION = "4.4.0"
 SCHEMA_VERSION = 1
 MAX_CONFIG_BYTES = 64 * 1024
 CONFIG_CANDIDATES = ("applab.project.json", ".applab/project.json")
@@ -42,7 +42,16 @@ TOOLCHAIN_PATTERNS = {
     "compile_sdk": re.compile(r"^[0-9]{2,3}$"),
     "build_tools": re.compile(r"^[0-9]+(?:\\.[0-9]+){1,3}$"),
 }
-ALLOWED_JOURNEYS = {"primary", "settings", "critical"}
+ALLOWED_JOURNEYS = {"primary", "settings", "critical", "catalog"}
+ALLOWED_JOURNEY_CATALOG_FIELDS = {
+    "flow", "paths", "labs", "surfaces", "capabilities", "risk_class", "always_fast",
+}
+ALLOWED_JOURNEY_RISKS = {"core", "normal", "deep"}
+ALLOWED_SPECIALIST_LABS = {
+    "system", "performance", "network", "persistence", "configuration",
+    "resource_pressure", "background", "storage", "upgrade",
+}
+MAX_JOURNEY_CATALOG = 32
 ALLOWED_PHYSICAL = {"required", "capabilities"}
 FLOW_SUFFIXES = {".yaml", ".yml"}
 
@@ -209,6 +218,117 @@ def validate_flow(repo_root: Path, raw: str, label: str) -> str:
     return relative
 
 
+def _bounded_string_list(
+    raw: Any,
+    label: str,
+    *,
+    max_items: int = 32,
+    max_length: int = 128,
+    pattern: re.Pattern[str] | None = None,
+) -> list[str]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or len(raw) > max_items:
+        raise ValueError(f"{label} must be an array with at most {max_items} entries")
+    values: list[str] = []
+    for index, item in enumerate(raw):
+        value = validate_string(item, f"{label}[{index}]", max_length=max_length)
+        if not value:
+            raise ValueError(f"{label}[{index}] must not be empty")
+        if pattern is not None and not pattern.fullmatch(value):
+            raise ValueError(f"{label}[{index}] has an unsupported value: {value!r}")
+        if value not in values:
+            values.append(value)
+    return values
+
+
+def normalize_journey_catalog(repo_root: Path, raw: Any) -> dict[str, dict[str, Any]]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or len(raw) > MAX_JOURNEY_CATALOG:
+        raise ValueError(f"journeys.catalog must be an object with at most {MAX_JOURNEY_CATALOG} entries")
+    result: dict[str, dict[str, Any]] = {}
+    label_re = re.compile(r"^[A-Za-z0-9_.:-]+$")
+    journey_id_re = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
+    for journey_id, value in raw.items():
+        if not isinstance(journey_id, str) or not journey_id_re.fullmatch(journey_id):
+            raise ValueError(f"Invalid journey id: {journey_id!r}")
+        item = expect_dict(value, f"journeys.catalog.{journey_id}")
+        reject_unknown(item, ALLOWED_JOURNEY_CATALOG_FIELDS, f"journeys.catalog.{journey_id}")
+        flow = validate_flow(
+            repo_root,
+            validate_string(item.get("flow"), f"journeys.catalog.{journey_id}.flow", max_length=512),
+            f"journeys.catalog.{journey_id}.flow",
+        )
+        if not flow:
+            raise ValueError(f"journeys.catalog.{journey_id}.flow is required")
+        raw_paths = item.get("paths", [])
+        if not isinstance(raw_paths, list) or len(raw_paths) > 64:
+            raise ValueError(f"journeys.catalog.{journey_id}.paths must contain at most 64 entries")
+        paths: list[str] = []
+        for index, path_value in enumerate(raw_paths):
+            path = validate_string(
+                path_value,
+                f"journeys.catalog.{journey_id}.paths[{index}]",
+                max_length=512,
+            )
+            if not path:
+                raise ValueError(f"journeys.catalog.{journey_id}.paths[{index}] must not be empty")
+            normalized = safe_relative(path, allow_glob=True)
+            if normalized not in paths:
+                paths.append(normalized)
+        labs = _bounded_string_list(
+            item.get("labs", []),
+            f"journeys.catalog.{journey_id}.labs",
+            max_items=len(ALLOWED_SPECIALIST_LABS),
+            max_length=32,
+            pattern=label_re,
+        )
+        unsupported_labs = sorted(set(labs) - ALLOWED_SPECIALIST_LABS)
+        if unsupported_labs:
+            raise ValueError(
+                f"journeys.catalog.{journey_id}.labs contains unsupported labs: "
+                + ", ".join(unsupported_labs)
+            )
+        surfaces = _bounded_string_list(
+            item.get("surfaces", []),
+            f"journeys.catalog.{journey_id}.surfaces",
+            max_items=32,
+            max_length=64,
+            pattern=label_re,
+        )
+        capabilities = _bounded_string_list(
+            item.get("capabilities", []),
+            f"journeys.catalog.{journey_id}.capabilities",
+            max_items=32,
+            max_length=64,
+            pattern=label_re,
+        )
+        risk_class = validate_string(
+            item.get("risk_class", "normal"),
+            f"journeys.catalog.{journey_id}.risk_class",
+            max_length=16,
+        ).lower()
+        if risk_class not in ALLOWED_JOURNEY_RISKS:
+            raise ValueError(
+                f"journeys.catalog.{journey_id}.risk_class must be one of "
+                + ", ".join(sorted(ALLOWED_JOURNEY_RISKS))
+            )
+        always_fast = item.get("always_fast", False)
+        if not isinstance(always_fast, bool):
+            raise ValueError(f"journeys.catalog.{journey_id}.always_fast must be boolean")
+        result[journey_id] = {
+            "flow": flow,
+            "paths": paths,
+            "labs": labs,
+            "surfaces": surfaces,
+            "capabilities": capabilities,
+            "risk_class": risk_class,
+            "always_fast": always_fast,
+        }
+    return result
+
+
 def auto_journeys(repo_root: Path, autodiscovery: dict[str, Any]) -> dict[str, Any]:
     primary = str(autodiscovery.get("maestro_flow", "") or "").strip()
     settings = ""
@@ -239,7 +359,7 @@ def auto_journeys(repo_root: Path, autodiscovery: dict[str, Any]) -> dict[str, A
         if any(token in name for token in ("critical", "release", "core")):
             critical.append(relative)
     critical = [item for item in critical if item != primary and item != settings][:16]
-    return {"primary": primary, "settings": settings, "critical": critical}
+    return {"primary": primary, "settings": settings, "critical": critical, "catalog": {}}
 
 
 def load_certification_real_device(repo_root: Path, working_directory: str) -> bool:
@@ -390,6 +510,11 @@ def build_profile(
             if value and value not in values:
                 values.append(value)
         journeys["critical"] = values
+    if "catalog" in configured_journeys:
+        journeys["catalog"] = normalize_journey_catalog(
+            repo_root,
+            configured_journeys.get("catalog"),
+        )
     if journeys["primary"]:
         base["maestro_flow"] = journeys["primary"]
 
@@ -493,6 +618,26 @@ def self_test() -> None:
                         "primary": ".maestro/applab-smoke.yaml",
                         "settings": ".maestro/settings.yaml",
                         "critical": [".maestro/critical-export.yaml"],
+                        "catalog": {
+                            "shell-smoke": {
+                                "flow": ".maestro/applab-smoke.yaml",
+                                "paths": ["lib/**"],
+                                "labs": ["configuration"],
+                                "surfaces": ["home", "today"],
+                                "capabilities": ["navigation"],
+                                "risk_class": "core",
+                                "always_fast": True
+                            },
+                            "critical-export": {
+                                "flow": ".maestro/critical-export.yaml",
+                                "paths": ["lib/export/**"],
+                                "labs": ["storage"],
+                                "surfaces": ["settings"],
+                                "capabilities": ["export"],
+                                "risk_class": "deep",
+                                "always_fast": False
+                            }
+                        },
                     },
                     "physical_validation": {"required": True, "capabilities": ["gps", "background"]},
                 }
@@ -508,6 +653,8 @@ def self_test() -> None:
         assert profile["certification_apk_path"] == "build/app/outputs/flutter-apk/app-release.apk"
         assert profile["journeys"]["settings"] == ".maestro/settings.yaml"
         assert profile["journeys"]["critical"] == [".maestro/critical-export.yaml"]
+        assert profile["journeys"]["catalog"]["shell-smoke"]["risk_class"] == "core"
+        assert profile["journeys"]["catalog"]["critical-export"]["labs"] == ["storage"]
         assert profile["physical_validation"]["required"] is True
         assert len(profile["profile_fingerprint"]) == 64
 
