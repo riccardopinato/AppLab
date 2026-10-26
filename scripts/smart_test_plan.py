@@ -583,6 +583,11 @@ def _journey_selection(repo_root: Path, plan: dict[str, Any]) -> dict[str, Any]:
         for value in list(plan.get("changed_files", [])) + list(plan.get("impacted_files", []))
         if isinstance(value, str) and value
     ]
+    for row in plan.get("changes", []) if isinstance(plan.get("changes"), list) else []:
+        if isinstance(row, dict) and row.get("previous_path"):
+            previous = normalize_repo_path(str(row["previous_path"]))
+            if previous and previous not in paths:
+                paths.append(previous)
     selected_labs = {
         key for key, value in (plan.get("selected_labs") or {}).items()
         if isinstance(value, bool) and value
@@ -591,6 +596,14 @@ def _journey_selection(repo_root: Path, plan: dict[str, Any]) -> dict[str, Any]:
     matched_paths: set[str] = set()
     reasons: dict[str, list[str]] = {key: [] for key in catalog}
     for journey_id, item in catalog.items():
+        path_hits: list[str] = []
+        for pattern in item.get("paths", []):
+            for path in paths:
+                if fnmatch.fnmatch(path, pattern.lower()):
+                    matched_paths.add(path)
+                    if path not in path_hits:
+                        path_hits.append(path)
+
         choose = False
         if lane in {"FULL_RUNTIME", "CERTIFICATION"}:
             choose = True
@@ -599,12 +612,9 @@ def _journey_selection(repo_root: Path, plan: dict[str, Any]) -> dict[str, Any]:
             if item.get("risk_class") == "core" or item.get("always_fast") is True:
                 choose = True
                 reasons[journey_id].append("core/always_fast journey")
-            for pattern in item.get("paths", []):
-                for path in paths:
-                    if fnmatch.fnmatch(path, pattern.lower()):
-                        choose = True
-                        matched_paths.add(path)
-                        reasons[journey_id].append(f"path:{path}")
+            if path_hits:
+                choose = True
+                reasons[journey_id].extend(f"path:{path}" for path in path_hits)
             lab_hits = sorted(set(item.get("labs", [])) & selected_labs)
             if lab_hits:
                 choose = True
@@ -898,6 +908,32 @@ def self_test() -> None:
             },
         )
         assert "vault-deep" in vault["selected_journeys"], vault
+        renamed = _journey_selection(
+            journey_root,
+            {
+                "lane": "FAST_RUNTIME",
+                "changed_files": ["lib/new/helper.dart"],
+                "impacted_files": [],
+                "changes": [{
+                    "path": "lib/new/helper.dart",
+                    "previous_path": "lib/security/vault_crypto.dart",
+                    "status": "R",
+                }],
+                "selected_labs": {lab: False for lab in LABS},
+            },
+        )
+        assert "vault-deep" in renamed["selected_journeys"], renamed
+        full = _journey_selection(
+            journey_root,
+            {
+                "lane": "FULL_RUNTIME",
+                "changed_files": ["lib/features/capture.dart"],
+                "impacted_files": [],
+                "selected_labs": {lab: True for lab in LABS},
+            },
+        )
+        assert sorted(full["selected_journeys"]) == ["shell", "vault-deep"], full
+        assert full["journey_selection"]["unmatched_paths"] == [], full
     docs = classify(["README.md"], "fast", "a"*40)
     assert docs["lane"] == "NO_RUNTIME_CHANGE"
     db = classify(["app/src/main/java/x/AppDatabase.kt"], "fast", "a"*40)
