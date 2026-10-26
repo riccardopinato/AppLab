@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import journey_runtime  # noqa: E402
+import journey_runtime_support  # noqa: E402
 
 
 def executable(path: Path, body: str) -> None:
@@ -150,6 +151,24 @@ exit 0
         )
         assert fallback_payload["result"] == "LEGACY_FALLBACK"
         assert fallback_payload["coverage_reduction_enabled"] is False
+
+        original_adb = journey_runtime_support.adb
+        journey_runtime_support.adb = lambda *a, **k: __import__("subprocess").CompletedProcess(
+            ["adb", *a], 1, stdout="", stderr="error: device offline"
+        )
+        try:
+            try:
+                journey_runtime_support.runtime_health(
+                    package_id="com.example.app",
+                    root=root,
+                    attempt=9,
+                )
+            except journey_runtime_support.TransientInfrastructure:
+                pass
+            else:
+                raise AssertionError("PID transport failure must be retryable infrastructure")
+        finally:
+            journey_runtime_support.adb = original_adb
 
     print("AppLab v5.9B independent atomic journey runtime PASS")
     return 0
