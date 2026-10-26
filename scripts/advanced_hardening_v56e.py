@@ -22,6 +22,8 @@ def normalize(data:dict[str,Any])->dict[str,Any]:
     if "/" not in repository or not SHA_RE.fullmatch(source_sha): raise ValueError("invalid repository/source identity")
     artifact_sha=str(data.get("artifact_sha256","")).lower()
     if artifact_sha and not HASH_RE.fullmatch(artifact_sha): raise ValueError("invalid artifact hash")
+    if producer in {"SCRCPY_CAPTURE","LEAKCANARY"} and not HASH_RE.fullmatch(artifact_sha):
+        raise ValueError("artifact-bound pilot requires exact artifact hash")
     rule=PRODUCERS[producer]
     if producer=="LEAKCANARY" and str(data.get("artifact_role","")).upper() in {"RELEASE","PRODUCTION_RELEASE"}:
         raise ValueError("diagnostic artifact cannot claim release identity")
@@ -42,11 +44,17 @@ def normalize(data:dict[str,Any])->dict[str,Any]:
 def self_test():
     sem=normalize({"producer":"SEMGREP","repository":"owner/app","source_sha":"a"*40,"evidence_refs":["report://1"]})
     assert sem["authority"]=="EVIDENCE_ONLY" and sem["can_mint_pass"] is False
-    phy=normalize({"producer":"SCRCPY_CAPTURE","repository":"owner/app","source_sha":"b"*40,"physical_device":True,"evidence_refs":["video://1"]})
+    phy=normalize({"producer":"SCRCPY_CAPTURE","repository":"owner/app","source_sha":"b"*40,"artifact_sha256":"1"*64,"physical_device":True,"evidence_refs":["video://1"]})
     assert phy["physical_device"] is True and phy["can_claim_store_distribution"] is False
-    try: normalize({"producer":"LEAKCANARY","repository":"owner/app","source_sha":"c"*40,"artifact_role":"RELEASE","evidence_refs":["report://2"]})
+    try: normalize({"producer":"LEAKCANARY","repository":"owner/app","source_sha":"c"*40,"artifact_role":"RELEASE","artifact_sha256":"2"*64,"evidence_refs":["report://2"]})
     except ValueError: pass
     else: raise AssertionError("LeakCanary release identity must fail closed")
+    try: normalize({"producer":"SCRCPY_CAPTURE","repository":"owner/app","source_sha":"d"*40,"physical_device":True,"evidence_refs":["video://2"]})
+    except ValueError: pass
+    else: raise AssertionError("physical capture without artifact hash must fail closed")
+    try: normalize({"producer":"LEAKCANARY","repository":"owner/app","source_sha":"e"*40,"evidence_refs":["report://3"]})
+    except ValueError: pass
+    else: raise AssertionError("LeakCanary without debug artifact hash must fail closed")
     print("AppLab v5.6E advanced hardening pilot self-test PASS")
 
 def main()->int:
