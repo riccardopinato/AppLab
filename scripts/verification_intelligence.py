@@ -21,6 +21,7 @@ INFRA_KEYWORDS = (
     "timeout", "timed out", "runner", "emulator", "adb connection",
     "connection reset", "network error", "rate limit", "artifact download",
     "cache", "kvm", "no space left", "temporary failure", "service unavailable",
+    "infrastructure",
 )
 
 
