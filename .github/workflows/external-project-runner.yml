@@ -444,6 +444,9 @@ jobs:
         id: reuse_eligibility
         if: steps.impact.outputs.run_build == 'true'
         shell: bash
+        env:
+          APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}
+          APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}
         run: |
           set -Eeuo pipefail
           python .applab/scripts/build_reuse_eligibility.py \
@@ -451,14 +454,18 @@ jobs:
             --working-directory "${{ inputs.working_directory }}" \
             --engine flutter \
             --flutter-version "${{ inputs.flutter_version }}" \
-            --prepare-command "${{ inputs.prepare_command }}" \
-            --post-command "${{ inputs.post_pub_get_command }}" \
+            --prepare-command "$APPLAB_PREPARE_COMMAND" \
+            --post-command "$APPLAB_POST_PUB_GET_COMMAND" \
+            --trusted-root "$GITHUB_WORKSPACE/.applab" \
             --output "$GITHUB_WORKSPACE/applab-report/build-reuse-eligibility.json" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Plan accelerated execution
         id: accel
         shell: bash
+        env:
+          APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}
+          APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}
         run: |
           set -Eeuo pipefail
           mkdir -p "$GITHUB_WORKSPACE/applab-acceleration"
@@ -476,8 +483,8 @@ jobs:
             --toolchain "java:${{ steps.java_identity.outputs.version }}" \
             --toolchain "runner:${RUNNER_OS:-unknown}:${RUNNER_ARCH:-unknown}:${ImageOS:-unknown}:${ImageVersion:-unknown}" \
             --toolchain "flutter:${{ inputs.flutter_version != '' && inputs.flutter_version || inputs.flutter_channel }}" \
-            --build-input "prepare:${{ inputs.prepare_command }}" \
-            --build-input "post-pub-get:${{ inputs.post_pub_get_command }}" \
+            --build-input "prepare:$APPLAB_PREPARE_COMMAND" \
+            --build-input "post-pub-get:$APPLAB_POST_PUB_GET_COMMAND" \
             --build-input "package-id:${{ inputs.package_id }}" \
             --build-input "maestro-flow:${{ inputs.maestro_flow }}" \
             --build-input "dependency-material:${{ steps.reuse_eligibility.outputs.material_digest }}" \
@@ -580,7 +587,14 @@ jobs:
       - name: Resolve dependencies
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
         working-directory: target/${{ inputs.working_directory }}
-        run: flutter pub get
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "${{ steps.reuse_eligibility.outputs.eligible }}" == "true" ]]; then
+            flutter pub get --enforce-lockfile
+          else
+            flutter pub get
+          fi
 
       - name: Post dependency preparation
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true' && inputs.post_pub_get_command != ''
@@ -656,6 +670,9 @@ jobs:
         if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
         id: contract
         shell: bash
+        env:
+          APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}
+          APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}
         run: |
           set -Eeuo pipefail
           CURRENT_PLAN_SHA256="$(sha256sum "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" | awk '{print $1}')"
@@ -700,8 +717,8 @@ jobs:
             --toolchain "java:${{ steps.java_identity.outputs.version }}" \
             --toolchain "runner:${RUNNER_OS:-unknown}:${RUNNER_ARCH:-unknown}:${ImageOS:-unknown}:${ImageVersion:-unknown}" \
             --toolchain "flutter:${{ inputs.flutter_version != '' && inputs.flutter_version || inputs.flutter_channel }}" \
-            --build-input "prepare:${{ inputs.prepare_command }}" \
-            --build-input "post-pub-get:${{ inputs.post_pub_get_command }}" \
+            --build-input "prepare:$APPLAB_PREPARE_COMMAND" \
+            --build-input "post-pub-get:$APPLAB_POST_PUB_GET_COMMAND" \
             --build-input "package-id:${{ inputs.package_id }}" \
             --build-input "maestro-flow:${{ inputs.maestro_flow }}" \
             --build-input "dependency-material:${{ steps.reuse_eligibility.outputs.material_digest }}" \
