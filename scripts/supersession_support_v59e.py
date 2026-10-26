@@ -116,22 +116,36 @@ def fetch_workflow_runs(
     if max_pages < 1:
         raise ValueError("max_pages must be positive")
     rows: list[dict[str, Any]] = []
-    for page in range(1, max_pages + 1):
-        payload = github.api(
-            (
-                f"https://api.github.com/repos/{repository}/actions/runs"
-                f"?per_page=100&page={page}"
-            ),
-            token,
-            user_agent="AppLab-Supersession-Watchdog/5.9E",
-        )
-        values = payload.get("workflow_runs") if isinstance(payload, dict) else None
-        if not isinstance(values, list):
-            raise ValueError("workflow_runs response must contain a list")
-        rows.extend(item for item in values if isinstance(item, dict))
-        if len(values) < 100:
-            return rows
-    raise RuntimeError("workflow run pagination exceeded safe page bound")
+    for status in ("queued", "in_progress"):
+        status_complete = False
+        for page in range(1, max_pages + 1):
+            payload = github.api(
+                (
+                    f"https://api.github.com/repos/{repository}/actions/runs"
+                    f"?status={status}&per_page=100&page={page}"
+                ),
+                token,
+                user_agent="AppLab-Supersession-Watchdog/5.9E",
+            )
+            values = (
+                payload.get("workflow_runs")
+                if isinstance(payload, dict)
+                else None
+            )
+            if not isinstance(values, list):
+                raise ValueError("workflow_runs response must contain a list")
+            rows.extend(
+                item for item in values
+                if isinstance(item, dict)
+            )
+            if len(values) < 100:
+                status_complete = True
+                break
+        if not status_complete:
+            raise RuntimeError(
+                f"{status} workflow run pagination exceeded safe page bound"
+            )
+    return rows
 
 
 def descendant_status(
