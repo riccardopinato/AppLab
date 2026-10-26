@@ -1,10 +1,10 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.8 — Autonomous Triage & Factory Learning**
+Current production baseline after this merge: **v5.9 — Journey-Aware Throughput**
 
-Active program: **v5.9 — Journey-Aware Throughput**
+Active program: **v5.9 complete; downstream adoption and evidence accrual continue in parallel.**
 
-Status: **v5.9A merged; v5.9B implemented for exact-head validation; v5.7B/E continue downstream evidence accrual in parallel.**
+Status: **v5.9A-E implemented and evidence-gated; merge remains subject to exact-head required checks and review.**
 
 ## Completed — v5.5 Multi-Project Event-Driven Rollout
 
@@ -148,7 +148,7 @@ next independent roadmap step.
 - Codex/review latency may block merge but does not block preparing the next
   independent roadmap step.
 
-## Active — v5.9 Journey-Aware Throughput
+## Completed — v5.9 Journey-Aware Throughput
 
 v5.9 targets the measured commit-to-green critical path without weakening trusted
 runtime, exact-artifact identity, physical/store boundaries or certification.
@@ -177,17 +177,19 @@ runtime, exact-artifact identity, physical/store boundaries or certification.
   - The fresh AppLab carrier built one 58 MB Android x64 `app-release.apk` in
     405.469 seconds instead of the previous split-per-ABI runtime build; signed,
     obfuscated size/release artifacts remain independent.
-- [ ] **v5.9E Warm Runtime + Watchdogs:** bounded production warm-runtime routing,
+- [x] **v5.9E Warm Runtime + Watchdogs:** bounded production warm-runtime routing,
   supersession cancellation and external-review watchdog/retrigger semantics with
   GitHub Actions fallback.
   - Cache-backed pristine AVD routing is centrally admitted for AppLab and Anna;
     cache miss, profile mismatch or kill switch falls back to cold GitHub Actions.
-  - Supersession cancellation is limited to allowlisted workflows and requires
-    GitHub-proven descendant ancestry; Production Certification is protected.
-  - External review reconciliation can retrigger stale/missing Codex review but
-    never resolves findings or changes merge authority.
-  - Completion gate: exact-head CI/review plus live scheduled/manual watchdog
-    evidence after v5.9D is merged.
+  - Supersession cancellation is limited to allowlisted workflow/ref/PR/source
+    lineage, requires GitHub-proven descendant ancestry and protects Production
+    Certification.
+  - External review reconciliation paginates complete comment history, rotates a
+    bounded open-PR window, authenticates bot markers and can retrigger stale or
+    missing Codex review without resolving findings or changing merge authority.
+  - Post-v5.9D live read-only watchdog validation is PASS; the PR remains draft
+    until this final documentation head also passes exact-head CI/runtime/review.
 
 ### v5.9 safety rules
 
