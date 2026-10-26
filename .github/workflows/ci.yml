@@ -69,6 +69,7 @@ jobs:
             scripts/controlled_expansion_v55e.py \
             scripts/continuous_maintenance_v56.py \
             scripts/runtime_stability_v56a.py \
+            scripts/retention_review_v56b.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -187,6 +188,8 @@ jobs:
           python tests/contracts/continuous_maintenance_v56_test.py
           python scripts/runtime_stability_v56a.py --self-test
           python tests/contracts/runtime_stability_v56a_test.py
+          python scripts/retention_review_v56b.py --self-test
+          python tests/contracts/retention_review_v56b_test.py
           python tests/contracts/multi_project_event_v55a_test.py
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py
