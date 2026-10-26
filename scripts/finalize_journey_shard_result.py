@@ -167,6 +167,7 @@ def self_test() -> None:
         }
         contract = {
             "schema_version": 1,
+            "applab_version": "5.3.5",
             "repository": "owner/app",
             "resolved_sha": "a" * 40,
             "engine": "flutter",
