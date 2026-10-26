@@ -14,7 +14,6 @@ import watchdog_github_v59e as github
 ENGINE_VERSION = "5.9E"
 ACTIVE = {"queued", "in_progress"}
 
-
 def load_config(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("schema_version") != 1:
@@ -37,7 +36,6 @@ def load_config(path: Path) -> dict[str, Any]:
     if not 1 <= limit <= 20:
         raise ValueError("max_cancellations_per_run must be 1..20")
     return payload
-
 
 def group_key(run: dict[str, Any]) -> tuple[str, str, str, str, str] | None:
     event = str(run.get("event", ""))
@@ -72,7 +70,6 @@ def group_key(run: dict[str, Any]) -> tuple[str, str, str, str, str] | None:
         source_repo,
         pr_identity,
     )
-
 
 def plan_candidates(
     runs: list[dict[str, Any]],
@@ -112,7 +109,6 @@ def plan_candidates(
                 candidates.append((old, newest))
     return candidates
 
-
 def descendant_status(
     repository: str,
     old_sha: str,
@@ -130,7 +126,6 @@ def descendant_status(
     )
     status = str(payload.get("status", "")).lower()
     return status == "ahead", status or "UNKNOWN"
-
 
 def evaluate_candidate(
     *,
