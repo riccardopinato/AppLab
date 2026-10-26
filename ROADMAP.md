@@ -29,6 +29,14 @@ The v5.6 program converts the remaining open hardening priorities into five inde
 
 ### v5.6 execution rules
 
+**Active execution mode: ROADMAP_FAST + CONTINUOUS_MAINTENANCE.**
+
+- [x] Keep roadmap delivery and maintenance analysis in independent lanes.
+- [x] Let only P0/P1, trust-boundary, false-PASS, artifact-identity, data-loss, critical-security or current-step regressions block roadmap progress.
+- [x] Persist all other findings into a background maintenance queue without mutating the active roadmap PR.
+- [x] Run lightweight maintenance after Repo Watcher and hourly while idle, using existing evidence/history rather than launching runtime work without a trigger.
+- [x] Preserve PASS/CERTIFIED, Smart Test Plan, exact-artifact and physical/store authority boundaries.
+
 Each A→E stage is intentionally smaller than v5.5E and must be independently branchable, reviewable, exact-head validated and mergeable. A later stage must not be bundled into an earlier PR merely to reduce PR count.
 
 Cross-cutting guardrails for every v5.6 stage:
