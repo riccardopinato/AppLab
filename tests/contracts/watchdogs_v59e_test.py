@@ -217,9 +217,9 @@ def test_comment_pagination() -> None:
 
     def fake(url: str, token: str, **kwargs):
         calls.append(url)
-        if "page=1" in url:
+        if "&page=1" in url:
             return [{"id": index} for index in range(100)]
-        if "page=2" in url:
+        if "&page=2" in url:
             return [{"id": 100}]
         raise AssertionError(url)
 
