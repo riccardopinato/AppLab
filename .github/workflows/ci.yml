@@ -50,6 +50,7 @@ jobs:
             scripts/journey_sharding.py \
             scripts/journey_shard_runtime.py \
             scripts/journey_shard_aggregate.py \
+            scripts/finalize_journey_shard_result.py \
             scripts/planner_feedback.py \
             scripts/planner_feedback_contract.py \
             scripts/evidence_contract_registry.py \
@@ -183,6 +184,7 @@ jobs:
           python scripts/journey_sharding.py --self-test
           python scripts/journey_shard_runtime.py --self-test
           python scripts/journey_shard_aggregate.py --self-test
+          python scripts/finalize_journey_shard_result.py --self-test
           python tests/contracts/journey_runtime_v59b_test.py
           python scripts/planner_feedback.py --self-test
           python scripts/evidence_contract_registry.py self-test
