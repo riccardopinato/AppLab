@@ -79,6 +79,7 @@ jobs:
             scripts/factory_reuse_planner_v57d.py \
             scripts/verification_reuse_v57e.py \
             scripts/factory_runtime_acceleration_v58r.py \
+            scripts/autonomous_failure_triage_v58a.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -207,6 +208,7 @@ jobs:
           python scripts/factory_reuse_planner_v57d.py --self-test
           python scripts/verification_reuse_v57e.py --self-test
           python scripts/factory_runtime_acceleration_v58r.py --self-test
+          python scripts/autonomous_failure_triage_v58a.py --self-test
           python tests/contracts/multi_project_event_v55a_test.py
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py
