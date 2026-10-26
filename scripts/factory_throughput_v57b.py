@@ -26,7 +26,7 @@ def api_json(url:str,token:str="")->Any:
     except urllib.error.HTTPError:
         return None
 
-def collect_repo(repository:str,token:str,max_prs:int,window_days:int,now:datetime)->list[dict[str,Any]]:
+def collect_repo(repository:str,token:str,max_prs:int,window_days:int,now:datetime,fetcher=api_json)->list[dict[str,Any]]:
     cutoff=now-timedelta(days=window_days)
     out:list[dict[str,Any]]=[]
     seen:set[int]=set()
@@ -34,7 +34,7 @@ def collect_repo(repository:str,token:str,max_prs:int,window_days:int,now:dateti
         query=urllib.parse.urlencode({
             "state":"closed","per_page":100,"page":page,"sort":"updated","direction":"desc"
         })
-        payload=api_json(f"https://api.github.com/repos/{repository}/pulls?{query}",token)
+        payload=fetcher(f"https://api.github.com/repos/{repository}/pulls?{query}",token)
         if not isinstance(payload,list) or not payload:
             break
         for pr in payload:
@@ -47,7 +47,7 @@ def collect_repo(repository:str,token:str,max_prs:int,window_days:int,now:dateti
             merged=dt(str(pr["merged_at"]))
             if merged<cutoff:
                 continue
-            commits=api_json(str(pr.get("commits_url","")),token) if pr.get("commits_url") else None
+            commits=fetcher(str(pr.get("commits_url","")),token) if pr.get("commits_url") else None
             first=None
             if isinstance(commits,list) and commits:
                 dates=[]
@@ -134,6 +134,31 @@ def self_test()->None:
     assert report["pilots"][0]["state"]=="MEASURING"
     assert report["promotion_ready"] is False
     assert report["pilots"][1]["state"]=="WAITING_ADOPTION_MANIFEST"
+
+    page1=[
+      {"number":i+1,"merged_at":None,"created_at":"2026-10-20T00:00:00Z"}
+      for i in range(100)
+    ]
+    page2=[
+      {
+        "number":101+i,
+        "merged_at":"2026-10-25T00:00:00Z",
+        "created_at":"2026-10-24T00:00:00Z",
+        "commits_url":f"https://api.github.test/commits/{101+i}",
+      }
+      for i in range(3)
+    ]
+    def fake_fetch(url:str,token:str=""):
+        if "/pulls?" in url:
+            page=int(urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get("page",["1"])[0])
+            return page1 if page==1 else page2 if page==2 else []
+        if "/commits/" in url:
+            return [{"commit":{"author":{"date":"2026-10-23T00:00:00Z"}}}]
+        return None
+    paged=collect_repo("owner/a","",3,30,datetime(2026,10,26,tzinfo=timezone.utc),fake_fetch)
+    assert len(paged)==3
+    assert all(item["first_commit_to_merge_seconds"] is not None for item in paged)
+
     print("AppLab v5.7B throughput self-test PASS")
 
 def main()->int:
