@@ -7,5 +7,6 @@
   "timeout_seconds": 900,
   "max_retries": 2,
   "max_open_prs_per_run": 20,
-  "watchdog_actor_login": "github-actions[bot]"
+  "watchdog_actor_login": "github-actions[bot]",
+  "scan_rotation_seconds": 900
 }
