@@ -12,6 +12,7 @@ def run_check(namespace: dict[str, Any]) -> None:
     aggregate = (root / "scripts/journey_shard_aggregate.py").read_text(encoding="utf-8")
     workflow = (root / ".github/workflows/trusted-apk-verifier.yml").read_text(encoding="utf-8")
     admission = (root / "config/journey-sharding-pilots.json").read_text(encoding="utf-8")
+    shard_shell = (root / "scripts/run_journey_shard.sh").read_text(encoding="utf-8")
 
     for needle in (
         'ENGINE_VERSION = "5.9C"',
@@ -37,6 +38,17 @@ def run_check(namespace: dict[str, Any]) -> None:
     ):
         require(needle in workflow, f"v5.9C trusted workflow missing: {needle}")
 
+    require(
+        '".applab-visual-baseline"' in workflow
+        and '".applab-upgrade-baseline"' in workflow,
+        "v5.9C admission must restore canonical runtime baseline cache paths",
+    )
+    require(
+        'cp "$BUILD_CONTRACT_JSON" "$REPORT_DIR/contract.json"' in shard_shell
+        and shard_shell.index('cp "$BUILD_CONTRACT_JSON" "$REPORT_DIR/contract.json"')
+        < shard_shell.index('journey_shard_runtime.py'),
+        "v5.9C shard evidence must preserve exact contract before journey execution",
+    )
     require(
         '"riccardopinato/Agenda-per-Anna"' in admission
         and '"mode": "shadow"' in admission,
