@@ -138,13 +138,16 @@ def build_report(observatory:dict[str,Any],watchlist:dict[str,Any],token:str="")
     by_repo={str(x.get("repository","")):x for x in watchlist.get("repositories",[]) if isinstance(x,dict)}
     rows=[]
     for row in observatory.get("repositories",[]):
-        if not isinstance(row,dict) or not row.get("pilot"):
+        if not isinstance(row,dict):
             continue
         repo=row["repository"]; ref=row.get("ref","main")
+        entry=by_repo.get(repo)
+        reuse_carrier=bool(row.get("pilot")) or bool(entry and entry.get("reuse_pilot"))
+        if not reuse_carrier:
+            continue
         if row.get("status")!="ADOPTED":
             rows.append({"repository":repo,"state":"WAITING_ADOPTION_MANIFEST","production_reuse_enabled":False})
             continue
-        entry=by_repo.get(repo)
         if not entry:
             rows.append({"repository":repo,"state":"NOT_WATCHLISTED","production_reuse_enabled":False})
             continue
