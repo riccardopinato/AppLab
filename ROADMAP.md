@@ -1,10 +1,10 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.6 — Evidence-Efficient Reliability & Physical Proof**
+Current production baseline: **v5.8 — Autonomous Triage & Factory Learning**
 
-Active programs: **v5.7 evidence accrual + v5.8 Autonomous Triage & Factory Learning**
+Active program: **v5.7B/E downstream evidence accrual (non-blocking)**
 
-Status: **v5.6A–E completed and merged; v5.7 implementation active with downstream promotion gates preserved.**
+Status: **v5.8R and v5.8A–E completed and merged; v5.7B/E remain open only for real downstream promotion evidence.**
 
 ## Completed — v5.5 Multi-Project Event-Driven Rollout
 
@@ -105,7 +105,7 @@ v5.7B and v5.7E are intentionally evidence-gated. Their implementation may be
 merged while their roadmap promotion checkboxes remain open. They close only
 after downstream real-project evidence satisfies the stated gates.
 
-## Active — v5.8 Autonomous Triage & Factory Learning
+## Completed — v5.8 Autonomous Triage & Factory Learning
 
 v5.8 turns accumulated AppLab evidence into bounded, reviewable work proposals
 while v5.7B/E continue accumulating real downstream evidence in the background.
