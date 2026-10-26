@@ -107,10 +107,12 @@ def decision_for_pr(
     anchor = str(pr.get("updated_at") or pr.get("created_at") or "")
     for item in comments:
         body = str(item.get("body", ""))
-        if (
-            (STATE_RE.search(body) or WATCHDOG_RE.search(body))
-            and str(item.get("created_at") or "") > anchor
-        ):
+        author = str((item.get("user") or {}).get("login", ""))
+        trusted_marker = (
+            (author == review_bot_login and STATE_RE.search(body))
+            or (author == watchdog_actor_login and WATCHDOG_RE.search(body))
+        )
+        if trusted_marker and str(item.get("created_at") or "") > anchor:
             anchor = str(item.get("created_at") or "")
     elapsed = max(0, int((now - _iso(anchor)).total_seconds())) if anchor else timeout_seconds
 
@@ -195,6 +197,7 @@ def self_test() -> None:
     assert clean["state"] == "SATISFIED"
 
     stale_comment = {
+        "user": {"login": "chatgpt-codex-connector[bot]"},
         "created_at": "2026-10-26T19:55:00Z",
         "body": (
             '<!-- codex-review-state:v1 '
@@ -222,6 +225,7 @@ def self_test() -> None:
     assert stale["action"] == "REQUEST_REVIEW"
 
     timed = {
+        "user": {"login": "chatgpt-codex-connector[bot]"},
         "created_at": "2026-10-26T19:00:00Z",
         "body": (
             '<!-- codex-review-state:v1 '
