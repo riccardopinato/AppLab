@@ -26,6 +26,13 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "--planner-feedback",
         "${{ inputs.baseline_sha }}",
         "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}",
+        '--trusted-root "$GITHUB_WORKSPACE/.applab"',
+        "APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}",
+        "APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}",
+        '--prepare-command "$APPLAB_PREPARE_COMMAND"',
+        '--post-command "$APPLAB_POST_PUB_GET_COMMAND"',
+        '--build-input "prepare:$APPLAB_PREPARE_COMMAND"',
+        '--build-input "post-pub-get:$APPLAB_POST_PUB_GET_COMMAND"',
     ),
     ".github/workflows/external-native-android-runner.yml": (
         "source_ref:",
@@ -100,6 +107,9 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "BASELINE_FALLBACK",
         "effective FULL fallback",
         "Evaluate verification cache eligibility",
+        "Evaluate v5.7E exact-artifact reuse promotion",
+        "Enforce v5.7E promotion gate on reused build",
+        "steps.reuse_promotion.outputs.promotion_ready == 'true'",
         "github_run_started_at.py",
     ),
     ".github/workflows/autonomous-app-review-v31.yml": (
@@ -175,6 +185,10 @@ REQUIRED: dict[str, tuple[str, ...]] = {
 FORBIDDEN: dict[str, tuple[str, ...]] = {
     ".github/workflows/external-project-runner.yml": (
         "Cache failed resolved commit",
+        '--prepare-command "${{ inputs.prepare_command }}"',
+        '--post-command "${{ inputs.post_pub_get_command }}"',
+        '--build-input "prepare:${{ inputs.prepare_command }}"',
+        '--build-input "post-pub-get:${{ inputs.post_pub_get_command }}"',
     ),
     ".github/workflows/external-native-android-runner.yml": (
         "Cache failed resolved commit",
@@ -183,6 +197,7 @@ FORBIDDEN: dict[str, tuple[str, ...]] = {
         "AppLab v0.8.0 Trusted APK Verification",
         "needs.prepare_avd",
         "if: always() && inputs.cache_verification\n        uses: actions/cache/save",
+        'json.dumps(payload, indent=2, sort_keys=True) + "\\\\n"',
     ),
 }
 
@@ -219,6 +234,15 @@ def validate() -> None:
         text = (ROOT / relative).read_text(encoding="utf-8")
         for needle in needles:
             assert needle not in text, f"{relative}: forbidden stale contract {needle!r}"
+
+    trusted = (ROOT / ".github/workflows/trusted-apk-verifier.yml").read_text(encoding="utf-8")
+    promotion_index = trusted.index("Evaluate v5.7E exact-artifact reuse promotion")
+    assert promotion_index < trusted.index("Prepare PASS-only visual baseline"), (
+        "reuse promotion must fail before PASS-only baselines can be promoted"
+    )
+    assert promotion_index < trusted.index("Finalize trusted result contract"), (
+        "reuse promotion must affect job.status before aggregate PASS finalization"
+    )
 
     for relative in (
         ".github/workflows/external-project-runner.yml",
