@@ -14,7 +14,7 @@ METRIC_FIELDS = ("wall_clock_seconds", "runtime_seconds", "quality_seconds")
 INFRA_SIGNATURES = (
     ("WEBRTC_NO_FRAME", ("webrtc", "no decoded", "no frame", "non-black")),
     ("EMULATOR_STARTUP", ("emulator", "boot", "avd")),
-    ("ADB_CONNECTION", ("adb", "device offline", "connection")),
+    ("ADB_CONNECTION", ("adb connection", "adb server", "device offline")),
     ("RUNNER_INFRA", ("runner", "hosted runner", "kvm")),
     ("NETWORK_INFRA", ("network", "connection reset", "service unavailable", "rate limit")),
     ("CACHE_ARTIFACT", ("cache", "artifact download")),
@@ -253,6 +253,12 @@ def self_test() -> None:
     assert report["timings"]["overall"]["wall_clock_seconds"]["p50"] == 100.0
     assert report["timings"]["overall"]["wall_clock_seconds"]["p95"] == 200.0
     assert retry_allowed(rows[2]) is False
+    network_reset = {
+        "result": "FAIL",
+        "reason": "network connection reset while downloading runtime evidence",
+        "failure_intelligence": {"kind": "INFRA_ERROR", "retryable": True, "reason": "connection reset"},
+    }
+    assert normalized_signature(network_reset) == "INFRA_ERROR:NETWORK_INFRA"
     assert report["authority"] == "DIAGNOSTIC_ONLY"
     print("AppLab v5.6A runtime stability self-test PASS")
 
