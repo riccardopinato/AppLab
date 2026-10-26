@@ -44,9 +44,15 @@ def _iso(value: str) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def parse_codex_state(comments: list[dict[str, Any]]) -> dict[str, Any]:
+def parse_codex_state(
+    comments: list[dict[str, Any]],
+    review_bot_login: str,
+) -> dict[str, Any]:
     best: tuple[datetime, dict[str, Any]] | None = None
     for item in comments:
+        author = str((item.get("user") or {}).get("login", ""))
+        if author != review_bot_login:
+            continue
         body = str(item.get("body", ""))
         match = STATE_RE.search(body)
         if not match:
@@ -64,9 +70,16 @@ def parse_codex_state(comments: list[dict[str, Any]]) -> dict[str, Any]:
     return dict(best[1]) if best else {}
 
 
-def watchdog_retry_count(comments: list[dict[str, Any]], head_sha: str) -> int:
+def watchdog_retry_count(
+    comments: list[dict[str, Any]],
+    head_sha: str,
+    watchdog_actor_login: str,
+) -> int:
     count = 0
     for item in comments:
+        author = str((item.get("user") or {}).get("login", ""))
+        if author != watchdog_actor_login:
+            continue
         body = str(item.get("body", ""))
         match = WATCHDOG_RE.search(body)
         if match and match.group(1) == head_sha:
@@ -81,13 +94,15 @@ def decision_for_pr(
     now: datetime,
     timeout_seconds: int,
     max_retries: int,
+    review_bot_login: str = "chatgpt-codex-connector[bot]",
+    watchdog_actor_login: str = "github-actions[bot]",
 ) -> dict[str, Any]:
     head = str((pr.get("head") or {}).get("sha", "")).lower()
-    review = parse_codex_state(comments)
+    review = parse_codex_state(comments, review_bot_login)
     observed = str(review.get("commit_sha") or "").lower()
     status = str(review.get("status") or "missing").lower()
     findings = bool(review.get("has_unresolved_findings"))
-    retry_count = watchdog_retry_count(comments, head)
+    retry_count = watchdog_retry_count(comments, head, watchdog_actor_login)
 
     anchor = str(pr.get("updated_at") or pr.get("created_at") or "")
     for item in comments:
@@ -152,6 +167,7 @@ def self_test() -> None:
         "updated_at": "2026-10-26T19:00:00Z",
     }
     clean_comment = {
+        "user": {"login": "chatgpt-codex-connector[bot]"},
         "created_at": "2026-10-26T19:55:00Z",
         "body": (
             '<!-- codex-review-state:v1 '
@@ -224,6 +240,7 @@ def self_test() -> None:
         ),
     }
     retry = {
+        "user": {"login": "github-actions[bot]"},
         "created_at": "2026-10-26T19:20:00Z",
         "body": (
             "@codex review\n<!-- applab-review-watchdog:v1 "
@@ -255,6 +272,18 @@ def self_test() -> None:
     assert blocked["state"] == "BLOCKED"
     assert blocked["action"] == "NONE"
 
+    spoof = dict(clean_comment)
+    spoof["user"] = {"login": "untrusted-user"}
+    ignored = decision_for_pr(
+        pr=pr,
+        comments=[spoof],
+        now=now,
+        timeout_seconds=900,
+        max_retries=2,
+    )
+    assert ignored["state"] == "RETRIGGER"
+    assert ignored["reason"] == "REVIEW_MISSING"
+
     print("AppLab v5.9E external review reconciler self-test PASS")
 
 
@@ -283,6 +312,12 @@ def main() -> int:
     include_drafts = bool(config.get("include_drafts", False))
     limit = int(config.get("max_open_prs_per_run", 20))
     request_body = str(config.get("request_body", "@codex review"))
+    review_bot_login = str(
+        config.get("review_bot_login", "chatgpt-codex-connector[bot]")
+    )
+    watchdog_actor_login = str(
+        config.get("watchdog_actor_login", "github-actions[bot]")
+    )
 
     prs = _api(
         f"https://api.github.com/repos/{args.repository}/pulls?state=open&per_page={limit}",
@@ -304,6 +339,8 @@ def main() -> int:
             now=now,
             timeout_seconds=timeout,
             max_retries=max_retries,
+            review_bot_login=review_bot_login,
+            watchdog_actor_login=watchdog_actor_login,
         )
         if decision["action"] == "REQUEST_REVIEW" and not args.dry_run:
             request_review(
