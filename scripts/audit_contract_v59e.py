@@ -64,9 +64,10 @@ def main() -> int:
     require(
         review_config.get("review_bot_login") == "chatgpt-codex-connector[bot]"
         and review_config.get("watchdog_actor_login") == "github-actions[bot]"
+        and int(review_config.get("scan_rotation_seconds", 0)) > 0
         and "author != review_bot_login" in review_support
         and "author != watchdog_actor_login" in review_support,
-        "review watchdog markers must be actor-authenticated",
+        "review watchdog markers and bounded scan rotation must be trusted",
     )
 
     protected = set(supersession_config.get("protected_workflow_names", []))
