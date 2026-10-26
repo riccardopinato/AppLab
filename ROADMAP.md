@@ -65,11 +65,11 @@ observable proxy. Missing downstream evidence remains incomplete, never PASS.
 - [x] **v5.7A Factory Adoption Observatory:** read-only discovery of
   `APP_FACTORY_ADOPTION.yaml`, profile drift, workflow inventory and adoption
   gaps across watchlist repositories plus explicit Factory pilots.
-- [ ] **v5.7B Real Adoption Pilots & Speed Evidence:** instrumentation is
-  implemented for Anna's Diary (`riccardopinato/Agenda-per-Anna`) and
-  In cucina con gli anime (`riccardopinato/In-Cucina-con-gli-Anime`).
-  Promotion remains OPEN until both repositories expose a valid adoption
-  manifest and each supplies at least three real merged-PR samples.
+- [x] **v5.7B Real Adoption Pilots & Speed Evidence:** Anna's Diary
+  (`riccardopinato/Agenda-per-Anna`) and In cucina con gli anime
+  (`riccardopinato/In-Cucina-con-gli-Anime`) are both Factory-adopted and
+  the v5.7B evidence sweep reports `EVIDENCE_READY` for both pilots with
+  10 real primary samples each and `promotion_ready=true`.
 - [x] **v5.7C Pattern-3 / Donor Discovery Engine:** recurring maintenance
   signatures at occurrence >= 3 produce an explicit
   APP-SPECIFIC / DONOR / FACTORY PROCESS / GOLDEN CANDIDATE review proposal.
