@@ -7,7 +7,7 @@ on:
       - "selftest/**"
       - "watchlist.json"
       - "integration/orchestration/v55-pilot.json"
-      - "integration/orchestration/v55e-expansion.json"
+      - "integration/orchestration/v55-expansion.json"
       - "scripts/controlled_expansion_v55e.py"
       - ".github/workflows/multi-project-event-pilot.yml"
   repository_dispatch:
