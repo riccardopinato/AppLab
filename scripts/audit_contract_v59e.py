@@ -42,10 +42,12 @@ def main() -> int:
         "warm routing must remain orchestration-only with fallback",
     )
     require(
-        warm_config.get("global_kill_switch") is False
+        isinstance(warm_config.get("global_kill_switch"), bool)
         and set(warm_config.get("repositories", {}))
-        == {"riccardopinato/AppLab", "riccardopinato/Agenda-per-Anna"},
-        "warm runtime rollout must remain bounded to AppLab and Anna",
+        == {"riccardopinato/AppLab", "riccardopinato/Agenda-per-Anna"}
+        and "GLOBAL_KILL_SWITCH" in warm_policy
+        and "GITHUB_ACTIONS_COLD" in warm_policy,
+        "warm rollout must remain bounded and support kill-switch cold fallback",
     )
 
     require(
