@@ -58,6 +58,7 @@ CONTRACT_FILES = (
     "scripts/history_learning.py",
     "scripts/verification_intelligence.py",
     "scripts/verification_reuse_promotion_v57e.py",
+    "scripts/build_once_promotion_v59d.py",
     "scripts/upgrade_lab.py",
     "scripts/prepare_upgrade_baseline.py",
     "scripts/prepare_performance_baseline.py",
