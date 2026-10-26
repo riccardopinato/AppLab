@@ -127,7 +127,7 @@ next independent roadmap step.
 - [x] **v5.8C Proposal-Only PR Package:** produce an agent/Codex-ready package
   containing scope, change plan, tests and PR acceptance criteria. No
   autonomous merge or release.
-- [ ] **v5.8D Factory Feedback Packager:** combine Pattern-3 and Reuse Planner
+- [x] **v5.8D Factory Feedback Packager:** combine Pattern-3 and Reuse Planner
   evidence into a Core candidate package containing donor provenance,
   generalized invariants, contract candidate and missing promotion evidence.
 - [ ] **v5.8E Bounded Self-Repo Pilot:** exercise triage -> fix proposal ->
