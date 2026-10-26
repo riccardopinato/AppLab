@@ -38,6 +38,8 @@ CONTRACT_FILES = (
     "scripts/journey_runtime.py",
     "scripts/journey_runtime_support.py",
     "config/journey-runtime-pilots.json",
+    "scripts/journey_sharding.py",
+    "config/journey-sharding-pilots.json",
     "scripts/planner_feedback.py",
     "scripts/planner_feedback_contract.py",
     "scripts/restore_planner_feedback.sh",
