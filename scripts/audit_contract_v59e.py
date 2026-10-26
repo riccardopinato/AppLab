@@ -82,13 +82,18 @@ def main() -> int:
         and '"pull_request"' in supersession_support
         and "head_repository" in supersession_support
         and "pr_identity" in supersession_support
-        and "fetch_workflow_runs" in supersession_policy,
-        "supersession requires proven descendant PR/source-repository lineage",
+        and "fetch_workflow_runs" in supersession_policy
+        and "workflow run pagination exceeded safe page bound" in supersession_support
+        and "disabled_payload" in supersession_policy
+        and '"ancestry_required": True' in supersession_support
+        and '"protected_stages_unchanged": True' in supersession_support,
+        "supersession requires paginated lineage proof and rollback-safe evidence",
     )
     require(
         "marker_times" in review_support
-        and "max(marker_times)" in review_support,
-        "review timeout must anchor to trusted review/watchdog activity",
+        and "max(marker_times)" in review_support
+        and 'item.get("updated_at") or item.get("created_at")' in review_support,
+        "review timeout must anchor review-state to update activity",
     )
     require(
         "github.paginated_list(" in review_reconcile
