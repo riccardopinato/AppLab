@@ -22,6 +22,7 @@ LIMITS = {
     "scripts/audit_contract_schema.py": 180,
     "scripts/delta_calibration.py": 420,
     "scripts/audit_contract_delta.py": 150,
+    "scripts/audit_contract_v59.py": 120,
     "scripts/smart_test_plan.py": 1000,
     "scripts/journey_planner.py": 300,
     "scripts/journey_runtime.py": 360,
