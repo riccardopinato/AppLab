@@ -115,7 +115,7 @@ def wrapper_text(package_id: str, flow: Path) -> str:
 def system_transient(root: Path, attempt: int) -> bool:
     path = root / f"attempt-{attempt}-system-logcat.txt"
     try:
-        log = adb("logcat", "-b", "all", "-d", "-v", "threadtime", timeout=30)
+        log = checked_adb("logcat", "-b", "all", "-d", "-v", "threadtime", timeout=30)
         text = (log.stdout or "") + (log.stderr or "")
     except TransientInfrastructure as exc:
         text = f"TRANSIENT_ADB_ERROR: {exc}\n"
