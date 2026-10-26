@@ -166,16 +166,17 @@ runtime, exact-artifact identity, physical/store boundaries or certification.
   across isolated runtimes, keep the coordinator group in the primary trusted
   verifier and aggregate one exact-artifact verdict. Admission is centrally
   evidence-gated; shadow mode cannot reduce primary coverage.
-- [ ] **v5.9D Build Once Promotion:** promote exact-artifact reuse across
+- [x] **v5.9D Build Once Promotion:** promote exact-artifact reuse across
   compatible downstream gates, prove deterministic generated scaffold inputs and
   benchmark/remove unnecessary ABI builds.
-  - Central carrier implemented on the stacked branch: trusted AppLab-owned
-    prepare/post-dependency hooks are fingerprinted as build material.
-  - Anna is the first runtime carrier: one Android x64 APK replaces AppLab's
-    previous split-per-ABI runtime build; production size/release artifacts stay
-    independent.
-  - Completion gate: exact-head AppLab CI plus a real downstream Anna run pinned
-    to the final immutable AppLab commit.
+  - AppLab-owned prepare/post-dependency hooks are fingerprinted as immutable
+    build material and exact-artifact reuse remains promotion-gated.
+  - Anna proved the production carrier end to end against immutable AppLab
+    candidate `05814036f3bbce1640cb1881215e2689d7110b76`: Development checks,
+    Android size audit and trusted AppLab runtime all passed before merge.
+  - The fresh AppLab carrier built one 58 MB Android x64 `app-release.apk` in
+    405.469 seconds instead of the previous split-per-ABI runtime build; signed,
+    obfuscated size/release artifacts remain independent.
 - [ ] **v5.9E Warm Runtime + Watchdogs:** bounded production warm-runtime routing,
   supersession cancellation and external-review watchdog/retrigger semantics with
   GitHub Actions fallback.
