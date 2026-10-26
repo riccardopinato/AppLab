@@ -1,3 +1,21 @@
+## v5.9 Journey-Aware Throughput
+
+AppLab now begins the measured runtime-acceleration program with a planning-only
+journey layer.
+
+- `applab.project.json` may declare a bounded journey catalog with flow, path,
+  specialist-lab, surface, capability and risk metadata.
+- Smart Test Plan emits deterministic `selected_journeys` after final
+  FAST/FULL escalation has been resolved.
+- FULL/CERTIFICATION plans select all declared journeys; ordinary FAST plans
+  identify only core/impacted journeys.
+- Journey selection is frozen into execution/build-contract identity so stale
+  selection cannot be reused across incompatible evidence.
+- **v5.9A does not skip runtime work.** `coverage_reduction_enabled=false`
+  remains explicit until v5.9B independently proves atomic execution/fallback.
+
+See `integration/performance/JOURNEY_AWARE_RUNTIME_V59.md`.
+
 ## v5.7 Factory Throughput Acceleration
 
 AppLab now extends the v5.6 speed model across Factory-adopted repositories.
