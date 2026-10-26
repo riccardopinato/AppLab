@@ -109,6 +109,23 @@ def test_review_watchdog() -> None:
     assert freshly_updated["state"] == "WAIT"
     assert freshly_updated["reason"] == "REVIEW_IN_PROGRESS"
 
+    failed = review.decision_for_pr(
+        pr=pr,
+        comments=[
+            review_comment(
+                head,
+                status="failed",
+                created="2026-10-26T19:59:00Z",
+            )
+        ],
+        now=now,
+        timeout_seconds=900,
+        max_retries=2,
+    )
+    assert failed["state"] == "RETRIGGER"
+    assert failed["reason"] == "REVIEW_FAILED"
+    assert failed["action"] == "REQUEST_REVIEW"
+
     spoof = review.decision_for_pr(
         pr=pr,
         comments=[review_comment(head, actor="untrusted-user")],
