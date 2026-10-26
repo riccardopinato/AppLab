@@ -177,6 +177,7 @@ jobs:
             tests/contracts/evidence_schema_registry_test.py \
             tests/contracts/delta_calibration_test.py \
             tests/contracts/journey_runtime_v59b_test.py \
+            tests/contracts/watchdogs_v59e_test.py \
             tests/contracts/workflow_structure_test.py
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/interaction_crawler.py --self-test
@@ -245,6 +246,7 @@ jobs:
           python scripts/external_review_support_v59e.py
           python scripts/external_review_reconcile_v59e.py --self-test
           python scripts/supersession_watchdog_v59e.py --self-test
+          python tests/contracts/watchdogs_v59e_test.py
           python scripts/audit_contract_v59e.py
           python scripts/build_once_promotion_v59d.py --trusted-root . --require-ready
           python scripts/warm_runtime_route_v59e.py --self-test
