@@ -4,27 +4,15 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
-import sys
 import time
 from pathlib import Path
 from typing import Any
 
+import journey_runtime_support as runtime_support
 import project_adapter
 
 SCHEMA_VERSION = 1
 ENGINE_VERSION = "5.9B"
-TRANSIENT_RE = re.compile(
-    r"Broken pipe|Failure calling service package|device offline|device not found|"
-    r"connection reset|closed.*transport|transport.*error",
-    re.IGNORECASE,
-)
-SYSTEM_TRANSIENT_RE = re.compile(
-    r"DeadSystemException|registerUiTestAutomationService.*null object reference|"
-    r"UiAutomationConnection.*NullPointerException|system_server.*(died|crash|restarting)|"
-    r"ServiceManager.*(dead|Bad file descriptor)",
-    re.IGNORECASE,
-)
 
 
 class LegacyFallback(RuntimeError):
@@ -50,7 +38,9 @@ def pilot_repositories(root: Path) -> set[str]:
         raise LegacyFallback("invalid journey pilot repository list")
     result: set[str] = set()
     for value in values:
-        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value):
+        if not isinstance(value, str) or not re.fullmatch(
+            r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value
+        ):
             raise LegacyFallback("invalid journey pilot repository")
         result.add(value.lower())
     return result
@@ -83,20 +73,23 @@ def selected_catalog(
     elif lane not in {"FULL_RUNTIME", "CERTIFICATION"}:
         raise LegacyFallback(f"unsupported runtime lane: {lane}")
 
-    config, _ = project_adapter.load_config(target_root)
-    journeys = config.get("journeys", {}) if isinstance(config, dict) else {}
-    if not isinstance(journeys, dict):
-        raise LegacyFallback("journeys config is invalid")
-    catalog = project_adapter.normalize_journey_catalog(
-        target_root,
-        journeys.get("catalog", {}),
-    )
+    try:
+        config, _ = project_adapter.load_config(target_root)
+        journeys = config.get("journeys", {}) if isinstance(config, dict) else {}
+        if not isinstance(journeys, dict):
+            raise ValueError("journeys config is invalid")
+        catalog = project_adapter.normalize_journey_catalog(
+            target_root,
+            journeys.get("catalog", {}),
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise LegacyFallback(f"invalid journey catalog: {exc}") from exc
+
     if not catalog:
         raise LegacyFallback("journey catalog is absent")
     if lane in {"FULL_RUNTIME", "CERTIFICATION"} and set(selected) != set(catalog):
         raise LegacyFallback("FULL/CERTIFICATION must select the complete journey catalog")
-    unknown = [value for value in selected if value not in catalog]
-    if unknown:
+    if any(value not in catalog for value in selected):
         raise LegacyFallback("selected journey is not present in catalog")
 
     result: list[tuple[str, Path]] = []
@@ -113,60 +106,6 @@ def selected_catalog(
     return result
 
 
-def adb(*args: str, timeout: int = 30) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["adb", *args],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
-
-
-def relaunch(package_id: str) -> None:
-    adb("wait-for-device", timeout=60)
-    adb("shell", "am", "force-stop", package_id)
-    adb(
-        "shell", "monkey", "-p", package_id,
-        "-c", "android.intent.category.LAUNCHER", "1",
-        timeout=30,
-    )
-    time.sleep(2)
-
-
-def system_transient(report_dir: Path, journey_id: str, attempt: int) -> bool:
-    log = adb("logcat", "-b", "all", "-d", "-v", "threadtime", timeout=30)
-    path = report_dir / "journeys" / journey_id / f"attempt-{attempt}-system-logcat.txt"
-    path.write_text((log.stdout or "") + (log.stderr or ""), encoding="utf-8")
-    return bool(SYSTEM_TRANSIENT_RE.search(path.read_text(encoding="utf-8", errors="ignore")))
-
-
-def recover(package_id: str) -> None:
-    adb("wait-for-device", timeout=60)
-    for _ in range(30):
-        boot = adb("shell", "getprop", "sys.boot_completed", timeout=10)
-        packages = adb("shell", "cmd", "package", "list", "packages", "android", timeout=10)
-        accessibility = adb("shell", "service", "check", "accessibility", timeout=10)
-        if boot.stdout.strip() == "1" and packages.returncode == 0 and accessibility.returncode == 0:
-            break
-        time.sleep(2)
-    relaunch(package_id)
-    adb("logcat", "-b", "all", "-c", timeout=10)
-
-
-def wrapper_text(package_id: str, flow: Path) -> str:
-    flow_value = json.dumps(str(flow))
-    return (
-        f"appId: {package_id}\n---\n"
-        "- runFlow:\n"
-        '    when:\n      visible: "Pixel Launcher isn\'t responding"\n'
-        "    commands:\n"
-        '      - tapOn:\n          text: "Close app"\n          optional: true\n'
-        "- runFlow:\n"
-        f"    file: {flow_value}\n"
-    )
-
-
 def run_journey(
     *,
     journey_id: str,
@@ -178,37 +117,22 @@ def run_journey(
     root = report_dir / "journeys" / journey_id
     root.mkdir(parents=True, exist_ok=True)
     wrapper = root / "wrapper.yaml"
-    wrapper.write_text(wrapper_text(package_id, flow), encoding="utf-8")
+    wrapper.write_text(
+        runtime_support.wrapper_text(package_id, flow),
+        encoding="utf-8",
+    )
     started = time.monotonic()
     attempts: list[dict[str, Any]] = []
 
     for attempt in range(1, max_attempts + 1):
-        relaunch(package_id)
-        output_dir = root / f"attempt-{attempt}"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        console = root / f"attempt-{attempt}.log"
-        run_started = time.monotonic()
-        completed = subprocess.run(
-            ["maestro", "test", str(wrapper), "--test-output-dir", str(output_dir)],
-            capture_output=True,
-            text=True,
-            check=False,
+        row = runtime_support.run_attempt(
+            attempt=attempt,
+            wrapper=wrapper,
+            package_id=package_id,
+            root=root,
         )
-        text = (completed.stdout or "") + (completed.stderr or "")
-        console.write_text(text, encoding="utf-8")
-        transient = bool(TRANSIENT_RE.search(text))
-        if completed.returncode != 0 and not transient:
-            transient = system_transient(report_dir, journey_id, attempt)
-        attempts.append(
-            {
-                "attempt": attempt,
-                "result": "PASS" if completed.returncode == 0 else "FAIL",
-                "transient": transient,
-                "seconds": round(time.monotonic() - run_started, 3),
-                "log": str(console.relative_to(report_dir)),
-            }
-        )
-        if completed.returncode == 0:
+        attempts.append(row)
+        if row["result"] == "PASS":
             return {
                 "id": journey_id,
                 "flow": str(flow),
@@ -216,17 +140,20 @@ def run_journey(
                 "attempts": attempts,
                 "seconds": round(time.monotonic() - started, 3),
             }
-        if not transient:
+        if not row.get("transient"):
             return {
                 "id": journey_id,
                 "flow": str(flow),
                 "result": "FAIL",
                 "attempts": attempts,
                 "seconds": round(time.monotonic() - started, 3),
-                "reason": "functional Maestro failure; not retried",
+                "reason": row.get("reason") or "functional journey failure",
             }
         if attempt < max_attempts:
-            recover(package_id)
+            try:
+                runtime_support.recover(package_id)
+            except runtime_support.TransientInfrastructure as exc:
+                row["recovery_error"] = str(exc)
 
     return {
         "id": journey_id,
@@ -240,7 +167,10 @@ def run_journey(
 
 def write_report(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def execute(args: argparse.Namespace) -> int:
@@ -326,7 +256,9 @@ def self_test() -> None:
             json.dumps({"schema_version": 1, "repositories": ["owner/app"]}),
             encoding="utf-8",
         )
-        (target / ".maestro" / "shell.yaml").write_text("appId: demo\n", encoding="utf-8")
+        (target / ".maestro" / "shell.yaml").write_text(
+            "appId: demo\n", encoding="utf-8"
+        )
         (target / "applab.project.json").write_text(
             json.dumps(
                 {
@@ -403,8 +335,12 @@ def main() -> int:
     if args.self_test:
         self_test()
         return 0
-    if not all((args.target_root, args.trusted_root, args.plan, args.repository, args.package_id)):
-        parser.error("runtime execution requires target/trusted roots, plan, repository and package id")
+    if not all(
+        (args.target_root, args.trusted_root, args.plan, args.repository, args.package_id)
+    ):
+        parser.error(
+            "runtime execution requires target/trusted roots, plan, repository and package id"
+        )
     if not 1 <= args.max_attempts <= 3:
         parser.error("--max-attempts must be between 1 and 3")
     return execute(args)
