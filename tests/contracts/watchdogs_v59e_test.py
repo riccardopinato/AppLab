@@ -292,10 +292,12 @@ def test_workflow_run_pagination_and_disabled_payload() -> None:
 
     def fake(url: str, token: str, **kwargs):
         calls.append(url)
-        if "&page=1" in url:
+        if "status=queued" in url and "&page=1" in url:
             return {"workflow_runs": [{"id": index} for index in range(100)]}
-        if "&page=2" in url:
+        if "status=queued" in url and "&page=2" in url:
             return {"workflow_runs": [{"id": 100}]}
+        if "status=in_progress" in url and "&page=1" in url:
+            return {"workflow_runs": [{"id": 101}]}
         raise AssertionError(url)
 
     github.api = fake
@@ -307,8 +309,10 @@ def test_workflow_run_pagination_and_disabled_payload() -> None:
         )
     finally:
         github.api = original
-    assert len(rows) == 101
-    assert len(calls) == 2
+    assert len(rows) == 102
+    assert len(calls) == 3
+    assert any("status=queued" in url for url in calls)
+    assert any("status=in_progress" in url for url in calls)
 
     disabled = supersession.disabled_payload(
         "owner/app",
