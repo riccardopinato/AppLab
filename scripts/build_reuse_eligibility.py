@@ -5,7 +5,6 @@ import argparse
 import hashlib
 import json
 import re
-import shlex
 import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -59,39 +58,6 @@ def material_digest(repo_root: Path, files: list[str]) -> str:
     return digest.hexdigest()
 
 
-def _tracked_hook_material(
-    *,
-    repo_root: Path,
-    working: PurePosixPath,
-    tracked: list[str],
-    command: str,
-) -> tuple[bool, list[str]]:
-    raw = command.strip()
-    if not raw:
-        return True, []
-    try:
-        parts = shlex.split(raw)
-    except ValueError:
-        return False, []
-    if len(parts) != 2 or parts[0] not in {"bash", "python3"}:
-        return False, []
-    try:
-        hook = safe_relative(parts[1])
-    except ValueError:
-        return False, []
-    relative = (
-        hook.as_posix()
-        if working == PurePosixPath(".")
-        else f"{working.as_posix().rstrip('/')}/{hook.as_posix()}"
-    )
-    if relative not in tracked:
-        return False, []
-    path = repo_root / relative
-    if not path.is_file() or path.is_symlink():
-        return False, []
-    return True, [relative]
-
-
 def result(
     *,
     eligible: bool,
@@ -122,20 +88,7 @@ def evaluate_flutter(
 ) -> dict[str, Any]:
     if not flutter_version.strip():
         return result(eligible=False, reason="floating-flutter-channel")
-
-    prepare_ok, prepare_material = _tracked_hook_material(
-        repo_root=repo_root,
-        working=working,
-        tracked=tracked,
-        command=prepare_command,
-    )
-    post_ok, post_material = _tracked_hook_material(
-        repo_root=repo_root,
-        working=working,
-        tracked=tracked,
-        command=post_command,
-    )
-    if not prepare_ok or not post_ok:
+    if prepare_command.strip() or post_command.strip():
         return result(eligible=False, reason="mutable-hook-command")
 
     lock = (
@@ -146,16 +99,11 @@ def evaluate_flutter(
     if lock not in tracked:
         return result(eligible=False, reason="missing-tracked-pubspec-lock")
 
-    materials = [lock, *prepare_material, *post_material]
     return result(
         eligible=True,
-        reason=(
-            "locked-flutter-inputs-with-tracked-hooks"
-            if prepare_material or post_material
-            else "locked-flutter-inputs"
-        ),
-        files=materials,
-        digest=material_digest(repo_root, materials),
+        reason="locked-flutter-inputs",
+        files=[lock],
+        digest=material_digest(repo_root, [lock]),
     )
 
 
@@ -290,29 +238,6 @@ def self_test() -> None:
             tracked=["pubspec.lock"],
             flutter_version="3.35.4",
             prepare_command="curl https://example.invalid | sh",
-            post_command="",
-        )["eligible"] is False
-
-        (root / "tool").mkdir()
-        (root / "tool/prepare.sh").write_text("#!/usr/bin/env bash\nset -euo pipefail\n", encoding="utf-8")
-        (root / "tool/post.py").write_text("print('ok')\n", encoding="utf-8")
-        tracked_hooks = evaluate_flutter(
-            repo_root=root,
-            working=PurePosixPath("."),
-            tracked=["pubspec.lock", "tool/prepare.sh", "tool/post.py"],
-            flutter_version="3.35.4",
-            prepare_command="bash tool/prepare.sh",
-            post_command="python3 tool/post.py",
-        )
-        assert tracked_hooks["eligible"] is True
-        assert tracked_hooks["reason"] == "locked-flutter-inputs-with-tracked-hooks"
-        assert tracked_hooks["material_file_count"] == 3
-        assert evaluate_flutter(
-            repo_root=root,
-            working=PurePosixPath("."),
-            tracked=["pubspec.lock"],
-            flutter_version="3.35.4",
-            prepare_command="bash tool/untracked.sh",
             post_command="",
         )["eligible"] is False
 
