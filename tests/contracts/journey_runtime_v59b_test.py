@@ -114,6 +114,8 @@ exit 0
 set -euo pipefail
 if [[ "$*" == *"getprop sys_boot_completed"* ]]; then
   echo 1
+elif [[ "$*" == *"pidof com.example.app"* ]]; then
+  echo 4242
 fi
 exit 0
 """,
