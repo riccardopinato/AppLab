@@ -93,6 +93,7 @@ jobs:
             scripts/external_review_support_v59e.py \
             scripts/external_review_reconcile_v59e.py \
             scripts/warm_runtime_route_v59e.py \
+            scripts/supersession_support_v59e.py \
             scripts/supersession_watchdog_v59e.py \
             scripts/audit_contract_v59e.py \
             scripts/warm_runtime_route_v59e.py \
@@ -245,6 +246,7 @@ jobs:
           python scripts/external_review_watchdog_v59e.py --self-test
           python scripts/external_review_support_v59e.py
           python scripts/external_review_reconcile_v59e.py --self-test
+          python scripts/supersession_support_v59e.py
           python scripts/supersession_watchdog_v59e.py --self-test
           python tests/contracts/watchdogs_v59e_test.py
           python scripts/audit_contract_v59e.py
