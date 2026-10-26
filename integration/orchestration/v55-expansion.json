@@ -42,5 +42,6 @@
       "riccardopinato/Wonderlog"
     ]
   },
-  "repository_kill_switches": {}
+  "repository_kill_switches": {},
+  "active_stage": "PILOT_3"
 }
