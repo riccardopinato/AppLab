@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -200,6 +201,10 @@ def self_test() -> None:
         old=old, new=new, ancestry_proven=False, ancestry_status="diverged"
     )
     assert blocked["decision"] == "KEEP"
+    lookup_error = evaluate_candidate(
+        old=old, new=new, ancestry_proven=False, ancestry_status="LOOKUP_ERROR"
+    )
+    assert lookup_error["decision"] == "KEEP"
     other = dict(new)
     other["head_branch"] = "feature"
     assert plan_candidates(
@@ -253,18 +258,28 @@ def main() -> int:
         for old, new in candidates:
             if cancellations >= max_cancel:
                 break
-            proven, status = descendant_status(
-                args.repository,
-                str(old["head_sha"]),
-                str(new["head_sha"]),
-                args.token,
-            )
-            decision = evaluate_candidate(
-                old=old,
-                new=new,
-                ancestry_proven=proven,
-                ancestry_status=status,
-            )
+            try:
+                proven, status = descendant_status(
+                    args.repository,
+                    str(old["head_sha"]),
+                    str(new["head_sha"]),
+                    args.token,
+                )
+                decision = evaluate_candidate(
+                    old=old,
+                    new=new,
+                    ancestry_proven=proven,
+                    ancestry_status=status,
+                )
+            except (urllib.error.HTTPError, urllib.error.URLError, ValueError) as exc:
+                decision = evaluate_candidate(
+                    old=old,
+                    new=new,
+                    ancestry_proven=False,
+                    ancestry_status="LOOKUP_ERROR",
+                )
+                decision["reason"] = "ANCESTRY_LOOKUP_ERROR"
+                decision["error"] = str(exc)
             if decision["decision"] == "CANCEL":
                 if not args.dry_run:
                     _api(
