@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import external_review_support_v59e as review  # noqa: E402
 import supersession_watchdog_v59e as supersession  # noqa: E402
+import watchdog_github_v59e as github  # noqa: E402
 
 
 def review_comment(
@@ -210,9 +211,50 @@ def test_supersession_identity() -> None:
     assert supersession.group_key(unknown) is None
 
 
+def test_comment_pagination() -> None:
+    original = github.api
+    calls: list[str] = []
+
+    def fake(url: str, token: str, **kwargs):
+        calls.append(url)
+        if "page=1" in url:
+            return [{"id": index} for index in range(100)]
+        if "page=2" in url:
+            return [{"id": 100}]
+        raise AssertionError(url)
+
+    github.api = fake
+    try:
+        rows = github.paginated_list(
+            "https://api.github.com/repos/owner/app/issues/1/comments",
+            "",
+            max_pages=3,
+        )
+    finally:
+        github.api = original
+    assert len(rows) == 101
+    assert len(calls) == 2
+
+    github.api = lambda *args, **kwargs: [{"id": 1}] * 100
+    try:
+        try:
+            github.paginated_list(
+                "https://api.github.com/repos/owner/app/issues/1/comments",
+                "",
+                max_pages=2,
+            )
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("pagination cap must fail closed")
+    finally:
+        github.api = original
+
+
 def main() -> int:
     test_review_watchdog()
     test_supersession_identity()
+    test_comment_pagination()
     print("AppLab v5.9E watchdog regression contract PASS")
     return 0
 
