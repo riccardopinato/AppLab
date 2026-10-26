@@ -84,11 +84,11 @@ jobs:
     name: Plan journey sharding
     runs-on: ubuntu-latest
     outputs:
-      enabled: ${{ steps.plan.outputs.enabled }}
-      mode: ${{ steps.plan.outputs.mode }}
-      authoritative: ${{ steps.plan.outputs.authoritative }}
-      matrix: ${{ steps.plan.outputs.matrix }}
-      coordinator_journeys: ${{ steps.plan.outputs.coordinator_journeys }}
+      enabled: ${{ steps.admission.outputs.enabled }}
+      mode: ${{ steps.admission.outputs.mode }}
+      authoritative: ${{ steps.admission.outputs.authoritative }}
+      matrix: ${{ steps.admission.outputs.matrix }}
+      coordinator_journeys: ${{ steps.admission.outputs.coordinator_journeys }}
     steps:
       - name: Checkout trusted AppLab
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -138,12 +138,45 @@ jobs:
             --output "$GITHUB_WORKSPACE/journey-sharding-plan.json" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Restore sharding visual baseline
+        if: steps.plan.outputs.enabled == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .applab-shard-visual-baseline
+          key: applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
+          restore-keys: |
+            applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-
+
+      - name: Restore sharding upgrade baseline
+        if: steps.plan.outputs.enabled == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .applab-shard-upgrade-baseline
+          key: applab-upgrade-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
+          restore-keys: |
+            applab-upgrade-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-
+
+      - name: Finalize journey sharding admission
+        id: admission
+        if: steps.plan.outcome == 'success'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/journey_sharding_admission.py \
+            --plan "$GITHUB_WORKSPACE/journey-sharding-plan.json" \
+            --visual-baseline-dir "$GITHUB_WORKSPACE/.applab-shard-visual-baseline" \
+            --upgrade-baseline-apk "$GITHUB_WORKSPACE/.applab-shard-upgrade-baseline/baseline.apk" \
+            --output "$GITHUB_WORKSPACE/journey-sharding-admission.json" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Upload journey sharding plan
         if: steps.plan.outputs.enabled == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: journey-sharding-plan-${{ github.run_id }}
-          path: journey-sharding-plan.json
+          path: |
+            journey-sharding-plan.json
+            journey-sharding-admission.json
           if-no-files-found: error
           retention-days: 1
 
