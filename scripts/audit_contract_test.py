@@ -1254,6 +1254,35 @@ def check_v535_multi_project_delta_calibration_contract() -> None:
     run_check(globals())
 
 
+def check_v59c_parallel_sharding_contract() -> None:
+    planner = (ROOT / "scripts/journey_sharding.py").read_text(encoding="utf-8")
+    shard_runtime = (ROOT / "scripts/journey_shard_runtime.py").read_text(encoding="utf-8")
+    aggregate = (ROOT / "scripts/journey_shard_aggregate.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/trusted-apk-verifier.yml").read_text(encoding="utf-8")
+    admission = (ROOT / "config/journey-sharding-pilots.json").read_text(encoding="utf-8")
+    for needle in (
+        'ENGINE_VERSION = "5.9C"',
+        '"coverage_union_verified": True',
+        '"exact_artifact_verified": True',
+    ):
+        require(
+            needle in planner or needle in shard_runtime or needle in aggregate,
+            f"v5.9C sharding invariant missing: {needle}",
+        )
+    for needle in (
+        "journey_plan:",
+        "journey_shards:",
+        "journey_aggregate:",
+        "fromJSON(needs.journey_plan.outputs.matrix)",
+        "journey-shard-${{ github.run_id }}-coordinator",
+    ):
+        require(needle in workflow, f"v5.9C trusted workflow missing: {needle}")
+    require(
+        '"riccardopinato/Agenda-per-Anna"' in admission
+        and '"mode": "shadow"' in admission,
+        "v5.9C Anna pilot must remain shadow until explicit promotion",
+    )
+
 def main() -> int:
     check_version_alignment()
     check_local_controller_boundary()
@@ -1277,6 +1306,7 @@ def main() -> int:
     check_v533_structural_hardening_contract()
     check_v534_evidence_schema_registry_contract()
     check_v535_multi_project_delta_calibration_contract()
+    check_v59c_parallel_sharding_contract()
     check_physical_evidence_contract()
     check_execution_acceleration_contract()
     print("AppLab audit hardening contract PASS")
