@@ -135,7 +135,7 @@ def runtime_health(
     pid_text = (pid_result.stdout or "") + (pid_result.stderr or "")
     pid = pid_result.stdout.strip().split()
     if pid_result.returncode != 0:
-        if TRANSIENT_RE.search(pid_text):
+        if pid_text.strip():
             raise TransientInfrastructure(
                 "adb pid query transport failure: " + pid_text.strip()[:240]
             )
