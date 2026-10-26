@@ -39,6 +39,7 @@ CONTRACT_FILES = (
     "scripts/journey_runtime_support.py",
     "config/journey-runtime-pilots.json",
     "scripts/journey_sharding.py",
+    "scripts/journey_sharding_admission.py",
     "scripts/journey_shard_runtime.py",
     "scripts/journey_shard_aggregate.py",
     "scripts/finalize_journey_shard_result.py",
