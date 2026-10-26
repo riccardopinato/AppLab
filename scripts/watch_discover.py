@@ -20,6 +20,7 @@ import domain_fingerprint
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 KEY_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 ENGINES = {"auto", "flutter", "native_android"}
+RETRYABLE_FAILURE_KINDS = {"INFRA_ERROR", "FLAKY_SUSPECT"}
 
 
 def api_json(url: str, token: str) -> dict[str, Any]:
@@ -173,6 +174,13 @@ def latest_attempt_entry(
     return latest
 
 
+def retryable_failure(failure: object) -> bool:
+    if not isinstance(failure, dict):
+        return False
+    kind = str(failure.get("kind", "")).strip().upper()
+    return kind in RETRYABLE_FAILURE_KINDS and failure.get("retryable") is True
+
+
 def retry_attempt_count(
     path: str,
     repository: str,
@@ -195,9 +203,7 @@ def retry_attempt_count(
             continue
         if str(item.get("result", "")).upper() == "PASS":
             continue
-        failure = item.get("failure_intelligence")
-        retryable = True if not isinstance(failure, dict) else bool(failure.get("retryable", True))
-        if retryable:
+        if retryable_failure(item.get("failure_intelligence")):
             count += 1
     return count
 
@@ -225,6 +231,11 @@ def self_test_history() -> None:
         assert latest_history_sha(str(path), "owner/missing") == ""
         assert latest_attempt_entry(str(path), "owner/app", "main", "main")["resolved_sha"] == "e" * 40
         assert retry_attempt_count(str(path), "owner/app", "d" * 40, "main") == 1
+        assert retryable_failure({"kind": "INFRA_ERROR", "retryable": True}) is True
+        assert retryable_failure({"kind": "FLAKY_SUSPECT", "retryable": True}) is True
+        assert retryable_failure({"kind": "UNKNOWN_FAILURE", "retryable": True}) is False
+        assert retryable_failure({}) is False
+        assert retryable_failure(None) is False
         validate_entry(
             {
                 "key": "private-app",
@@ -403,7 +414,7 @@ def main() -> int:
                 if isinstance(latest_attempt.get("failure_intelligence"), dict)
                 else {}
             )
-            retryable = bool(failure_intelligence.get("retryable", True))
+            retryable = retryable_failure(failure_intelligence)
             retry_count = retry_attempt_count(
                 args.history_file, repository, sha, str(entry["key"])
             )

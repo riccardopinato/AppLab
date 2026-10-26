@@ -65,8 +65,8 @@ def classify_failure(result: dict[str, Any], plan: dict[str, Any]) -> dict[str, 
         kind, retryable = "BUILD_OR_QUALITY_FAILURE", False
         explanation = "deterministic target build or quality evidence failed"
     else:
-        kind, retryable = "UNKNOWN_FAILURE", True
-        explanation = "failure source is not proven; bounded retry remains safer than suppression"
+        kind, retryable = "UNKNOWN_FAILURE", False
+        explanation = "failure source is not proven; triage is required before any retry"
 
     return {
         "kind": kind,
@@ -283,7 +283,7 @@ def self_test() -> None:
         {**plan, "learning_profile": {"sample_count": 0, "unstable_labs": []}},
     )
     assert unknown["failure_intelligence"]["kind"] == "UNKNOWN_FAILURE"
-    assert unknown["failure_intelligence"]["retryable"] is True
+    assert unknown["failure_intelligence"]["retryable"] is False
     assert unknown["project_state"]["release_readiness"] == "BLOCKED"
     assert unknown["project_state"]["resolved_sha"] == "b" * 40
 
