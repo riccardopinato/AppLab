@@ -14,6 +14,25 @@ import watchdog_github_v59e as github
 ENGINE_VERSION = "5.9E"
 
 
+def bounded_rotation(
+    items: list[dict[str, Any]],
+    *,
+    limit: int,
+    now: datetime,
+    rotation_seconds: int,
+) -> list[dict[str, Any]]:
+    if limit < 1 or rotation_seconds < 1 or not items:
+        return []
+    if len(items) <= limit:
+        return items[:limit]
+    slot = int(now.timestamp()) // rotation_seconds
+    offset = slot % len(items)
+    return [
+        items[(offset + index) % len(items)]
+        for index in range(min(limit, len(items)))
+    ]
+
+
 def request_review(
     repository: str,
     pr_number: int,
@@ -48,6 +67,9 @@ def reconcile(
     max_retries = int(config.get("max_retries", 2))
     include_drafts = bool(config.get("include_drafts", False))
     limit = int(config.get("max_open_prs_per_run", 20))
+    rotation_seconds = int(config.get("scan_rotation_seconds", 900))
+    if limit < 1 or rotation_seconds < 1:
+        raise ValueError("invalid external review scan bounds")
     request_body = str(config.get("request_body", "@codex review"))
     review_bot_login = str(
         config.get("review_bot_login", "chatgpt-codex-connector[bot]")
@@ -56,15 +78,25 @@ def reconcile(
         config.get("watchdog_actor_login", "github-actions[bot]")
     )
 
-    prs = github.api(
-        f"https://api.github.com/repos/{repository}/pulls?state=open&per_page={limit}",
+    prs = github.paginated_list(
+        f"https://api.github.com/repos/{repository}/pulls?state=open&sort=created&direction=asc",
         token,
+        per_page=100,
+        max_pages=100,
         user_agent="AppLab-External-Review-Watchdog/5.9E",
     )
+    eligible = [
+        pr for pr in prs
+        if include_drafts or not pr.get("draft")
+    ]
+    selected = bounded_rotation(
+        eligible,
+        limit=limit,
+        now=now,
+        rotation_seconds=rotation_seconds,
+    )
     rows: list[dict[str, Any]] = []
-    for pr in prs[:limit]:
-        if pr.get("draft") and not include_drafts:
-            continue
+    for pr in selected:
         number = int(pr["number"])
         comments = github.paginated_list(
             f"https://api.github.com/repos/{repository}/issues/{number}/comments",
