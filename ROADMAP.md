@@ -118,19 +118,19 @@ next independent roadmap step.
   enable exact-head verification cache; detect forced-FULL workflows and
   mutable build hooks without weakening certification or physical/store
   boundaries. Anna's Diary is the first measured pilot.
-- [ ] **v5.8A Autonomous Failure Triage:** failure evidence -> deterministic
+- [x] **v5.8A Autonomous Failure Triage:** failure evidence -> deterministic
   classification, bounded root-cause hypotheses, likely components and required
   regression evidence. Proposal only.
-- [ ] **v5.8B Fix Candidate Planner:** turn triage evidence into a bounded
+- [x] **v5.8B Fix Candidate Planner:** turn triage evidence into a bounded
   change plan with files/surfaces, acceptance criteria, rollback and authority
   boundaries. No repository mutation.
-- [ ] **v5.8C Proposal-Only PR Package:** produce an agent/Codex-ready package
+- [x] **v5.8C Proposal-Only PR Package:** produce an agent/Codex-ready package
   containing scope, change plan, tests and PR acceptance criteria. No
   autonomous merge or release.
-- [ ] **v5.8D Factory Feedback Packager:** combine Pattern-3 and Reuse Planner
+- [x] **v5.8D Factory Feedback Packager:** combine Pattern-3 and Reuse Planner
   evidence into a Core candidate package containing donor provenance,
   generalized invariants, contract candidate and missing promotion evidence.
-- [ ] **v5.8E Bounded Self-Repo Pilot:** exercise triage -> fix proposal ->
+- [x] **v5.8E Bounded Self-Repo Pilot:** exercise triage -> fix proposal ->
   regression plan -> PR package on AppLab itself with kill switch and exact-head
   gates; still no autonomous merge/release authority.
 
