@@ -140,8 +140,8 @@ def runtime_health(
             "pid": "",
         }
     pid_value = pid[0]
-    global_log = adb("logcat", "-b", "all", "-d", "-v", "threadtime", timeout=30)
-    app_log = adb("logcat", f"--pid={pid_value}", "-d", "-v", "threadtime", timeout=30)
+    global_log = checked_adb("logcat", "-b", "all", "-d", "-v", "threadtime", timeout=30)
+    app_log = checked_adb("logcat", f"--pid={pid_value}", "-d", "-v", "threadtime", timeout=30)
     global_text = (global_log.stdout or "") + (global_log.stderr or "")
     app_text = (app_log.stdout or "") + (app_log.stderr or "")
     global_path = root / f"attempt-{attempt}-runtime-logcat.txt"
