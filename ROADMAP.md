@@ -2,7 +2,7 @@
 
 Current production baseline: **v5.6 — Evidence-Efficient Reliability & Physical Proof**
 
-Active next program: **v5.7 — Factory Throughput Acceleration**
+Active programs: **v5.7 evidence accrual + v5.8 Autonomous Triage & Factory Learning**
 
 Status: **v5.6A–E completed and merged; v5.7 implementation active with downstream promotion gates preserved.**
 
@@ -104,6 +104,49 @@ observable proxy. Missing downstream evidence remains incomplete, never PASS.
 v5.7B and v5.7E are intentionally evidence-gated. Their implementation may be
 merged while their roadmap promotion checkboxes remain open. They close only
 after downstream real-project evidence satisfies the stated gates.
+
+## Active — v5.8 Autonomous Triage & Factory Learning
+
+v5.8 turns accumulated AppLab evidence into bounded, reviewable work proposals
+while v5.7B/E continue accumulating real downstream evidence in the background.
+External review/CI wait time is a merge gate, not a development gate for the
+next independent roadmap step.
+
+- [x] **v5.8R Android Runtime Acceleration:** prefer adaptive FAST for ordinary
+  Factory-adopted PR verification when an exact trusted/ancestor baseline is
+  available; allow Smart Test Plan to escalate automatically to FULL_RUNTIME;
+  enable exact-head verification cache; detect forced-FULL workflows and
+  mutable build hooks without weakening certification or physical/store
+  boundaries. Anna's Diary is the first measured pilot.
+- [ ] **v5.8A Autonomous Failure Triage:** failure evidence -> deterministic
+  classification, bounded root-cause hypotheses, likely components and required
+  regression evidence. Proposal only.
+- [ ] **v5.8B Fix Candidate Planner:** turn triage evidence into a bounded
+  change plan with files/surfaces, acceptance criteria, rollback and authority
+  boundaries. No repository mutation.
+- [ ] **v5.8C Proposal-Only PR Package:** produce an agent/Codex-ready package
+  containing scope, change plan, tests and PR acceptance criteria. No
+  autonomous merge or release.
+- [ ] **v5.8D Factory Feedback Packager:** combine Pattern-3 and Reuse Planner
+  evidence into a Core candidate package containing donor provenance,
+  generalized invariants, contract candidate and missing promotion evidence.
+- [ ] **v5.8E Bounded Self-Repo Pilot:** exercise triage -> fix proposal ->
+  regression plan -> PR package on AppLab itself with kill switch and exact-head
+  gates; still no autonomous merge/release authority.
+
+### v5.8R runtime rules
+
+- FAST is preferred only for ordinary PR verification, never certification.
+- Missing, invalid or unprovable baseline must escalate to FULL_RUNTIME.
+- High risk, low confidence, oversized diffs or planner uncertainty may
+  escalate to FULL_RUNTIME.
+- FAST retains core launch/Maestro/runtime/visual sentinels and selectively
+  skips only specialist work not selected by Smart Test Plan.
+- Exact-head cache never authorizes cross-SHA PASS reuse.
+- Generated Android scaffolds with mutable hooks remain build-reuse ineligible
+  until a separate deterministic-scaffold contract is proven.
+- Codex/review latency may block merge but does not block preparing the next
+  independent roadmap step.
 
 ## Product rule
 

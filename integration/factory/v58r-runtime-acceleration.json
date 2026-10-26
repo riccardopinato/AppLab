@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_FACTORY_RUNTIME_ACCELERATION_V58R",
+  "authority": "OBSERVATION_AND_PLANNING_ONLY",
+  "factory_pr_default": {
+    "preferred_analysis_mode": "fast",
+    "baseline_required_for_reduced_runtime": true,
+    "missing_or_unprovable_baseline": "ESCALATE_FULL_RUNTIME",
+    "high_risk_or_low_confidence": "ESCALATE_FULL_RUNTIME",
+    "certification_unchanged": true
+  },
+  "verification_cache": {
+    "preferred_for_exact_head": true,
+    "cross_sha_reuse": false,
+    "can_mint_pass": false
+  },
+  "build_reuse": {
+    "mutable_hooks_remain_ineligible": true,
+    "generated_scaffold_requires_separate_contract": true
+  },
+  "review_parallelism": {
+    "external_review_wait_blocks_merge": true,
+    "external_review_wait_blocks_next_independent_step": false
+  },
+  "boundaries": {
+    "coverage_reduction_enabled": false,
+    "smart_test_plan_remains_authority": true,
+    "physical_store_certification_unchanged": true
+  }
+}
