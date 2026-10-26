@@ -8,6 +8,12 @@ on:
       - "integration/orchestration/contracts/continuous-maintenance-v56.json"
       - "integration/orchestration/V56_CONTINUOUS_MAINTENANCE_MODE.md"
       - ".github/workflows/continuous-maintenance.yml"
+      - "integration/factory/v57-pilots.json"
+      - "scripts/factory_adoption_observatory_v57a.py"
+      - "scripts/factory_throughput_v57b.py"
+      - "scripts/pattern3_discovery_v57c.py"
+      - "scripts/factory_reuse_planner_v57d.py"
+      - "scripts/verification_reuse_v57e.py"
   schedule:
     - cron: "47 * * * *"
   workflow_run:
@@ -96,6 +102,38 @@ jobs:
               --history-file .applab-history/history.jsonl \
               --output .applab-maintenance/heuristic-calibration.json
           fi
+
+      - name: Build Factory throughput advisory evidence
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          python scripts/factory_adoption_observatory_v57a.py \
+            --watchlist watchlist.json \
+            --pilots integration/factory/v57-pilots.json \
+            --output-json .applab-maintenance/factory-adoption-observatory.json \
+            --output-md .applab-maintenance/factory-adoption-observatory.md
+          python scripts/factory_throughput_v57b.py \
+            --observatory .applab-maintenance/factory-adoption-observatory.json \
+            --pilots integration/factory/v57-pilots.json \
+            --output .applab-maintenance/factory-throughput.json
+          if [[ -f .applab-maintenance/maintenance-queue.json ]]; then
+            python scripts/pattern3_discovery_v57c.py \
+              --queue .applab-maintenance/maintenance-queue.json \
+              --output .applab-maintenance/pattern3-candidates.json
+          fi
+          python scripts/factory_reuse_planner_v57d.py \
+            --observatory .applab-maintenance/factory-adoption-observatory.json \
+            --watchlist watchlist.json \
+            --output .applab-maintenance/factory-reuse-plan.json
+          python scripts/verification_reuse_v57e.py \
+            --observatory .applab-maintenance/factory-adoption-observatory.json \
+            --watchlist watchlist.json \
+            --output .applab-maintenance/verification-reuse.json
+          cat .applab-maintenance/factory-adoption-observatory.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save maintenance queue
         if: always()
