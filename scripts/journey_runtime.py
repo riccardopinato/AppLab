@@ -52,6 +52,7 @@ def selected_catalog(
     plan: dict[str, Any],
     repository: str,
     trusted_root: Path,
+    requested_journeys: list[str] | None = None,
 ) -> list[tuple[str, Path]]:
     if repository.lower() not in pilot_repositories(trusted_root):
         raise LegacyFallback("repository is not admitted to atomic journey execution")
@@ -103,6 +104,14 @@ def selected_catalog(
         if not flow.is_file():
             raise LegacyFallback(f"journey flow is missing: {journey_id}")
         result.append((journey_id, flow))
+    if requested_journeys is not None:
+        if not requested_journeys or len(requested_journeys) > project_adapter.MAX_JOURNEY_CATALOG:
+            raise LegacyFallback("requested journey subset is empty or oversized")
+        requested = set(requested_journeys)
+        selected_ids = {journey_id for journey_id, _ in result}
+        if len(requested) != len(requested_journeys) or not requested.issubset(selected_ids):
+            raise LegacyFallback("requested journey subset is not contained in trusted selection")
+        result = [row for row in result if row[0] in requested]
     return result
 
 
@@ -180,12 +189,22 @@ def execute(args: argparse.Namespace) -> int:
     target_root = Path(args.target_root).resolve()
     plan = read_json(Path(args.plan).resolve())
     started = time.monotonic()
+    requested_journeys = None
+    if args.journey_ids_json:
+        try:
+            raw_requested = json.loads(args.journey_ids_json)
+        except json.JSONDecodeError as exc:
+            raise LegacyFallback("invalid requested journey JSON") from exc
+        if not isinstance(raw_requested, list) or not all(isinstance(value, str) for value in raw_requested):
+            raise LegacyFallback("requested journeys must be a JSON string array")
+        requested_journeys = raw_requested
     try:
         journeys = selected_catalog(
             target_root=target_root,
             plan=plan,
             repository=args.repository,
             trusted_root=trusted_root,
+            requested_journeys=requested_journeys,
         )
     except LegacyFallback as exc:
         write_report(
@@ -330,6 +349,7 @@ def main() -> int:
     parser.add_argument("--package-id", default="")
     parser.add_argument("--report-dir", default="applab-report")
     parser.add_argument("--max-attempts", type=int, default=3)
+    parser.add_argument("--journey-ids-json", default="")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
