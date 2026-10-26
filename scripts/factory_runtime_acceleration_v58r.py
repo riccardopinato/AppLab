@@ -12,12 +12,15 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-RUNNER_TOKEN = "riccardopinato/AppLab/.github/workflows/external-project-runner.yml@"
+RUNNER_TOKENS = {
+    "FLUTTER": "riccardopinato/AppLab/.github/workflows/external-project-runner.yml@",
+    "NATIVE_ANDROID": "riccardopinato/AppLab/.github/workflows/external-native-android-runner.yml@",
+    "UNIVERSAL": "riccardopinato/AppLab/.github/workflows/universal-project-runner.yml@",
+}
 MODE_RE = re.compile(r"(?m)^\s*analysis_mode:\s*([^#\n]+)")
 BASELINE_RE = re.compile(r"(?m)^\s*baseline_sha:\s*([^#\n]+)")
 CACHE_RE = re.compile(r"(?m)^\s*cache_verification:\s*(true|false)\s*$", re.I)
-PREPARE_RE = re.compile(r"(?m)^\s*prepare_command:\s*(.*)$")
-POST_RE = re.compile(r"(?m)^\s*post_pub_get_command:\s*(.*)$")
+JOB_RE = re.compile(r"^  ([A-Za-z0-9_.-]+):\s*(?:#.*)?$")
 
 
 def api_json(url: str, token: str = "") -> Any:
@@ -72,6 +75,37 @@ def scalar(match: re.Match[str] | None) -> str:
     return match.group(1).strip().strip('"').strip("'")
 
 
+def job_blocks(text: str) -> list[tuple[str, str]]:
+    lines = text.splitlines()
+    jobs_index = next((i for i, line in enumerate(lines) if line.strip() == "jobs:" and not line.startswith(" ")), -1)
+    if jobs_index < 0:
+        return []
+    blocks: list[tuple[str, str]] = []
+    current_id = ""
+    current: list[str] = []
+    for line in lines[jobs_index + 1:]:
+        if line and not line.startswith(" "):
+            break
+        match = JOB_RE.match(line)
+        if match:
+            if current_id:
+                blocks.append((current_id, "\n".join(current) + "\n"))
+            current_id = match.group(1)
+            current = [line]
+        elif current_id:
+            current.append(line)
+    if current_id:
+        blocks.append((current_id, "\n".join(current) + "\n"))
+    return blocks
+
+
+def runner_type(block: str) -> str:
+    for kind, token in RUNNER_TOKENS.items():
+        if token in block:
+            return kind
+    return ""
+
+
 def multiline_hook_present(text: str, key: str) -> bool:
     pattern = re.compile(rf"(?m)^([ \t]*){re.escape(key)}:\s*(>?-?|\|?-?)?\s*$")
     match = pattern.search(text)
@@ -79,8 +113,7 @@ def multiline_hook_present(text: str, key: str) -> bool:
         inline = re.search(rf"(?m)^\s*{re.escape(key)}:\s*(\S.+)$", text)
         return bool(inline and inline.group(1).strip() not in {"''", '""'})
     indent = len(match.group(1))
-    remainder = text[match.end():].splitlines()
-    for line in remainder:
+    for line in text[match.end():].splitlines():
         if not line.strip():
             continue
         current = len(line) - len(line.lstrip(" "))
@@ -88,15 +121,16 @@ def multiline_hook_present(text: str, key: str) -> bool:
     return False
 
 
-def assess_workflow(repository: str, path: str, text: str) -> dict[str, Any] | None:
-    if RUNNER_TOKEN not in text:
+def assess_job(repository: str, path: str, job_id: str, block: str) -> dict[str, Any] | None:
+    kind = runner_type(block)
+    if not kind:
         return None
-    mode = scalar(MODE_RE.search(text)) or "full"
-    baseline = scalar(BASELINE_RE.search(text))
-    cache_match = CACHE_RE.search(text)
+    mode = scalar(MODE_RE.search(block)) or "full"
+    baseline = scalar(BASELINE_RE.search(block))
+    cache_match = CACHE_RE.search(block)
     cache_enabled = bool(cache_match and cache_match.group(1).lower() == "true")
-    prepare = multiline_hook_present(text, "prepare_command")
-    post = multiline_hook_present(text, "post_pub_get_command")
+    prepare = multiline_hook_present(block, "prepare_command")
+    post = multiline_hook_present(block, "post_pub_get_command")
 
     findings: list[str] = []
     if mode == "full":
@@ -124,6 +158,8 @@ def assess_workflow(repository: str, path: str, text: str) -> dict[str, Any] | N
     return {
         "repository": repository,
         "workflow": path,
+        "job_id": job_id,
+        "runner_type": kind,
         "analysis_mode": mode,
         "baseline_declared": bool(baseline),
         "cache_verification": cache_enabled,
@@ -143,6 +179,15 @@ def assess_workflow(repository: str, path: str, text: str) -> dict[str, Any] | N
     }
 
 
+def assess_workflow(repository: str, path: str, text: str) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for job_id, block in job_blocks(text):
+        assessment = assess_job(repository, path, job_id, block)
+        if assessment is not None:
+            out.append(assessment)
+    return out
+
+
 def build_report(observatory: dict[str, Any], fetcher, token: str = "") -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for item in observatory.get("repositories", []):
@@ -159,8 +204,8 @@ def build_report(observatory: dict[str, Any], fetcher, token: str = "") -> dict[
             text = fetcher("content", repository, ref, token, path)
             if text is None:
                 continue
-            assessment = assess_workflow(repository, path, text)
-            if assessment is not None:
+            assessments = assess_workflow(repository, path, text)
+            for assessment in assessments:
                 assessment["ref"] = ref
                 assessment["pilot"] = bool(item.get("pilot"))
                 assessment["adoption_status"] = str(item.get("status", "UNKNOWN"))
@@ -178,7 +223,7 @@ def build_report(observatory: dict[str, Any], fetcher, token: str = "") -> dict[
             })
 
     summary = {
-        "workflows": len(rows),
+        "jobs": len(rows),
         "adaptive_fast_ready": sum(x.get("runtime_state") == "ADAPTIVE_FAST_READY" for x in rows),
         "optimization_available": sum(x.get("runtime_state") == "OPTIMIZATION_AVAILABLE" for x in rows),
         "forced_full": sum("FULL_FORCED" in x.get("findings", []) for x in rows),
@@ -207,12 +252,13 @@ def render_md(report: dict[str, Any]) -> str:
     lines = [
         "# Factory Android Runtime Acceleration v5.8R",
         "",
-        "| Repository | Workflow | State | Findings |",
-        "| --- | --- | --- | --- |",
+        "| Repository | Workflow / job | Runner | State | Findings |",
+        "| --- | --- | --- | --- | --- |",
     ]
     for row in report["repositories"]:
+        identity = f"{row.get('workflow','-')} / {row.get('job_id','-')}"
         lines.append(
-            f"| {row['repository']} | {row.get('workflow','-')} | "
+            f"| {row['repository']} | {identity} | {row.get('runner_type','-')} | "
             f"{row['runtime_state']} | {', '.join(row.get('findings', [])) or '-'} |"
         )
     lines += [
@@ -225,57 +271,55 @@ def render_md(report: dict[str, Any]) -> str:
 
 
 def self_test() -> None:
-    forced = """
+    multi = """
 jobs:
-  gate:
-    uses: riccardopinato/AppLab/.github/workflows/external-project-runner.yml@abc
-    with:
-      analysis_mode: full
-      cache_verification: false
-      prepare_command: >-
-        flutter create /tmp/app
-"""
-    a = assess_workflow("owner/a", ".github/workflows/applab.yml", forced)
-    assert a is not None
-    assert "FULL_FORCED" in a["findings"]
-    assert "BUILD_REUSE_BLOCKED_MUTABLE_HOOK" in a["findings"]
-
-    fast = """
-jobs:
-  gate:
+  fast_gate:
     uses: riccardopinato/AppLab/.github/workflows/external-project-runner.yml@abc
     with:
       analysis_mode: fast
       baseline_sha: ${{ github.event.pull_request.base.sha || '' }}
       cache_verification: true
+  certify:
+    uses: riccardopinato/AppLab/.github/workflows/external-native-android-runner.yml@abc
+    with:
+      analysis_mode: certification
+      cache_verification: false
+  full_universal:
+    uses: riccardopinato/AppLab/.github/workflows/universal-project-runner.yml@abc
+    with:
+      analysis_mode: full
+      prepare_command: >-
+        ./gradlew prepare
 """
-    b = assess_workflow("owner/b", ".github/workflows/applab.yml", fast)
-    assert b is not None
-    assert b["runtime_state"] == "ADAPTIVE_FAST_READY"
-    assert b["findings"] == []
+    assessments = assess_workflow("owner/app", ".github/workflows/gates.yml", multi)
+    assert len(assessments) == 3
+    by_job = {item["job_id"]: item for item in assessments}
+    assert by_job["fast_gate"]["runtime_state"] == "ADAPTIVE_FAST_READY"
+    assert by_job["fast_gate"]["runner_type"] == "FLUTTER"
+    assert by_job["certify"]["runner_type"] == "NATIVE_ANDROID"
+    assert by_job["certify"]["runtime_state"] == "CERTIFICATION_UNCHANGED"
+    assert by_job["full_universal"]["runner_type"] == "UNIVERSAL"
+    assert "FULL_FORCED" in by_job["full_universal"]["findings"]
+    assert "BUILD_REUSE_BLOCKED_MUTABLE_HOOK" in by_job["full_universal"]["findings"]
 
-    no_baseline = fast.replace(
-        "      baseline_sha: ${{ github.event.pull_request.base.sha || '' }}\n", ""
-    )
-    c = assess_workflow("owner/c", ".github/workflows/applab.yml", no_baseline)
-    assert c is not None and "FAST_WITHOUT_BASELINE" in c["findings"]
-
-    observatory = {"repositories": [{"repository": "owner/b", "ref": "main", "status": "ADOPTED"}]}
+    observatory = {"repositories": [{"repository": "owner/app", "ref": "main", "status": "ADOPTED"}]}
     def fake(kind: str, repository: str, ref: str, token: str, path: str = ""):
-        return [".github/workflows/applab.yml"] if kind == "paths" else fast
+        return [".github/workflows/gates.yml"] if kind == "paths" else multi
     report = build_report(observatory, fake)
+    assert report["summary"]["jobs"] == 3
     assert report["summary"]["adaptive_fast_ready"] == 1
+    assert report["summary"]["forced_full"] == 1
 
     pilot_waiting = {
         "repositories": [{
-            "repository": "owner/b",
+            "repository": "owner/app",
             "ref": "main",
             "status": "MISSING_MANIFEST",
             "pilot": True,
         }]
     }
     pilot_report = build_report(pilot_waiting, fake)
-    assert pilot_report["summary"]["adaptive_fast_ready"] == 1
+    assert pilot_report["summary"]["jobs"] == 3
     assert pilot_report["repositories"][0]["adoption_status"] == "MISSING_MANIFEST"
     print("AppLab v5.8R runtime acceleration self-test PASS")
 
