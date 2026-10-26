@@ -62,7 +62,21 @@ def aggregate(
         if str(report.get("repository", "")).lower() != expected_identity[0]:
             raise ValueError(f"shard repository mismatch: {report_path}")
         if report.get("result") != "PASS":
-            raise ValueError(f"shard did not PASS: {report_path}")
+            shard_id = str(report.get("shard_id", bundle.name))
+            reason = str(report.get("reason", "") or "")
+            if not reason:
+                journey_rows = report.get("journeys")
+                if isinstance(journey_rows, list):
+                    reason = next(
+                        (
+                            str(row.get("reason", "") or "")
+                            for row in reversed(journey_rows)
+                            if isinstance(row, dict) and row.get("reason")
+                        ),
+                        "",
+                    )
+            detail = reason or str(report_path)
+            raise ValueError(f"shard {shard_id} did not PASS: {detail}")
         journeys = report.get("selected_journeys")
         if not isinstance(journeys, list) or not journeys or not all(isinstance(v, str) for v in journeys):
             raise ValueError(f"invalid shard journey list: {report_path}")
