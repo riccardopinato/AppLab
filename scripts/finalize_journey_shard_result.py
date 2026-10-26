@@ -199,7 +199,7 @@ def self_test() -> None:
             json.dumps({"result":"PASS"}), encoding="utf-8"
         )
         aggregate = root / "aggregate.json"
-        aggregate.write_text(json.dumps({"result":"FAIL","authoritative":True,"coverage_union_verified":False,"exact_artifact_verified":True,"reason":"deep shard failed"}), encoding="utf-8")
+        aggregate.write_text(json.dumps({"result":"FAIL","authoritative":True,"coverage_union_verified":False,"exact_artifact_verified":True,"reason":"shard vault did not PASS: transient infrastructure retries exhausted"}), encoding="utf-8")
         final = finalize(
             coordinator_dir=coordinator, aggregate_path=aggregate, artifact_path=artifact,
             output_dir=output, repository="owner/app", resolved_sha="a"*40,
@@ -210,7 +210,8 @@ def self_test() -> None:
         persisted = read_json(output / "result.json")
         assert persisted["result"] == "FAIL", persisted
         assert read_json(output / "trusted-evidence-manifest.json")["result"]["result"] == "FAIL"
-        assert persisted["failure_intelligence"]["kind"] != "NONE", persisted
+        assert persisted["failure_intelligence"]["kind"] == "INFRA_ERROR", persisted
+        assert persisted["failure_intelligence"]["retryable"] is True, persisted
         assert persisted["release_readiness"]["status"] == "BLOCKED", persisted
         assert persisted["project_state"]["result"] == "FAIL", persisted
         assert read_json(output / "failure-intelligence.json")["kind"] != "NONE"
