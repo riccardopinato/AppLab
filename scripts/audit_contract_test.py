@@ -365,7 +365,7 @@ def check_project_adapter_contract() -> None:
     require(
         'ENGINE_VERSION = "5.9B"' in journey_runtime
         and "LEGACY_FALLBACK" in journey_runtime
-        and "functional Maestro failure; not retried" in journey_runtime
+        and "functional Maestro failure; not retried" in journey_support
         and "journey-runtime-pilots.json" in journey_runtime,
         "v5.9B atomic journey runtime must remain trusted, bounded and fail-safe",
     )
