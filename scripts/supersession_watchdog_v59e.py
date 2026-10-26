@@ -39,11 +39,38 @@ def load_config(path: Path) -> dict[str, Any]:
     return payload
 
 
-def group_key(run: dict[str, Any]) -> tuple[str, str, str]:
+def group_key(run: dict[str, Any]) -> tuple[str, str, str, str, str] | None:
+    event = str(run.get("event", ""))
+    source_repo = str(
+        (run.get("head_repository") or {}).get("full_name")
+        or (run.get("repository") or {}).get("full_name")
+        or ""
+    )
+    if not source_repo:
+        return None
+
+    pr_identity = ""
+    if event == "pull_request":
+        pull_requests = run.get("pull_requests")
+        if not isinstance(pull_requests, list) or len(pull_requests) != 1:
+            return None
+        pr = pull_requests[0]
+        pr_number = str(pr.get("number") or "")
+        pr_head_repo = str(
+            ((pr.get("head") or {}).get("repo") or {}).get("full_name")
+            or source_repo
+        )
+        if not pr_number or not pr_head_repo:
+            return None
+        source_repo = pr_head_repo
+        pr_identity = pr_number
+
     return (
         str(run.get("name", "")),
         str(run.get("head_branch", "")),
-        str(run.get("event", "")),
+        event,
+        source_repo,
+        pr_identity,
     )
 
 
@@ -61,9 +88,12 @@ def plan_candidates(
         and str(run.get("head_branch", ""))
         and str(run.get("head_sha", ""))
     ]
-    groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    groups: dict[tuple[str, str, str, str, str], list[dict[str, Any]]] = {}
     for run in active:
-        groups.setdefault(group_key(run), []).append(run)
+        key = group_key(run)
+        if key is None:
+            continue
+        groups.setdefault(key, []).append(run)
 
     candidates: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for rows in groups.values():
@@ -109,7 +139,9 @@ def evaluate_candidate(
     ancestry_proven: bool,
     ancestry_status: str,
 ) -> dict[str, Any]:
-    same_lineage = group_key(old) == group_key(new)
+    old_key = group_key(old)
+    new_key = group_key(new)
+    same_lineage = old_key is not None and old_key == new_key
     old_active = str(old.get("status", "")) in ACTIVE
     newer = (
         str(new.get("created_at", "")),
@@ -189,6 +221,41 @@ def self_test() -> None:
         workflow_names={"Controlled Event-Driven Pilot"},
         allowed_events={"push"},
     ) == []
+
+    fork_base = {
+        "name": "AppLab True Autonomous App Review v5.3.5",
+        "head_branch": "feature",
+        "event": "pull_request",
+        "status": "in_progress",
+        "repository": {"full_name": "owner/app"},
+    }
+    fork_old = {
+        **fork_base,
+        "id": 3,
+        "run_number": 20,
+        "created_at": "2026-10-26T20:00:00Z",
+        "head_sha": "c" * 40,
+        "head_repository": {"full_name": "fork-one/app"},
+        "pull_requests": [{"number": 10, "head": {"repo": {"full_name": "fork-one/app"}}}],
+    }
+    fork_new = {
+        **fork_base,
+        "id": 4,
+        "run_number": 21,
+        "created_at": "2026-10-26T20:05:00Z",
+        "head_sha": "d" * 40,
+        "head_repository": {"full_name": "fork-two/app"},
+        "pull_requests": [{"number": 11, "head": {"repo": {"full_name": "fork-two/app"}}}],
+    }
+    assert plan_candidates(
+        [fork_old, fork_new],
+        workflow_names={"AppLab True Autonomous App Review v5.3.5"},
+        allowed_events={"pull_request"},
+    ) == []
+
+    unknown_pr = dict(fork_old)
+    unknown_pr["pull_requests"] = []
+    assert group_key(unknown_pr) is None
     print("AppLab v5.9E supersession watchdog self-test PASS")
 
 
