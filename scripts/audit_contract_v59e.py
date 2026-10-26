@@ -74,8 +74,16 @@ def main() -> int:
     require(
         'status == "ahead"' in supersession_policy
         and '"ancestry_required": True' in supersession_policy
-        and '"cross_repository_cancellation": False' in supersession_policy,
-        "supersession requires proven descendant same-repository lineage",
+        and '"cross_repository_cancellation": False' in supersession_policy
+        and '"pull_request"' in supersession_policy
+        and "head_repository" in supersession_policy
+        and "pr_identity" in supersession_policy,
+        "supersession requires proven descendant PR/source-repository lineage",
+    )
+    require(
+        "marker_times" in review_support
+        and "max(marker_times)" in review_support,
+        "review timeout must anchor to trusted review/watchdog activity",
     )
     require(
         "actions: write" in supersession_workflow,
