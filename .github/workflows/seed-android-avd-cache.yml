@@ -1,0 +1,112 @@
+name: Seed Android AVD Cache
+
+on:
+  workflow_call:
+    inputs:
+      api_level:
+        description: Android emulator API level
+        required: false
+        default: "35"
+        type: string
+      emulator_profile:
+        description: Android emulator hardware profile
+        required: false
+        default: pixel_7_pro
+        type: string
+  workflow_dispatch:
+    inputs:
+      api_level:
+        description: Android emulator API level
+        required: false
+        default: "35"
+        type: string
+      emulator_profile:
+        description: Android emulator hardware profile
+        required: false
+        default: pixel_7_pro
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-avd-seed-${{ inputs.api_level }}-${{ inputs.emulator_profile }}
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    name: Seed pristine AVD cache
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ github.repository_owner }}/AppLab
+          ref: ${{ job.workflow_sha }}
+          path: .applab
+          persist-credentials: false
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Setup Android SDK tools
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: ''
+
+      - name: Restore pristine AVD cache
+        id: avd_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.android/avd
+          key: applab-clean-avd-schema1-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
+
+      - name: Ensure Android system image
+        if: steps.avd_cache.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          APPLAB_ANDROID_API_LEVEL: ${{ inputs.api_level }}
+          APPLAB_ANDROID_TARGET: google_apis
+          APPLAB_ANDROID_ARCH: x86_64
+          APPLAB_ANDROID_CHANNEL: "0"
+        run: bash .applab/scripts/ensure_android_system_image.sh
+
+      - name: Create pristine AVD on cache miss
+        if: steps.avd_cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: ${{ inputs.api_level }}
+          target: google_apis
+          arch: x86_64
+          profile: ${{ inputs.emulator_profile }}
+          force-avd-creation: false
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb shell pm list packages >/dev/null
+            adb logcat -c
+            echo "Pristine AppLab AVD seeded on caller default branch."
+
+      - name: Save pristine AVD cache
+        if: steps.avd_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.android/avd
+          key: applab-clean-avd-schema1-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "## AppLab pristine AVD cache"
+            echo
+            echo "- API: `${{ inputs.api_level }}`"
+            echo "- Profile: `${{ inputs.emulator_profile }}`"
+            echo "- Cache hit: `${{ steps.avd_cache.outputs.cache-hit == 'true' }}`"
+            echo "- Intended caller scope: default branch cache seed for downstream PR reuse"
+          } >> "$GITHUB_STEP_SUMMARY"
