@@ -142,7 +142,7 @@ jobs:
         if: steps.plan.outputs.enabled == 'true'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: .applab-shard-visual-baseline
+          path: .applab-visual-baseline
           key: applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
           restore-keys: |
             applab-visual-baseline-v2-${{ inputs.repository }}-${{ inputs.history_key }}-
@@ -151,7 +151,7 @@ jobs:
         if: steps.plan.outputs.enabled == 'true'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: .applab-shard-upgrade-baseline
+          path: .applab-upgrade-baseline
           key: applab-upgrade-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-${{ inputs.resolved_sha }}
           restore-keys: |
             applab-upgrade-baseline-v1-${{ inputs.repository }}-${{ inputs.history_key }}-
@@ -164,8 +164,8 @@ jobs:
           set -Eeuo pipefail
           python .applab/scripts/journey_sharding_admission.py \
             --plan "$GITHUB_WORKSPACE/journey-sharding-plan.json" \
-            --visual-baseline-dir "$GITHUB_WORKSPACE/.applab-shard-visual-baseline" \
-            --upgrade-baseline-apk "$GITHUB_WORKSPACE/.applab-shard-upgrade-baseline/baseline.apk" \
+            --visual-baseline-dir "$GITHUB_WORKSPACE/.applab-visual-baseline" \
+            --upgrade-baseline-apk "$GITHUB_WORKSPACE/.applab-upgrade-baseline/baseline.apk" \
             --output "$GITHUB_WORKSPACE/journey-sharding-admission.json" \
             --github-output "$GITHUB_OUTPUT"
 
