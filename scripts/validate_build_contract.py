@@ -141,6 +141,11 @@ def validate(
     if package_id and package_id != apk_package_id:
         raise ValueError("Declared package id does not match APK package id")
     effective_package_id = package_id or apk_package_id
+    if effective_package_id and not re.fullmatch(
+        r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+",
+        effective_package_id,
+    ):
+        raise ValueError("Invalid effective package id in build contract")
 
     certification_policy = payload.get("certification_policy")
     if not isinstance(certification_policy, dict) or certification_policy.get("schema_version") != 1:
@@ -339,6 +344,19 @@ def self_test() -> None:
         (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
         auto_result = validate(root, "owner/repo", "a"*40, "flutter", "fast", "c"*40)
         assert auto_result["package_id"] == "com.example.app"
+        payload["package_id"] = "com.example.app"
+        (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
+        malicious_package = payload["apk"]["package_id"]
+        payload["package_id"] = ""
+        payload["apk"]["package_id"] = "com.example.app\napk_file=/tmp/other.apk"
+        (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
+        try:
+            validate(root, "owner/repo", "a"*40, "flutter", "fast", "c"*40)
+        except ValueError as exc:
+            assert "Invalid effective package id" in str(exc)
+        else:
+            raise AssertionError("malicious fallback APK package id must be rejected")
+        payload["apk"]["package_id"] = malicious_package
         payload["package_id"] = "com.example.app"
         (root / "contract.json").write_text(json.dumps(payload), encoding="utf-8")
         assert result["analysis_mode"] == "fast"
