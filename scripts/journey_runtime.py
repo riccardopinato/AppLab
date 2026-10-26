@@ -104,15 +104,10 @@ def selected_catalog(
         if not flow.is_file():
             raise LegacyFallback(f"journey flow is missing: {journey_id}")
         result.append((journey_id, flow))
-    if requested_journeys is not None:
-        if not requested_journeys or len(requested_journeys) > project_adapter.MAX_JOURNEY_CATALOG:
-            raise LegacyFallback("requested journey subset is empty or oversized")
-        requested = set(requested_journeys)
-        selected_ids = {journey_id for journey_id, _ in result}
-        if len(requested) != len(requested_journeys) or not requested.issubset(selected_ids):
-            raise LegacyFallback("requested journey subset is not contained in trusted selection")
-        result = [row for row in result if row[0] in requested]
-    return result
+    try:
+        return runtime_support.filter_requested_journeys(result, requested_journeys)
+    except ValueError as exc:
+        raise LegacyFallback(str(exc)) from exc
 
 
 def run_journey(
@@ -189,15 +184,10 @@ def execute(args: argparse.Namespace) -> int:
     target_root = Path(args.target_root).resolve()
     plan = read_json(Path(args.plan).resolve())
     started = time.monotonic()
-    requested_journeys = None
-    if args.journey_ids_json:
-        try:
-            raw_requested = json.loads(args.journey_ids_json)
-        except json.JSONDecodeError as exc:
-            raise LegacyFallback("invalid requested journey JSON") from exc
-        if not isinstance(raw_requested, list) or not all(isinstance(value, str) for value in raw_requested):
-            raise LegacyFallback("requested journeys must be a JSON string array")
-        requested_journeys = raw_requested
+    try:
+        requested_journeys = runtime_support.parse_journey_ids_json(args.journey_ids_json)
+    except ValueError as exc:
+        raise LegacyFallback(str(exc)) from exc
     try:
         journeys = selected_catalog(
             target_root=target_root,
