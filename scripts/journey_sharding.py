@@ -110,7 +110,7 @@ def build_plan(
     deep = [
         value for value in selected
         if catalog[value].get("risk_class") == "deep"
-    ][:MAX_PARALLEL_SHARDS]
+    ][: max(1, MAX_PARALLEL_SHARDS - 1)]
     coordinator = [value for value in selected if value not in deep]
     if not deep or not coordinator:
         return {**base, "reason": "no independent deep journey shard available"}
