@@ -59,9 +59,13 @@ def evaluate(
         "execution_repository_matches": str(execution.get("repository", "")).strip() == repository,
         "execution_sha_matches": str(execution.get("resolved_sha", "")).strip().lower() == resolved_sha,
         "runtime_result_pass": str(result.get("result", "")).strip().upper() == "PASS",
-        "result_repository_matches": str(result.get("repository", "")).strip() == repository,
-        "result_sha_matches": str(result.get("resolved_sha", "")).strip().lower() == resolved_sha,
     }
+    result_repository = str(result.get("repository", "")).strip()
+    result_sha = str(result.get("resolved_sha", "")).strip().lower()
+    if result_repository:
+        checks["result_repository_matches"] = result_repository == repository
+    if result_sha:
+        checks["result_sha_matches"] = result_sha == resolved_sha
     runtime_result = str(result.get("runtime_result", "")).strip().upper()
     if runtime_result:
         checks["trusted_runtime_pass"] = runtime_result == "PASS"
@@ -119,6 +123,12 @@ def self_test() -> None:
     ready = evaluate(contract, execution, result)
     assert ready["promotion_ready"] is True
     assert ready["state"] == "READY"
+
+    raw_runtime = {"result": "PASS"}
+    early = evaluate(contract, execution, raw_runtime)
+    assert early["promotion_ready"] is True
+    assert "result_repository_matches" not in early["checks"]
+    assert "result_sha_matches" not in early["checks"]
 
     miss = json.loads(json.dumps(execution))
     miss["build_cache"]["hit"] = False
