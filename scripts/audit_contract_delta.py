@@ -54,8 +54,9 @@ def run_check(namespace: dict[str, Any]) -> None:
     require(
         "import delta_calibration" not in planner
         and "from delta_calibration" not in planner
-        and "coverage_reduction_enabled" not in planner,
-        "calibration must not become a coverage-reducing Smart Test Plan input in v5.3.5",
+        and "MULTI_PROJECT_DELTA_CALIBRATION" not in planner
+        and "READY_FOR_EXPERIMENT" not in planner,
+        "v5.3.5 calibration evidence must not become a Smart Test Plan selection input",
     )
     require(
         "import delta_calibration" in control
