@@ -66,9 +66,11 @@ def reconcile(
         if pr.get("draft") and not include_drafts:
             continue
         number = int(pr["number"])
-        comments = github.api(
-            f"https://api.github.com/repos/{repository}/issues/{number}/comments?per_page=100",
+        comments = github.paginated_list(
+            f"https://api.github.com/repos/{repository}/issues/{number}/comments",
             token,
+            per_page=100,
+            max_pages=100,
             user_agent="AppLab-External-Review-Watchdog/5.9E",
         )
         decision = support.decision_for_pr(
