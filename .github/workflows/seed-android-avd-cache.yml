@@ -40,10 +40,23 @@ jobs:
     timeout-minutes: 20
 
     steps:
+      - name: Require caller default branch
+        shell: bash
+        env:
+          CURRENT_REF: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$DEFAULT_BRANCH"
+          if [[ "$CURRENT_REF" != "$DEFAULT_BRANCH" ]]; then
+            echo "AVD cache seed must run from the caller default branch: current=$CURRENT_REF default=$DEFAULT_BRANCH" >&2
+            exit 2
+          fi
+
       - name: Checkout trusted AppLab
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          repository: ${{ github.repository_owner }}/AppLab
+          repository: riccardopinato/AppLab
           ref: ${{ job.workflow_sha }}
           path: .applab
           persist-credentials: false
