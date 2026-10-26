@@ -186,9 +186,6 @@ def execute(args: argparse.Namespace) -> int:
     started = time.monotonic()
     try:
         requested_journeys = runtime_support.parse_journey_ids_json(args.journey_ids_json)
-    except ValueError as exc:
-        raise LegacyFallback(str(exc)) from exc
-    try:
         journeys = selected_catalog(
             target_root=target_root,
             plan=plan,
@@ -196,7 +193,7 @@ def execute(args: argparse.Namespace) -> int:
             trusted_root=trusted_root,
             requested_journeys=requested_journeys,
         )
-    except LegacyFallback as exc:
+    except (ValueError, LegacyFallback) as exc:
         write_report(
             output,
             {
