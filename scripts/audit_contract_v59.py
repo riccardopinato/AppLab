@@ -29,6 +29,9 @@ def run_check(namespace: dict[str, Any]) -> None:
         "journey_aggregate:",
         "fromJSON(needs.journey_plan.outputs.matrix)",
         "journey-shard-${{ github.run_id }}-coordinator",
+        "Finalize authoritative canonical evidence",
+        "Publish authoritative canonical evidence",
+        "Enforce authoritative aggregate verdict",
     ):
         require(needle in workflow, f"v5.9C trusted workflow missing: {needle}")
 
