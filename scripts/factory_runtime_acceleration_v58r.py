@@ -146,7 +146,9 @@ def assess_workflow(repository: str, path: str, text: str) -> dict[str, Any] | N
 def build_report(observatory: dict[str, Any], fetcher, token: str = "") -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for item in observatory.get("repositories", []):
-        if not isinstance(item, dict) or item.get("status") != "ADOPTED":
+        if not isinstance(item, dict):
+            continue
+        if item.get("status") != "ADOPTED" and not item.get("pilot"):
             continue
         repository = str(item.get("repository", "")).strip()
         ref = str(item.get("ref", "main")).strip() or "main"
@@ -161,6 +163,7 @@ def build_report(observatory: dict[str, Any], fetcher, token: str = "") -> dict[
             if assessment is not None:
                 assessment["ref"] = ref
                 assessment["pilot"] = bool(item.get("pilot"))
+                assessment["adoption_status"] = str(item.get("status", "UNKNOWN"))
                 rows.append(assessment)
                 found = True
         if not found:
@@ -168,6 +171,7 @@ def build_report(observatory: dict[str, Any], fetcher, token: str = "") -> dict[
                 "repository": repository,
                 "ref": ref,
                 "pilot": bool(item.get("pilot")),
+                "adoption_status": str(item.get("status", "UNKNOWN")),
                 "runtime_state": "NO_APPLAB_EXTERNAL_RUNNER",
                 "findings": ["NO_APPLAB_EXTERNAL_RUNNER"],
                 "recommended_changes": [],
@@ -261,6 +265,18 @@ jobs:
         return [".github/workflows/applab.yml"] if kind == "paths" else fast
     report = build_report(observatory, fake)
     assert report["summary"]["adaptive_fast_ready"] == 1
+
+    pilot_waiting = {
+        "repositories": [{
+            "repository": "owner/b",
+            "ref": "main",
+            "status": "MISSING_MANIFEST",
+            "pilot": True,
+        }]
+    }
+    pilot_report = build_report(pilot_waiting, fake)
+    assert pilot_report["summary"]["adaptive_fast_ready"] == 1
+    assert pilot_report["repositories"][0]["adoption_status"] == "MISSING_MANIFEST"
     print("AppLab v5.8R runtime acceleration self-test PASS")
 
 
