@@ -34,3 +34,29 @@ def api(
     with urllib.request.urlopen(request, timeout=30) as response:
         raw = response.read().decode("utf-8")
         return json.loads(raw) if raw else {}
+
+
+def paginated_list(
+    url: str,
+    token: str,
+    *,
+    per_page: int = 100,
+    max_pages: int = 100,
+    user_agent: str = "AppLab-Watchdog/5.9E",
+) -> list[dict[str, Any]]:
+    if not 1 <= per_page <= 100 or max_pages < 1:
+        raise ValueError("invalid pagination bounds")
+    rows: list[dict[str, Any]] = []
+    separator = "&" if "?" in url else "?"
+    for page in range(1, max_pages + 1):
+        payload = api(
+            f"{url}{separator}per_page={per_page}&page={page}",
+            token,
+            user_agent=user_agent,
+        )
+        if not isinstance(payload, list):
+            raise ValueError("paginated GitHub response must be a list")
+        rows.extend(item for item in payload if isinstance(item, dict))
+        if len(payload) < per_page:
+            return rows
+    raise RuntimeError("GitHub pagination exceeded safe page bound")
