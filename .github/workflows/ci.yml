@@ -71,6 +71,7 @@ jobs:
             scripts/runtime_stability_v56a.py \
             scripts/retention_review_v56b.py \
             scripts/delta_execution_experiment_v56c.py \
+            scripts/heuristic_calibration_v56d.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -191,6 +192,7 @@ jobs:
           python tests/contracts/runtime_stability_v56a_test.py
           python scripts/retention_review_v56b.py --self-test
           python scripts/delta_execution_experiment_v56c.py --self-test
+          python scripts/heuristic_calibration_v56d.py --self-test
           python tests/contracts/multi_project_event_v55a_test.py
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py
