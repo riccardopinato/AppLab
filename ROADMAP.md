@@ -179,6 +179,14 @@ runtime, exact-artifact identity, physical/store boundaries or certification.
 - [ ] **v5.9E Warm Runtime + Watchdogs:** bounded production warm-runtime routing,
   supersession cancellation and external-review watchdog/retrigger semantics with
   GitHub Actions fallback.
+  - Cache-backed pristine AVD routing is centrally admitted for AppLab and Anna;
+    cache miss, profile mismatch or kill switch falls back to cold GitHub Actions.
+  - Supersession cancellation is limited to allowlisted workflows and requires
+    GitHub-proven descendant ancestry; Production Certification is protected.
+  - External review reconciliation can retrigger stale/missing Codex review but
+    never resolves findings or changes merge authority.
+  - Completion gate: exact-head CI/review plus live scheduled/manual watchdog
+    evidence after v5.9D is merged.
 
 ### v5.9 safety rules
 
