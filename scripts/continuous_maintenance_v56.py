@@ -241,6 +241,10 @@ def build_queue(
     previous = previous or {}
     combined = signals_from_history(history, policy) + explicit_findings
     items = {key: dict(value) for key, value in previous.items()}
+    observation_limit = max(
+        1,
+        int((policy.get("history") or {}).get("max_records", 250)),
+    )
 
     for raw in combined:
         signal = _normalize_signal(raw)
@@ -260,7 +264,7 @@ def build_queue(
                 old["last_seen"] = signal["observed_at"]
                 old["occurrences"] = int(old.get("occurrences", 1)) + 1
                 keys.append(observation_key)
-                old["observation_keys"] = keys[-20:]
+                old["observation_keys"] = keys[-observation_limit:]
                 if signal["evidence_ref"]:
                     refs = list(old.get("evidence_refs") or [])
                     if signal["evidence_ref"] not in refs:
@@ -293,7 +297,7 @@ def build_queue(
             _safe(row.get("repository")),
             _safe(row.get("id")),
         ),
-    )[:500]
+    )
     counts = {lane: 0 for lane in LANES}
     for row in ordered:
         lane = _safe(row.get("lane"))
@@ -337,13 +341,24 @@ def render_markdown(queue: dict[str, Any]) -> str:
         "| Lane | Repository | Severity | Category | Occurrences | Finding |",
         "| --- | --- | --- | --- | ---: | --- |",
     ]
-    for item in queue.get("items", []):
-        if item.get("status") != "OPEN":
-            continue
+    open_items = [
+        item for item in queue.get("items", [])
+        if item.get("status") == "OPEN"
+    ]
+    display_limit = 500
+    for item in open_items[:display_limit]:
         message = _safe(item.get("message")).replace("|", "\\|")
         lines.append(
             f"| {item.get('lane')} | {item.get('repository')} | {item.get('severity')} | "
             f"{item.get('category')} | {item.get('occurrences', 1)} | {message} |"
+        )
+    if len(open_items) > display_limit:
+        lines.extend(
+            [
+                "",
+                f"_Summary display bounded to {display_limit} of {len(open_items)} open findings; "
+                "the persisted JSON queue retains all findings._",
+            ]
         )
     lines.extend(
         [
