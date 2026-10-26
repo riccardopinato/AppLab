@@ -453,6 +453,7 @@ jobs:
             --flutter-version "${{ inputs.flutter_version }}" \
             --prepare-command "${{ inputs.prepare_command }}" \
             --post-command "${{ inputs.post_pub_get_command }}" \
+            --trusted-root "$GITHUB_WORKSPACE/.applab" \
             --output "$GITHUB_WORKSPACE/applab-report/build-reuse-eligibility.json" \
             --github-output "$GITHUB_OUTPUT"
 
