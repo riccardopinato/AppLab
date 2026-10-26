@@ -124,6 +124,19 @@ jobs:
         run: |
           set -Eeuo pipefail
           if [[ "$RUN_MAESTRO" != "true" ]]; then
+            cat > "$GITHUB_WORKSPACE/journey-sharding-plan.json" <<'JSON'
+          {
+            "schema_version": 1,
+            "engine_version": "5.9C",
+            "enabled": false,
+            "mode": "disabled",
+            "authoritative": false,
+            "coordinator_journeys": [],
+            "shards": [],
+            "coverage_union_verified": false,
+            "reason": "Maestro disabled by verifier input"
+          }
+          JSON
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "mode=disabled" >> "$GITHUB_OUTPUT"
             echo "authoritative=false" >> "$GITHUB_OUTPUT"
