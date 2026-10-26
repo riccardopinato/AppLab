@@ -15,7 +15,11 @@ DYNAMIC_GRADLE = re.compile(
 )
 SAFE_GRADLE_COMMAND = re.compile(r"^(?:\./gradlew|gradle)(?:\s+[-A-Za-z0-9_:.=/]+)+$")
 TRUSTED_APPLAB_HOOK_COMMAND = re.compile(
-    r'^bash "\$GITHUB_WORKSPACE/\.applab/watch-profiles/([A-Za-z0-9_.-]+\.sh)"def safe_relative(raw: str) -> PurePosixPath:
+    r"""^bash "\$GITHUB_WORKSPACE/\.applab/watch-profiles/([A-Za-z0-9_.-]+\.sh)"$"""
+)
+
+
+def safe_relative(raw: str) -> PurePosixPath:
     path = PurePosixPath((raw or ".").strip())
     if path.is_absolute() or ".." in path.parts:
         raise ValueError(f"unsafe working directory: {raw!r}")
