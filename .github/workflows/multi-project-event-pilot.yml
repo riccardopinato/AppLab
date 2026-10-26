@@ -5,7 +5,10 @@ on:
     branches: [main]
     paths:
       - "selftest/**"
+      - "watchlist.json"
       - "integration/orchestration/v55-pilot.json"
+      - "integration/orchestration/v55-expansion.json"
+      - "scripts/controlled_expansion_v55e.py"
       - ".github/workflows/multi-project-event-pilot.yml"
   repository_dispatch:
     types: [applab-v55-pilot]
@@ -96,9 +99,12 @@ jobs:
           test -n "$REPOSITORY"
           test -n "$TARGET_SHA"
           APPLAB_SHA="$(git rev-parse HEAD)"
+          python scripts/controlled_expansion_v55e.py \
+            --materialize-live-config "$GITHUB_WORKSPACE/.applab-v55/v55e-live-config.json" \
+            --repository "$REPOSITORY"
           python scripts/controlled_event_v54g.py admit \
             --db "$GITHUB_WORKSPACE/.applab-v55/control-plane.sqlite3" \
-            --config "$GITHUB_WORKSPACE/integration/orchestration/v55-pilot.json" \
+            --config "$GITHUB_WORKSPACE/.applab-v55/v55e-live-config.json" \
             --repository "$REPOSITORY" --source-ref "$SOURCE_REF" \
             --resolved-sha "$TARGET_SHA" --applab-sha "$APPLAB_SHA" \
             --delivery-id "$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT" \

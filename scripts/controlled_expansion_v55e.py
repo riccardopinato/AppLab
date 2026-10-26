@@ -9,6 +9,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_POLICY = ROOT / "integration" / "orchestration" / "v55-expansion.json"
 WATCHLIST = ROOT / "watchlist.json"
+PILOT = ROOT / "integration" / "orchestration" / "v55-pilot.json"
+SUPPORTED_ENGINES = {"flutter", "native_android", "auto"}
 STAGES = ("PILOT_3", "EXPANDED_5", "ALL_COMPATIBLE")
 
 
@@ -24,6 +26,8 @@ def load_policy(path: Path = DEFAULT_POLICY) -> dict[str, Any]:
         raise ExpansionError("expansion policy cannot become verification authority")
     if not isinstance(payload.get("global_kill_switch"), bool):
         raise ExpansionError("global_kill_switch must be boolean")
+    if payload.get("active_stage") not in STAGES:
+        raise ExpansionError("active_stage must be a configured rollout stage")
     if payload.get("promotion_order") != list(STAGES):
         raise ExpansionError("promotion order must be PILOT_3 -> EXPANDED_5 -> ALL_COMPATIBLE")
     if payload.get("watcher_mode") != "PRIMARY_SCHEDULER_PLUS_RECONCILIATION":
@@ -102,6 +106,53 @@ def dispatch_allowed(policy: dict[str, Any], stage: str, repository: str) -> boo
     return repository in policy["stages"][stage]
 
 
+
+def live_control_config(repository: str, policy: dict[str, Any] | None = None) -> dict[str, Any]:
+    policy = load_policy() if policy is None else policy
+    stage = policy["active_stage"]
+    if stage not in STAGES:
+        raise ExpansionError("unknown active stage")
+    watchlist = json.loads(WATCHLIST.read_text(encoding="utf-8"))
+    watch_by_repo = {
+        item["repository"]: item
+        for item in watchlist["repositories"]
+        if item.get("enabled") is True and item.get("repository")
+    }
+    pilot = json.loads(PILOT.read_text(encoding="utf-8"))
+    pilot_by_repo = {item["repository"]: dict(item) for item in pilot["pilot_targets"]}
+    targets: list[dict[str, Any]] = []
+    for repo in policy["stages"][stage]:
+        row = watch_by_repo.get(repo)
+        if row is None:
+            raise ExpansionError(f"active-stage repository is not enabled in watchlist: {repo}")
+        engine = row.get("engine")
+        if engine not in SUPPORTED_ENGINES:
+            raise ExpansionError(f"unsupported live engine for {repo}")
+        if repo in pilot_by_repo:
+            target = pilot_by_repo[repo]
+        else:
+            ref = str(row.get("ref") or "main")
+            target = {
+                "repository": repo,
+                "source_ref": f"refs/heads/{ref}",
+                "event_types": ["push", "repository_dispatch", "workflow_dispatch"],
+                "run_maestro": bool(row.get("run_maestro", False)),
+                "history_key": "v55e-" + repo.split("/", 1)[-1].lower().replace("_", "-"),
+                "analysis_mode": "fast",
+                "engine": engine,
+            }
+        targets.append(target)
+    return {
+        "schema_version": 1,
+        "enabled": True,
+        "kill_switch": not dispatch_allowed(policy, stage, repository),
+        "rollout": "MULTI_PROJECT_PILOT_SET",
+        "max_live_operations_per_event": 1,
+        "ledger_authority": "NON_AUTHORITATIVE_PILOT_CONTINUITY",
+        "pilot_targets": targets,
+    }
+
+
 def self_test() -> dict[str, Any]:
     policy = load_policy()
     compatible = enabled_watchlist_repositories()
@@ -147,6 +198,16 @@ def self_test() -> dict[str, Any]:
     killed["global_kill_switch"] = True
     assert dispatch_allowed(killed, "PILOT_3", sample) is False
 
+    live = live_control_config(sample)
+    assert live["kill_switch"] is False
+    assert [item["repository"] for item in live["pilot_targets"]] == policy["stages"][policy["active_stage"]]
+    live_killed = json.loads(json.dumps(policy))
+    live_killed["repository_kill_switches"][sample] = True
+    assert live_control_config(sample, live_killed)["kill_switch"] is True
+    live_global = json.loads(json.dumps(policy))
+    live_global["global_kill_switch"] = True
+    assert live_control_config(sample, live_global)["kill_switch"] is True
+
     return {
         "schema_version": 1,
         "record_type": "APPLAB_V55E_CONTROLLED_EXPANSION_PROOF",
@@ -154,6 +215,7 @@ def self_test() -> dict[str, Any]:
         "stage_sizes": {stage: len(policy["stages"][stage]) for stage in STAGES},
         "all_compatible_matches_enabled_watchlist": True,
         "promotion_is_evidence_gated": True,
+        "live_admission_materialized": True,
         "global_kill_switch_proven": True,
         "per_repository_kill_switch_proven": True,
         "watcher_mode": policy["watcher_mode"],
@@ -171,11 +233,22 @@ def self_test() -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="AppLab v5.5E controlled expansion proof")
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--materialize-live-config", type=Path)
+    parser.add_argument("--repository")
     args = parser.parse_args()
-    if not args.self_test:
-        parser.error("--self-test is required")
-    print(json.dumps(self_test(), indent=2, sort_keys=True))
-    return 0
+    if args.self_test:
+        print(json.dumps(self_test(), indent=2, sort_keys=True))
+        return 0
+    if args.materialize_live_config is not None:
+        if not args.repository:
+            parser.error("--repository is required with --materialize-live-config")
+        payload = live_control_config(args.repository)
+        args.materialize_live_config.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return 0
+    parser.error("--self-test or --materialize-live-config is required")
 
 
 if __name__ == "__main__":

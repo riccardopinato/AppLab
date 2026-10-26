@@ -19,6 +19,7 @@ def main() -> int:
     assert proof["stage_sizes"]["ALL_COMPATIBLE"] >= 5
     assert proof["all_compatible_matches_enabled_watchlist"] is True
     assert proof["promotion_is_evidence_gated"] is True
+    assert proof["live_admission_materialized"] is True
     assert proof["global_kill_switch_proven"] is True
     assert proof["per_repository_kill_switch_proven"] is True
     assert proof["watcher_mode"] == "PRIMARY_SCHEDULER_PLUS_RECONCILIATION"
@@ -39,6 +40,17 @@ def main() -> int:
     missing = dict(evidence)
     missing.pop(policy["stages"]["ALL_COMPATIBLE"][-1])
     assert mod.evaluate_promotion(policy, "EXPANDED_5", missing)["decision"] == "HOLD"
+
+    sample = policy["stages"][policy["active_stage"]][0]
+    live = mod.live_control_config(sample)
+    assert live["kill_switch"] is False
+    assert [row["repository"] for row in live["pilot_targets"]] == policy["stages"][policy["active_stage"]]
+    killed = json.loads(json.dumps(policy))
+    killed["repository_kill_switches"][sample] = True
+    assert mod.live_control_config(sample, killed)["kill_switch"] is True
+    global_killed = json.loads(json.dumps(policy))
+    global_killed["global_kill_switch"] = True
+    assert mod.live_control_config(sample, global_killed)["kill_switch"] is True
 
     print(json.dumps(proof, sort_keys=True))
     print("v5.5E controlled expansion contract PASS")
