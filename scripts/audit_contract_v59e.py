@@ -86,6 +86,11 @@ def main() -> int:
         "review timeout must anchor to trusted review/watchdog activity",
     )
     require(
+        "github.paginated_list(" in review_reconcile
+        and "max_pages=100" in review_reconcile,
+        "review watchdog must evaluate complete bounded PR comment history",
+    )
+    require(
         "actions: write" in supersession_workflow,
         "supersession watchdog needs bounded Actions cancellation authority",
     )
