@@ -22,6 +22,7 @@ def main() -> int:
     review_support = (ROOT / "scripts/external_review_support_v59e.py").read_text(encoding="utf-8")
     review_config = json.loads((ROOT / "config/external-review-watchdog.json").read_text(encoding="utf-8"))
     supersession_policy = (ROOT / "scripts/supersession_watchdog_v59e.py").read_text(encoding="utf-8")
+    supersession_support = (ROOT / "scripts/supersession_support_v59e.py").read_text(encoding="utf-8")
     warm_policy = (ROOT / "scripts/warm_runtime_route_v59e.py").read_text(encoding="utf-8")
     warm_config = json.loads((ROOT / "config/warm-runtime-production.json").read_text(encoding="utf-8"))
     supersession_config = json.loads((ROOT / "config/supersession-watchdog.json").read_text(encoding="utf-8"))
@@ -75,12 +76,13 @@ def main() -> int:
     require("Production Certification" in protected, "certification must be protected")
     require(not protected & cancellable, "protected workflow cannot be cancellable")
     require(
-        'status == "ahead"' in supersession_policy
+        'status == "ahead"' in supersession_support
         and '"ancestry_required": True' in supersession_policy
         and '"cross_repository_cancellation": False' in supersession_policy
-        and '"pull_request"' in supersession_policy
-        and "head_repository" in supersession_policy
-        and "pr_identity" in supersession_policy,
+        and '"pull_request"' in supersession_support
+        and "head_repository" in supersession_support
+        and "pr_identity" in supersession_support
+        and "fetch_workflow_runs" in supersession_policy,
         "supersession requires proven descendant PR/source-repository lineage",
     )
     require(
