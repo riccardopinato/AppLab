@@ -29,6 +29,7 @@ LIMITS = {
     "scripts/journey_runtime_support.py": 300,
     "scripts/journey_sharding.py": 300,
     "scripts/journey_sharding_admission.py": 180,
+    "scripts/build_once_promotion_v59d.py": 230,
     "scripts/journey_shard_runtime.py": 180,
     "scripts/journey_shard_aggregate.py": 220,
     "scripts/finalize_journey_shard_result.py": 280,
