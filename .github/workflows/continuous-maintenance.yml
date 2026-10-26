@@ -79,6 +79,24 @@ jobs:
             cat .applab-maintenance/runtime-stability.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Build delta and heuristic advisory evidence
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -f .applab-history/history.jsonl ]]; then
+            python scripts/delta_calibration.py \
+              --history-file .applab-history/history.jsonl \
+              --output-json .applab-maintenance/delta-calibration.json \
+              --output-md .applab-maintenance/delta-calibration.md
+            python scripts/delta_execution_experiment_v56c.py \
+              --calibration .applab-maintenance/delta-calibration.json \
+              --output .applab-maintenance/delta-experiment.json
+            python scripts/heuristic_calibration_v56d.py \
+              --history-file .applab-history/history.jsonl \
+              --output .applab-maintenance/heuristic-calibration.json
+          fi
+
       - name: Save maintenance queue
         if: always()
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -91,8 +109,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-continuous-maintenance-${{ github.run_id }}
-          path: |
-            .applab-maintenance/maintenance-queue.json
-            .applab-maintenance/maintenance-queue.md
+          path: .applab-maintenance/
           if-no-files-found: error
           retention-days: 14
