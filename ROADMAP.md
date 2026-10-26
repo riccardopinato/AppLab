@@ -2,7 +2,9 @@
 
 Current production baseline: **v5.6 — Evidence-Efficient Reliability & Physical Proof**
 
-Status: **v5.6A–E completed and merged; verification/certification authority boundaries preserved.**
+Active next program: **v5.7 — Factory Throughput Acceleration**
+
+Status: **v5.6A–E completed and merged; v5.7 implementation active with downstream promotion gates preserved.**
 
 ## Completed — v5.5 Multi-Project Event-Driven Rollout
 
