@@ -13,11 +13,15 @@ def build_package(triage: dict[str, Any], fix_plan: dict[str, Any]) -> dict[str,
     classification = str(fix_plan.get("classification") or triage.get("classification") or "UNKNOWN_FAILURE")
     surfaces = list((fix_plan.get("scope") or {}).get("candidate_surfaces") or [])
     criteria = [str(x) for x in fix_plan.get("acceptance_criteria", []) if str(x)]
+    diagnostics = [str(x) for x in triage.get("root_cause_hypotheses", []) if str(x)]
+    failed_labs = [str(x) for x in triage.get("failed_labs", []) if str(x)]
     state = str(fix_plan.get("state", "INVESTIGATION_REQUIRED"))
 
     title = f"Fix: {classification.lower().replace('_', ' ')}"
     body_sections = {
         "scope": surfaces or ["Repository discovery required before proposing file changes."],
+        "diagnostics": diagnostics or ["No concrete diagnostic retained; investigate before edit."],
+        "failed_labs": failed_labs,
         "acceptance_criteria": criteria,
         "rollback": [
             str((fix_plan.get("rollback") or {}).get("strategy", "revert bounded fix delta"))
@@ -61,6 +65,8 @@ def self_test() -> None:
         "repository": "owner/app",
         "resolved_sha": "b" * 40,
         "classification": "APP_RUNTIME_FAILURE",
+        "root_cause_hypotheses": ["network request fails after reconnect"],
+        "failed_labs": ["network"],
     }
     fix = {
         "repository": "owner/app",
@@ -75,6 +81,8 @@ def self_test() -> None:
     assert pkg["state"] == "READY_FOR_AGENT"
     assert pkg["guardrails"]["can_create_pr"] is False
     assert pkg["agent_instructions"]["require_exact_head_green_before_merge"] is True
+    assert pkg["body_sections"]["diagnostics"] == ["network request fails after reconnect"]
+    assert pkg["body_sections"]["failed_labs"] == ["network"]
 
     investigating = build_package(
         {"classification": "UNKNOWN_FAILURE"},
