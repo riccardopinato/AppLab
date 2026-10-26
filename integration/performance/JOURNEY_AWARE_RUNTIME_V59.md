@@ -1,6 +1,6 @@
 # AppLab v5.9 — Journey-Aware Runtime
 
-Status: **v5.9A IMPLEMENTED / PLANNING ONLY / COVERAGE REDUCTION DISABLED**
+Status: **v5.9A MERGED / v5.9B IMPLEMENTED FOR EXACT-HEAD VALIDATION**
 
 ## Goal
 
@@ -80,6 +80,36 @@ match preflight selection, and the selection participates in execution identity.
 
 v5.9B is the first stage allowed to execute journeys atomically, and only after
 its own fallback/retry contract and exact-head validation.
+
+## v5.9B atomic execution
+
+v5.9B introduces a trusted runtime consumer for the v5.9A plan.
+
+Production-selective execution is **not** enabled by target metadata alone.
+The repository must also be present in the trusted AppLab file
+`config/journey-runtime-pilots.json`. The first admitted pilot is
+`riccardopinato/Agenda-per-Anna`.
+
+For an admitted FAST run, atomic execution requires all of the following:
+
+1. `selected_journeys` is non-empty and bounded;
+2. `journey_selection.enforcement_eligible=true`;
+3. `journey_selection.unmatched_paths` is empty;
+4. every selected journey exists in the validated target catalog;
+5. every flow remains confined to the packaged target-evidence root.
+
+For FULL/CERTIFICATION, the selected set must equal the complete declared
+catalog. Otherwise AppLab falls back to the legacy primary flow.
+
+Each selected journey gets its own evidence directory and attempt history.
+Infrastructure failures such as device-offline / transport / system-server
+restarts may retry **that journey only**, up to the bounded retry limit.
+Functional Maestro failures are not retried.
+
+The durable record is `journey-runtime.json`. It records selected journeys,
+per-journey attempts, transient classification, duration and whether selective
+coverage was actually enforced. `LEGACY_FALLBACK` always records
+`coverage_reduction_enabled=false`.
 
 ## Expected Anna's Diary pilot
 

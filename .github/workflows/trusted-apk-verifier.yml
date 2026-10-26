@@ -366,6 +366,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         env:
           APPLAB_APK_FILE: ${{ steps.contract.outputs.apk_file }}
+          APPLAB_REPOSITORY: ${{ inputs.repository }}
           APPLAB_RUN_MAESTRO: ${{ inputs.run_maestro }}
           APPLAB_MAESTRO_FLOW: ${{ steps.contract.outputs.maestro_flow }}
           APPLAB_ANDROID_PREPARE_COMMAND: ${{ inputs.android_prepare_command }}

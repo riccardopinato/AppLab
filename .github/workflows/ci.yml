@@ -45,6 +45,8 @@ jobs:
             scripts/storage_lab.py \
             scripts/smart_test_plan.py \
             scripts/journey_planner.py \
+            scripts/journey_runtime.py \
+            scripts/journey_runtime_support.py \
             scripts/planner_feedback.py \
             scripts/planner_feedback_contract.py \
             scripts/evidence_contract_registry.py \
@@ -158,6 +160,7 @@ jobs:
             tests/contracts/planning_feedback_pipeline_test.py \
             tests/contracts/evidence_schema_registry_test.py \
             tests/contracts/delta_calibration_test.py \
+            tests/contracts/journey_runtime_v59b_test.py \
             tests/contracts/workflow_structure_test.py
           python scripts/dismiss_foreign_anr.py --self-test
           python scripts/interaction_crawler.py --self-test
@@ -172,6 +175,8 @@ jobs:
           python scripts/storage_lab.py --self-test
           python scripts/smart_test_plan.py --self-test
           python scripts/journey_planner.py
+          python scripts/journey_runtime.py --self-test
+          python tests/contracts/journey_runtime_v59b_test.py
           python scripts/planner_feedback.py --self-test
           python scripts/evidence_contract_registry.py self-test
           bash scripts/restore_planner_feedback.sh --self-test
