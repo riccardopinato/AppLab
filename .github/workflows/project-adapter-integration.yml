@@ -83,7 +83,7 @@ jobs:
           camper = json.loads((tmp / "camper-profile.json").read_text())
           battery = json.loads((tmp / "battery-profile.json").read_text())
 
-          assert camper["adapter_version"] == "4.3.0"
+          assert camper["adapter_version"] == "4.4.0"
           assert camper["engine"] == "flutter"
           assert camper["resolved_sha"] == "6c866bf8884b78703401db8ce08dbcf97d3f893c"
           assert camper["package_id"] == "com.camperboss.camperboss"
@@ -92,7 +92,7 @@ jobs:
           assert camper["release_artifact_pattern"]
           assert len(camper["profile_fingerprint"]) == 64
 
-          assert battery["adapter_version"] == "4.3.0"
+          assert battery["adapter_version"] == "4.4.0"
           assert battery["engine"] == "flutter"
           assert battery["resolved_sha"] == "7d3e0b8257628dea65cedcf174357f9bc06d21bc"
           assert battery["package_id"] == "com.riccardopinato.batteryguard"
@@ -101,5 +101,5 @@ jobs:
           assert battery["release_artifact_pattern"]
           assert len(battery["profile_fingerprint"]) == 64
 
-          print("AppLab v4.3 real-project adapter integration PASS")
+          print("AppLab v4.4 real-project adapter integration PASS")
           PY
