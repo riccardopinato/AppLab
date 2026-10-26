@@ -43,7 +43,8 @@
       "run_flutter_tests": true,
       "run_maestro": true,
       "maestro_flow": "",
-      "engine": "flutter"
+      "engine": "flutter",
+      "reuse_pilot": true
     },
     {
       "key": "watch-notes-ecosistema",
