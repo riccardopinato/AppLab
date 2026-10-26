@@ -83,6 +83,7 @@ jobs:
             scripts/fix_candidate_planner_v58b.py \
             scripts/proposal_pr_package_v58c.py \
             scripts/factory_feedback_packager_v58d.py \
+            scripts/self_repo_pilot_v58e.py \
             scripts/workflow_contract_test.py \
             scripts/upgrade_lab.py \
             scripts/prepare_upgrade_baseline.py \
@@ -215,6 +216,7 @@ jobs:
           python scripts/fix_candidate_planner_v58b.py --self-test
           python scripts/proposal_pr_package_v58c.py --self-test
           python scripts/factory_feedback_packager_v58d.py --self-test
+          python scripts/self_repo_pilot_v58e.py --self-test
           python tests/contracts/multi_project_event_v55a_test.py
           python scripts/workflow_contract_test.py
           python scripts/audit_contract_test.py
