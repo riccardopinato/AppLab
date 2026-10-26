@@ -244,10 +244,24 @@ jobs:
           packages: ''
 
       - name: Restore clean AVD snapshot
+        id: shard_avd_cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.android/avd
           key: applab-clean-avd-schema1-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
+
+      - name: Record v5.9E shard runtime route
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/journey-shard-report"
+          python .applab/scripts/warm_runtime_route_v59e.py \
+            --repository "${{ inputs.repository }}" \
+            --cache-hit "${{ steps.shard_avd_cache.outputs.cache-hit }}" \
+            --config "$GITHUB_WORKSPACE/.applab/config/warm-runtime-production.json" \
+            --api-level "${{ inputs.api_level }}" \
+            --emulator-profile "${{ inputs.emulator_profile }}" \
+            --output "$GITHUB_WORKSPACE/journey-shard-report/runtime-route-v59e.json"
 
       - name: Ensure Android system image
         shell: bash
@@ -334,6 +348,20 @@ jobs:
         with:
           path: ~/.android/avd
           key: applab-clean-avd-schema1-google_apis-api${{ inputs.api_level }}-x86_64-${{ inputs.emulator_profile }}
+
+      - name: Record v5.9E primary runtime route
+        id: runtime_route
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/warm_runtime_route_v59e.py \
+            --repository "${{ inputs.repository }}" \
+            --cache-hit "${{ steps.avd_cache.outputs.cache-hit }}" \
+            --config "$GITHUB_WORKSPACE/.applab/config/warm-runtime-production.json" \
+            --api-level "${{ inputs.api_level }}" \
+            --emulator-profile "${{ inputs.emulator_profile }}" \
+            --output "$GITHUB_WORKSPACE/applab-report/runtime-route-v59e.json" \
+            --github-output "$GITHUB_OUTPUT"
 
       - name: Ensure Android system image with retry
         shell: bash
