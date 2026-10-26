@@ -185,7 +185,7 @@ def execute(args: argparse.Namespace) -> int:
     plan = read_json(Path(args.plan).resolve())
     started = time.monotonic()
     try:
-        requested_journeys = runtime_support.parse_journey_ids_json(args.journey_ids_json)
+        requested_journeys = runtime_support.parse_journey_ids_json(getattr(args, "journey_ids_json", ""))
         journeys = selected_catalog(
             target_root=target_root,
             plan=plan,
