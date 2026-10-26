@@ -118,6 +118,11 @@ next independent roadmap step.
   enable exact-head verification cache; detect forced-FULL workflows and
   mutable build hooks without weakening certification or physical/store
   boundaries. Anna's Diary is the first measured pilot.
+- [x] **v5.8R2 Default-Branch AVD Cache Seed:** provide a reusable trusted
+  workflow that seeds the pristine Android emulator cache from each caller's
+  default branch so subsequent PR branches can restore it. The seed executes
+  no target application code and uses the exact same AVD cache key as trusted
+  verification.
 - [ ] **v5.8A Autonomous Failure Triage:** failure evidence -> deterministic
   classification, bounded root-cause hypotheses, likely components and required
   regression evidence. Proposal only.
