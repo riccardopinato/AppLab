@@ -89,6 +89,7 @@ jobs:
             scripts/verification_reuse_promotion_v57e.py \
             scripts/build_once_promotion_v59d.py \
             scripts/external_review_watchdog_v59e.py \
+            scripts/warm_runtime_route_v59e.py \
             scripts/factory_runtime_acceleration_v58r.py \
             scripts/autonomous_failure_triage_v58a.py \
             scripts/fix_candidate_planner_v58b.py \
@@ -236,6 +237,7 @@ jobs:
           python scripts/build_once_promotion_v59d.py --self-test
           python scripts/external_review_watchdog_v59e.py --self-test
           python scripts/build_once_promotion_v59d.py --trusted-root . --require-ready
+          python scripts/warm_runtime_route_v59e.py --self-test
           python scripts/factory_runtime_acceleration_v58r.py --self-test
           python scripts/autonomous_failure_triage_v58a.py --self-test
           python scripts/fix_candidate_planner_v58b.py --self-test
