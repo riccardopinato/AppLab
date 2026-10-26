@@ -27,8 +27,11 @@ def main() -> int:
     require(
         "Record v5.9E primary runtime route" in trusted
         and "Record v5.9E shard runtime route" in trusted
-        and "runtime-route-v59e.json" in trusted,
-        "trusted verifier must publish v5.9E warm route evidence",
+        and "runtime-route-v59e.json" in trusted
+        and "Reset primary AVD for cold fallback" in trusted
+        and "Reset shard AVD for cold fallback" in trusted
+        and "warm_runtime_admitted != 'true'" in trusted,
+        "trusted verifier must route AVD reuse, not only label it",
     )
     require(
         '"github_actions_fallback": True' in warm_policy
