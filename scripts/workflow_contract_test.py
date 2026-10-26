@@ -27,6 +27,12 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "${{ inputs.baseline_sha }}",
         "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}",
         '--trusted-root "$GITHUB_WORKSPACE/.applab"',
+        "APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}",
+        "APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}",
+        '--prepare-command "$APPLAB_PREPARE_COMMAND"',
+        '--post-command "$APPLAB_POST_PUB_GET_COMMAND"',
+        '--build-input "prepare:$APPLAB_PREPARE_COMMAND"',
+        '--build-input "post-pub-get:$APPLAB_POST_PUB_GET_COMMAND"',
     ),
     ".github/workflows/external-native-android-runner.yml": (
         "source_ref:",
@@ -179,6 +185,10 @@ REQUIRED: dict[str, tuple[str, ...]] = {
 FORBIDDEN: dict[str, tuple[str, ...]] = {
     ".github/workflows/external-project-runner.yml": (
         "Cache failed resolved commit",
+        '--prepare-command "${{ inputs.prepare_command }}"',
+        '--post-command "${{ inputs.post_pub_get_command }}"',
+        '--build-input "prepare:${{ inputs.prepare_command }}"',
+        '--build-input "post-pub-get:${{ inputs.post_pub_get_command }}"',
     ),
     ".github/workflows/external-native-android-runner.yml": (
         "Cache failed resolved commit",
