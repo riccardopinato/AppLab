@@ -12,6 +12,8 @@ RUN_MAESTRO="${RUN_MAESTRO:-false}"
 APPLAB_VERSION="${APPLAB_VERSION:-1.0.0}"
 ANALYSIS_PLAN_JSON="${APPLAB_ANALYSIS_PLAN_JSON:-}"
 ANALYSIS_MODE="${APPLAB_ANALYSIS_MODE:-full}"
+REPOSITORY="${APPLAB_REPOSITORY:-}"
+TRUSTED_ROOT="${APPLAB_TRUSTED_ROOT:-}"
 export APPLAB_EFFECTIVE_ANALYSIS_MODE="$ANALYSIS_MODE"
 
 should_run_lab() {
@@ -113,6 +115,7 @@ payload = {
         "interaction_crawl_summary": "interaction-crawl.md",
         "journey_crawl_json": "journey-crawl.json",
         "journey_crawl_summary": "journey-crawl.md",
+        "journey_runtime_json": "journey-runtime.json",
         "system_lab_json": "system-lab.json",
         "system_lab_summary": "system-lab.md",
         "network_lab_json": "network-lab.json",
@@ -405,6 +408,19 @@ if [[ -n "$MAESTRO_FLOW" ]] || is_true "$RUN_MAESTRO"; then
 
   [[ -f "$MAESTRO_FLOW" ]] || fail "MAESTRO_FLOW does not exist: $MAESTRO_FLOW"
 
+  JOURNEY_RUNTIME_STATUS=3
+  if [[ -n "$TARGET_ROOT" && -n "$TRUSTED_ROOT" && -n "$REPOSITORY" && -n "$ANALYSIS_PLAN_JSON" && -s "$ANALYSIS_PLAN_JSON" ]]; then
+    set +e
+    python3 "$(dirname "$0")/journey_runtime.py"       --target-root "$TARGET_ROOT"       --trusted-root "$TRUSTED_ROOT"       --plan "$ANALYSIS_PLAN_JSON"       --repository "$REPOSITORY"       --package-id "$PACKAGE_ID"       --report-dir "$REPORT_DIR"
+    JOURNEY_RUNTIME_STATUS="$?"
+    set -e
+  fi
+
+  if [[ "$JOURNEY_RUNTIME_STATUS" -eq 0 ]]; then
+    MAESTRO_RESULT="PASS"
+    log "Atomic Journey Runtime: PASS"
+  elif [[ "$JOURNEY_RUNTIME_STATUS" -eq 3 ]]; then
+    log "Atomic Journey Runtime: LEGACY_FALLBACK"
   # Run emulator-dialog handling and app assertions in one Maestro process.
   # Starting Maestro twice can race Android's package service on hosted AVDs.
   MAESTRO_RUNTIME_DIR="$REPORT_DIR/maestro-runtime"
@@ -495,6 +511,10 @@ EOF
   if [[ "$MAESTRO_RESULT" != "PASS" ]]; then
     capture_evidence "maestro-failure"
     fail "Maestro flow failed after transient-error retries."
+  fi
+  else
+    capture_evidence "journey-runtime-failure"
+    fail "Atomic Journey Runtime failed."
   fi
 
   sleep 2
