@@ -609,7 +609,7 @@ def check_execution_acceleration_contract() -> None:
             and "github.event_name == 'workflow_dispatch'" in consumer,
             "runtime gate must provide a workflow_dispatch fixture fallback",
         )
-    for required_workflow in (live, emulator, autonomous):
+    for required_workflow in (live, autonomous):
         require(
             "pull_request:\n    paths:" not in required_workflow
             and "name: Required-check scope" in required_workflow
@@ -617,6 +617,16 @@ def check_execution_acceleration_contract() -> None:
             and "needs.scope.outputs.run == 'true'" in required_workflow,
             "required status-check workflows must always instantiate on pull requests and scope expensive work at job level",
         )
+    require(
+        "pull_request:\n    paths:" not in emulator
+        and "id: scope" in emulator
+        and "Decide whether trusted runtime work is applicable" in emulator
+        and "Plan v6.0G self-test runtime depth" in emulator
+        and "steps.scope.outputs.run == 'true'" in emulator
+        and "needs: scope" not in emulator
+        and "\n  android-runtime:\n    runs-on: ubuntu-latest" in emulator,
+        "Emulator Self Test must preserve the android-runtime required context while gating expensive work inside the same job",
+    )
     require(
         "inputs.flutter_version != ''" in flutter_runner,
         "floating Flutter channels must not reuse content-addressed build contracts",
