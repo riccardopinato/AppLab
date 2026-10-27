@@ -37,7 +37,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 
 | Step | Maxi-step | Outcome | Priority |
 |---|---|---|---:|
-| **v6.0A** | Unified Agent Work Graph | One durable `WorkItem -> Decision -> Action -> Attempt -> Evidence -> Verdict` model | P0 |
+| **v6.0A** | Unified Agent Work Graph | **Implementation candidate:** durable `WorkItem -> Decision -> Action -> Attempt -> Evidence -> Verdict` model; exact-head validation pending | P0 |
 | **v6.0B** | Causal Repo Investigator | Deterministic candidate-file/root-cause ranking from diff, traces, logs, graph and history | P0 |
 | **v6.0C** | Bounded Autonomous Fix Worker | Code edits only on isolated branches/workspaces inside a strict capability envelope | P0 |
 | **v6.0D** | Verify–Repair Loop | Bounded re-verification and at most N repair attempts with explicit terminal conditions | P0 |
