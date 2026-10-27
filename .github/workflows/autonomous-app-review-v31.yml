@@ -375,6 +375,7 @@ jobs:
             --trusted-runtime-dir "$GITHUB_WORKSPACE/trusted-runtime" \
             --repository "${{ needs.resolve.outputs.repository }}" \
             --resolved-sha "${{ needs.resolve.outputs.resolved_sha }}" \
+            --applab-sha "${{ job.workflow_sha }}" \
             --max-files "${MAX_FILES:-3500}" \
             --market-evidence-path "$MARKET_EVIDENCE_PATH" \
             --plan-output "$GITHUB_WORKSPACE/review-evidence-dag-v60g.json" \
@@ -415,6 +416,7 @@ jobs:
             --cache-dir "$GITHUB_WORKSPACE/.applab-review-fanout-cache" \
             --repository "${{ needs.resolve.outputs.repository }}" \
             --resolved-sha "${{ needs.resolve.outputs.resolved_sha }}" \
+            --applab-sha "${{ job.workflow_sha }}" \
             --max-files "${MAX_FILES:-3500}" \
             --market-evidence-path "$MARKET_EVIDENCE_PATH" \
             --report-output "$GITHUB_WORKSPACE/review-evidence-fanout-v60g.json" \
