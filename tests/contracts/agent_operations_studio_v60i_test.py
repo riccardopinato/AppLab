@@ -49,9 +49,9 @@ def main() -> int:
         },
         {
             "record_type": "VERIFY_REPAIR_LOOP_DECISION_V60D",
-            "work_item_id": "wrk_a",
+            "root_work_item_id": "wrk_a",
+            "root_resolved_sha": "a" * 40,
             "repository": "owner/app",
-            "resolved_sha": "a" * 40,
             "state": "STOPPED",
             "reason_code": "BUDGET_EXHAUSTED",
             "next_action": "NONE",
