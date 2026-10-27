@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import re
+import sys
 import shutil
 import subprocess
 import threading
@@ -173,6 +175,25 @@ class LiveRuntimeManager:
             f"Android emulator did not finish booting within {self.boot_timeout}s. {last_error}".strip()
         )
 
+    def _display_size(self) -> tuple[int, int] | None:
+        """Return the active Android display size reported by wm size."""
+        try:
+            result = self._adb("shell", "wm", "size", timeout=12)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if result.returncode != 0:
+            return None
+
+        # Prefer an explicit override when Android reports one; otherwise use
+        # the physical display. The final matching line is therefore canonical.
+        matches = re.findall(r"(?:Physical|Override) size:\s*(\d+)x(\d+)", result.stdout)
+        if not matches:
+            return None
+        width, height = (int(value) for value in matches[-1])
+        if width <= 0 or height <= 0:
+            return None
+        return width, height
+
     def _gateway_alive(self) -> bool:
         try:
             with urllib.request.urlopen(
@@ -207,16 +228,23 @@ class LiveRuntimeManager:
             encoding="utf-8",
         )
         self._gateway_log_handle = self.gateway_log.open("a", encoding="utf-8")
+        gateway_env = dict(os.environ)
+        display_size = self._display_size()
+        if display_size is not None:
+            gateway_env["APPLAB_EMULATOR_DISPLAY_WIDTH"] = str(display_size[0])
+            gateway_env["APPLAB_EMULATOR_DISPLAY_HEIGHT"] = str(display_size[1])
         self._gateway = subprocess.Popen(
             [
-                "videobridge-gateway",
+                sys.executable,
+                "-m",
+                "app.gateway_wrapper",
                 f"--port={self.gateway_port}",
                 f"--discovery_file={self.discovery_file}",
             ],
             stdout=self._gateway_log_handle,
             stderr=subprocess.STDOUT,
             text=True,
-            env=dict(os.environ),
+            env=gateway_env,
         )
 
         deadline = time.monotonic() + 30

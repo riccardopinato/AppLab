@@ -75,6 +75,7 @@ jobs:
             scripts/review_evidence_dag_v60g.py \
             scripts/agent_memory_v60f.py \
             scripts/sensor_mesh_v60h.py \
+            scripts/agent_operations_studio_v60i.py \
             scripts/event_gateway_v54c.py \
             scripts/conductor_shadow_v54d.py \
             scripts/durable_queue_v54e.py \
@@ -235,6 +236,8 @@ jobs:
           python tests/contracts/agent_memory_v60f_test.py
           python scripts/sensor_mesh_v60h.py --self-test
           python tests/contracts/sensor_mesh_v60h_test.py
+          python scripts/agent_operations_studio_v60i.py --self-test
+          python tests/contracts/agent_operations_studio_v60i_test.py
           python scripts/event_gateway_v54c.py --self-test
           python scripts/conductor_shadow_v54d.py --self-test
           python scripts/durable_queue_v54e.py --self-test

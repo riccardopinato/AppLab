@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import AgentOperationsPanel, { type AgentOperationsSnapshot } from "./AgentOperationsPanel";
 
 type ReleaseMeta = {
   artifact_url?: string;
@@ -184,6 +185,7 @@ type Snapshot = {
   };
   projects: ProjectRow[];
   recent: RecentRow[];
+  agent_operations?: AgentOperationsSnapshot;
 };
 
 type StudioProject = {
@@ -804,6 +806,8 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
       {studioError ? (
         <p className="runtime-error">Studio unavailable: {studioError}</p>
       ) : null}
+
+      <AgentOperationsPanel snapshot={snapshot?.agent_operations} />
 
       <div className="studio-shell">
         <div className="studio-head">

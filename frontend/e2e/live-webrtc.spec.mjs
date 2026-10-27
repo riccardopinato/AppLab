@@ -109,6 +109,14 @@ async function attachFrameRecoveryDiagnostics({
   });
 }
 
+async function primeLiveDisplay(request) {
+  const response = await request.post(`${BACKEND}/api/app/launch`, {
+    data: { package_id: PACKAGE_ID },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+
 async function waitForDecodedFrame(video) {
   let last = await videoDiagnostics(video);
   await expect
@@ -136,6 +144,71 @@ test("streams real Android video and sends real WebRTC input", async ({
     if (message.type() === "error") browserErrors.push(message.text());
   });
 
+  await page.addInitScript(() => {
+    window.__applabRtcInputProbe = {
+      events: [],
+      channels: {},
+    };
+
+    const originalCreateDataChannel = RTCPeerConnection.prototype.createDataChannel;
+    RTCPeerConnection.prototype.createDataChannel = function (label, options) {
+      const channel = originalCreateDataChannel.call(this, label, options);
+      window.__applabRtcInputProbe.channels[label] = channel;
+      window.__applabRtcInputProbe.events.push({
+        type: "create",
+        label,
+        readyState: channel.readyState,
+        at: Date.now(),
+      });
+      channel.addEventListener("open", () => {
+        window.__applabRtcInputProbe.events.push({
+          type: "open",
+          label: channel.label,
+          readyState: channel.readyState,
+          at: Date.now(),
+        });
+      });
+      channel.addEventListener("close", () => {
+        window.__applabRtcInputProbe.events.push({
+          type: "close",
+          label: channel.label,
+          readyState: channel.readyState,
+          at: Date.now(),
+        });
+      });
+      channel.addEventListener("error", () => {
+        window.__applabRtcInputProbe.events.push({
+          type: "error",
+          label: channel.label,
+          readyState: channel.readyState,
+          at: Date.now(),
+        });
+      });
+      return channel;
+    };
+
+    const originalSend = RTCDataChannel.prototype.send;
+    RTCDataChannel.prototype.send = function (data) {
+      const byteLength =
+        typeof data?.byteLength === "number"
+          ? data.byteLength
+          : typeof data?.size === "number"
+            ? data.size
+            : typeof data?.length === "number"
+              ? data.length
+              : null;
+      window.__applabRtcInputProbe.events.push({
+        type: "send",
+        label: this.label,
+        readyState: this.readyState,
+        byteLength,
+        bufferedAmount: this.bufferedAmount,
+        at: Date.now(),
+      });
+      return originalSend.call(this, data);
+    };
+  });
+
   await page.goto(FRONTEND, { waitUntil: "domcontentloaded" });
 
   let liveView;
@@ -150,6 +223,12 @@ test("streams real Android video and sends real WebRTC input", async ({
 
     video = liveView.locator("video");
     await expect(video).toBeVisible();
+
+    // The emulator display can be static before the WebRTC session exists.
+    // Relaunch the already-installed fixture after signaling is connected so
+    // the real display producer emits fresh pixels into the active media path.
+    await primeLiveDisplay(request);
+    await page.waitForTimeout(300);
 
     try {
       first = await waitForDecodedFrame(video);
@@ -265,13 +344,26 @@ test("streams real Android video and sends real WebRTC input", async ({
 
   const bounds = nodeBounds(beforeXml, "RUN INTERACTION TEST");
   const handler = video.locator("..");
+  await handler.scrollIntoViewIfNeeded();
+  await expect(handler).toBeVisible();
   const handlerBox = await handler.boundingBox();
   if (!handlerBox) throw new Error("WebRTC input handler has no browser bounding box");
 
-  // Match the upstream event_handler.tsx scaling exactly. The handler status
-  // falls back to 1080x2424 when the gateway status omits hw.lcd dimensions.
-  const inputWidth = 1080;
-  const inputHeight = 2424;
+  // Use the same gateway display metadata consumed by upstream
+  // android-emulator-webrtc. Missing dimensions are a contract failure because
+  // a guessed fallback can silently misroute pointer input.
+  const gatewayStatus = await endpointDiagnostics(
+    request,
+    "http://127.0.0.1:8080/api/v1/emulator/status",
+  );
+  expect(gatewayStatus.ok).toBeTruthy();
+  const hardwareConfig =
+    gatewayStatus.body?.platformConfig || gatewayStatus.body?.hardwareConfig || {};
+  const inputWidth = Number(hardwareConfig["hw.lcd.width"]);
+  const inputHeight = Number(hardwareConfig["hw.lcd.height"]);
+  expect(Number.isFinite(inputWidth) && inputWidth > 0).toBeTruthy();
+  expect(Number.isFinite(inputHeight) && inputHeight > 0).toBeTruthy();
+
   const nativeX = (bounds.left + bounds.right) / 2;
   const nativeY = (bounds.top + bounds.bottom) / 2;
   const deviceRatio = inputWidth / inputHeight;
@@ -295,17 +387,114 @@ test("streams real Android video and sends real WebRTC input", async ({
   const browserY =
     handlerBox.y + offsetY + (nativeY / inputHeight) * renderedHeight;
 
-  await page.mouse.move(browserX, browserY);
-  await page.mouse.down({ button: "left" });
-  await page.waitForTimeout(80);
-  await page.mouse.up({ button: "left" });
+  const inputChannelState = await page.evaluate(() => {
+    const probe = window.__applabRtcInputProbe;
+    const channel = probe?.channels?.mouse;
+    return {
+      readyState: channel?.readyState || "missing",
+      bufferedAmount: channel?.bufferedAmount ?? null,
+      events: probe?.events || [],
+    };
+  });
+  await testInfo.attach("webrtc-input-channel-before-click.json", {
+    body: Buffer.from(JSON.stringify(inputChannelState, null, 2)),
+    contentType: "application/json",
+  });
 
-  await expect
-    .poll(async () => (await hierarchy(request)).includes("INTERACTION_OK"), {
-      timeout: 20_000,
-      message: "Android UI did not react to the WebRTC pointer input",
-    })
-    .toBe(true);
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const beforeAttempt = await endpointDiagnostics(
+      request,
+      `${BACKEND}/api/ui/hierarchy`,
+    );
+    const alreadyApplied =
+      beforeAttempt.ok &&
+      typeof beforeAttempt.body === "object" &&
+      String(beforeAttempt.body?.xml || "").includes("INTERACTION_OK");
+    if (alreadyApplied) break;
+
+    await page.mouse.move(browserX, browserY);
+    await page.mouse.down({ button: "left" });
+    await page.waitForTimeout(80);
+    await page.mouse.up({ button: "left" });
+
+    try {
+      await expect
+        .poll(async () => {
+          const snapshot = await endpointDiagnostics(
+            request,
+            `${BACKEND}/api/ui/hierarchy`,
+          );
+          return (
+            snapshot.ok &&
+            typeof snapshot.body === "object" &&
+            String(snapshot.body?.xml || "").includes("INTERACTION_OK")
+          );
+        }, {
+          timeout: 20_000,
+          message: "Android UI did not react to the WebRTC pointer input",
+        })
+        .toBe(true);
+      break;
+    } catch (error) {
+      const payload = {
+        attempt,
+        error: String(error),
+        native: { x: nativeX, y: nativeY, bounds },
+        browser: { x: browserX, y: browserY, handlerBox },
+        hierarchy: await endpointDiagnostics(
+          request,
+          `${BACKEND}/api/ui/hierarchy`,
+        ),
+        runtime: await endpointDiagnostics(request, `${BACKEND}/api/runtime`),
+        gateway: await endpointDiagnostics(
+          request,
+          "http://127.0.0.1:8080/api/v1/emulator/status",
+        ),
+        browserErrors: [...browserErrors],
+        inputChannel: await page.evaluate(() => {
+          const probe = window.__applabRtcInputProbe;
+          const channel = probe?.channels?.mouse;
+          return {
+            readyState: channel?.readyState || "missing",
+            bufferedAmount: channel?.bufferedAmount ?? null,
+            events: probe?.events || [],
+          };
+        }),
+      };
+      await testInfo.attach(`webrtc-pointer-recovery-attempt-${attempt}.json`, {
+        body: Buffer.from(JSON.stringify(payload, null, 2)),
+        contentType: "application/json",
+      });
+
+      if (attempt === 2) throw error;
+    }
+  }
+
+  const finalHierarchy = await endpointDiagnostics(
+    request,
+    `${BACKEND}/api/ui/hierarchy`,
+  );
+  expect(finalHierarchy.ok).toBeTruthy();
+  expect(
+    typeof finalHierarchy.body === "object" &&
+      String(finalHierarchy.body?.xml || "").includes("INTERACTION_OK"),
+  ).toBe(true);
+
+  const inputAfter = await page.evaluate(() => {
+    const probe = window.__applabRtcInputProbe;
+    const events = probe?.events || [];
+    return {
+      events,
+      mouseSendCount: events.filter(
+        (event) => event.type === "send" && event.label === "mouse",
+      ).length,
+    };
+  });
+  await testInfo.attach("webrtc-input-channel-after-click.json", {
+    body: Buffer.from(JSON.stringify(inputAfter, null, 2)),
+    contentType: "application/json",
+  });
+  expect(inputAfter.mouseSendCount).toBeGreaterThanOrEqual(2);
 
   const browserShot = testInfo.outputPath("browser-webrtc-connected.png");
   await page.screenshot({ path: browserShot, fullPage: true });

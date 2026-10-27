@@ -3,11 +3,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import delta_calibration
+import agent_operations_studio_v60i
+
+
+def resolve_agent_operations_path(explicit: str, history_file: Path) -> Path | None:
+    if explicit:
+        path = Path(explicit)
+        return path if path.is_file() else None
+    sibling = history_file.parent / "agent-operations.jsonl"
+    return sibling if sibling.is_file() else None
 
 
 def read_history(path: Path) -> list[dict[str, Any]]:
@@ -150,6 +160,7 @@ def adaptive_history_metrics(history: list[dict[str, Any]]) -> dict[str, Any]:
 def build_snapshot(
     watchlist: dict[str, Any],
     history: list[dict[str, Any]],
+    agent_operations_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     configured = {
         str(item.get("repository")): item
@@ -378,6 +389,9 @@ def build_snapshot(
         },
         "projects": projects,
         "recent": recent,
+        "agent_operations": agent_operations_studio_v60i.build_agent_operations(
+            agent_operations_records or []
+        ),
     }
 
 
@@ -516,6 +530,18 @@ def self_test() -> None:
     assert first["performance_lab"] == "PASS"
     assert first["analysis_mode"] == "fast"
     assert first["release"]["artifact_url"] == "https://example.test/artifact"
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        history_path = root / "history.jsonl"
+        history_path.write_text("", encoding="utf-8")
+        assert resolve_agent_operations_path("", history_path) is None
+        ledger = root / "agent-operations.jsonl"
+        ledger.write_text("{}\n", encoding="utf-8")
+        assert resolve_agent_operations_path("", history_path) == ledger
+        explicit = root / "explicit.jsonl"
+        explicit.write_text("{}\n", encoding="utf-8")
+        assert resolve_agent_operations_path(str(explicit), history_path) == explicit
+
     print("AppLab Control Center snapshot self-test PASS")
 
 
@@ -523,6 +549,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--watchlist")
     parser.add_argument("--history-file")
+    parser.add_argument("--agent-operations-file", default="")
     parser.add_argument("--output")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
@@ -534,7 +561,18 @@ def main() -> int:
         raise SystemExit("--watchlist, --history-file and --output are required")
 
     watchlist = json.loads(Path(args.watchlist).read_text(encoding="utf-8"))
-    snapshot = build_snapshot(watchlist, read_history(Path(args.history_file)))
+    history_path = Path(args.history_file)
+    agent_path = resolve_agent_operations_path(args.agent_operations_file, history_path)
+    agent_records = (
+        agent_operations_studio_v60i.read_jsonl(agent_path)
+        if agent_path is not None
+        else []
+    )
+    snapshot = build_snapshot(
+        watchlist,
+        read_history(history_path),
+        agent_records,
+    )
     Path(args.output).write_text(
         json.dumps(snapshot, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
