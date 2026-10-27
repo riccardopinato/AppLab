@@ -46,6 +46,8 @@ LIMITS = {
     "scripts/review_evidence_dag_v60g.py": 430,
     "scripts/agent_memory_v60f.py": 720,
     "scripts/sensor_mesh_v60h.py": 430,
+    "scripts/agent_operations_studio_v60i.py": 320,
+    "frontend/src/AgentOperationsPanel.tsx": 220,
     "scripts/warm_runtime_route_v59e.py": 190,
     "scripts/journey_shard_runtime.py": 180,
     "scripts/journey_shard_aggregate.py": 220,
