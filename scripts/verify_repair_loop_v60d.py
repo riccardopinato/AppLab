@@ -937,7 +937,6 @@ def _public_cli_projection(report: dict[str, Any]) -> dict[str, Any]:
         "reason_code": safe_reason,
     }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root-work-item", default="")
