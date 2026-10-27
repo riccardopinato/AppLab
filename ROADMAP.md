@@ -1,10 +1,10 @@
 # AppLab Roadmap
 
-Current main implementation baseline: **v6.0 Closed-Loop Agentic Engineering through v6.0I** (PR #185 merged as `426bbb57e1facad4160936d1590e438cb162ea4c`). The immutable pre-v6 performance comparison baseline remains v5.9.1 (`bd0e0b1ae0a615b96fb3f160d81a6845bc51963b`).
+v6.0 implementation closure baseline: **main `094256b85c206dd6090f708ab59aa3d33d784269`** after PR #188 (`92f56e5e170fffec08c52b42509924f237693304`) and PR #187 (`094256b85c206dd6090f708ab59aa3d33d784269`). The immutable pre-v6 performance comparison baseline remains v5.9.1 (`bd0e0b1ae0a615b96fb3f160d81a6845bc51963b`).
 
-Active program: **v6.0 Closed-Loop Agentic Engineering**. v5.7B/v5.7E downstream adoption and exact-artifact reuse promotion gates are closed with real evidence.
+Completed program: **v6.0 Closed-Loop Agentic Engineering**. Next planned program: **v6.1 Controlled Closed-Loop Productionization**. v5.7B/v5.7E downstream adoption and exact-artifact reuse promotion gates are closed with real evidence.
 
-Factory baseline for this roadmap refresh: `App-Factory-Core@ed6466e774a28e95f9f371cd56bbf7278428776a` (Master 26.6 / Golden Index 22).
+Factory baseline for this roadmap refresh: `App-Factory-Core@7b84e33df715cf2a48bda7c7495d0690819bff0f` (Master 26.6 / Golden Index 23).
 
 The governing direction is no longer “add more analyzers”. AppLab must close the bounded engineering loop while preserving the existing verification and certification authorities:
 
@@ -23,7 +23,7 @@ failure/evidence
 
 The canonical detailed design is `integration/roadmap/APPLAB_V6_CLOSED_LOOP_AGENTIC_ENGINEERING.md`.
 
-## Active — v5.9.1 Truth & Debt Closure
+## Completed — v5.9.1 Truth & Debt Closure
 
 Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documentation state forward.
 
@@ -35,7 +35,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 - [x] **v5.7E evidence closure:** real same-identity Anna rerun produced `cache_hit=true`, `promotion_ready=true`, `READY / EXACT_ARTIFACT_REUSE_PROVEN`; evidence: `integration/performance/V57E_EXACT_ARTIFACT_REUSE_EVIDENCE_2026-10-27.md`.
 - [x] **Baseline performance record:** preserved in `integration/performance/V591_SELF_LOOP_BASELINE_2026-10-27.md` as the before-state for v6.0G.
 
-## Active — AppLab v6.0 Closed-Loop Agentic Engineering
+## Completed — AppLab v6.0 Closed-Loop Agentic Engineering
 
 | Step | Maxi-step | Outcome | Priority |
 |---|---|---|---:|
@@ -43,7 +43,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 | **v6.0B** | Causal Repo Investigator | **LANDED / EXACT-HEAD VALIDATED:** deterministic candidate-file/root-cause ranking from diff, traces, labs, graph and history landed through PR #176 | P0 |
 | **v6.0C** | Bounded Autonomous Fix Worker | **LANDED / EXACT-HEAD VALIDATED:** exact-SHA ephemeral worktree patching with causal-scope, budget, protected-path and test-weakening gates landed through PR #176 | P0 |
 | **v6.0D** | Verify–Repair Loop | **LANDED / EXACT-HEAD VALIDATED:** focused verify → exact materialization → trusted AppLab evidence → PASS / new exact-SHA WorkItem / STOP, max 2 attempts, landed through PR #176 | P0 |
-| **v6.0G** | Self-Dogfooding Throughput | **IMPLEMENTATION LANDED / TIMING PROMOTION OPEN:** fail-closed Emulator FAST/FULL profile + exact-input cached parallel advisory review fan-out landed through PR #176; exact-head timing collection is active and quantitative p95 promotion evidence is still required | P0/P1 |
+| **v6.0G** | Self-Dogfooding Throughput | **PRODUCTION-COMPLETE FOR ORDINARY APPLAB FAST:** exact-head FAST samples observed p95 `248.998 s ≈ 4m09s` vs target `<6 min`; two fully green heads had required-lane floors ≈3m25 and ≈4m09 vs v5.9.1 ≈11m40; PR #188 removed the serial Emulator scope barrier and PR #187 added fail-closed docs-only CI scoping; evidence: `integration/performance/V60G_PROMOTION_EVIDENCE_2026-10-27.md` | P0/P1 |
 | **v6.0E** | Autonomous PR Steward | **LANDED / EXACT-HEAD VALIDATED:** explicit PR capabilities, exact patch→commit materialization, fast-forward-only `applab/repair/*`, draft create/reuse/update, no ready/approve/merge/release, landed through PR #176 | P1 |
 | **v6.0F** | Agent Memory & Policy Learning | **LANDED / EXACT-HEAD VALIDATED:** clean PR #181 landed on `main`; rebuildable identity-bound episodic memory + current-candidate-only strategy ranking; historical boosts cannot create candidates or raise autonomous-edit eligibility | P1 |
 | **v6.0H** | Sensor Mesh | **LANDED / EXACT-HEAD VALIDATED:** clean PR #184 landed on `main`; risk-triggered scrcpy, LeakCanary, Semgrep, Trivy, MobSF/Hetty evidence producers with exact-source/risk-context binding; evidence-only authority | P2 |
@@ -104,6 +104,58 @@ The objective is never “continue until green”. The objective is “continue 
 | certification | evidence quality over artificial latency target |
 
 FAST/FULL, Production Certification, physical-device, distribution/store and cross-app authority boundaries remain unchanged throughout v6.
+
+## Planned — AppLab v6.1 Controlled Closed-Loop Productionization
+
+Goal: move the bounded v6 engineering loop from individually proven components
+to a durable, recoverable and evidence-gated production control plane without
+creating a second scheduler, verifier or certification authority.
+
+v6.1 reuses the existing v5.5 durable queue/reconciliation/controlled-expansion
+machinery and the Factory Event-Driven Reconciliation Golden. It does not replace
+those mechanisms with a parallel orchestration stack.
+
+| Step | Maxi-step | Planned outcome | Priority |
+|---|---|---|---:|
+| **v6.1A** | Closed-Loop Pilot Admission | Admit the complete v6 WorkItem → investigation → bounded repair → verify → draft-PR loop first on AppLab self-repo only, with explicit allowlist, global kill switch, immutable source SHA, existing authority envelope and no release authority | P0 |
+| **v6.1B** | Durable Recovery & Supersession | Bind v6 WorkItem/Action/Attempt state to the existing durable recovery matrix: duplicate delivery, event loss, executor outage, interrupted attempt, coordinator restart, expired lease, superseding SHA and watcher recovery; terminal operations remain terminal | P0 |
+| **v6.1C** | Queue, Backpressure & Repair Budgets | Route admitted closed-loop work through the existing per-repository durable queue with concurrency/backpressure plus file, line, attempt, runtime and cost budgets; no retry storm and no silent target-SHA mutation | P0/P1 |
+| **v6.1D** | Controlled Multi-Repo Expansion | Expand only after real pilot evidence: AppLab self → bounded 3-repository cohort → bounded 5-repository cohort; global/per-repo kill switches and GitHub Actions fallback remain; ALL_COMPATIBLE requires a later explicit promotion decision | P1 |
+| **v6.1E** | Production SLO, Rollback & Operations Evidence | Track commit-to-green, queue/start/runtime p50/p95, repair success/failure, repeated-signature STOPs, rollback, false-repair indicators and authority envelope in the read-only Operations Studio; define evidence thresholds for promotion/demotion without changing PASS/CERTIFIED authority | P1 |
+
+### v6.1 admission rules
+
+- AppLab self-repo is the first mutation canary; downstream autonomous edits are
+  not inferred from v6.0 completion.
+- Every admitted operation is bound to an immutable repository/ref/source SHA.
+- Existing v6 repair budgets and STOP conditions remain mandatory.
+- Duplicate events reuse durable operations; terminal operations are never
+  redispatched merely to search for green.
+- Executor outage holds durable work pending; reconciliation/watchdog remains
+  independent.
+- Superseding SHA is explicit and never silently retargets an active repair.
+- GitHub Actions fallback remains until a separate evidence-backed decision.
+- Automatic merge remains post-gate only and cannot self-approve or bypass
+  branch protection.
+- Production Certification remains the sole certification authority.
+- App-Factory-Core, secrets, release actions and protected governance remain
+  outside autonomous repair authority.
+
+### v6.1 promotion sequence
+
+`SELF_CANARY -> PILOT_3 -> PILOT_5`
+
+Promotion is evidence-gated per stage. A stage must hold when recovery,
+false-repair, rollback, queue/backpressure, exact-identity or required-check
+evidence is insufficient. `ALL_COMPATIBLE` is intentionally not pre-authorized
+by this roadmap.
+
+Applicable Factory process baselines for v6.1:
+
+- `GOLDEN_EVENT_DRIVEN_RECONCILIATION_v1`;
+- `GOLDEN_ROADMAP_FAST_CONTINUOUS_MAINTENANCE_v1`;
+- `GOLDEN_IMMUTABLE_BUILD_TEST_ARTIFACT_v1`;
+- `GOLDEN_AGENT_GOVERNANCE_v1`.
 
 ## Completed — v5.5 Multi-Project Event-Driven Rollout
 
