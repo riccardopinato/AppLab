@@ -988,6 +988,19 @@ def self_test() -> dict[str, Any]:
             occurred_at="2026-10-27T15:01:00Z",
         )
         assert attempt1["authorized"] is True
+        attempt1_replay = reserve_repair_attempt(
+            db_path=db_path,
+            work_item_id=work_items[2],
+            attempt_number=1,
+            changed_files=2,
+            changed_lines=80,
+            runtime_seconds=200,
+            cost_units=50,
+            occurred_at="2026-10-27T15:01:30Z",
+        )
+        assert attempt1_replay["authorized"] is True
+        assert attempt1_replay["event_persistence"] == "REPLAY"
+
         first_failure = note_failure_signature(
             db_path=db_path,
             work_item_id=work_items[2],
@@ -1078,7 +1091,9 @@ def self_test() -> dict[str, Any]:
             "status": "PASS",
             "existing_queue_reused": True,
             "per_repository_backpressure_observed": True,
-            "file_line_attempt_runtime_cost_budgets_enforced": True,
+            "work_item_file_line_attempt_budgets_preserved": True,
+            "runtime_cost_budgets_cumulative": True,
+            "attempt_reservation_idempotent": True,
             "repeated_failure_signature_stops": True,
             "event_driven_primary": True,
             "same_sha_waits_coalesced": True,
