@@ -1,10 +1,104 @@
 # AppLab Roadmap
 
-Current production baseline after this merge: **v5.9 — Journey-Aware Throughput**
+Current production baseline before this program: **v5.9 — Journey-Aware Throughput**.
 
-Active program: **v5.9 complete; downstream adoption and evidence accrual continue in parallel.**
+Active program: **v5.9.1 Truth & Debt Closure → v6.0 Closed-Loop Agentic Engineering**.
 
-Status: **v5.9A-E implemented and evidence-gated; merge remains subject to exact-head required checks and review.**
+Factory baseline for this roadmap refresh: `App-Factory-Core@ed6466e774a28e95f9f371cd56bbf7278428776a` (Master 26.6 / Golden Index 22).
+
+The governing direction is no longer “add more analyzers”. AppLab must close the bounded engineering loop while preserving the existing verification and certification authorities:
+
+```
+failure/evidence
+  -> causal repository investigation
+  -> bounded repair workspace
+  -> focused verification
+  -> new trusted evidence
+  -> at most bounded repair attempts
+  -> draft PR stewardship
+  -> human/independent authority for approval, merge and release
+```
+
+The canonical detailed design is `integration/roadmap/APPLAB_V6_CLOSED_LOOP_AGENTIC_ENGINEERING.md`.
+
+## Active — v5.9.1 Truth & Debt Closure
+
+Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documentation state forward.
+
+- [x] **Roadmap truth refresh:** replace stale v5.9E draft/merge wording with the v6 program and pin the current Factory baseline.
+- [x] **PR #148 reconciliation:** superseded by merged PR #149; close the duplicate integration PR.
+- [ ] **PR #155 reconciliation:** carry the dotted-version regex fix onto latest `main` lineage, rerun exact-head checks, merge, then close the stale branch PR.
+- [x] **PR #147 reconciliation:** closed as superseded by the current trusted-verifier pristine-AVD creation plus v5.9E cold fallback; no second prewarm authority path added.
+- [x] **v5.7B evidence closure:** Anna's Diary and In-Cucina-con-gli-Anime both expose the canonical adoption manifest and each has at least three real merged-PR samples. Evidence: `integration/performance/V57B_ADOPTION_EVIDENCE_2026-10-27.md`.
+- [ ] **v5.7E evidence closure:** still OPEN. Anna PR #124 trusted runtime passed, but the recorded v5.7E promotion evidence is `HOLD / BUILD_CACHE_NOT_HIT`; exact-artifact reuse must be observed on a same-identity cache hit before closure.
+- [x] **Baseline performance record:** preserved in `integration/performance/V591_SELF_LOOP_BASELINE_2026-10-27.md` as the before-state for v6.0G.
+
+## Planned — AppLab v6.0 Closed-Loop Agentic Engineering
+
+| Step | Maxi-step | Outcome | Priority |
+|---|---|---|---:|
+| **v6.0A** | Unified Agent Work Graph | One durable `WorkItem -> Decision -> Action -> Attempt -> Evidence -> Verdict` model | P0 |
+| **v6.0B** | Causal Repo Investigator | Deterministic candidate-file/root-cause ranking from diff, traces, logs, graph and history | P0 |
+| **v6.0C** | Bounded Autonomous Fix Worker | Code edits only on isolated branches/workspaces inside a strict capability envelope | P0 |
+| **v6.0D** | Verify–Repair Loop | Bounded re-verification and at most N repair attempts with explicit terminal conditions | P0 |
+| **v6.0G** | Self-Dogfooding Throughput | Apply journey/evidence DAG concepts to AppLab itself; target ordinary FAST <6 min p95 | P0/P1 |
+| **v6.0E** | Autonomous PR Steward | Create/update draft PRs, react to CI/review, never self-approve/merge/release | P1 |
+| **v6.0F** | Agent Memory & Policy Learning | Compressed episodic engineering memory; guardrails remain non-self-modifying | P1 |
+| **v6.0H** | Sensor Mesh | Risk-triggered scrcpy, LeakCanary, Semgrep, Trivy, MobSF/Hetty evidence producers | P2 |
+| **v6.0I** | Agentic Operations Studio | WorkItems, attempts, cost, evidence, blocks and authority cockpit | P2 |
+
+### v6.0 authority envelope
+
+Allowed only when explicitly granted by the active WorkItem:
+- `ALLOW_CODE_EDIT`
+- isolated branch/workspace only;
+- bounded file and line budgets;
+- focused tests and AppLab FAST/FULL as selected by existing authorities;
+- draft PR creation/update after exact source identity is known.
+
+Denied by default:
+- `DENY_MAIN`
+- `DENY_FACTORY_CORE`
+- `DENY_SECRETS`
+- `DENY_WORKFLOW_EDIT`
+- `DENY_BRANCH_PROTECTION`
+- `DENY_RELEASE`
+- `DENY_TEST_WEAKENING`
+- self-approval and self-merge.
+
+Initial repair budget:
+- max files: 5;
+- max changed lines: 250;
+- max repair attempts: 2;
+- exact failing/source SHA required;
+- rollback and required evidence mandatory.
+
+### v6.0 terminal conditions
+
+The repair loop stops immediately when:
+- failure classification becomes UNKNOWN;
+- required scope grows beyond the authorized envelope;
+- security-sensitive or protected code enters scope;
+- a test/assertion would need weakening merely to obtain green;
+- the second attempt repeats the same failure signature;
+- a materially different unexplained failure appears;
+- exact source/artifact identity cannot be proven.
+
+The objective is never “continue until green”. The objective is “continue only while the evidence envelope remains authorized and explainable”.
+
+### v6.0G throughput targets
+
+| Path | Target p95 |
+|---|---:|
+| docs/config non-runtime | **<2 min** |
+| localized script change | **<5–6 min** |
+| ordinary AppLab FAST | **<6 min** |
+| runtime-sensitive change | **<10 min** |
+| FULL self verification | depth unchanged |
+| downstream UI FAST | **5–10 min** |
+| certification | evidence quality over artificial latency target |
+
+FAST/FULL, Production Certification, physical-device, distribution/store and cross-app authority boundaries remain unchanged throughout v6.
 
 ## Completed — v5.5 Multi-Project Event-Driven Rollout
 
@@ -65,7 +159,7 @@ observable proxy. Missing downstream evidence remains incomplete, never PASS.
 - [x] **v5.7A Factory Adoption Observatory:** read-only discovery of
   `APP_FACTORY_ADOPTION.yaml`, profile drift, workflow inventory and adoption
   gaps across watchlist repositories plus explicit Factory pilots.
-- [ ] **v5.7B Real Adoption Pilots & Speed Evidence:** instrumentation is
+- [x] **v5.7B Real Adoption Pilots & Speed Evidence:** instrumentation is
   implemented for Anna's Diary (`riccardopinato/Agenda-per-Anna`) and
   In cucina con gli anime (`riccardopinato/In-Cucina-con-gli-Anime`).
   Promotion remains OPEN until both repositories expose a valid adoption

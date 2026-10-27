@@ -36,11 +36,11 @@ ALLOWED_TOOLCHAIN = {
 }
 TOOLCHAIN_PATTERNS = {
     "flutter_channel": re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"),
-    "flutter_version": re.compile(r"^[0-9]+(?:\\.[0-9]+){1,3}(?:[-+][A-Za-z0-9.]+)?$"),
+    "flutter_version": re.compile(r"^[0-9]+(?:\.[0-9]+){1,3}(?:[-+][A-Za-z0-9.]+)?$"),
     "java_version": re.compile(r"^[0-9]{1,3}$"),
-    "gradle_version": re.compile(r"^[0-9]+(?:\\.[0-9]+){1,3}(?:[-+][A-Za-z0-9.]+)?$"),
+    "gradle_version": re.compile(r"^[0-9]+(?:\.[0-9]+){1,3}(?:[-+][A-Za-z0-9.]+)?$"),
     "compile_sdk": re.compile(r"^[0-9]{2,3}$"),
-    "build_tools": re.compile(r"^[0-9]+(?:\\.[0-9]+){1,3}$"),
+    "build_tools": re.compile(r"^[0-9]+(?:\.[0-9]+){1,3}$"),
 }
 ALLOWED_JOURNEYS = {"primary", "settings", "critical", "catalog"}
 ALLOWED_JOURNEY_CATALOG_FIELDS = {
@@ -586,6 +586,12 @@ def write_github_output(path: Path, profile: dict[str, Any]) -> None:
 
 
 def self_test() -> None:
+    assert TOOLCHAIN_PATTERNS["flutter_version"].fullmatch("3.47.5")
+    assert TOOLCHAIN_PATTERNS["gradle_version"].fullmatch("8.14.3")
+    assert TOOLCHAIN_PATTERNS["build_tools"].fullmatch("35.0.0")
+    assert not TOOLCHAIN_PATTERNS["flutter_version"].fullmatch("stable")
+    assert not TOOLCHAIN_PATTERNS["gradle_version"].fullmatch("8.x")
+
     base_flutter = {
         "schema_version": 1,
         "detected": True,
