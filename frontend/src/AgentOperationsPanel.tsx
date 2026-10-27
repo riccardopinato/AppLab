@@ -35,6 +35,22 @@ export type AgentOperationsSnapshot = {
     evidence_records: number;
   };
   work_items: AgentOperationRow[];
+  production_operations?: {
+    available: boolean;
+    production_status: string;
+    active_stage: string;
+    operation_count: number;
+    promotion: string;
+    operations_gate: string;
+    rollback: string;
+    recommended_stage: string;
+    latency_alert_count: number;
+    repeated_signature_stops: number;
+    covered_waits: number;
+    external_queries: number;
+    coalesced_wait_savings: number;
+    authority: string;
+  };
   source_of_truth: string;
   merge_authority: string;
   release_authority: string;
@@ -76,6 +92,23 @@ export default function AgentOperationsPanel({
         <div><span>Draft PRs</span><strong>{snapshot.summary.draft_prs}</strong></div>
         <div><span>Evidence records</span><strong>{snapshot.summary.evidence_records}</strong></div>
       </div>
+      {snapshot.production_operations?.available ? (
+        <>
+          <div className="studio-summary">
+            <div><span>Production</span><strong>{snapshot.production_operations.production_status}</strong></div>
+            <div><span>Stage</span><strong>{snapshot.production_operations.active_stage}</strong></div>
+            <div><span>Operations gate</span><strong>{snapshot.production_operations.operations_gate}</strong></div>
+            <div><span>Rollback</span><strong>{snapshot.production_operations.rollback}</strong></div>
+            <div><span>SLO alerts</span><strong>{snapshot.production_operations.latency_alert_count}</strong></div>
+            <div><span>Coalesced savings</span><strong>{snapshot.production_operations.coalesced_wait_savings}</strong></div>
+          </div>
+          <p className="cc-note">
+            Read-only production evidence · {snapshot.production_operations.operation_count} operations ·
+            {snapshot.production_operations.covered_waits} waits / {snapshot.production_operations.external_queries} external queries ·
+            {snapshot.production_operations.repeated_signature_stops} repeated-signature stops
+          </p>
+        </>
+      ) : null}
       {snapshot.available ? (
         <div className="studio-projects">
           {snapshot.work_items.slice(0, 6).map((item) => (
