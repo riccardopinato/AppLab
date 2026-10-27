@@ -45,7 +45,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 | **v6.0E** | Autonomous PR Steward | **Implementation candidate:** exact-fix branch push + draft create/update + CI/review reconciliation; real repair-PR pilot pending | P1 |
 | **v6.0F** | Agent Memory & Policy Learning | **Implementation candidate:** rebuildable episodic repair memory with advisory strategy ranking and non-self-modifying guardrails | P1 |
 | **v6.0H** | Sensor Mesh | **Implementation candidate:** reuse v5.6E registry + risk-triggered scrcpy/LeakCanary/Semgrep/Trivy/MobSF/Hetty evidence normalization; producer evidence accrual ongoing | P2 |
-| **v6.0I** | Agentic Operations Studio | WorkItems, attempts, cost, evidence, blocks and authority cockpit | P2 |
+| **v6.0I** | Agentic Operations Studio | **Implementation candidate:** read-only WorkItem/attempt/evidence/budget/draft-PR cockpit in Control Center; real ledger pilot pending | P2 |
 
 ### v6.0 authority envelope
 
