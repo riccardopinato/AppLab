@@ -1,6 +1,6 @@
 # AppLab v6.1A — Closed-Loop Pilot Admission
 
-Status: **IMPLEMENTED CANDIDATE / EXACT-HEAD VALIDATION REQUIRED**
+Status: **LANDED / EXACT-HEAD VALIDATED via PR #190 (4adca8ec); LIVE END-TO-END REPAIR NOT VERIFIED**
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # AppLab v6.1B — Durable Event-Driven Recovery & Supersession
 
-Status: **IMPLEMENTED CANDIDATE / EXACT-HEAD VALIDATION REQUIRED**
+Status: **LANDED / EXACT-HEAD VALIDATED via PR #191 (7d37eec); LIVE RECOVERY CAMPAIGN NOT VERIFIED**
 
 ## Purpose
 

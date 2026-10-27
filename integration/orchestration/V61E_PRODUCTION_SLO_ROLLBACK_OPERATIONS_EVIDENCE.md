@@ -1,6 +1,6 @@
 # AppLab v6.1E — Production SLO, Rollback & Operations Evidence
 
-Status: **IMPLEMENTED CANDIDATE / EXACT-HEAD VALIDATION REQUIRED**
+Status: **LANDED / EXACT-HEAD VALIDATED via PR #197 (2cfb3fc); LIVE OPERATIONAL EVIDENCE PENDING**
 
 ## Purpose
 
