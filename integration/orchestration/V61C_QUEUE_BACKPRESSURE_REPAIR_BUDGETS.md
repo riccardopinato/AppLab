@@ -1,6 +1,16 @@
 # AppLab v6.1C — Queue, Backpressure & Repair Budgets
 
-Status: **IMPLEMENTED CANDIDATE / EXACT-HEAD VALIDATION REQUIRED**
+Status: **LANDED / EXACT-HEAD VALIDATED**
+
+## Landing evidence
+
+- PR: #192
+- exact validated head: `e4cd7cc2966145aaba0125f2fc86d666d5217206`
+- required workflows: **8/8 GREEN**
+- unresolved review threads at merge: **0**
+- squash merge on `main`: `f03d9f0fdc38a2f274ad4ae8ac5c66c54d8e40f2`
+- maintainability gate remained enforced; the runtime-profile planner was kept
+  within its existing ceiling instead of raising the limit.
 
 ## Purpose
 
