@@ -22,6 +22,11 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def _work_item_id(record: dict[str, Any]) -> str:
+    record_type = str(record.get("record_type") or "")
+    if record_type in {"VERIFY_REPAIR_LOOP_DECISION_V60D", "DRAFT_PR_MATERIALIZATION_V60E"}:
+        root = str(record.get("root_work_item_id") or "")
+        if root:
+            return root
     direct = str(record.get("work_item_id") or "")
     if direct:
         return direct
