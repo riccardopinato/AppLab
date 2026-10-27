@@ -1,8 +1,8 @@
 # AppLab Roadmap
 
-Current production baseline before this program: **v5.9 — Journey-Aware Throughput**.
+Current production baseline: **v5.9.1 — Truth & Debt Closure** (`main@bd0e0b1ae0a615b96fb3f160d81a6845bc51963b`).
 
-Active program: **v5.9.1 Truth & Debt Closure → v6.0 Closed-Loop Agentic Engineering**.
+Active program: **v6.0 Closed-Loop Agentic Engineering**. v5.7E exact-artifact reuse evidence accrues in parallel and remains fail-closed until a real cache-hit promotion record exists.
 
 Factory baseline for this roadmap refresh: `App-Factory-Core@ed6466e774a28e95f9f371cd56bbf7278428776a` (Master 26.6 / Golden Index 22).
 
@@ -27,7 +27,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 
 - [x] **Roadmap truth refresh:** replace stale v5.9E draft/merge wording with the v6 program and pin the current Factory baseline.
 - [x] **PR #148 reconciliation:** superseded by merged PR #149; close the duplicate integration PR.
-- [ ] **PR #155 reconciliation:** carry the dotted-version regex fix onto latest `main` lineage, rerun exact-head checks, merge, then close the stale branch PR.
+- [x] **PR #155 reconciliation:** dotted-version regex fix carried onto latest `main`, exact-head matrix GREEN in PR #158, merged in v5.9.1, stale PR #155 closed.
 - [x] **PR #147 reconciliation:** closed as superseded by the current trusted-verifier pristine-AVD creation plus v5.9E cold fallback; no second prewarm authority path added.
 - [x] **v5.7B evidence closure:** Anna's Diary and In-Cucina-con-gli-Anime both expose the canonical adoption manifest and each has at least three real merged-PR samples. Evidence: `integration/performance/V57B_ADOPTION_EVIDENCE_2026-10-27.md`.
 - [ ] **v5.7E evidence closure:** still OPEN. Anna PR #124 trusted runtime passed, but the recorded v5.7E promotion evidence is `HOLD / BUILD_CACHE_NOT_HIT`; exact-artifact reuse must be observed on a same-identity cache hit before closure.
@@ -37,7 +37,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 
 | Step | Maxi-step | Outcome | Priority |
 |---|---|---|---:|
-| **v6.0A** | Unified Agent Work Graph | One durable `WorkItem -> Decision -> Action -> Attempt -> Evidence -> Verdict` model | P0 |
+| **v6.0A** | Unified Agent Work Graph | **Implementation candidate:** durable `WorkItem -> Decision -> Action -> Attempt -> Evidence -> Verdict` model; exact-head validation pending | P0 |
 | **v6.0B** | Causal Repo Investigator | Deterministic candidate-file/root-cause ranking from diff, traces, logs, graph and history | P0 |
 | **v6.0C** | Bounded Autonomous Fix Worker | Code edits only on isolated branches/workspaces inside a strict capability envelope | P0 |
 | **v6.0D** | Verify–Repair Loop | Bounded re-verification and at most N repair attempts with explicit terminal conditions | P0 |
