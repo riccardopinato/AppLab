@@ -51,6 +51,9 @@ LIMITS = {
     # v6.1C composes existing queue + v6.1B wait primitives; future growth
     # beyond 1260 requires extracting the budget ledger or observation planner.
     "scripts/queue_backpressure_budget_v61c.py": 1260,
+    # v6.1D stages promotion/admission only; growth beyond 680 requires
+    # extracting cohort policy or admission reuse instead of adding branches.
+    "scripts/controlled_closed_loop_expansion_v61d.py": 680,
     "scripts/ci_scope_v60g.py": 180,
     "scripts/selftest_runtime_profile_v60g.py": 340,
     "scripts/review_evidence_dag_v60g.py": 430,
