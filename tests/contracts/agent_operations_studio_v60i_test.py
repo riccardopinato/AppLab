@@ -58,14 +58,71 @@ def main() -> int:
             "repair_attempt_count": 2,
         },
     ]
+    records.extend(
+        [
+            {
+                "record_type": "APPLAB_WORK_TRANSITION",
+                "work_item_id": "wrk_a",
+                "from_state": "EXECUTING",
+                "to_state": "VERIFYING",
+                "reason_code": "FIX_READY",
+            },
+            {
+                "record_type": "VERIFY_REPAIR_LOOP_DECISION_V60D",
+                "root_work_item_id": "wrk_root",
+                "root_resolved_sha": "b" * 40,
+                "repository": "owner/root",
+                "state": "COMPLETE",
+                "reason_code": "VERIFIED_PASS",
+                "next_action": "OPEN_DRAFT_PR",
+                "repair_attempt_count": 1,
+            },
+            {
+                "record_type": "DRAFT_PR_MATERIALIZATION_V60E",
+                "root_work_item_id": "wrk_root",
+                "work_item_id": "wrk_repair",
+                "repository": "owner/root",
+                "state": "DRAFT_PR_CREATED",
+                "pr_number": 321,
+                "pr_url": "https://example.test/pr/321",
+            },
+        ]
+    )
+
     snapshot = mod.build_agent_operations(records)
     assert snapshot["summary"]["stopped_or_blocked"] == 1
-    row = snapshot["work_items"][0]
+    assert snapshot["summary"]["complete"] == 1
+    assert snapshot["summary"]["draft_prs"] == 1
+    row = next(item for item in snapshot["work_items"] if item["work_item_id"] == "wrk_a")
     assert row["actions"] == 1
     assert row["evidence_count"] == 1
     assert row["stop_reason"] == "BUDGET_EXHAUSTED"
     assert row["budget"]["repair_attempts"] == {"used": 2, "max": 2}
     assert "SELF_MERGE" in row["authority_envelope"]["denied_capabilities"]
+    root = next(item for item in snapshot["work_items"] if item["work_item_id"] == "wrk_root")
+    assert root["resolved_sha"] == "b" * 40
+    assert root["state"] == "COMPLETE"
+    assert root["stop_reason"] == "VERIFIED_PASS"
+    assert root["pr_number"] == 321
+    assert root["pr_url"] == "https://example.test/pr/321"
+
+    transition_only = mod.build_agent_operations(
+        [
+            {
+                "record_type": "APPLAB_WORK_ITEM",
+                "work_item_id": "wrk_transition",
+                "state": "CREATED",
+            },
+            {
+                "record_type": "APPLAB_WORK_TRANSITION",
+                "work_item_id": "wrk_transition",
+                "from_state": "CREATED",
+                "to_state": "EXECUTING",
+                "reason_code": "START",
+            },
+        ]
+    )
+    assert transition_only["work_items"][0]["state"] == "EXECUTING"
 
     mod.self_test()
     print("AppLab v6.0I agent operations studio contract PASS")
