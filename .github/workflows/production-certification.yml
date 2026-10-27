@@ -321,6 +321,7 @@ jobs:
           python scripts/control_center_snapshot.py \
             --watchlist watchlist.json \
             --history-file .applab-history/history.jsonl \
+            --agent-operations-file .applab-history/agent-operations.jsonl \
             --output .applab-history/control-center.json
           cat certification-summary.md >> "$GITHUB_STEP_SUMMARY"
           cat .applab-history/delta-calibration.md >> "$GITHUB_STEP_SUMMARY"
