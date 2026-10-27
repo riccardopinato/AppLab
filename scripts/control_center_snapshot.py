@@ -3,12 +3,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import delta_calibration
 import agent_operations_studio_v60i
+
+
+def resolve_agent_operations_path(explicit: str, history_file: Path) -> Path | None:
+    if explicit:
+        path = Path(explicit)
+        return path if path.is_file() else None
+    sibling = history_file.parent / "agent-operations.jsonl"
+    return sibling if sibling.is_file() else None
 
 
 def read_history(path: Path) -> list[dict[str, Any]]:
@@ -521,6 +530,18 @@ def self_test() -> None:
     assert first["performance_lab"] == "PASS"
     assert first["analysis_mode"] == "fast"
     assert first["release"]["artifact_url"] == "https://example.test/artifact"
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        history_path = root / "history.jsonl"
+        history_path.write_text("", encoding="utf-8")
+        assert resolve_agent_operations_path("", history_path) is None
+        ledger = root / "agent-operations.jsonl"
+        ledger.write_text("{}\n", encoding="utf-8")
+        assert resolve_agent_operations_path("", history_path) == ledger
+        explicit = root / "explicit.jsonl"
+        explicit.write_text("{}\n", encoding="utf-8")
+        assert resolve_agent_operations_path(str(explicit), history_path) == explicit
+
     print("AppLab Control Center snapshot self-test PASS")
 
 
@@ -540,14 +561,16 @@ def main() -> int:
         raise SystemExit("--watchlist, --history-file and --output are required")
 
     watchlist = json.loads(Path(args.watchlist).read_text(encoding="utf-8"))
+    history_path = Path(args.history_file)
+    agent_path = resolve_agent_operations_path(args.agent_operations_file, history_path)
     agent_records = (
-        agent_operations_studio_v60i.read_jsonl(Path(args.agent_operations_file))
-        if args.agent_operations_file
+        agent_operations_studio_v60i.read_jsonl(agent_path)
+        if agent_path is not None
         else []
     )
     snapshot = build_snapshot(
         watchlist,
-        read_history(Path(args.history_file)),
+        read_history(history_path),
         agent_records,
     )
     Path(args.output).write_text(
