@@ -44,22 +44,30 @@ def main() -> int:
     workflow = (
         ROOT / ".github" / "workflows" / "emulator-self-test.yml"
     ).read_text(encoding="utf-8")
+    runner = (ROOT / "scripts" / "run_emulator_selftest_v60g.sh").read_text(
+        encoding="utf-8"
+    )
     for required in (
         "Plan v6.0G self-test runtime depth",
         "selftest_runtime_profile_v60g.py",
-        'SELFTEST_PROFILE="${{ needs.scope.outputs.profile }}"',
-        'SELFTEST_SELECTED_LABS="${{ needs.scope.outputs.selected_labs }}"',
-        'if [[ "$SELFTEST_PROFILE" == "FAST" ]]',
-        'test "$SELFTEST_PROFILE" = "FULL"',
-        "V60G_TARGETED_SELFTEST_UNIT",
-        "RUN_MAESTRO=true",
-        'assert result["maestro"] == "PASS"',
-        "applab-report-certification",
+        "SELFTEST_PROFILE='${{ needs.scope.outputs.profile }}'",
+        "SELFTEST_SELECTED_LABS='${{ needs.scope.outputs.selected_labs }}'",
+        "bash scripts/run_emulator_selftest_v60g.sh",
     ):
         assert required in workflow, required
 
+    # The emulator runner executes each workflow script line independently, so
+    # FAST/FULL control flow must live inside one repository shell process.
+    assert 'if [[ "$SELFTEST_PROFILE" == "FAST" ]]' in runner
+    assert 'test "$SELFTEST_PROFILE" = "FULL"' in runner
+    assert "V60G_TARGETED_SELFTEST_UNIT" in runner
+    assert "RUN_MAESTRO=true" in runner
+    assert 'assert result["maestro"] == "PASS"' in runner
+    assert "applab-report-certification" in runner
+
     # FAST is additive selection, not a replacement of the legacy FULL
-    # contract. All deep specialist/certification assertions remain in workflow.
+    # contract. All deep specialist/certification assertions remain in the
+    # repository runner script.
     for evidence in (
         "network-lab.json",
         "persistence-lab.json",
@@ -70,7 +78,7 @@ def main() -> int:
         "upgrade-lab.json",
         "certification_gate.py",
     ):
-        assert evidence in workflow, evidence
+        assert evidence in runner, evidence
 
     planner.self_test()
     print("AppLab v6.0G self-test throughput contract PASS")
