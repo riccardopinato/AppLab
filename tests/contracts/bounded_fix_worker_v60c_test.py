@@ -153,7 +153,7 @@ new file mode 100644
             """diff --git a/tests/test_client.py b/tests/test_client.py
 --- a/tests/test_client.py
 +++ b/tests/test_client.py
-@@ -2,4 +2,4 @@
+@@ -2,3 +2,3 @@
  
  def test_value():
 -    assert value() == 1
@@ -174,7 +174,7 @@ new file mode 100644
             """diff --git a/tests/test_client.py b/tests/test_client.py
 --- a/tests/test_client.py
 +++ b/tests/test_client.py
-@@ -2,4 +2,4 @@
+@@ -2,3 +2,3 @@
  
  def test_value():
 -    assert value() == 1
@@ -193,7 +193,7 @@ new file mode 100644
             """diff --git a/tests/test_client.py b/tests/test_client.py
 --- a/tests/test_client.py
 +++ b/tests/test_client.py
-@@ -1,4 +1,5 @@
+@@ -1,4 +1,6 @@
 +import pytest
  from lib.client import value
  
