@@ -114,7 +114,7 @@ def main() -> int:
     )
     expect_error(
         lambda: loop.evaluate_loop(root, triage, initial, [first_fail, stale_second]),
-        "new repaired source requires a new WorkItem identity",
+        "repair chain attempt source does not match prior repaired SHA",
     )
 
     second_work = loop._fixture_work_item(
