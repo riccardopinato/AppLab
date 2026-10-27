@@ -25,7 +25,6 @@ permissions:
 
 jobs:
   android-runtime:
-    name: Android runtime / required-check scope
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
