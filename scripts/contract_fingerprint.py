@@ -63,6 +63,7 @@ CONTRACT_FILES = (
     "scripts/verify_repair_loop_v60d.py",
     "scripts/draft_pr_steward_v60e.py",
     "scripts/selftest_runtime_profile_v60g.py",
+    "scripts/run_emulator_selftest_v60g.sh",
     "scripts/review_evidence_dag_v60g.py",
     ".github/workflows/emulator-self-test.yml",
     ".github/workflows/autonomous-app-review-v31.yml",
