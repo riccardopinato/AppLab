@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -458,6 +459,44 @@ def _resume_ready_wait(
         raise RecoveryError("ready wait operation is outside RUNNING recovery state")
 
 
+def _event_order_key(payload: dict[str, Any]) -> tuple[float, int, str, int]:
+    raw_time = brain._require_non_empty_string(payload.get("occurred_at"), "occurred_at")
+    try:
+        parsed = datetime.fromisoformat(raw_time.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise RecoveryError("occurred_at must be ISO-8601") from exc
+    if parsed.tzinfo is None:
+        raise RecoveryError("occurred_at must include timezone")
+    attempt = int(payload.get("run_attempt", 1))
+    if attempt < 1:
+        raise RecoveryError("run_attempt must be positive")
+    run_id = brain._require_non_empty_string(payload.get("run_id"), "run_id")
+    terminal_rank = 0 if str(payload.get("status", "")).lower() in {
+        "queued", "pending", "requested", "waiting", "in_progress"
+    } else 1
+    return (parsed.timestamp(), attempt, run_id, terminal_rank)
+
+
+def _latest_gate_observation(
+    durable: storemod.SQLiteShadowStore,
+    *,
+    wait_id: str,
+    gate: str,
+) -> dict[str, Any] | None:
+    rows = durable.db.execute(
+        "SELECT payload_json FROM agent_external_observations WHERE wait_id=?",
+        (wait_id,),
+    ).fetchall()
+    candidates = [
+        json.loads(row["payload_json"])
+        for row in rows
+        if json.loads(row["payload_json"]).get("gate") == gate
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=_event_order_key)
+
+
 def observe_event(
     *,
     db_path: Path,
@@ -468,6 +507,8 @@ def observe_event(
     status: str,
     conclusion: str | None,
     occurred_at: str,
+    run_id: str | int | None = None,
+    run_attempt: int = 1,
     contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     contract = contract or load_contract()
@@ -486,10 +527,13 @@ def observe_event(
         "wait_id": wait_id,
         "target_sha": target_sha,
         "gate": gate,
+        "run_id": str(run_id or event_id),
+        "run_attempt": int(run_attempt),
         "status": str(status).lower(),
         "conclusion": str(conclusion or "").lower(),
         "occurred_at": occurred_at,
     }
+    _event_order_key(observation)
     digest = brain.sha256_json(observation)
 
     durable, graph = _open(db_path)
@@ -574,6 +618,36 @@ def observe_event(
                     "dispatch": False,
                 }
 
+            latest = _latest_gate_observation(
+                durable,
+                wait_id=wait_id,
+                gate=gate,
+            )
+            if latest is not None and _event_order_key(observation) < _event_order_key(latest):
+                durable.db.execute(
+                    """
+                    INSERT INTO agent_external_observations(
+                        event_id,wait_id,payload_sha256,payload_json,created_at
+                    ) VALUES (?,?,?,?,?)
+                    """,
+                    (event_id, wait_id, digest, _canonical(observation), occurred_at),
+                )
+                durable.db.commit()
+                return {
+                    "schema_version": 1,
+                    "record_type": "APPLAB_V61B_EVENT_RESULT",
+                    "authority": "ORCHESTRATION_ONLY",
+                    "status": "STALE_EVENT_IGNORED",
+                    "wait_id": wait_id,
+                    "state": wait["state"],
+                    "target_sha": target_sha,
+                    "gate": gate,
+                    "gate_state": wait["gate_states"][gate],
+                    "pending_gates": _pending_gates(wait),
+                    "poll": False,
+                    "dispatch": False,
+                }
+
             gate_states = dict(wait["gate_states"])
             gate_states[gate] = normalized
             pending = [
@@ -646,65 +720,89 @@ def reconcile_wait(
     actions_available: bool,
     occurred_at: str,
 ) -> dict[str, Any]:
-    durable, _graph = _open(db_path)
+    durable, graph = _open(db_path)
     try:
-        wait = _wait_row(durable, wait_id)
-        pending = _pending_gates(wait)
-        if wait["state"] != "WAITING":
-            return {
-                "schema_version": 1,
-                "record_type": "APPLAB_V61B_RECONCILIATION",
-                "authority": "ORCHESTRATION_ONLY",
-                "wait_id": wait_id,
-                "action": "NOOP_TERMINAL_WAIT",
-                "state": wait["state"],
-                "pending_gates": pending,
-                "poll": False,
-                "dispatch": False,
-            }
-        if not actions_available:
-            return {
-                "schema_version": 1,
-                "record_type": "APPLAB_V61B_RECONCILIATION",
-                "authority": "ORCHESTRATION_ONLY",
-                "wait_id": wait_id,
-                "action": "HOLD_DURABLE_WAIT",
-                "reason": "ACTIONS_OUTAGE",
-                "state": "WAITING",
-                "pending_gates": pending,
-                "poll": False,
-                "dispatch": False,
-            }
-        if float(now_ts) < float(wait["next_fallback_at"]):
-            return {
-                "schema_version": 1,
-                "record_type": "APPLAB_V61B_RECONCILIATION",
-                "authority": "ORCHESTRATION_ONLY",
-                "wait_id": wait_id,
-                "action": "WAIT_EVENT",
-                "reason": "EVENT_WINDOW_ACTIVE",
-                "state": "WAITING",
-                "pending_gates": pending,
-                "poll": False,
-                "dispatch": False,
-            }
-        if int(wait["fallback_count"]) >= int(wait["max_fallback_polls"]):
-            return {
-                "schema_version": 1,
-                "record_type": "APPLAB_V61B_RECONCILIATION",
-                "authority": "ORCHESTRATION_ONLY",
-                "wait_id": wait_id,
-                "action": "FALLBACK_EXHAUSTED_HOLD",
-                "reason": "WATCHDOG_REQUIRED",
-                "state": "WAITING",
-                "pending_gates": pending,
-                "poll": False,
-                "dispatch": False,
-            }
+        durable.db.execute("BEGIN IMMEDIATE")
+        try:
+            wait = _wait_row(durable, wait_id)
+            pending = _pending_gates(wait)
+            if wait["state"] == "READY_FOR_EVALUATION":
+                durable.db.commit()
+                _resume_ready_wait(
+                    durable,
+                    graph,
+                    wait,
+                    occurred_at=occurred_at,
+                )
+                return {
+                    "schema_version": 1,
+                    "record_type": "APPLAB_V61B_RECONCILIATION",
+                    "authority": "ORCHESTRATION_ONLY",
+                    "wait_id": wait_id,
+                    "action": "RECOVER_READY_FOR_EVALUATION",
+                    "state": wait["state"],
+                    "pending_gates": pending,
+                    "poll": False,
+                    "dispatch": False,
+                }
+            if wait["state"] != "WAITING":
+                durable.db.commit()
+                return {
+                    "schema_version": 1,
+                    "record_type": "APPLAB_V61B_RECONCILIATION",
+                    "authority": "ORCHESTRATION_ONLY",
+                    "wait_id": wait_id,
+                    "action": "NOOP_TERMINAL_WAIT",
+                    "state": wait["state"],
+                    "pending_gates": pending,
+                    "poll": False,
+                    "dispatch": False,
+                }
+            if not actions_available:
+                durable.db.commit()
+                return {
+                    "schema_version": 1,
+                    "record_type": "APPLAB_V61B_RECONCILIATION",
+                    "authority": "ORCHESTRATION_ONLY",
+                    "wait_id": wait_id,
+                    "action": "HOLD_DURABLE_WAIT",
+                    "reason": "ACTIONS_OUTAGE",
+                    "state": "WAITING",
+                    "pending_gates": pending,
+                    "poll": False,
+                    "dispatch": False,
+                }
+            if float(now_ts) < float(wait["next_fallback_at"]):
+                durable.db.commit()
+                return {
+                    "schema_version": 1,
+                    "record_type": "APPLAB_V61B_RECONCILIATION",
+                    "authority": "ORCHESTRATION_ONLY",
+                    "wait_id": wait_id,
+                    "action": "WAIT_EVENT",
+                    "reason": "EVENT_WINDOW_ACTIVE",
+                    "state": "WAITING",
+                    "pending_gates": pending,
+                    "poll": False,
+                    "dispatch": False,
+                }
+            if int(wait["fallback_count"]) >= int(wait["max_fallback_polls"]):
+                durable.db.commit()
+                return {
+                    "schema_version": 1,
+                    "record_type": "APPLAB_V61B_RECONCILIATION",
+                    "authority": "ORCHESTRATION_ONLY",
+                    "wait_id": wait_id,
+                    "action": "FALLBACK_EXHAUSTED_HOLD",
+                    "reason": "WATCHDOG_REQUIRED",
+                    "state": "WAITING",
+                    "pending_gates": pending,
+                    "poll": False,
+                    "dispatch": False,
+                }
 
-        count = int(wait["fallback_count"]) + 1
-        next_fallback = float(now_ts) + int(wait["fallback_interval_seconds"])
-        with durable.db:
+            count = int(wait["fallback_count"]) + 1
+            next_fallback = float(now_ts) + int(wait["fallback_interval_seconds"])
             durable.db.execute(
                 """
                 UPDATE agent_external_waits
@@ -713,6 +811,12 @@ def reconcile_wait(
                 """,
                 (count, next_fallback, occurred_at, wait_id),
             )
+            durable.db.commit()
+        except Exception:
+            if durable.db.in_transaction:
+                durable.db.rollback()
+            raise
+
         return {
             "schema_version": 1,
             "record_type": "APPLAB_V61B_RECONCILIATION",
