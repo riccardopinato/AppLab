@@ -45,7 +45,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 | **v6.0E** | Autonomous PR Steward | **LANDED / EXACT-HEAD VALIDATED:** explicit PR capabilities, exact patch→commit materialization, fast-forward-only `applab/repair/*`, draft create/reuse/update, no ready/approve/merge/release, landed through PR #176 | P1 |
 | **v6.0F** | Agent Memory & Policy Learning | **LANDED / EXACT-HEAD VALIDATED:** clean PR #181 landed on `main`; rebuildable identity-bound episodic memory + current-candidate-only strategy ranking; historical boosts cannot create candidates or raise autonomous-edit eligibility | P1 |
 | **v6.0H** | Sensor Mesh | **LANDED / EXACT-HEAD VALIDATED:** clean PR #184 landed on `main`; risk-triggered scrcpy, LeakCanary, Semgrep, Trivy, MobSF/Hetty evidence producers with exact-source/risk-context binding; evidence-only authority | P2 |
-| **v6.0I** | Agentic Operations Studio | **CORE EXACT-HEAD VALIDATION ACTIVE:** read-only WorkItems, attempts, evidence, budget/authority and PR-state projection wired into Repo Watcher + Control Center; Production Certification snapshot wiring is intentionally deferred to a separate FULL follow-up | P2 |
+| **v6.0I** | Agentic Operations Studio | **EXACT-HEAD VALIDATION ACTIVE:** read-only WorkItems, attempts, evidence, budget/authority and PR-state projection wired into Control Center; Repo Watcher passes the ledger explicitly and other restored-history producers, including Production Certification, preserve it through sibling-ledger auto-discovery; no certification authority change | P2 |
 
 ### v6.0 authority envelope
 
