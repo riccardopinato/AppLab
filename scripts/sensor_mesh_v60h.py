@@ -76,6 +76,8 @@ def _plan_labs(plan: dict[str, Any]) -> set[str]:
             for name, selected in labs.items()
             if selected is True
         }
+    if isinstance(labs, list):
+        return set(_strings(labs))
     values = plan.get("selected_specialist_labs")
     return set(_strings(values))
 
@@ -265,10 +267,16 @@ def aggregate(
     evidence: list[dict[str, Any]],
 ) -> dict[str, Any]:
     selected = set(_strings(plan.get("selected_sensor_ids")))
+    repository = str(plan.get("repository") or "").strip()
+    resolved_sha = str(plan.get("resolved_sha") or "").lower()
     by_producer = {
         str(row.get("producer") or "").upper(): row
         for row in evidence
-        if isinstance(row, dict)
+        if (
+            isinstance(row, dict)
+            and str(row.get("repository") or "").strip() == repository
+            and str(row.get("source_sha") or "").lower() == resolved_sha
+        )
     }
     states = []
     for sensor in sorted(selected):
