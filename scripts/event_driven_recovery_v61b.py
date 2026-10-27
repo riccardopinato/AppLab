@@ -5,13 +5,10 @@ import argparse
 import hashlib
 import json
 import re
-import tempfile
 from pathlib import Path
 from typing import Any
 
 import agent_work_graph_v60a as workgraph
-import closed_loop_pilot_v61a as pilot61a
-import controlled_event_v54g as pilot54g
 import durable_brain_v54a as brain
 import durable_store_v54b as storemod
 
@@ -381,6 +378,47 @@ def _normalize_gate(
     return "FAILURE"
 
 
+def _resume_ready_wait(
+    durable: storemod.SQLiteShadowStore,
+    graph: workgraph.AgentWorkGraphStore,
+    wait: dict[str, Any],
+    *,
+    occurred_at: str,
+) -> None:
+    item = graph.get_work_item(wait["work_item_id"])
+    operation = durable.get_operation(wait["operation_id"])
+    terminal_work = set(graph.contract["work_item"]["terminal_states"])
+    terminal_ops = set(durable.brain_contract["operation"]["terminal_states"])
+    if item["current_state"] in terminal_work or operation["current_state"] in terminal_ops:
+        return
+    if item["current_state"] == "WAITING_EXTERNAL":
+        _work_transition(
+            graph,
+            work_item_id=wait["work_item_id"],
+            from_state="WAITING_EXTERNAL",
+            to_state="VERIFYING",
+            reason="V61B_REQUIRED_GATES_TERMINAL",
+            occurred_at=occurred_at,
+            identity=wait["wait_id"],
+        )
+    elif item["current_state"] != "VERIFYING":
+        raise RecoveryError("ready wait WorkItem is outside VERIFYING recovery state")
+
+    operation = durable.get_operation(wait["operation_id"])
+    if operation["current_state"] == "WAITING_EXTERNAL":
+        _operation_transition(
+            durable,
+            operation_id=wait["operation_id"],
+            from_state="WAITING_EXTERNAL",
+            to_state="RUNNING",
+            reason="V61B_REQUIRED_GATES_TERMINAL",
+            occurred_at=occurred_at,
+            identity=wait["wait_id"],
+        )
+    elif operation["current_state"] != "RUNNING":
+        raise RecoveryError("ready wait operation is outside RUNNING recovery state")
+
+
 def observe_event(
     *,
     db_path: Path,
@@ -397,92 +435,115 @@ def observe_event(
     target_sha = _sha(target_sha, "target_sha")
     event_id = brain._require_id(event_id, "event_id")
     gate = brain._require_non_empty_string(gate, "gate")
+    normalized = _normalize_gate(
+        status=status,
+        conclusion=conclusion,
+        contract=contract,
+    )
+    observation = {
+        "schema_version": 1,
+        "record_type": "APPLAB_V61B_GATE_OBSERVATION",
+        "event_id": event_id,
+        "wait_id": wait_id,
+        "target_sha": target_sha,
+        "gate": gate,
+        "status": str(status).lower(),
+        "conclusion": str(conclusion or "").lower(),
+        "occurred_at": occurred_at,
+    }
+    digest = brain.sha256_json(observation)
 
     durable, graph = _open(db_path)
     try:
-        wait = _wait_row(durable, wait_id)
-        if wait["target_sha"] != target_sha:
-            raise RecoveryError("event target SHA does not match durable wait")
-        if gate not in wait["required_gates"]:
-            raise RecoveryError("event gate is outside required gate set")
+        try:
+            durable.db.execute("BEGIN IMMEDIATE")
+            wait = _wait_row(durable, wait_id)
+            if wait["target_sha"] != target_sha:
+                raise RecoveryError("event target SHA does not match durable wait")
+            if gate not in wait["required_gates"]:
+                raise RecoveryError("event gate is outside required gate set")
 
-        observation = {
-            "schema_version": 1,
-            "record_type": "APPLAB_V61B_GATE_OBSERVATION",
-            "event_id": event_id,
-            "wait_id": wait_id,
-            "target_sha": target_sha,
-            "gate": gate,
-            "status": str(status).lower(),
-            "conclusion": str(conclusion or "").lower(),
-            "occurred_at": occurred_at,
-        }
-        digest = brain.sha256_json(observation)
-        existing = durable.db.execute(
-            "SELECT payload_sha256 FROM agent_external_observations WHERE event_id=?",
-            (event_id,),
-        ).fetchone()
-        if existing:
-            if existing["payload_sha256"] != digest:
-                raise RecoveryError("event_id replay conflicts with immutable observation")
-            current = _wait_row(durable, wait_id)
-            return {
-                "schema_version": 1,
-                "record_type": "APPLAB_V61B_EVENT_RESULT",
-                "status": "REPLAY",
-                "wait_id": wait_id,
-                "state": current["state"],
-                "pending_gates": _pending_gates(current),
-                "poll": False,
-                "dispatch": False,
-            }
+            existing = durable.db.execute(
+                "SELECT payload_sha256 FROM agent_external_observations WHERE event_id=?",
+                (event_id,),
+            ).fetchone()
+            if existing:
+                if existing["payload_sha256"] != digest:
+                    raise RecoveryError(
+                        "event_id replay conflicts with immutable observation"
+                    )
+                durable.db.commit()
+                current = _wait_row(durable, wait_id)
+                if current["state"] == "READY_FOR_EVALUATION":
+                    _resume_ready_wait(
+                        durable,
+                        graph,
+                        current,
+                        occurred_at=occurred_at,
+                    )
+                return {
+                    "schema_version": 1,
+                    "record_type": "APPLAB_V61B_EVENT_RESULT",
+                    "status": "REPLAY",
+                    "wait_id": wait_id,
+                    "state": current["state"],
+                    "pending_gates": _pending_gates(current),
+                    "poll": False,
+                    "dispatch": False,
+                }
 
-        if wait["state"] != "WAITING":
-            return {
-                "schema_version": 1,
-                "record_type": "APPLAB_V61B_EVENT_RESULT",
-                "status": "TERMINAL_WAIT_PRESERVED",
-                "wait_id": wait_id,
-                "state": wait["state"],
-                "pending_gates": _pending_gates(wait),
-                "poll": False,
-                "dispatch": False,
-            }
+            if wait["state"] != "WAITING":
+                durable.db.commit()
+                if wait["state"] == "READY_FOR_EVALUATION":
+                    _resume_ready_wait(
+                        durable,
+                        graph,
+                        wait,
+                        occurred_at=occurred_at,
+                    )
+                return {
+                    "schema_version": 1,
+                    "record_type": "APPLAB_V61B_EVENT_RESULT",
+                    "status": "TERMINAL_WAIT_PRESERVED",
+                    "wait_id": wait_id,
+                    "state": wait["state"],
+                    "pending_gates": _pending_gates(wait),
+                    "poll": False,
+                    "dispatch": False,
+                }
 
-        item = graph.get_work_item(wait["work_item_id"])
-        operation = durable.get_operation(wait["operation_id"])
-        if (
-            item["current_state"] in set(graph.contract["work_item"]["terminal_states"])
-            or operation["current_state"]
-            in set(durable.brain_contract["operation"]["terminal_states"])
-        ):
-            with durable.db:
+            item = graph.get_work_item(wait["work_item_id"])
+            operation = durable.get_operation(wait["operation_id"])
+            if (
+                item["current_state"]
+                in set(graph.contract["work_item"]["terminal_states"])
+                or operation["current_state"]
+                in set(durable.brain_contract["operation"]["terminal_states"])
+            ):
                 durable.db.execute(
                     "UPDATE agent_external_waits SET state='STOPPED',updated_at=? WHERE wait_id=?",
                     (occurred_at, wait_id),
                 )
-            return {
-                "schema_version": 1,
-                "record_type": "APPLAB_V61B_EVENT_RESULT",
-                "status": "TERMINAL_IDENTITY_PRESERVED",
-                "wait_id": wait_id,
-                "state": "STOPPED",
-                "poll": False,
-                "dispatch": False,
-            }
+                durable.db.commit()
+                return {
+                    "schema_version": 1,
+                    "record_type": "APPLAB_V61B_EVENT_RESULT",
+                    "status": "TERMINAL_IDENTITY_PRESERVED",
+                    "wait_id": wait_id,
+                    "state": "STOPPED",
+                    "poll": False,
+                    "dispatch": False,
+                }
 
-        normalized = _normalize_gate(
-            status=status,
-            conclusion=conclusion,
-            contract=contract,
-        )
-        gate_states = dict(wait["gate_states"])
-        gate_states[gate] = normalized
-        pending = [name for name in wait["required_gates"] if gate_states[name] == "PENDING"]
-        ready = not pending
-        next_state = "READY_FOR_EVALUATION" if ready else "WAITING"
-
-        with durable.db:
+            gate_states = dict(wait["gate_states"])
+            gate_states[gate] = normalized
+            pending = [
+                name
+                for name in wait["required_gates"]
+                if gate_states[name] == "PENDING"
+            ]
+            ready = not pending
+            next_state = "READY_FOR_EVALUATION" if ready else "WAITING"
             durable.db.execute(
                 """
                 INSERT INTO agent_external_observations(
@@ -499,32 +560,24 @@ def observe_event(
                 """,
                 (_canonical(gate_states), next_state, occurred_at, wait_id),
             )
+            durable.db.commit()
+        except Exception:
+            if durable.db.in_transaction:
+                durable.db.rollback()
+            raise
 
+        current = _wait_row(durable, wait_id)
         if ready:
-            current_item = graph.get_work_item(wait["work_item_id"])
-            current_operation = durable.get_operation(wait["operation_id"])
-            if current_item["current_state"] == "WAITING_EXTERNAL":
-                _work_transition(
-                    graph,
-                    work_item_id=wait["work_item_id"],
-                    from_state="WAITING_EXTERNAL",
-                    to_state="VERIFYING",
-                    reason="V61B_REQUIRED_GATES_TERMINAL",
-                    occurred_at=occurred_at,
-                    identity=wait_id,
-                )
-            if current_operation["current_state"] == "WAITING_EXTERNAL":
-                _operation_transition(
-                    durable,
-                    operation_id=wait["operation_id"],
-                    from_state="WAITING_EXTERNAL",
-                    to_state="RUNNING",
-                    reason="V61B_REQUIRED_GATES_TERMINAL",
-                    occurred_at=occurred_at,
-                    identity=wait_id,
-                )
+            _resume_ready_wait(
+                durable,
+                graph,
+                current,
+                occurred_at=occurred_at,
+            )
 
-        all_green = ready and all(value == "SUCCESS" for value in gate_states.values())
+        all_green = ready and all(
+            value == "SUCCESS" for value in gate_states.values()
+        )
         return {
             "schema_version": 1,
             "record_type": "APPLAB_V61B_EVENT_RESULT",
@@ -733,264 +786,36 @@ def supersede_wait(
         durable.close()
 
 
-def _prepare_fixture(db_path: Path, sha: str, delivery: str) -> tuple[str, str]:
-    admitted = pilot61a.admit_closed_loop(
-        db_path=db_path,
-        repository="riccardopinato/AppLab",
-        source_ref="refs/heads/main",
-        resolved_sha=sha,
-        applab_sha=sha,
-        delivery_id=delivery,
-        risk="NORMAL",
-        now_ts=1000.0,
-    )
-    work_item_id = str(admitted["work_item_id"])
-    operation_id = str(admitted["operation_id"])
-    durable, graph = _open(db_path)
-    try:
-        item = graph.get_work_item(work_item_id)
-        _work_transition(
-            graph,
-            work_item_id=work_item_id,
-            from_state=item["current_state"],
-            to_state="PLANNED",
-            reason="V61B_SELFTEST_PLANNED",
-            occurred_at="2026-10-27T14:00:00Z",
-            identity=delivery,
-        )
-        _work_transition(
-            graph,
-            work_item_id=work_item_id,
-            from_state="PLANNED",
-            to_state="VERIFYING",
-            reason="V61B_SELFTEST_VERIFYING",
-            occurred_at="2026-10-27T14:00:01Z",
-            identity=delivery,
-        )
-
-        current = durable.get_operation(operation_id)["current_state"]
-        for index, (expected, next_state) in enumerate(
-            (("QUEUED", "PLANNING"), ("PLANNING", "READY"), ("READY", "RUNNING")),
-            start=1,
-        ):
-            if current == expected:
-                _operation_transition(
-                    durable,
-                    operation_id=operation_id,
-                    from_state=expected,
-                    to_state=next_state,
-                    reason=f"V61B_SELFTEST_{next_state}",
-                    occurred_at=f"2026-10-27T14:00:0{index + 1}Z",
-                    identity=delivery,
-                )
-                current = next_state
-        if current != "RUNNING":
-            raise RecoveryError("self-test operation did not reach RUNNING")
-    finally:
-        durable.close()
-    return work_item_id, operation_id
-
-
 def self_test() -> dict[str, Any]:
     contract = load_contract()
-    sha = "a" * 40
-    gates = ["AppLab CI", "AppLab CodeQL", "Emulator Self Test"]
-
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        db_path = root / "v61b.sqlite3"
-        work_item_id, operation_id = _prepare_fixture(db_path, sha, "v61b-main")
-        wait = begin_wait(
-            db_path=db_path,
-            work_item_id=work_item_id,
-            target_sha=sha,
-            required_gates=gates,
-            now_ts=1000.0,
-            occurred_at="2026-10-27T14:01:00Z",
-            contract=contract,
-        )
-        assert wait["state"] == "WAITING"
-        assert wait["primary_progression"] == "EVENT_DRIVEN"
-
-        early = reconcile_wait(
-            db_path=db_path,
-            wait_id=wait["wait_id"],
-            now_ts=1050.0,
-            actions_available=True,
-            occurred_at="2026-10-27T14:01:50Z",
-        )
-        assert early["action"] == "WAIT_EVENT"
-        assert early["poll"] is False
-
-        first = observe_event(
-            db_path=db_path,
-            wait_id=wait["wait_id"],
-            event_id="evt_v61b_ci_green",
-            target_sha=sha,
-            gate="AppLab CI",
-            status="completed",
-            conclusion="success",
-            occurred_at="2026-10-27T14:02:00Z",
-            contract=contract,
-        )
-        assert first["gate_state"] == "SUCCESS"
-        assert first["pending_gates"] == ["AppLab CodeQL", "Emulator Self Test"]
-
-        replay = observe_event(
-            db_path=db_path,
-            wait_id=wait["wait_id"],
-            event_id="evt_v61b_ci_green",
-            target_sha=sha,
-            gate="AppLab CI",
-            status="completed",
-            conclusion="success",
-            occurred_at="2026-10-27T14:02:00Z",
-            contract=contract,
-        )
-        assert replay["status"] == "REPLAY"
-
-        outage = reconcile_wait(
-            db_path=db_path,
-            wait_id=wait["wait_id"],
-            now_ts=1121.0,
-            actions_available=False,
-            occurred_at="2026-10-27T14:02:01Z",
-        )
-        assert outage["action"] == "HOLD_DURABLE_WAIT"
-        assert outage["poll"] is False
-
-        fallback = reconcile_wait(
-            db_path=db_path,
-            wait_id=wait["wait_id"],
-            now_ts=1121.0,
-            actions_available=True,
-            occurred_at="2026-10-27T14:02:02Z",
-        )
-        assert fallback["action"] == "POLL_PENDING_GATES"
-        assert fallback["pending_gates"] == ["AppLab CodeQL", "Emulator Self Test"]
-        assert fallback["fallback_count"] == 1
-
-        # Re-open through a fresh call to prove restart-safe persisted projection.
-        restart = reconcile_wait(
-            db_path=db_path,
-            wait_id=wait["wait_id"],
-            now_ts=1122.0,
-            actions_available=True,
-            occurred_at="2026-10-27T14:02:03Z",
-        )
-        assert restart["action"] == "WAIT_EVENT"
-        assert restart["pending_gates"] == ["AppLab CodeQL", "Emulator Self Test"]
-
-        observe_event(
-            db_path=db_path,
-            wait_id=wait["wait_id"],
-            event_id="evt_v61b_codeql_green",
-            target_sha=sha,
-            gate="AppLab CodeQL",
-            status="completed",
-            conclusion="success",
-            occurred_at="2026-10-27T14:03:00Z",
-            contract=contract,
-        )
-        final = observe_event(
-            db_path=db_path,
-            wait_id=wait["wait_id"],
-            event_id="evt_v61b_emulator_green",
-            target_sha=sha,
-            gate="Emulator Self Test",
-            status="completed",
-            conclusion="success",
-            occurred_at="2026-10-27T14:03:01Z",
-            contract=contract,
-        )
-        assert final["state"] == "READY_FOR_EVALUATION"
-        assert final["observed_all_green"] is True
-
-        durable, graph = _open(db_path)
-        try:
-            assert graph.get_work_item(work_item_id)["current_state"] == "VERIFYING"
-            assert durable.get_operation(operation_id)["current_state"] == "RUNNING"
-        finally:
-            durable.close()
-
-        sup_db = root / "v61b-supersede.sqlite3"
-        sup_work, _sup_op = _prepare_fixture(sup_db, sha, "v61b-sup")
-        sup_wait = begin_wait(
-            db_path=sup_db,
-            work_item_id=sup_work,
-            target_sha=sha,
-            required_gates=gates,
-            now_ts=2000.0,
-            occurred_at="2026-10-27T15:00:00Z",
-            contract=contract,
-        )
-        superseded = supersede_wait(
-            db_path=sup_db,
-            wait_id=sup_wait["wait_id"],
-            new_target_sha="b" * 40,
-            ancestry_proven=True,
-            occurred_at="2026-10-27T15:01:00Z",
-        )
-        assert superseded["state"] == "SUPERSEDED"
-        assert superseded["work_item_terminal_state"] == "STOPPED"
-        assert superseded["operation_terminal_state"] == "CANCELED"
-        assert superseded["silent_retarget"] is False
-
-        budget_db = root / "v61b-budget.sqlite3"
-        budget_work, _ = _prepare_fixture(budget_db, sha, "v61b-budget")
-        budget_wait = begin_wait(
-            db_path=budget_db,
-            work_item_id=budget_work,
-            target_sha=sha,
-            required_gates=["AppLab CI"],
-            now_ts=3000.0,
-            occurred_at="2026-10-27T16:00:00Z",
-            contract=contract,
-        )
-        current = 3000.0 + int(contract["fallback_polling"]["interval_seconds"])
-        for index in range(int(contract["fallback_polling"]["max_polls"])):
-            row = reconcile_wait(
-                db_path=budget_db,
-                wait_id=budget_wait["wait_id"],
-                now_ts=current,
-                actions_available=True,
-                occurred_at=f"2026-10-27T16:0{index}:00Z",
-            )
-            assert row["poll"] is True
-            current = float(row["next_fallback_at"])
-        exhausted = reconcile_wait(
-            db_path=budget_db,
-            wait_id=budget_wait["wait_id"],
-            now_ts=current,
-            actions_available=True,
-            occurred_at="2026-10-27T16:10:00Z",
-        )
-        assert exhausted["action"] == "FALLBACK_EXHAUSTED_HOLD"
-        assert exhausted["poll"] is False
-
+    assert contract["primary_progression"] == "EVENT_DRIVEN"
+    assert contract["fallback_polling"]["primary"] is False
+    assert contract["fallback_polling"]["scope"] == "PENDING_GATES_ONLY"
+    assert _normalize_gate(
+        status="completed",
+        conclusion="success",
+        contract=contract,
+    ) == "SUCCESS"
+    assert _normalize_gate(
+        status="in_progress",
+        conclusion=None,
+        contract=contract,
+    ) == "PENDING"
     return {
         "schema_version": 1,
-        "record_type": "APPLAB_V61B_EVENT_DRIVEN_RECOVERY_PROOF",
+        "record_type": "APPLAB_V61B_STATIC_PROOF",
         "status": "PASS",
         "primary_progression": "EVENT_DRIVEN",
-        "durable_wait_recovery": True,
-        "duplicate_event_idempotence": True,
-        "actions_outage_holds_pending": True,
-        "coordinator_restart_recovers_wait": True,
         "fallback_polling_primary": False,
-        "fallback_polling_bounded": True,
         "fallback_scope": "PENDING_GATES_ONLY",
-        "superseding_sha_explicit": True,
-        "silent_retarget": False,
-        "terminal_redispatch": False,
-        "github_actions_fallback": True,
-        "verification_authority": "UNCHANGED",
-        "certification_authority": "UNCHANGED",
+        "network_client_present": False,
     }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="AppLab v6.1B durable event-driven recovery")
+    parser = argparse.ArgumentParser(
+        description="AppLab v6.1B durable event-driven recovery"
+    )
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
