@@ -136,6 +136,13 @@ def plan_sensors(
     resolved_sha = str(plan.get("resolved_sha") or "").lower()
     if "/" not in repository or not SHA_RE.fullmatch(resolved_sha):
         raise SensorMeshError("sensor plan requires exact repository/source identity")
+    execution_plan_input = "execution_key" in plan or "dag" in plan
+    if execution_plan_input and (
+        "risk_score" not in plan
+        or "changed_files" not in plan
+        or "risk_reasons" not in plan
+    ):
+        raise SensorMeshError("execution plan missing sensor risk inputs")
     labs = _plan_labs(plan)
     files = _changed_files(plan)
     tokens = _tokens(plan, project)
@@ -328,6 +335,22 @@ def self_test() -> None:
     ids = set(planned["selected_sensor_ids"])
     assert {"SCRCPY_CAPTURE", "LEAKCANARY", "SEMGREP", "TRIVY", "MOBSF", "HETTY"} <= ids
     assert planned["guardrails"]["can_mint_pass"] is False
+
+    try:
+        plan_sensors(
+            {
+                "repository": "owner/app",
+                "resolved_sha": "d" * 40,
+                "execution_key": "legacy",
+                "dag": {"nodes": []},
+                "selected_labs": ["network"],
+            },
+            {"project_type": "flutter"},
+        )
+    except SensorMeshError as exc:
+        assert "missing sensor risk inputs" in str(exc)
+    else:
+        raise AssertionError("incomplete execution plan must fail closed")
 
     semgrep = normalize_sensor_evidence({
         "producer": "SEMGREP",
