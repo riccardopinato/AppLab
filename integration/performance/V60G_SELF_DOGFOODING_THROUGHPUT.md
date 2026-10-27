@@ -1,6 +1,6 @@
 # AppLab v6.0G — Self-Dogfooding Throughput
 
-Status: **IMPLEMENTED CANDIDATE / EXACT-HEAD TIMING EVIDENCE REQUIRED**
+Status: **PRODUCTION-COMPLETE FOR ORDINARY APPLAB FAST / PROMOTION EVIDENCE RECORDED**
 
 ## Goal
 
@@ -133,19 +133,30 @@ Contract coverage proves:
 - complete-cache restore requirement;
 - dependency-safe review waves.
 
-## Promotion evidence still required
+## Promotion evidence — satisfied 2026-10-27
 
-Implementation completion does not by itself claim the throughput target.
+The ordinary AppLab FAST promotion gate is satisfied by real exact-head evidence
+recorded in
+`integration/performance/V60G_PROMOTION_EVIDENCE_2026-10-27.md`.
 
-Before v6.0G is marked production-complete, exact-head observations must show
-that ordinary orchestration/script PRs materially improve from the immutable
-v5.9.1 baseline in
-`integration/performance/V591_SELF_LOOP_BASELINE_2026-10-27.md`.
+Observed FAST Emulator samples:
 
-Targets remain:
+- 205.169 s;
+- 249.054 s;
+- 248.489 s.
+
+Observed p95: **248.998 s ≈ 4m09s**, below the **<6 min** ordinary AppLab FAST
+target. Two fully green exact heads also had whole required-lane floors of
+approximately **3m25s** and **4m09s**, materially below the immutable v5.9.1
+merge floor of approximately **11m40s**.
+
+FULL depth remains unchanged and was re-proven after the FAST samples on
+runtime/workflow-sensitive exact heads.
+
+This promotion does not infer unmeasured lane SLAs. The following remain
+monitoring targets rather than promotion claims:
 
 - docs/config non-runtime: p95 < 2 min;
-- localized script change: p95 < 5–6 min;
-- ordinary AppLab FAST: p95 < 6 min;
 - runtime-sensitive change: p95 < 10 min where safely attainable;
+- downstream UI FAST: 5–10 min;
 - FULL/certification: evidence depth over artificial latency.
