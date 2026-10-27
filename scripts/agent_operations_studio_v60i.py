@@ -47,6 +47,30 @@ def _attempt_number(record: dict[str, Any]) -> int:
 
 def build_agent_operations(records: list[dict[str, Any]]) -> dict[str, Any]:
     items: dict[str, dict[str, Any]] = {}
+    operation_to_work: dict[str, str] = {}
+    attempt_to_work: dict[str, str] = {}
+    source_to_work: dict[tuple[str, str], list[str]] = {}
+
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        record_type = str(record.get("record_type") or "")
+        work_item_id = _work_item_id(record)
+        if record_type == "APPLAB_WORK_ITEM" and work_item_id:
+            operation_id = str(record.get("operation_id") or "")
+            if operation_id:
+                operation_to_work[operation_id] = work_item_id
+            repository = str(record.get("repository") or "")
+            resolved_sha = str(record.get("resolved_sha") or "").lower()
+            if repository and resolved_sha:
+                key = (repository, resolved_sha)
+                source_to_work.setdefault(key, [])
+                if work_item_id not in source_to_work[key]:
+                    source_to_work[key].append(work_item_id)
+        elif record_type == "APPLAB_WORK_ATTEMPT_LINK" and work_item_id:
+            attempt_id = str(record.get("attempt_id") or "")
+            if attempt_id:
+                attempt_to_work[attempt_id] = work_item_id
 
     def ensure(work_item_id: str) -> dict[str, Any]:
         return items.setdefault(
@@ -79,86 +103,109 @@ def build_agent_operations(records: list[dict[str, Any]]) -> dict[str, Any]:
         )
 
     for record in records:
-        record_type = str(record.get("record_type") or "")
-        work_item_id = _work_item_id(record)
-        if not work_item_id:
+        if not isinstance(record, dict):
             continue
-        item = ensure(work_item_id)
-        item["record_count"] += 1
+        record_type = str(record.get("record_type") or "")
+        direct_work_item_id = _work_item_id(record)
+        work_item_ids: list[str] = [direct_work_item_id] if direct_work_item_id else []
 
-        repository = str(record.get("repository") or "")
-        resolved_sha = str(record.get("resolved_sha") or record.get("root_resolved_sha") or "")
-        if repository:
-            item["repository"] = repository
-        if resolved_sha:
-            item["resolved_sha"] = resolved_sha
+        if not work_item_ids:
+            attempt_id = str(record.get("attempt_id") or "")
+            operation_id = str(record.get("operation_id") or "")
+            if attempt_id and attempt_id in attempt_to_work:
+                work_item_ids = [attempt_to_work[attempt_id]]
+            elif operation_id and operation_id in operation_to_work:
+                work_item_ids = [operation_to_work[operation_id]]
+            elif record_type == "SENSOR_MESH_EVIDENCE_V60H":
+                repository = str(record.get("repository") or "")
+                source_sha = str(record.get("source_sha") or "").lower()
+                work_item_ids = list(source_to_work.get((repository, source_sha), []))
 
-        if record_type == "APPLAB_WORK_ITEM":
-            item["state"] = str(record.get("current_state") or record.get("state") or item["state"])
-            item["risk"] = str(record.get("risk") or item["risk"])
-            budgets = record.get("budgets") if isinstance(record.get("budgets"), dict) else {}
-            item["repair_budget"] = int(budgets.get("max_repair_attempts", 0) or 0)
-            item["file_budget"] = int(budgets.get("max_files", 0) or 0)
-            item["line_budget"] = int(budgets.get("max_changed_lines", 0) or 0)
-            envelope = record.get("authority_envelope")
-            if isinstance(envelope, dict):
-                item["authority_envelope"] = {
-                    "allowed_capabilities": list(envelope.get("allowed_capabilities") or []),
-                    "denied_capabilities": list(envelope.get("denied_capabilities") or []),
-                }
+        if not work_item_ids:
+            continue
 
-        elif record_type == "APPLAB_WORK_TRANSITION":
-            item["state"] = str(record.get("to_state") or item["state"])
+        for work_item_id in work_item_ids:
+            item = ensure(work_item_id)
+            item["record_count"] += 1
 
-        elif record_type == "APPLAB_WORK_ACTION":
-            item["actions"] += 1
-
-        elif record_type == "APPLAB_ATTEMPT":
-            item["attempts"] = max(item["attempts"], _attempt_number(record))
-
-        elif record_type == "APPLAB_EVIDENCE_REF":
-            item["evidence_count"] += 1
-
-        elif record_type == "BOUNDED_FIX_RESULT_V60C":
-            attempt = _attempt_number(record)
-            item["repair_attempts_used"] = max(item["repair_attempts_used"], attempt)
-            item["changed_lines_used"] += int(record.get("changed_lines", 0) or 0)
-            item["state"] = str(record.get("state") or item["state"])
-
-        elif record_type == "VERIFY_REPAIR_LOOP_DECISION_V60D":
-            item["state"] = str(record.get("state") or item["state"])
-            item["stop_reason"] = str(record.get("reason_code") or "")
-            item["next_action"] = str(record.get("next_action") or "")
-            item["repair_attempts_used"] = max(
-                item["repair_attempts_used"],
-                int(record.get("repair_attempt_count", 0) or 0),
+            repository = str(record.get("repository") or "")
+            resolved_sha = str(
+                record.get("resolved_sha")
+                or record.get("root_resolved_sha")
+                or record.get("source_sha")
+                or ""
             )
+            if repository:
+                item["repository"] = repository
+            if resolved_sha:
+                item["resolved_sha"] = resolved_sha
 
-        elif record_type in {
-            "AUTONOMOUS_PR_STEWARD_PLAN_V60E",
-            "AUTONOMOUS_PR_STEWARD_RESULT_V60E",
-            "DRAFT_PR_MATERIALIZATION_V60E",
-        }:
-            item["pr_state"] = str(record.get("state") or "")
-            number = record.get("pr_number", record.get("pull_request_number"))
-            item["pr_number"] = int(number) if isinstance(number, int) else item["pr_number"]
-            item["pr_url"] = str(
-                record.get("pr_url") or record.get("pull_request_url") or item["pr_url"]
-            )
-            item["next_action"] = str(record.get("next_action") or item["next_action"])
+            if record_type == "APPLAB_WORK_ITEM":
+                item["state"] = str(record.get("current_state") or record.get("state") or item["state"])
+                item["risk"] = str(record.get("risk") or item["risk"])
+                budgets = record.get("budgets") if isinstance(record.get("budgets"), dict) else {}
+                item["repair_budget"] = int(budgets.get("max_repair_attempts", 0) or 0)
+                item["file_budget"] = int(budgets.get("max_files", 0) or 0)
+                item["line_budget"] = int(budgets.get("max_changed_lines", 0) or 0)
+                envelope = record.get("authority_envelope")
+                if isinstance(envelope, dict):
+                    item["authority_envelope"] = {
+                        "allowed_capabilities": list(envelope.get("allowed_capabilities") or []),
+                        "denied_capabilities": list(envelope.get("denied_capabilities") or []),
+                    }
 
-        elif record_type == "SENSOR_MESH_EVIDENCE_V60H":
-            producer = str(record.get("producer") or "")
-            if producer and producer not in item["sensor_producers"]:
-                item["sensor_producers"].append(producer)
-            item["evidence_count"] += 1
+            elif record_type == "APPLAB_WORK_TRANSITION":
+                item["state"] = str(record.get("to_state") or item["state"])
 
-        cost = record.get("cost")
-        if isinstance(cost, dict):
-            item["cost"].update(cost)
-        runtime = record.get("runtime")
-        if isinstance(runtime, dict):
-            item["runtime"].update(runtime)
+            elif record_type == "APPLAB_WORK_ACTION":
+                item["actions"] += 1
+
+            elif record_type == "APPLAB_ATTEMPT":
+                item["attempts"] = max(item["attempts"], _attempt_number(record))
+
+            elif record_type == "APPLAB_EVIDENCE_REF":
+                item["evidence_count"] += 1
+
+            elif record_type == "BOUNDED_FIX_RESULT_V60C":
+                attempt = _attempt_number(record)
+                item["repair_attempts_used"] = max(item["repair_attempts_used"], attempt)
+                item["changed_lines_used"] += int(record.get("changed_lines", 0) or 0)
+                item["state"] = str(record.get("state") or item["state"])
+
+            elif record_type == "VERIFY_REPAIR_LOOP_DECISION_V60D":
+                item["state"] = str(record.get("state") or item["state"])
+                item["stop_reason"] = str(record.get("reason_code") or "")
+                item["next_action"] = str(record.get("next_action") or "")
+                item["repair_attempts_used"] = max(
+                    item["repair_attempts_used"],
+                    int(record.get("repair_attempt_count", 0) or 0),
+                )
+
+            elif record_type in {
+                "AUTONOMOUS_PR_STEWARD_PLAN_V60E",
+                "AUTONOMOUS_PR_STEWARD_RESULT_V60E",
+                "DRAFT_PR_MATERIALIZATION_V60E",
+            }:
+                item["pr_state"] = str(record.get("state") or "")
+                number = record.get("pr_number", record.get("pull_request_number"))
+                item["pr_number"] = int(number) if isinstance(number, int) else item["pr_number"]
+                item["pr_url"] = str(
+                    record.get("pr_url") or record.get("pull_request_url") or item["pr_url"]
+                )
+                item["next_action"] = str(record.get("next_action") or item["next_action"])
+
+            elif record_type == "SENSOR_MESH_EVIDENCE_V60H":
+                producer = str(record.get("producer") or "")
+                if producer and producer not in item["sensor_producers"]:
+                    item["sensor_producers"].append(producer)
+                item["evidence_count"] += 1
+
+            cost = record.get("cost")
+            if isinstance(cost, dict):
+                item["cost"].update(cost)
+            runtime = record.get("runtime")
+            if isinstance(runtime, dict):
+                item["runtime"].update(runtime)
 
     ordered = sorted(
         items.values(),
