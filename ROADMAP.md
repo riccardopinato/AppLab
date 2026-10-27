@@ -105,7 +105,7 @@ The objective is never “continue until green”. The objective is “continue 
 
 FAST/FULL, Production Certification, physical-device, distribution/store and cross-app authority boundaries remain unchanged throughout v6.
 
-## Active — AppLab v6.1 Controlled Closed-Loop Productionization
+## Completed — AppLab v6.1 Controlled Closed-Loop Productionization
 
 Goal: move the bounded v6 engineering loop from individually proven components
 to a durable, recoverable and evidence-gated production control plane without
@@ -121,7 +121,14 @@ those mechanisms with a parallel orchestration stack.
 | **v6.1B** | Durable Recovery & Supersession | **LANDED / EXACT-HEAD VALIDATED:** PR #191 reached GREEN 8/8 at `d1acad84410e5a6ab3a41419ebeb7bb600dcd472` and merged to `main` as `7d37eec04ad9cbd790135776fc1e0432c67c891f`; durable external waits bind WorkItem + operation + immutable SHA + exact gate set, event observations are primary, stale/duplicate observations are safe, reconciliation polls pending gates only with an atomic bounded fallback budget, restart/interruption recover deterministically and superseding SHA is explicit | P0 |
 | **v6.1C** | Queue, Backpressure & Repair Budgets | **LANDED / EXACT-HEAD VALIDATED:** PR #192 reached GREEN 8/8 on exact head `e4cd7cc2966145aaba0125f2fc86d666d5217206` with zero unresolved review threads and merged to `main` as `f03d9f0fdc38a2f274ad4ae8ac5c66c54d8e40f2`; the closed loop reuses the existing durable queue, preserves immutable file/line/attempt limits, adds cumulative runtime/cost/observation budgets plus repeated-signature STOP, journals observation batches before fallback consumption, recovers READY/replay durably and coalesces due GitHub observations by exact repository + SHA under persisted cycle backpressure | P0/P1 |
 | **v6.1D** | Controlled Multi-Repo Expansion | **LANDED / EXACT-HEAD VALIDATED / PROMOTION HELD AT SELF_CANARY:** PR #194 reached GREEN 8/8 on exact head `b87a93a5b28be0a06b0368eba8ed398accaddaf6`, closed all review findings, and merged to `main` as `0204cc5f2c738d898b98de2f1516b3e47987d272`; the controller preserves `SELF_CANARY -> PILOT_3 -> PILOT_5` only, reuses v5.5 cohort topology without inheriting mutation authority, keeps global/per-repo kill switches and GitHub Actions fallback, and leaves live policy at SELF_CANARY pending real v6.1 closed-loop evidence; ALL_COMPATIBLE is not pre-authorized | P1 |
-| **v6.1E** | Production SLO, Rollback & Operations Evidence | **IMPLEMENTED CANDIDATE / EXACT-HEAD VALIDATION REQUIRED:** read-only v6.1 operation evidence tracks commit-to-green, queue wait, AppLab orchestration overhead, GitHub execution and repair-runtime p50/p95; separates success/failure/repeated-signature STOPs, false-repair/authority/recovery/identity signals, rollback evidence and event/reconciliation/fallback/coalescing efficiency; reuses the v6.1D promotion gate but adds an independent fail-closed operations recommendation, projects the latest summary into the read-only Operations Studio and never changes policy or PASS/CERTIFIED authority | P1 |
+| **v6.1E** | Production SLO, Rollback & Operations Evidence | **LANDED / EXACT-HEAD VALIDATED:** PR #197 reached GREEN 8/8 at exact head `f926931f4a4f722120320cf16a8fbb39012952c6` with completed clean Codex review, all review threads resolved, and squash-merged to `main` as `2cfb3fc6ceec32e07038ab13b75bea963e5b8ca5`; read-only operations evidence tracks latency p50/p95, repair/STOP/rollback/authority signals and observation efficiency, produces fail-closed advisory promotion/rollback recommendations, and never mutates live stage, kill switches, PASS/CERTIFIED or release authority | P1 |
+
+
+### v6.1 implementation closure
+
+**ROADMAP v6.1 COMPLETED (implementation only).** v6.1A–v6.1E are LANDED / EXACT-HEAD VALIDATED. v6.1E PR #197 passed all eight applicable exact-head workflows and the independent Codex review with no outstanding findings before squash merge. The immutable review head, merge SHA, gate names and full evidence chain are recorded in `integration/roadmap/V61_COMPLETION_EVIDENCE_2026-10-27.md`.
+
+**Rollout is NOT promoted:** v6.1D remains HOLD AT `SELF_CANARY` until separate real closed-loop production evidence and explicit authorized promotion. Implementation closure is not approval to move to `PILOT_3`, `PILOT_5` or `ALL_COMPATIBLE`, and is not Production Certification or release authority. No v6.2 scope is opened by this closure.
 
 ### v6.1 admission rules
 
