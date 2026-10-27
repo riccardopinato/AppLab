@@ -39,6 +39,8 @@
     "candidate_score_must_expose_contributing_signals",
     "truncated_or_ambiguous_evidence_lowers_confidence",
     "investigator_never_modifies_repository",
-    "investigator_never_mints_pass_or_certified"
+    "investigator_never_mints_pass_or_certified",
+    "historical_memory_never_creates_current_candidate",
+    "historical_memory_never_raises_autonomous_edit_eligibility"
   ]
 }
