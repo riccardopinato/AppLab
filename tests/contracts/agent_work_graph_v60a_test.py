@@ -135,6 +135,46 @@ def main() -> int:
             }
             assert graph.put_action(action)["status"] == "INSERTED"
 
+            attempt = brain._attempt_fixture(
+                "att_graph_1",
+                operation["operation_id"],
+                1,
+                "SUCCEEDED",
+                "NONE",
+                False,
+            )
+            assert durable.put_attempt(attempt)["status"] == "INSERTED"
+            attempt_link = {
+                "schema_version": 1,
+                "record_type": "APPLAB_WORK_ATTEMPT_LINK",
+                "attempt_link_id": "lnk_graph_1",
+                "work_item_id": item["work_item_id"],
+                "action_id": action["action_id"],
+                "attempt_id": attempt["attempt_id"],
+                "created_at": "2026-10-27T00:03:30Z",
+            }
+            assert graph.put_attempt_link(attempt_link)["status"] == "INSERTED"
+            assert graph.put_attempt_link(attempt_link)["status"] == "REPLAY"
+
+            evidence = storemod._evidence_fixture(
+                "evd_graph_1",
+                operation,
+                attempt["attempt_id"],
+            )
+            assert durable.put_evidence_ref(evidence)["status"] == "INSERTED"
+
+            evidence_decision = {
+                "schema_version": 1,
+                "record_type": "APPLAB_WORK_DECISION",
+                "decision_id": "dec_graph_2",
+                "work_item_id": item["work_item_id"],
+                "kind": "RUN_APPLAB_FAST",
+                "reason_code": "EXACT_ATTEMPT_EVIDENCE_AVAILABLE",
+                "evidence_ref_ids": [evidence["evidence_ref_id"]],
+                "created_at": "2026-10-27T00:03:45Z",
+            }
+            assert graph.put_decision(evidence_decision)["status"] == "INSERTED"
+
             bad_action = dict(action, action_id="act_graph_bad", capability="CREATE_DRAFT_PR")
             expect_error(
                 lambda: graph.put_action(bad_action),
@@ -149,7 +189,7 @@ def main() -> int:
                 "decision_id": decision["decision_id"],
                 "state": "CONTINUE",
                 "reason_code": "VERIFY_REQUIRED",
-                "evidence_ref_ids": [],
+                "evidence_ref_ids": [evidence["evidence_ref_id"]],
                 "authority": "ORCHESTRATION_ONLY",
                 "created_at": "2026-10-27T00:04:00Z",
             }
@@ -165,8 +205,9 @@ def main() -> int:
 
             replay = graph.integrity_report()
             assert replay["ok"] is True
-            assert replay["counts"]["agent_work_decisions"] == 1
+            assert replay["counts"]["agent_work_decisions"] == 2
             assert replay["counts"]["agent_work_actions"] == 1
+            assert replay["counts"]["agent_work_attempt_links"] == 1
             assert replay["counts"]["agent_work_verdicts"] == 1
 
     graphmod.self_test()
