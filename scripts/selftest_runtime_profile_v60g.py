@@ -92,7 +92,6 @@ FAST_PATTERNS = (
     "scripts/verify_repair_loop_v60d.py",
     "scripts/draft_pr_steward_v60e.py",
     "scripts/selftest_runtime_profile_v60g.py",
-    "scripts/self_review_evidence_dag_v60g.py",
     "scripts/agent_memory_v60f.py",
     "scripts/sensor_mesh_v60h.py",
     "scripts/agentic_operations_snapshot_v60i.py",
