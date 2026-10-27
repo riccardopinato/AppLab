@@ -65,6 +65,8 @@ CONTRACT_FILES = (
     "scripts/closed_loop_pilot_v61a.py",
     "integration/orchestration/contracts/closed-loop-pilot-v1.json",
     "integration/orchestration/v61-closed-loop-pilot.json",
+    "scripts/event_driven_recovery_v61b.py",
+    "integration/orchestration/contracts/event-driven-recovery-v1.json",
     "scripts/ci_scope_v60g.py",
     ".github/workflows/ci.yml",
     "scripts/selftest_runtime_profile_v60g.py",
