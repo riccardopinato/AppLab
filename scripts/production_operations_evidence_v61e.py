@@ -377,6 +377,38 @@ def _rollback_decision(
     }
 
 
+def _operations_gate(
+    *,
+    promotion: dict[str, Any],
+    rollback: dict[str, Any],
+    repositories: dict[str, dict[str, Any]],
+    latency_alerts: list[str],
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    if rollback["decision"] != "NO_ROLLBACK_SIGNAL":
+        blockers.extend(str(value) for value in rollback.get("blockers", []))
+    blockers.extend(latency_alerts)
+    for repository, row in sorted(repositories.items()):
+        if int(row["repeated_signature_stops"]):
+            blockers.append(f"{repository}:REPEATED_FAILURE_SIGNATURE_STOP")
+        if int(row["rollback"]["failures"]):
+            blockers.append(f"{repository}:ROLLBACK_FAILURE")
+
+    raw_eligible = promotion.get("decision") == "ELIGIBLE_FOR_EXPLICIT_PROMOTION"
+    decision = (
+        "ELIGIBLE_FOR_EXPLICIT_PROMOTION"
+        if raw_eligible and not blockers
+        else "HOLD"
+    )
+    return {
+        "decision": decision,
+        "raw_v61d_decision": promotion.get("decision"),
+        "blockers": sorted(set(blockers)),
+        "policy_changed": False,
+        "authority": "OPERATIONS_RECOMMENDATION_ONLY",
+    }
+
+
 def build_report(
     records: list[dict[str, Any]],
     *,
@@ -448,6 +480,13 @@ def build_report(
         )
     }
 
+    operations_gate = _operations_gate(
+        promotion=promotion,
+        rollback=rollback,
+        repositories=repositories,
+        latency_alerts=latency_alerts,
+    )
+
     if not normalized:
         production_status = "NO_EVIDENCE"
     elif rollback["decision"] != "NO_ROLLBACK_SIGNAL":
@@ -468,6 +507,7 @@ def build_report(
         "repositories": repositories,
         "promotion_evidence": promotion_evidence,
         "promotion": promotion,
+        "operations_gate": operations_gate,
         "rollback": rollback,
         "latency_alerts": latency_alerts,
         "repeated_signature_stops": repeated_stops,
@@ -533,6 +573,7 @@ def self_test() -> dict[str, Any]:
     empty = build_report([])
     assert empty["production_status"] == "NO_EVIDENCE"
     assert empty["promotion"]["decision"] == "HOLD"
+    assert empty["operations_gate"]["decision"] == "HOLD"
     assert empty["policy_change_performed"] is False
 
     sha = "a" * 40
@@ -548,6 +589,7 @@ def self_test() -> dict[str, Any]:
     assert healthy["promotion"]["decision"] == "ELIGIBLE_FOR_EXPLICIT_PROMOTION"
     assert healthy["promotion"]["next_stage"] == "PILOT_3"
     assert healthy["promotion"]["policy_changed"] is False
+    assert healthy["operations_gate"]["decision"] == "ELIGIBLE_FOR_EXPLICIT_PROMOTION"
     assert repo["latency"]["commit_to_green_seconds"]["samples"] == 3
     assert repo["latency"]["commit_to_green_seconds"]["p95_seconds"] == 300.0
     assert repo["observations"]["coalesced_wait_savings"] == 6
@@ -567,6 +609,7 @@ def self_test() -> dict[str, Any]:
     assert unhealthy["rollback"]["decision"] == "HOLD_SELF_CANARY"
     assert unhealthy["rollback"]["policy_changed"] is False
     assert unhealthy["promotion"]["decision"] == "HOLD"
+    assert unhealthy["operations_gate"]["decision"] == "HOLD"
     assert unhealthy["pass_or_certified_minted"] is False
     return healthy
 
