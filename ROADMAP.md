@@ -105,6 +105,10 @@ The objective is never “continue until green”. The objective is “continue 
 
 FAST/FULL, Production Certification, physical-device, distribution/store and cross-app authority boundaries remain unchanged throughout v6.
 
+## Active — AppLab v6.2 Operational Proof & Reliability
+
+**Roadmap authorized for execution; rollout remains HOLD AT SELF_CANARY.** Implement in five independently gated stages: **v6.2A Self-Canary Real-Evidence Bridge**, **v6.2B Failure & Recovery Campaign**, **v6.2C Live Operations Pipeline**, **v6.2D Post-Gate Merge & PILOT_3 Decision**, and **v6.2E Hygiene & Reliability Closure**. The source of truth for detailed scope and acceptance is `integration/roadmap/APPLAB_V62_OPERATIONAL_PROOF.md`. v6.1 exact-head CI is not equivalent to real repair evidence. Neither multi-repo autonomous edit rights nor cohort promotion is implied.
+
 ## Completed — AppLab v6.1 Controlled Closed-Loop Productionization
 
 Goal: move the bounded v6 engineering loop from individually proven components
