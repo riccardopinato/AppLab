@@ -64,6 +64,7 @@ CONTRACT_FILES = (
     "scripts/draft_pr_steward_v60e.py",
     "scripts/selftest_runtime_profile_v60g.py",
     "scripts/review_evidence_dag_v60g.py",
+    "scripts/agent_memory_v60f.py",
     ".github/workflows/emulator-self-test.yml",
     ".github/workflows/autonomous-app-review-v31.yml",
     "integration/orchestration/contracts/draft-pr-steward-v1.json",
