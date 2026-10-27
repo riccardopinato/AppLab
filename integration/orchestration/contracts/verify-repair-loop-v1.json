@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_VERIFY_REPAIR_LOOP",
+  "authority": "ORCHESTRATION_ONLY",
+  "max_repair_attempts": 2,
+  "states": [
+    "NEEDS_INVESTIGATION",
+    "NEEDS_REPAIR",
+    "NEEDS_FOCUSED_VERIFY",
+    "NEEDS_APPLAB_VERIFY",
+    "WAITING_EXTERNAL",
+    "COMPLETE",
+    "STOPPED"
+  ],
+  "next_actions": [
+    "INVESTIGATE",
+    "APPLY_BOUNDED_REPAIR",
+    "RUN_FOCUSED_VERIFY",
+    "RUN_APPLAB_FAST",
+    "RUN_APPLAB_FULL",
+    "WAIT_EXTERNAL",
+    "OPEN_DRAFT_PR",
+    "NONE"
+  ],
+  "terminal_reason_codes": [
+    "VERIFIED_PASS",
+    "UNKNOWN_CLASSIFICATION",
+    "SCOPE_EXCEEDED",
+    "PROTECTED_PATH",
+    "SECURITY_SENSITIVE_SCOPE",
+    "TEST_WEAKENING_REQUIRED",
+    "REPEATED_FAILURE_SIGNATURE",
+    "UNEXPLAINED_FAILURE_MUTATION",
+    "IDENTITY_NOT_PROVEN",
+    "BUDGET_EXHAUSTED",
+    "HUMAN_DECISION_REQUIRED",
+    "VERIFICATION_BLOCKED"
+  ],
+  "failure_classes": [
+    "APP_RUNTIME_FAILURE",
+    "APP_VISUAL_FAILURE",
+    "BUILD_OR_QUALITY_FAILURE",
+    "INFRA_ERROR",
+    "FLAKY_SUSPECT",
+    "UNKNOWN_FAILURE",
+    "NONE"
+  ],
+  "invariants": [
+    "loop_never_rewrites_failed_attempt_as_pass",
+    "trusted_app_pass_is_observed_not_minted",
+    "unknown_failure_stops_code_repair",
+    "same_failure_signature_after_second_repair_stops",
+    "unexplained_failure_class_mutation_stops",
+    "repair_attempt_budget_is_hard",
+    "source_and_repair_identity_must_remain_bound",
+    "focused_verification_cannot_replace_required_applab_verification",
+    "loop_never_merges_or_releases"
+  ]
+}
