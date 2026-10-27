@@ -10,24 +10,68 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    name: Resolve v6.0G CI scope
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.scope.outputs.mode }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed files
+        id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -Eeuo pipefail
+          PATHS_FILE="$RUNNER_TEMP/applab-ci-changed-files.txt"
+          : > "$PATHS_FILE"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test -n "$BASE_SHA"
+            test -n "$HEAD_SHA"
+            git diff --no-renames --name-only "$BASE_SHA" "$HEAD_SHA" > "$PATHS_FILE"
+          fi
+          python scripts/ci_scope_v60g.py \
+            --event "$EVENT_NAME" \
+            --paths-file "$PATHS_FILE" \
+            --github-output "$GITHUB_OUTPUT"
+
   static:
+    needs: scope
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Docs-only CI fast path
+        if: ${{ needs.scope.outputs.mode == 'DOCS_ONLY' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git -c core.whitespace=-blank-at-eol diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
 
       - name: Shellcheck
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
           shellcheck scripts/*.sh watch-profiles/*.sh
 
       - name: Python tests
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements-dev.txt
           PYTHONPATH=backend pytest backend/tests -q
 
       - name: Validate watcher tooling
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         run: |
           python -m py_compile \
             scripts/dismiss_foreign_anr.py \
@@ -71,6 +115,7 @@ jobs:
             scripts/bounded_fix_worker_v60c.py \
             scripts/verify_repair_loop_v60d.py \
             scripts/draft_pr_steward_v60e.py \
+            scripts/ci_scope_v60g.py \
             scripts/selftest_runtime_profile_v60g.py \
             scripts/review_evidence_dag_v60g.py \
             scripts/agent_memory_v60f.py \
@@ -230,6 +275,8 @@ jobs:
           python scripts/bounded_fix_worker_v60c.py --self-test
           python scripts/verify_repair_loop_v60d.py --self-test
           python scripts/draft_pr_steward_v60e.py --self-test
+          python scripts/ci_scope_v60g.py --self-test
+          python tests/contracts/ci_scope_v60g_test.py
           python scripts/selftest_runtime_profile_v60g.py --self-test
           python scripts/review_evidence_dag_v60g.py --self-test
           python scripts/agent_memory_v60f.py --self-test
@@ -370,6 +417,7 @@ jobs:
           python tests/intelligence/evidence_graph_test.py
 
       - name: PostgreSQL v5.4B + v5.4E + v5.4F durable schema smoke
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -527,6 +575,7 @@ jobs:
           fi
 
       - name: Frontend build
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         run: |
           cd frontend
           npm ci --no-audit --no-fund
@@ -534,9 +583,11 @@ jobs:
           VITE_APPLAB_READ_ONLY=true npm run build -- --outDir dist-readonly
 
       - name: Build backend container
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         run: docker build -t applab-backend:ci backend
 
       - name: Backend container health smoke
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         run: |
           docker run -d --name applab-backend-ci -p 8000:8000 applab-backend:ci
           healthy=false
@@ -553,33 +604,45 @@ jobs:
           fi
 
       - name: Validate live compose
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         run: docker compose -f docker-compose.live.yml config >/dev/null
 
       - name: Build frontend container
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         run: docker build -t applab-frontend:ci frontend
 
       - name: Cleanup containers
-        if: always()
+        if: ${{ always() && needs.scope.outputs.mode != 'DOCS_ONLY' }}
         run: docker rm -f applab-backend-ci >/dev/null 2>&1 || true
 
   security:
     name: Dependency security audit
+    needs: scope
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Docs-only dependency-audit fast path
+        if: ${{ needs.scope.outputs.mode == 'DOCS_ONLY' }}
+        run: echo "Dependency manifests unchanged; dependency audits remain required for every non-docs PR and push."
 
       - name: Setup Python
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.12"
 
       - name: Audit Python dependencies
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         run: |
           python -m pip install --upgrade pip
           python -m pip install pip-audit==2.10.1
           python -m pip_audit -r backend/requirements.txt --progress-spinner off
 
       - name: Setup Node
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "22"
@@ -587,6 +650,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Audit npm dependencies
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         working-directory: frontend
         run: |
           npm ci --ignore-scripts --no-fund
