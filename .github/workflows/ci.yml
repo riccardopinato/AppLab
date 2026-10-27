@@ -119,6 +119,7 @@ jobs:
             scripts/event_driven_recovery_v61b.py \
             scripts/queue_backpressure_budget_v61c.py \
             scripts/controlled_closed_loop_expansion_v61d.py \
+            scripts/production_operations_evidence_v61e.py \
             scripts/ci_scope_v60g.py \
             scripts/selftest_runtime_profile_v60g.py \
             scripts/review_evidence_dag_v60g.py \
@@ -283,6 +284,7 @@ jobs:
           python scripts/event_driven_recovery_v61b.py --self-test
           python scripts/queue_backpressure_budget_v61c.py --self-test
           python scripts/controlled_closed_loop_expansion_v61d.py --self-test
+          python scripts/production_operations_evidence_v61e.py --self-test
           python scripts/ci_scope_v60g.py --self-test
           python tests/contracts/ci_scope_v60g_test.py
           python scripts/selftest_runtime_profile_v60g.py --self-test
@@ -416,6 +418,7 @@ jobs:
           python tests/contracts/event_driven_recovery_v61b_test.py
           python tests/contracts/queue_backpressure_budget_v61c_test.py
           python tests/contracts/controlled_closed_loop_expansion_v61d_test.py
+          python tests/contracts/production_operations_evidence_v61e_test.py
           python tests/contracts/selftest_runtime_profile_v60g_test.py
           python tests/contracts/review_evidence_dag_v60g_test.py
           python tests/contracts/event_gateway_v54c_test.py

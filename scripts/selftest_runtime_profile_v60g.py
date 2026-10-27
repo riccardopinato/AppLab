@@ -100,7 +100,7 @@ FAST_PATTERNS = (
     "scripts/closed_loop_pilot_v61a.py",
     "scripts/event_driven_recovery_v61b.py",
     "scripts/queue_backpressure_budget_v61c.py",
-    "scripts/controlled_closed_loop_expansion_v61d.py",
+    "scripts/controlled_closed_loop_expansion_v61d.py", "scripts/production_operations_evidence_v61e.py",
     "scripts/autonomous_failure_triage_v58a.py",
     "scripts/contract_fingerprint.py",
     "scripts/maintainability_budget.py",
@@ -284,7 +284,7 @@ def self_test() -> None:
     ])
     assert mixed["profile"] == "FAST"
     assert mixed["selected_labs"] == ["configuration"]
-    operations = plan(["scripts/agent_operations_studio_v60i.py"])
+    operations = plan(["scripts/agent_operations_studio_v60i.py", "scripts/production_operations_evidence_v61e.py"])
     assert operations["profile"] == "FAST"
     assert operations["reason"] == "BOUNDED_ORCHESTRATION_SURFACE"
     f_delta = plan([

@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import production_operations_evidence_v61e as production_evidence
+
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
@@ -50,6 +52,7 @@ def build_agent_operations(records: list[dict[str, Any]]) -> dict[str, Any]:
     operation_to_work: dict[str, str] = {}
     attempt_to_work: dict[str, str] = {}
     source_to_work: dict[tuple[str, str], list[str]] = {}
+    production_operations = production_evidence.studio_projection(records)
 
     for record in records:
         if not isinstance(record, dict):
@@ -250,6 +253,7 @@ def build_agent_operations(records: list[dict[str, Any]]) -> dict[str, Any]:
             "evidence_records": sum(int(row["evidence_count"]) for row in ordered),
         },
         "work_items": ordered[:100],
+        "production_operations": production_operations,
         "source_of_truth": "DURABLE_BRAIN_AND_EVIDENCE_RECORDS",
         "merge_authority": "NONE",
         "release_authority": "NONE",
