@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_SENSOR_MESH",
+  "authority": "EVIDENCE_ROUTING_ONLY",
+  "sensors": {
+    "SCRCPY_CAPTURE": {
+      "wave": "PHYSICAL_CAPTURE",
+      "artifact_role": "PHYSICAL_CAPTURE",
+      "execution": "REQUIRES_PHYSICAL_EXECUTOR",
+      "provider_sensitive": true,
+      "risk_triggers": [
+        "physical_validation",
+        "system",
+        "background",
+        "configuration"
+      ],
+      "requires_artifact_sha256": true,
+      "requires_physical_device": true
+    },
+    "LEAKCANARY": {
+      "wave": "FIRST_WAVE_DIAGNOSTIC",
+      "artifact_role": "DEBUG_INSTRUMENTED",
+      "execution": "REQUIRES_DEBUG_ARTIFACT_EXECUTOR",
+      "provider_sensitive": true,
+      "risk_triggers": [
+        "resource_pressure",
+        "configuration",
+        "memory"
+      ],
+      "requires_artifact_sha256": true,
+      "requires_physical_device": false
+    },
+    "SEMGREP": {
+      "wave": "FIRST_WAVE_SECURITY",
+      "artifact_role": "SOURCE_SECURITY",
+      "execution": "EXTERNAL_SOURCE_SCANNER",
+      "provider_sensitive": true,
+      "reviewed_version": "1.182.0",
+      "reviewed_at": "2026-10-27",
+      "risk_triggers": [
+        "security",
+        "auth",
+        "network",
+        "native",
+        "high_risk"
+      ],
+      "requires_artifact_sha256": false,
+      "requires_physical_device": false
+    },
+    "TRIVY": {
+      "wave": "FIRST_WAVE_SECURITY",
+      "artifact_role": "DEPENDENCY_SECURITY",
+      "execution": "EXTERNAL_SOURCE_SCANNER",
+      "provider_sensitive": true,
+      "reviewed_version": "0.76.1",
+      "reviewed_at": "2026-10-27",
+      "risk_triggers": [
+        "dependency",
+        "container",
+        "config",
+        "high_risk"
+      ],
+      "requires_artifact_sha256": false,
+      "requires_physical_device": false
+    },
+    "MOBSF": {
+      "wave": "SECOND_WAVE_MOBILE",
+      "artifact_role": "MOBILE_SECURITY_ANALYSIS",
+      "execution": "REQUIRES_APK_SCANNER",
+      "provider_sensitive": true,
+      "reviewed_version": "4.5.3",
+      "reviewed_at": "2026-10-27",
+      "risk_triggers": [
+        "android_manifest",
+        "permissions",
+        "native",
+        "release_high_risk"
+      ],
+      "requires_artifact_sha256": true,
+      "requires_physical_device": false
+    },
+    "HETTY": {
+      "wave": "SECOND_WAVE_NETWORK",
+      "artifact_role": "NETWORK_SECURITY_CAPTURE",
+      "execution": "REQUIRES_NETWORK_REPLAY_EXECUTOR",
+      "provider_sensitive": true,
+      "risk_triggers": [
+        "network",
+        "api",
+        "sync",
+        "auth",
+        "network_high_risk"
+      ],
+      "requires_artifact_sha256": true,
+      "requires_physical_device": false
+    }
+  },
+  "risk_thresholds": {
+    "first_wave_security": 60,
+    "second_wave_mobile": 75,
+    "network_replay": 75
+  },
+  "invariants": [
+    "selection_is_risk_triggered_and_deterministic",
+    "missing_executor_never_becomes_pass",
+    "sensor_evidence_binds_repository_and_exact_source_sha",
+    "artifact_bound_sensors_require_exact_artifact_sha256",
+    "physical_capture_requires_explicit_physical_device",
+    "debug_instrumented_evidence_cannot_claim_release_identity",
+    "sensor_mesh_never_mints_pass_or_certified",
+    "sensor_mesh_never_replaces_trusted_runtime_or_store_evidence",
+    "provider_freshness_is_recorded_for_production_admission"
+  ]
+}

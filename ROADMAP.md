@@ -43,8 +43,8 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 | **v6.0D** | Verify–Repair Loop | **LANDED / EXACT-HEAD VALIDATED:** focused verify → exact materialization → trusted AppLab evidence → PASS / new exact-SHA WorkItem / STOP, max 2 attempts, landed through PR #176 | P0 |
 | **v6.0G** | Self-Dogfooding Throughput | **IMPLEMENTATION LANDED / TIMING PROMOTION OPEN:** fail-closed Emulator FAST/FULL profile + exact-input cached parallel advisory review fan-out landed through PR #176; quantitative FAST timing evidence still required | P0/P1 |
 | **v6.0E** | Autonomous PR Steward | **LANDED / EXACT-HEAD VALIDATED:** explicit PR capabilities, exact patch→commit materialization, fast-forward-only `applab/repair/*`, draft create/reuse/update, no ready/approve/merge/release, landed through PR #176 | P1 |
-| **v6.0F** | Agent Memory & Policy Learning | **EXACT-HEAD VALIDATION ACTIVE:** clean PR #181; rebuildable identity-bound episodic memory + current-candidate-only strategy ranking; historical boosts cannot create candidates or raise autonomous-edit eligibility | P1 |
-| **v6.0H** | Sensor Mesh | **PENDING CLEAN REBUILD AFTER v6.0F:** risk-triggered scrcpy, LeakCanary, Semgrep, Trivy, MobSF/Hetty evidence producers; evidence-only authority | P2 |
+| **v6.0F** | Agent Memory & Policy Learning | **LANDED / EXACT-HEAD VALIDATED:** clean PR #181 landed on `main`; rebuildable identity-bound episodic memory + current-candidate-only strategy ranking; historical boosts cannot create candidates or raise autonomous-edit eligibility | P1 |
+| **v6.0H** | Sensor Mesh | **EXACT-HEAD VALIDATION ACTIVE:** clean main-lineage Sensor Mesh candidate; risk-triggered scrcpy, LeakCanary, Semgrep, Trivy, MobSF/Hetty evidence producers; evidence-only authority | P2 |
 | **v6.0I** | Agentic Operations Studio | **PENDING CLEAN REBUILD AFTER v6.0H:** read-only WorkItems, attempts, cost, evidence, blocks and authority cockpit | P2 |
 
 ### v6.0 authority envelope
