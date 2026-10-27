@@ -595,7 +595,7 @@ diff --git a/tests/test_client.py b/tests/test_client.py
             """diff --git a/tests/test_client.py b/tests/test_client.py
 --- a/tests/test_client.py
 +++ b/tests/test_client.py
-@@ -2,4 +2,4 @@
+@@ -2,3 +2,3 @@
  
  def test_value():
 -    assert value() == 1
