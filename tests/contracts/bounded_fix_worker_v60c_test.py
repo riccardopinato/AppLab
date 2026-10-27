@@ -110,6 +110,7 @@ def main() -> int:
             result_patch_path=result_patch,
         )
         assert report["state"] == "READY_FOR_VERIFICATION"
+        assert report["work_item_id"] == work_item["work_item_id"]
         assert report["changed_files"] == ["lib/client.py"]
         assert report["remote_write_performed"] is False
         assert report["merge_performed"] is False
