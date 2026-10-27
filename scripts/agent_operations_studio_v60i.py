@@ -27,8 +27,10 @@ def _work_item_id(record: dict[str, Any]) -> str:
         return direct
     nested = record.get("work_item")
     if isinstance(nested, dict):
-        return str(nested.get("work_item_id") or "")
-    return ""
+        nested_id = str(nested.get("work_item_id") or "")
+        if nested_id:
+            return nested_id
+    return str(record.get("root_work_item_id") or "")
 
 
 def _attempt_number(record: dict[str, Any]) -> int:
@@ -80,7 +82,7 @@ def build_agent_operations(records: list[dict[str, Any]]) -> dict[str, Any]:
         item["record_count"] += 1
 
         repository = str(record.get("repository") or "")
-        resolved_sha = str(record.get("resolved_sha") or "")
+        resolved_sha = str(record.get("resolved_sha") or record.get("root_resolved_sha") or "")
         if repository:
             item["repository"] = repository
         if resolved_sha:
@@ -99,6 +101,9 @@ def build_agent_operations(records: list[dict[str, Any]]) -> dict[str, Any]:
                     "allowed_capabilities": list(envelope.get("allowed_capabilities") or []),
                     "denied_capabilities": list(envelope.get("denied_capabilities") or []),
                 }
+
+        elif record_type == "APPLAB_WORK_TRANSITION":
+            item["state"] = str(record.get("to_state") or item["state"])
 
         elif record_type == "APPLAB_WORK_ACTION":
             item["actions"] += 1
@@ -124,11 +129,17 @@ def build_agent_operations(records: list[dict[str, Any]]) -> dict[str, Any]:
                 int(record.get("repair_attempt_count", 0) or 0),
             )
 
-        elif record_type in {"AUTONOMOUS_PR_STEWARD_PLAN_V60E", "AUTONOMOUS_PR_STEWARD_RESULT_V60E"}:
+        elif record_type in {
+            "AUTONOMOUS_PR_STEWARD_PLAN_V60E",
+            "AUTONOMOUS_PR_STEWARD_RESULT_V60E",
+            "DRAFT_PR_MATERIALIZATION_V60E",
+        }:
             item["pr_state"] = str(record.get("state") or "")
-            number = record.get("pull_request_number")
+            number = record.get("pr_number", record.get("pull_request_number"))
             item["pr_number"] = int(number) if isinstance(number, int) else item["pr_number"]
-            item["pr_url"] = str(record.get("pull_request_url") or item["pr_url"])
+            item["pr_url"] = str(
+                record.get("pr_url") or record.get("pull_request_url") or item["pr_url"]
+            )
             item["next_action"] = str(record.get("next_action") or item["next_action"])
 
         elif record_type == "SENSOR_MESH_EVIDENCE_V60H":
