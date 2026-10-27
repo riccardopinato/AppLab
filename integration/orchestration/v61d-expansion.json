@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "global_kill_switch": false,
+  "active_stage": "SELF_CANARY",
+  "promotion_order": [
+    "SELF_CANARY",
+    "PILOT_3",
+    "PILOT_5"
+  ],
+  "stages": {
+    "SELF_CANARY": [
+      "riccardopinato/AppLab"
+    ],
+    "PILOT_3": [
+      "riccardopinato/AppLab",
+      "riccardopinato/CamperBoss",
+      "riccardopinato/TrailPath"
+    ],
+    "PILOT_5": [
+      "riccardopinato/AppLab",
+      "riccardopinato/CamperBoss",
+      "riccardopinato/TrailPath",
+      "riccardopinato/Notes-Ecosistema",
+      "riccardopinato/World-Days"
+    ]
+  },
+  "repository_kill_switches": {
+    "riccardopinato/AppLab": false,
+    "riccardopinato/CamperBoss": false,
+    "riccardopinato/TrailPath": false,
+    "riccardopinato/Notes-Ecosistema": false,
+    "riccardopinato/World-Days": false
+  },
+  "closed_loop": {
+    "mutation_enabled": true,
+    "draft_pr_enabled": true,
+    "github_actions_fallback": true,
+    "event_driven_waiting_primary": true,
+    "post_gate_merge_authority": "EXTERNAL_REPOSITORY_AUTOMATION",
+    "release_authority": "DENIED"
+  },
+  "promotion": {
+    "automatic": false,
+    "requires_explicit_policy_change": true,
+    "evidence_source": "V61_CLOSED_LOOP_OPERATION_EVIDENCE_ONLY",
+    "v55_evidence_can_grant_mutation_authority": false
+  }
+}
