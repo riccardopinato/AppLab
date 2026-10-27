@@ -100,6 +100,7 @@ FAST_PATTERNS = (
     "scripts/closed_loop_pilot_v61a.py",
     "scripts/event_driven_recovery_v61b.py",
     "scripts/queue_backpressure_budget_v61c.py",
+    "scripts/controlled_closed_loop_expansion_v61d.py",
     "scripts/autonomous_failure_triage_v58a.py",
     "scripts/contract_fingerprint.py",
     "scripts/maintainability_budget.py",
@@ -307,7 +308,6 @@ def self_test() -> None:
     empty = plan([])
     assert empty["profile"] == "FULL"
     print("AppLab v6.0G self-test runtime profile planner PASS")
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--changed-files", default="")
