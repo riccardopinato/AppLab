@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import delta_calibration
+import agent_operations_studio_v60i
 
 
 def read_history(path: Path) -> list[dict[str, Any]]:
@@ -150,6 +151,7 @@ def adaptive_history_metrics(history: list[dict[str, Any]]) -> dict[str, Any]:
 def build_snapshot(
     watchlist: dict[str, Any],
     history: list[dict[str, Any]],
+    agent_operations_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     configured = {
         str(item.get("repository")): item
@@ -378,6 +380,9 @@ def build_snapshot(
         },
         "projects": projects,
         "recent": recent,
+        "agent_operations": agent_operations_studio_v60i.build_agent_operations(
+            agent_operations_records or []
+        ),
     }
 
 
@@ -523,6 +528,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--watchlist")
     parser.add_argument("--history-file")
+    parser.add_argument("--agent-operations-file", default="")
     parser.add_argument("--output")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
@@ -534,7 +540,16 @@ def main() -> int:
         raise SystemExit("--watchlist, --history-file and --output are required")
 
     watchlist = json.loads(Path(args.watchlist).read_text(encoding="utf-8"))
-    snapshot = build_snapshot(watchlist, read_history(Path(args.history_file)))
+    agent_records = (
+        agent_operations_studio_v60i.read_jsonl(Path(args.agent_operations_file))
+        if args.agent_operations_file
+        else []
+    )
+    snapshot = build_snapshot(
+        watchlist,
+        read_history(Path(args.history_file)),
+        agent_records,
+    )
     Path(args.output).write_text(
         json.dumps(snapshot, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
