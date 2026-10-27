@@ -130,6 +130,10 @@ def plan_sensors(
     contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     contract = contract or load_contract()
+    repository = str(plan.get("repository") or project.get("repository") or "").strip()
+    resolved_sha = str(plan.get("resolved_sha") or "").lower()
+    if "/" not in repository or not SHA_RE.fullmatch(resolved_sha):
+        raise SensorMeshError("sensor plan requires exact repository/source identity")
     labs = _plan_labs(plan)
     files = _changed_files(plan)
     tokens = _tokens(plan, project)
@@ -202,6 +206,8 @@ def plan_sensors(
         "schema_version": 1,
         "record_type": "SENSOR_MESH_PLAN_V60H",
         "authority": "EVIDENCE_ROUTING_ONLY",
+        "repository": repository,
+        "resolved_sha": resolved_sha,
         "risk_score": risk,
         "selected_labs": sorted(labs),
         "changed_files": files,
@@ -300,6 +306,8 @@ def self_test() -> None:
     }
     planned = plan_sensors(
         {
+            "repository": "owner/app",
+            "resolved_sha": "a" * 40,
             "risk_score": 80,
             "selected_labs": {"network": True, "resource_pressure": True},
             "changed_files": [
