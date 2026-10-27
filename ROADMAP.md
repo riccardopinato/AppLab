@@ -37,14 +37,14 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 
 | Step | Maxi-step | Outcome | Priority |
 |---|---|---|---:|
-| **v6.0A** | Unified Agent Work Graph | **Implementation candidate:** durable `WorkItem -> Decision -> Action -> Attempt -> Evidence -> Verdict` model; exact-head validation pending | P0 |
-| **v6.0B** | Causal Repo Investigator | **Implementation candidate:** deterministic candidate-file/root-cause ranking from diff, traces, labs, graph and history; exact-head validation pending | P0 |
-| **v6.0C** | Bounded Autonomous Fix Worker | **Implementation candidate:** exact-SHA ephemeral worktree patching with causal-scope, budget, protected-path and test-weakening gates; exact-head validation pending | P0 |
-| **v6.0D** | Verify–Repair Loop | **Implementation candidate:** focused verify → exact materialization → trusted AppLab evidence → PASS / new exact-SHA WorkItem / STOP, max 2 attempts; exact-head validation pending | P0 |
-| **v6.0G** | Self-Dogfooding Throughput | **Implementation candidate:** fail-closed Emulator FAST/FULL profile + exact-input cached parallel advisory review fan-out; FULL depth unchanged; exact-head timing evidence pending | P0/P1 |
-| **v6.0E** | Autonomous PR Steward | **Implementation candidate:** explicit PR capabilities, exact patch→commit materialization, fast-forward-only `applab/repair/*`, draft create/reuse/update, no ready/approve/merge/release; exact-head validation pending | P1 |
-| **v6.0F** | Agent Memory & Policy Learning | **Implementation candidate:** rebuildable identity-bound episodic memory + current-candidate-only strategy ranking; historical boosts cannot create candidates or raise autonomous-edit eligibility; exact-head validation pending | P1 |
-| **v6.0H** | Sensor Mesh | **Implementation candidate:** exact-SHA risk-triggered scrcpy, LeakCanary, Semgrep, Trivy and bounded MobSF/Hetty evidence routing; evidence-only authority; exact-head validation pending | P2 |
+| **v6.0A** | Unified Agent Work Graph | **Exact-head validated candidate:** durable `WorkItem -> Decision -> Action -> Attempt -> Evidence -> Verdict` model; consolidated v6.0A–E/G head GREEN | P0 |
+| **v6.0B** | Causal Repo Investigator | **Exact-head validated candidate:** deterministic candidate-file/root-cause ranking from diff, traces, labs, graph and history; consolidated v6.0A–E/G head GREEN | P0 |
+| **v6.0C** | Bounded Autonomous Fix Worker | **Exact-head validated candidate:** exact-SHA ephemeral worktree patching with causal-scope, budget, protected-path and test-weakening gates; consolidated v6.0A–E/G head GREEN | P0 |
+| **v6.0D** | Verify–Repair Loop | **Exact-head validated candidate:** focused verify → exact materialization → trusted AppLab evidence → PASS / new exact-SHA WorkItem / STOP, max 2 attempts; consolidated v6.0A–E/G head GREEN | P0 |
+| **v6.0G** | Self-Dogfooding Throughput | **Exact-head GREEN candidate:** fail-closed Emulator FAST/FULL profile + exact-input cached parallel advisory review fan-out; FULL depth unchanged; throughput p95 evidence still pending | P0/P1 |
+| **v6.0E** | Autonomous PR Steward | **Exact-head validated candidate:** explicit PR capabilities, exact patch→commit materialization, fast-forward-only `applab/repair/*`, draft create/reuse/update, no ready/approve/merge/release; consolidated v6.0A–E/G head GREEN | P1 |
+| **v6.0F** | Agent Memory & Policy Learning | **Exact-head validated candidate:** rebuildable identity-bound episodic memory + current-candidate-only strategy ranking; historical boosts cannot create candidates or raise autonomous-edit eligibility; v6.0F head GREEN | P1 |
+| **v6.0H** | Sensor Mesh | **Exact-head validated candidate:** exact-SHA risk-triggered scrcpy, LeakCanary, Semgrep, Trivy and bounded MobSF/Hetty evidence routing; evidence-only authority; v6.0H head GREEN | P2 |
 | **v6.0I** | Agentic Operations Studio | **Implementation candidate:** read-only WorkItem/attempt/cost/evidence/block/authority projection; no merge/release authority; exact-head validation pending | P2 |
 
 ### v6.0 authority envelope
