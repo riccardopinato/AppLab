@@ -57,6 +57,8 @@ CONTRACT_FILES = (
     "scripts/github_run_started_at.py",
     "scripts/history_learning.py",
     "scripts/verification_intelligence.py",
+    "scripts/agent_work_graph_v60a.py",
+    "integration/orchestration/contracts/agent-work-graph-v1.json",
     "scripts/verification_reuse_promotion_v57e.py",
     "scripts/build_once_promotion_v59d.py",
     "scripts/warm_runtime_route_v59e.py",
