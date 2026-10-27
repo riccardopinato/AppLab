@@ -63,6 +63,7 @@ def plan(
     target_root: Path,
     repository: str,
     resolved_sha: str,
+    applab_sha: str,
     max_files: int,
     market_evidence_path: str,
 ) -> dict[str, Any]:
@@ -86,6 +87,7 @@ def plan(
         "schema_version": 1,
         "repository": repository,
         "resolved_sha": resolved_sha,
+        "applab_sha": applab_sha,
         "max_files": max_files,
         "evidence_graph_sha256": _hash_file(graph),
         "analysis_plan_sha256": _hash_file(analysis_plan),
@@ -298,6 +300,7 @@ def main() -> int:
     parser.add_argument("--cache-dir", default=".applab-review-fanout-cache")
     parser.add_argument("--repository", default="")
     parser.add_argument("--resolved-sha", default="")
+    parser.add_argument("--applab-sha", default="")
     parser.add_argument("--max-files", type=int, default=3500)
     parser.add_argument("--market-evidence-path", default="market-evidence.json")
     parser.add_argument("--plan-output", default="")
@@ -330,6 +333,7 @@ def main() -> int:
         target_root=target_root,
         repository=args.repository,
         resolved_sha=args.resolved_sha,
+        applab_sha=args.applab_sha,
         max_files=args.max_files,
         market_evidence_path=args.market_evidence_path,
     )
