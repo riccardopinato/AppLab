@@ -134,6 +134,7 @@ jobs:
             chmod +x scripts/*.sh
             printf '%s' "$SELF_PLAN_B64" | base64 -d > "$GITHUB_WORKSPACE/self-plan-v60g.json"
             RUN_MAESTRO="$SELF_RUN_MAESTRO" \
+              MAESTRO_FLOW="$GITHUB_WORKSPACE/tests/flows/selftest.yaml" \
               REPORT_DIR="$GITHUB_WORKSPACE/applab-report-self-fast" \
               APPLAB_TARGET_ROOT="$GITHUB_WORKSPACE" \
               APPLAB_PROJECT_ROOT="$GITHUB_WORKSPACE" \
