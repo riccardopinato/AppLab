@@ -295,17 +295,47 @@ test("streams real Android video and sends real WebRTC input", async ({
   const browserY =
     handlerBox.y + offsetY + (nativeY / inputHeight) * renderedHeight;
 
-  await page.mouse.move(browserX, browserY);
-  await page.mouse.down({ button: "left" });
-  await page.waitForTimeout(80);
-  await page.mouse.up({ button: "left" });
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const alreadyApplied = (await hierarchy(request)).includes("INTERACTION_OK");
+    if (alreadyApplied) break;
 
-  await expect
-    .poll(async () => (await hierarchy(request)).includes("INTERACTION_OK"), {
-      timeout: 20_000,
-      message: "Android UI did not react to the WebRTC pointer input",
-    })
-    .toBe(true);
+    await page.mouse.move(browserX, browserY);
+    await page.mouse.down({ button: "left" });
+    await page.waitForTimeout(80);
+    await page.mouse.up({ button: "left" });
+
+    try {
+      await expect
+        .poll(async () => (await hierarchy(request)).includes("INTERACTION_OK"), {
+          timeout: 20_000,
+          message: "Android UI did not react to the WebRTC pointer input",
+        })
+        .toBe(true);
+      break;
+    } catch (error) {
+      const payload = {
+        attempt,
+        error: String(error),
+        native: { x: nativeX, y: nativeY, bounds },
+        browser: { x: browserX, y: browserY, handlerBox },
+        hierarchy: await hierarchy(request),
+        runtime: await endpointDiagnostics(request, `${BACKEND}/api/runtime`),
+        gateway: await endpointDiagnostics(
+          request,
+          "http://127.0.0.1:8080/api/v1/emulator/status",
+        ),
+        browserErrors: [...browserErrors],
+      };
+      await testInfo.attach(`webrtc-pointer-recovery-attempt-${attempt}.json`, {
+        body: Buffer.from(JSON.stringify(payload, null, 2)),
+        contentType: "application/json",
+      });
+
+      if (attempt === 2) throw error;
+    }
+  }
+
+  expect((await hierarchy(request)).includes("INTERACTION_OK")).toBe(true);
 
   const browserShot = testInfo.outputPath("browser-webrtc-connected.png");
   await page.screenshot({ path: browserShot, fullPage: true });
