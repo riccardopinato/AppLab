@@ -68,6 +68,7 @@ jobs:
             scripts/durable_store_v54b.py \
             scripts/agent_work_graph_v60a.py \
             scripts/causal_repo_investigator_v60b.py \
+            scripts/bounded_fix_worker_v60c.py \
             scripts/event_gateway_v54c.py \
             scripts/conductor_shadow_v54d.py \
             scripts/durable_queue_v54e.py \
@@ -219,6 +220,7 @@ jobs:
           python scripts/durable_store_v54b.py --self-test
           python scripts/agent_work_graph_v60a.py --self-test
           python scripts/causal_repo_investigator_v60b.py --self-test
+          python scripts/bounded_fix_worker_v60c.py --self-test
           python scripts/event_gateway_v54c.py --self-test
           python scripts/conductor_shadow_v54d.py --self-test
           python scripts/durable_queue_v54e.py --self-test
@@ -335,6 +337,7 @@ jobs:
           python tests/contracts/durable_store_v54b_test.py
           python tests/contracts/agent_work_graph_v60a_test.py
           python tests/contracts/causal_repo_investigator_v60b_test.py
+          python tests/contracts/bounded_fix_worker_v60c_test.py
           python tests/contracts/event_gateway_v54c_test.py
           python tests/contracts/conductor_shadow_v54d_test.py
           python tests/contracts/durable_queue_v54e_test.py
