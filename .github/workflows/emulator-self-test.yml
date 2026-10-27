@@ -24,19 +24,15 @@ permissions:
   actions: read
 
 jobs:
-  scope:
-    name: Required-check scope
+  android-runtime:
     runs-on: ubuntu-latest
-    outputs:
-      run: ${{ steps.scope.outputs.run }}
-      profile: ${{ steps.profile.outputs.profile }}
-      profile_reason: ${{ steps.profile.outputs.reason }}
-      selected_labs: ${{ steps.profile.outputs.selected_labs }}
-      units: ${{ steps.profile.outputs.units }}
+    timeout-minutes: 40
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+
       - id: scope
         name: Decide whether trusted runtime work is applicable
         shell: bash
@@ -58,6 +54,7 @@ jobs:
 
       - id: profile
         name: Plan v6.0G self-test runtime depth
+        if: ${{ github.event_name != 'pull_request' || steps.scope.outputs.run == 'true' }}
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -73,42 +70,37 @@ jobs:
             --output "$RUNNER_TEMP/selftest-runtime-profile.json" \
             --github-output "$GITHUB_OUTPUT"
 
-  android-runtime:
-    needs: scope
-    if: github.event_name != 'pull_request' || needs.scope.outputs.run == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
       - name: Setup Java
+        if: ${{ github.event_name != 'pull_request' || steps.scope.outputs.run == 'true' }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Setup Android SDK
+        if: ${{ github.event_name != 'pull_request' || steps.scope.outputs.run == 'true' }}
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
 
       - name: Install Android SDK components
+        if: ${{ github.event_name != 'pull_request' || steps.scope.outputs.run == 'true' }}
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Install Maestro
+        if: ${{ github.event_name != 'pull_request' || steps.scope.outputs.run == 'true' }}
         run: |
           chmod +x scripts/install_maestro.sh
           ./scripts/install_maestro.sh
 
       - name: Setup Gradle for manual runtime fixture
-        if: github.event_name == 'workflow_dispatch'
+        if: ${{ (github.event_name != 'pull_request' || steps.scope.outputs.run == 'true') && github.event_name == 'workflow_dispatch' }}
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
         with:
           gradle-version: "9.6.0"
 
       - name: Build manual runtime fixture fallback
-        if: github.event_name == 'workflow_dispatch'
+        if: ${{ (github.event_name != 'pull_request' || steps.scope.outputs.run == 'true') && github.event_name == 'workflow_dispatch' }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -116,7 +108,7 @@ jobs:
           ./scripts/build_runtime_fixture_fallback.sh "$GITHUB_WORKSPACE/runtime-fixture"
 
       - name: Restore canonical runtime fixture
-        if: github.event_name != 'workflow_dispatch'
+        if: ${{ (github.event_name != 'pull_request' || steps.scope.outputs.run == 'true') && github.event_name != 'workflow_dispatch' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -126,12 +118,14 @@ jobs:
           ./scripts/restore_runtime_fixture.sh "$GITHUB_WORKSPACE/runtime-fixture"
 
       - name: Enable KVM
+        if: ${{ github.event_name != 'pull_request' || steps.scope.outputs.run == 'true' }}
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
       - name: Full Android runtime verification
+        if: ${{ github.event_name != 'pull_request' || steps.scope.outputs.run == 'true' }}
         env:
           APPLAB_VERSION: "5.3.5"
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
@@ -142,9 +136,10 @@ jobs:
           profile: pixel_7_pro
           disable-animations: true
           script: |
-            SELFTEST_PROFILE='${{ needs.scope.outputs.profile }}' SELFTEST_PROFILE_REASON='${{ needs.scope.outputs.profile_reason }}' SELFTEST_SELECTED_LABS='${{ needs.scope.outputs.selected_labs }}' SELFTEST_UNITS='${{ needs.scope.outputs.units }}' bash scripts/run_emulator_selftest_v60g.sh
+            SELFTEST_PROFILE='${{ steps.profile.outputs.profile }}' SELFTEST_PROFILE_REASON='${{ steps.profile.outputs.reason }}' SELFTEST_SELECTED_LABS='${{ steps.profile.outputs.selected_labs }}' SELFTEST_UNITS='${{ steps.profile.outputs.units }}' bash scripts/run_emulator_selftest_v60g.sh
+
       - name: Publish runtime evidence
-        if: always()
+        if: ${{ always() && (github.event_name != 'pull_request' || steps.scope.outputs.run == 'true') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-emulator-self-test
