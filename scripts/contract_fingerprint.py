@@ -58,7 +58,7 @@ CONTRACT_FILES = (
     "scripts/history_learning.py",
     "scripts/verification_intelligence.py",
     "scripts/agent_work_graph_v60a.py",
-    "scripts/causal_repo_investigator_v60b.py",
+    "scripts/causal_repo_investigator_v60b.py",\n    "scripts/bounded_fix_worker_v60c.py",\n    "integration/orchestration/contracts/bounded-fix-worker-v1.json",
     "integration/orchestration/contracts/causal-repo-investigator-v1.json",
     "integration/orchestration/contracts/agent-work-graph-v1.json",
     "scripts/verification_reuse_promotion_v57e.py",
