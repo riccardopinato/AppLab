@@ -30,7 +30,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 - [x] **PR #155 reconciliation:** dotted-version regex fix carried onto latest `main`, exact-head matrix GREEN in PR #158, merged in v5.9.1, stale PR #155 closed.
 - [x] **PR #147 reconciliation:** closed as superseded by the current trusted-verifier pristine-AVD creation plus v5.9E cold fallback; no second prewarm authority path added.
 - [x] **v5.7B evidence closure:** Anna's Diary and In-Cucina-con-gli-Anime both expose the canonical adoption manifest and each has at least three real merged-PR samples. Evidence: `integration/performance/V57B_ADOPTION_EVIDENCE_2026-10-27.md`.
-- [ ] **v5.7E evidence closure:** still OPEN. Anna PR #124 trusted runtime passed, but the recorded v5.7E promotion evidence is `HOLD / BUILD_CACHE_NOT_HIT`; exact-artifact reuse must be observed on a same-identity cache hit before closure.
+- [x] **v5.7E evidence closure:** real same-identity Anna rerun produced `cache_hit=true`, `promotion_ready=true`, `READY / EXACT_ARTIFACT_REUSE_PROVEN`; evidence: `integration/performance/V57E_EXACT_ARTIFACT_REUSE_EVIDENCE_2026-10-27.md`.
 - [x] **Baseline performance record:** preserved in `integration/performance/V591_SELF_LOOP_BASELINE_2026-10-27.md` as the before-state for v6.0G.
 
 ## Planned — AppLab v6.0 Closed-Loop Agentic Engineering
