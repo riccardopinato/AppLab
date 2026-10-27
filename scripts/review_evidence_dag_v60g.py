@@ -277,8 +277,6 @@ def restore_outputs(cache_dir: Path, evidence_dir: Path) -> None:
 
 
 def self_test() -> None:
-    with Path(__file__).resolve().parent.parent.joinpath("scripts") as _unused:
-        pass
     assert sorted(NODE_OUTPUTS) == [
         "competitive",
         "design_advisor",
