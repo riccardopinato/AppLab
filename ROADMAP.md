@@ -40,7 +40,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 | **v6.0A** | Unified Agent Work Graph | **Implementation candidate:** durable `WorkItem -> Decision -> Action -> Attempt -> Evidence -> Verdict` model; exact-head validation pending | P0 |
 | **v6.0B** | Causal Repo Investigator | **Implementation candidate:** deterministic candidate-file/root-cause ranking from diff, traces, labs, graph and history; exact-head validation pending | P0 |
 | **v6.0C** | Bounded Autonomous Fix Worker | **Implementation candidate:** exact-SHA ephemeral worktree patching with causal-scope, budget, protected-path and test-weakening gates; exact-head validation pending | P0 |
-| **v6.0D** | Verify–Repair Loop | Bounded re-verification and at most N repair attempts with explicit terminal conditions | P0 |
+| **v6.0D** | Verify–Repair Loop | **Implementation candidate:** focused verify → exact materialization → trusted AppLab evidence → PASS / new exact-SHA WorkItem / STOP, max 2 attempts; exact-head validation pending | P0 |
 | **v6.0G** | Self-Dogfooding Throughput | Apply journey/evidence DAG concepts to AppLab itself; target ordinary FAST <6 min p95 | P0/P1 |
 | **v6.0E** | Autonomous PR Steward | Create/update draft PRs, react to CI/review, never self-approve/merge/release | P1 |
 | **v6.0F** | Agent Memory & Policy Learning | Compressed episodic engineering memory; guardrails remain non-self-modifying | P1 |
