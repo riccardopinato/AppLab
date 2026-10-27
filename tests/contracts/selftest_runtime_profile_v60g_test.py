@@ -15,6 +15,10 @@ def main() -> int:
     assert full["profile"] == "FULL"
     assert full["full_depth_unchanged"] is True
 
+    execution_contract = planner.plan(["scripts/execution_acceleration.py"])
+    assert execution_contract["profile"] == "FULL"
+    assert execution_contract["reason"] == "RUNTIME_OR_CERTIFICATION_SURFACE_CHANGED"
+
     fast = planner.plan([
         "scripts/agent_work_graph_v60a.py",
         "tests/contracts/agent_work_graph_v60a_test.py",
