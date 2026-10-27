@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_AUTONOMOUS_PR_STEWARD",
+  "authority": "DRAFT_PR_STEWARDSHIP_ONLY",
+  "required_loop_state": "COMPLETE",
+  "required_loop_reason": "VERIFIED_PASS",
+  "required_loop_next_action": "OPEN_DRAFT_PR",
+  "required_fix_record_type": "BOUNDED_FIX_RESULT_V60C",
+  "branch_prefix": "applab/repair/",
+  "allowed_capabilities": ["CREATE_DRAFT_PR", "UPDATE_DRAFT_PR"],
+  "forbidden_actions": [
+    "MARK_READY",
+    "APPROVE",
+    "DISMISS_REVIEW",
+    "RESOLVE_EXTERNAL_FINDING",
+    "MERGE",
+    "REBASE_MAIN",
+    "RELEASE",
+    "EDIT_BRANCH_PROTECTION",
+    "EDIT_WORKFLOW"
+  ],
+  "states": [
+    "PLAN_ONLY",
+    "DRAFT_PR_CREATED",
+    "DRAFT_PR_UPDATED",
+    "WAITING_CI",
+    "INVESTIGATE_REVIEW",
+    "BLOCKED"
+  ],
+  "invariants": [
+    "source_sha_fix_result_and_loop_identity_must_match",
+    "result_patch_hash_must_match_fix_result",
+    "remote_branch_is_never_main_or_default_branch",
+    "created_pr_is_always_draft",
+    "existing_pr_must_remain_draft",
+    "steward_never_approves_merges_releases_or_marks_ready",
+    "fresh_failed_ci_or_review_finding_routes_back_to_investigator",
+    "external_findings_are_never_resolved_unilaterally"
+  ]
+}
