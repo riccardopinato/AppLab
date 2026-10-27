@@ -41,6 +41,7 @@ LIMITS = {
     "scripts/causal_repo_investigator_v60b.py": 650,
     "scripts/bounded_fix_worker_v60c.py": 720,
     "scripts/verify_repair_loop_v60d.py": 980,
+    "scripts/draft_pr_steward_v60e.py": 760,
     "scripts/warm_runtime_route_v59e.py": 190,
     "scripts/journey_shard_runtime.py": 180,
     "scripts/journey_shard_aggregate.py": 220,
