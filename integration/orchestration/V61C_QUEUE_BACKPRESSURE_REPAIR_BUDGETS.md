@@ -31,8 +31,10 @@ Attempt reservations are idempotent. Reusing an attempt number with different
 usage is rejected. Runtime/cost usage is cumulative and a hard violation stops
 the budget rather than increasing the ceiling.
 
-A repeated deterministic failure signature is also terminal for the repair
-budget. This implements the existing STOP rule instead of retrying until green.
+Failure delivery dedupe is keyed by a stable occurrence identity, not only by
+the signature string. This preserves sequences such as `A -> B -> A -> A`: the
+final consecutive `A` still triggers the repeated-signature STOP rule while a
+redelivery of the third occurrence remains idempotent.
 
 ## Coalesced GitHub observation
 
@@ -54,14 +56,20 @@ AppLab CI, AppLab CodeQL, Emulator Self Test
 
 rather than two independent GitHub status queries.
 
-Already terminal waits, not-yet-due waits and Actions-outage holds are handled by
-v6.1B without consuming a new observation batch. Groups deferred by v6.1C
-backpressure do not consume the v6.1B fallback counter.
+Each selected batch is journaled durably together with its per-WorkItem
+observation-budget reservation **before** v6.1B fallback consumption. A crash
+between reservation and the external query therefore replays the persisted batch
+instead of losing a fallback slot. Already terminal waits, not-yet-due waits and
+Actions-outage holds do not create a new observation batch. READY recovery is
+query-free and remains available even when the observation budget is exhausted.
+Groups deferred by v6.1C backpressure do not consume the v6.1B fallback counter.
 
 ## Observation backpressure
 
 The initial contract permits at most four coalesced batches per cycle and one
-batch per repository per cycle. Excess exact-SHA groups are deferred with
+batch per repository per cycle. Capacity is checked transactionally against
+already persisted reservations, so retries or concurrent planners cannot bypass
+the limit. Excess exact-SHA groups are deferred with
 `OBSERVATION_BACKPRESSURE` and may be considered by a later reconciliation
 cycle.
 
@@ -82,10 +90,14 @@ certification authority.
 - WorkItem file/line/attempt limits are preserved;
 - runtime/cost accounting is cumulative and bounded;
 - attempt reservation is idempotent and conflicting replay is rejected;
-- repeated failure signature stops the repair budget;
+- failure occurrence replay is idempotent while distinct occurrences remain distinct;
+- repeated consecutive failure signature stops the repair budget;
 - v6.1B event-driven waiting remains primary;
 - due waits on the same repository + exact SHA are coalesced;
 - one external observation can cover multiple waits/gates;
+- batch+budget intent is durable before fallback consumption and is restart-recoverable;
+- READY recovery remains available after observation-budget exhaustion;
+- cycle capacity counts persisted reservations across retries/concurrent planners;
 - backpressured observation groups do not consume fallback budget;
 - no fixed sleep/network polling loop is introduced;
 - target SHA is never silently retargeted;
