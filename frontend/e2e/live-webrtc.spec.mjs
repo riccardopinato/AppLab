@@ -109,6 +109,14 @@ async function attachFrameRecoveryDiagnostics({
   });
 }
 
+async function primeLiveDisplay(request) {
+  const response = await request.post(`${BACKEND}/api/app/launch`, {
+    data: { package_id: PACKAGE_ID },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+
 async function waitForDecodedFrame(video) {
   let last = await videoDiagnostics(video);
   await expect
@@ -215,6 +223,12 @@ test("streams real Android video and sends real WebRTC input", async ({
 
     video = liveView.locator("video");
     await expect(video).toBeVisible();
+
+    // The emulator display can be static before the WebRTC session exists.
+    // Relaunch the already-installed fixture after signaling is connected so
+    // the real display producer emits fresh pixels into the active media path.
+    await primeLiveDisplay(request);
+    await page.waitForTimeout(300);
 
     try {
       first = await waitForDecodedFrame(video);
