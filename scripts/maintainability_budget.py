@@ -43,6 +43,7 @@ LIMITS = {
     "scripts/verify_repair_loop_v60d.py": 600,
     "scripts/self_change_plan_v60g.py": 360,
     "scripts/autonomous_pr_steward_v60e.py": 520,
+    "scripts/agent_memory_v60f.py": 420,
     "scripts/self_evidence_dag_v60g.py": 360,
     "scripts/warm_runtime_route_v59e.py": 190,
     "scripts/journey_shard_runtime.py": 180,
