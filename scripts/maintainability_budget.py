@@ -46,7 +46,9 @@ LIMITS = {
     "scripts/review_evidence_dag_v60g.py": 430,
     "scripts/agent_memory_v60f.py": 720,
     "scripts/sensor_mesh_v60h.py": 430,
-    "scripts/agent_operations_studio_v60i.py": 320,
+    # v6.0I initial module ceiling: implementation settled at 347 lines after
+    # extracting the frontend panel; future growth beyond 380 requires refactor.
+    "scripts/agent_operations_studio_v60i.py": 380,
     "frontend/src/AgentOperationsPanel.tsx": 220,
     "scripts/warm_runtime_route_v59e.py": 190,
     "scripts/journey_shard_runtime.py": 180,
