@@ -42,7 +42,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 | **v6.0C** | Bounded Autonomous Fix Worker | **Implementation candidate:** exact-SHA ephemeral worktree patching with causal-scope, budget, protected-path and test-weakening gates; exact-head validation pending | P0 |
 | **v6.0D** | Verify–Repair Loop | **Implementation candidate:** focused verify → exact materialization → trusted AppLab evidence → PASS / new exact-SHA WorkItem / STOP, max 2 attempts; exact-head validation pending | P0 |
 | **v6.0G** | Self-Dogfooding Throughput | Apply journey/evidence DAG concepts to AppLab itself; target ordinary FAST <6 min p95 | P0/P1 |
-| **v6.0E** | Autonomous PR Steward | Create/update draft PRs, react to CI/review, never self-approve/merge/release | P1 |
+| **v6.0E** | Autonomous PR Steward | **Implementation candidate:** explicit PR capabilities, exact patch→commit materialization, fast-forward-only `applab/repair/*`, draft create/reuse/update, no ready/approve/merge/release; exact-head validation pending | P1 |
 | **v6.0F** | Agent Memory & Policy Learning | Compressed episodic engineering memory; guardrails remain non-self-modifying | P1 |
 | **v6.0H** | Sensor Mesh | Risk-triggered scrcpy, LeakCanary, Semgrep, Trivy, MobSF/Hetty evidence producers | P2 |
 | **v6.0I** | Agentic Operations Studio | WorkItems, attempts, cost, evidence, blocks and authority cockpit | P2 |
