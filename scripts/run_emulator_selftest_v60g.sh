@@ -12,43 +12,43 @@ echo "AppLab v6.0G selected units: $SELFTEST_UNITS"
 
 if [[ "$SELFTEST_PROFILE" == "FAST" ]]; then
   python - <<'PY'
-  import json
-  import os
-  from pathlib import Path
+import json
+import os
+from pathlib import Path
 
-  labs = [
-      "system", "performance", "network", "persistence",
-      "configuration", "resource_pressure", "background",
-      "storage", "upgrade",
-  ]
-  selected = {
-      value.strip()
-      for value in os.environ.get("SELFTEST_SELECTED_LABS", "").split(",")
-      if value.strip()
-  }
-  unknown = sorted(selected - set(labs))
-  assert not unknown, unknown
-  payload = {
-      "schema_version": 1,
-      "planner_version": "v6.0G-selftest-1.1",
-      "mode": "fast",
-      "changed_files": [],
-      "selected_labs": {name: name in selected for name in labs},
-      "reasons": {
-          name: (
-              ["V60G_TARGETED_SELFTEST_UNIT"]
-              if name in selected
-              else ["V60G_UNSELECTED_SELFTEST_UNIT"]
-          )
-          for name in labs
-      },
-      "fallback_full": False,
-  }
-  Path("v60g-fast-plan.json").write_text(
-      json.dumps(payload, indent=2, sort_keys=True) + "\n",
-      encoding="utf-8",
-  )
-  PY
+labs = [
+    "system", "performance", "network", "persistence",
+    "configuration", "resource_pressure", "background",
+    "storage", "upgrade",
+]
+selected = {
+    value.strip()
+    for value in os.environ.get("SELFTEST_SELECTED_LABS", "").split(",")
+    if value.strip()
+}
+unknown = sorted(selected - set(labs))
+assert not unknown, unknown
+payload = {
+    "schema_version": 1,
+    "planner_version": "v6.0G-selftest-1.1",
+    "mode": "fast",
+    "changed_files": [],
+    "selected_labs": {name: name in selected for name in labs},
+    "reasons": {
+        name: (
+            ["V60G_TARGETED_SELFTEST_UNIT"]
+            if name in selected
+            else ["V60G_UNSELECTED_SELFTEST_UNIT"]
+        )
+        for name in labs
+    },
+    "fallback_full": False,
+}
+Path("v60g-fast-plan.json").write_text(
+    json.dumps(payload, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+PY
   RUN_MAESTRO=true \
     MAESTRO_FLOW="$GITHUB_WORKSPACE/tests/flows/selftest.yaml" \
     REPORT_DIR="$GITHUB_WORKSPACE/applab-report-fast" \
@@ -62,47 +62,47 @@ if [[ "$SELFTEST_PROFILE" == "FAST" ]]; then
       "dev.applab.selftest"
 
   python - <<'PY'
-  import json
-  from pathlib import Path
+import json
+from pathlib import Path
 
-  import os
+import os
 
-  root = Path("applab-report-fast")
-  result = json.loads((root / "result.json").read_text(encoding="utf-8"))
-  assert result["result"] == "PASS", result
-  assert result["analysis_mode"] == "fast", result
-  assert result["maestro"] == "PASS", result
-  selected = {
-      value.strip()
-      for value in os.environ.get("SELFTEST_SELECTED_LABS", "").split(",")
-      if value.strip()
-  }
-  key_by_lab = {
-      "system": "system_lab",
-      "performance": "performance_lab",
-      "network": "network_lab",
-      "persistence": "persistence_lab",
-      "configuration": "configuration_lab",
-      "resource_pressure": "resource_pressure_lab",
-      "background": "background_lab",
-      "storage": "storage_lab",
-      "upgrade": "upgrade_lab",
-  }
-  for lab, key in key_by_lab.items():
-      status = result[key]
-      if lab in selected:
-          allowed = {"PASS"} if lab == "system" else {"PASS", "WARN"}
-          assert status in allowed, (lab, status, result)
-      else:
-          assert status in {"SKIPPED", "NO_BASELINE"}, (lab, status, result)
-  assert (root / "launch.png").stat().st_size > 0
-  assert (root / "post-maestro.png").stat().st_size > 0
-  assert (root / "logcat.txt").stat().st_size > 0
-  xml = (root / "post-maestro-window.xml").read_text(
-      encoding="utf-8", errors="ignore"
-  )
-  assert "INTERACTION_OK" in xml, xml[:1000]
-  PY
+root = Path("applab-report-fast")
+result = json.loads((root / "result.json").read_text(encoding="utf-8"))
+assert result["result"] == "PASS", result
+assert result["analysis_mode"] == "fast", result
+assert result["maestro"] == "PASS", result
+selected = {
+    value.strip()
+    for value in os.environ.get("SELFTEST_SELECTED_LABS", "").split(",")
+    if value.strip()
+}
+key_by_lab = {
+    "system": "system_lab",
+    "performance": "performance_lab",
+    "network": "network_lab",
+    "persistence": "persistence_lab",
+    "configuration": "configuration_lab",
+    "resource_pressure": "resource_pressure_lab",
+    "background": "background_lab",
+    "storage": "storage_lab",
+    "upgrade": "upgrade_lab",
+}
+for lab, key in key_by_lab.items():
+    status = result[key]
+    if lab in selected:
+        allowed = {"PASS"} if lab == "system" else {"PASS", "WARN"}
+        assert status in allowed, (lab, status, result)
+    else:
+        assert status in {"SKIPPED", "NO_BASELINE"}, (lab, status, result)
+assert (root / "launch.png").stat().st_size > 0
+assert (root / "post-maestro.png").stat().st_size > 0
+assert (root / "logcat.txt").stat().st_size > 0
+xml = (root / "post-maestro-window.xml").read_text(
+    encoding="utf-8", errors="ignore"
+)
+assert "INTERACTION_OK" in xml, xml[:1000]
+PY
   exit 0
 fi
 
