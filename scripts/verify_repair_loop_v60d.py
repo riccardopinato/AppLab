@@ -892,7 +892,21 @@ def main() -> int:
         attempts,
         plan=_read_json(args.plan) if args.plan else {},
     )
-    rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
+    # CLI output is intentionally a non-sensitive projection. The in-process
+    # report may contain repository/source/evidence identity and must not be
+    # persisted or logged from arbitrary caller-provided JSON.
+    public_report = {
+        "schema_version": 1,
+        "record_type": "VERIFY_REPAIR_LOOP_PUBLIC_DECISION_V60D",
+        "state": str(report.get("state") or "STOPPED"),
+        "next_action": str(report.get("next_action") or "NONE"),
+        "reason_code": str(report.get("reason_code") or "HUMAN_DECISION_REQUIRED"),
+        "repair_attempt_count": int(report.get("repair_attempt_count", 0) or 0),
+        "observed_verification_result": str(
+            report.get("observed_verification_result") or ""
+        ),
+    }
+    rendered = json.dumps(public_report, indent=2, sort_keys=True) + "\n"
     if args.output:
         Path(args.output).write_text(rendered, encoding="utf-8")
     print(rendered, end="")
