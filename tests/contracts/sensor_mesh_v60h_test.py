@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import execution_acceleration as acceleration  # noqa: E402
 import sensor_mesh_v60h as mesh  # noqa: E402
 
 
@@ -54,17 +55,54 @@ def main() -> int:
     )
     assert dependency["selected_sensor_ids"] == ["TRIVY"]
 
-    execution_plan = mesh.plan_sensors(
-        {
-            "repository": "owner/app",
-            "resolved_sha": "d" * 40,
-            "risk_score": 30,
-            "selected_labs": ["resource_pressure"],
-            "changed_files": ["lib/cache/session.dart"],
+    execution_payload = acceleration.build_execution_plan(
+        analysis_plan={
+            "mode": "fast",
+            "lane": "FAST_RUNTIME",
+            "run_static": True,
+            "run_build": True,
+            "run_runtime": True,
+            "risk_score": 80,
+            "risk_reasons": ["network auth surface"],
+            "selected_labs": {"network": True},
+            "changed_files": ["lib/auth/oauth_client.dart"],
         },
+        repository="owner/app",
+        resolved_sha="d" * 40,
+        engine="flutter",
+        history_key="sensor-contract",
+        working_directory=".",
+        build_command="flutter build apk --debug",
+        apk_path="build/app.apk",
+        contract_fingerprint="contract-1",
+        config_fingerprint="config-1",
+        toolchain=["flutter:test"],
+        build_inputs=["prepare:"],
+    )
+    execution_plan = mesh.plan_sensors(
+        execution_payload,
         {"project_type": "flutter"},
     )
-    assert "LEAKCANARY" in execution_plan["selected_sensor_ids"]
+    assert set(execution_plan["selected_sensor_ids"]) >= {
+        "HETTY",
+        "MOBSF",
+        "SEMGREP",
+        "TRIVY",
+    }
+
+    expect_error(
+        lambda: mesh.plan_sensors(
+            {
+                "repository": "owner/app",
+                "resolved_sha": "d" * 40,
+                "execution_key": "legacy",
+                "dag": {"nodes": []},
+                "selected_labs": ["network"],
+            },
+            {"project_type": "flutter"},
+        ),
+        "missing sensor risk inputs",
+    )
 
     security = mesh.plan_sensors(
         {
