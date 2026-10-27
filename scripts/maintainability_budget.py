@@ -38,6 +38,7 @@ LIMITS = {
     "scripts/supersession_watchdog_v59e.py": 220,
     "scripts/audit_contract_v59e.py": 180,
     "scripts/agent_work_graph_v60a.py": 950,
+    "scripts/causal_repo_investigator_v60b.py": 650,
     "scripts/warm_runtime_route_v59e.py": 190,
     "scripts/journey_shard_runtime.py": 180,
     "scripts/journey_shard_aggregate.py": 220,
