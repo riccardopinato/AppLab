@@ -54,6 +54,9 @@ LIMITS = {
     # v6.1D stages promotion/admission only; growth beyond 680 requires
     # extracting cohort policy or admission reuse instead of adding branches.
     "scripts/controlled_closed_loop_expansion_v61d.py": 680,
+    # v6.1E owns read-only SLO/rollback/evidence aggregation and Studio projection;
+    # growth beyond 760 requires extracting projection or aggregation helpers.
+    "scripts/production_operations_evidence_v61e.py": 760,
     "scripts/ci_scope_v60g.py": 180,
     "scripts/selftest_runtime_profile_v60g.py": 340,
     "scripts/review_evidence_dag_v60g.py": 430,
