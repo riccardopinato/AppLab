@@ -166,7 +166,12 @@ def _persist_work_item(
     with storemod.SQLiteShadowStore(db_path) as durable:
         operation = durable.get_operation(operation_id)
         graph = workgraph.AgentWorkGraphStore(durable, graph_contract)
-        work_item_id = _stable_id(
+
+        existing_row = durable.db.execute(
+            "SELECT work_item_id FROM agent_work_items WHERE operation_id=?",
+            (operation_id,),
+        ).fetchone()
+        requested_work_item_id = _stable_id(
             "wrk",
             operation["operation_id"],
             operation["repository"],
@@ -174,32 +179,92 @@ def _persist_work_item(
             operation["resolved_sha"],
             operation["applab_sha"],
         )
-        item = workgraph.adapt_operation_to_work_item(
-            operation,
-            work_item_id=work_item_id,
-            risk=risk,
-            allow_code_edit=allow_code_edit,
-            allow_draft_pr_steward=allow_draft_pr,
+
+        if existing_row is not None:
+            work_item_id = str(existing_row["work_item_id"])
+            persisted = {"status": "OPERATION_REUSE", "work_item_id": work_item_id}
+            current = graph.get_work_item(work_item_id)
+        else:
+            item = workgraph.adapt_operation_to_work_item(
+                operation,
+                work_item_id=requested_work_item_id,
+                risk=risk,
+                allow_code_edit=allow_code_edit,
+                allow_draft_pr_steward=allow_draft_pr,
+            )
+            persisted = graph.put_work_item(item)
+            work_item_id = str(persisted["work_item_id"])
+            current = graph.get_work_item(work_item_id)
+
+        persisted_capabilities = set(
+            current["authority_envelope"]["allowed_capabilities"]
         )
-        persisted = graph.put_work_item(item)
-        current = graph.get_work_item(persisted["work_item_id"])
-        if current["current_state"] in set(graph_contract["work_item"]["terminal_states"]):
+        persisted_edit = "ALLOW_CODE_EDIT" in persisted_capabilities
+        persisted_draft = {
+            "CREATE_DRAFT_PR",
+            "UPDATE_DRAFT_PR",
+        }.issubset(persisted_capabilities)
+        policy_revoked = (
+            (persisted_edit and not allow_code_edit)
+            or (persisted_draft and not allow_draft_pr)
+        )
+        requested_escalation_blocked = (
+            (allow_code_edit and not persisted_edit)
+            or (allow_draft_pr and not persisted_draft)
+        )
+
+        terminal_states = set(graph_contract["work_item"]["terminal_states"])
+        if current["current_state"] in terminal_states:
             return {
-                "work_item_id": current["work_item_id"],
+                "work_item_id": work_item_id,
                 "work_item_persistence": persisted["status"],
                 "work_item_state": current["current_state"],
                 "terminal_reuse": True,
+                "policy_action": "PRESERVE_TERMINAL",
+                "effective_mutation_authorized": False,
+                "effective_draft_pr_authorized": False,
                 "decision_persistence": "TERMINAL_NO_REDISPATCH",
                 "transition_persistence": "TERMINAL_NO_REDISPATCH",
                 "integrity": graph.integrity_report(),
             }
 
+        row = durable.db.execute(
+            "SELECT created_at FROM operations WHERE operation_id=?",
+            (operation_id,),
+        ).fetchone()
+        created_at = str(row["created_at"]) if row else "1970-01-01T00:00:00Z"
+
+        if policy_revoked:
+            transition_id = _stable_id(
+                "trn",
+                work_item_id,
+                current["current_state"],
+                "STOPPED",
+                "V61A_POLICY_REVOKED",
+            )
+            transition_result = graph.transition(
+                transition_id=transition_id,
+                work_item_id=work_item_id,
+                from_state=current["current_state"],
+                to_state="STOPPED",
+                reason_code="V61A_POLICY_REVOKED",
+                created_at=created_at,
+            )
+            current = graph.get_work_item(work_item_id)
+            return {
+                "work_item_id": work_item_id,
+                "work_item_persistence": persisted["status"],
+                "work_item_state": current["current_state"],
+                "terminal_reuse": False,
+                "policy_action": "STOPPED_POLICY_REVOKED",
+                "effective_mutation_authorized": False,
+                "effective_draft_pr_authorized": False,
+                "decision_persistence": "POLICY_STOP_NO_NEW_DECISION",
+                "transition_persistence": transition_result["status"],
+                "integrity": graph.integrity_report(),
+            }
+
         if current["current_state"] == "CREATED":
-            row = durable.db.execute(
-                "SELECT created_at FROM operations WHERE operation_id=?",
-                (operation_id,),
-            ).fetchone()
-            created_at = str(row["created_at"]) if row else "1970-01-01T00:00:00Z"
             decision_id = _stable_id("dec", work_item_id, "INVESTIGATE")
             decision = {
                 "schema_version": 1,
@@ -231,6 +296,17 @@ def _persist_work_item(
             "work_item_persistence": persisted["status"],
             "work_item_state": current["current_state"],
             "terminal_reuse": False,
+            "policy_action": (
+                "IMMUTABLE_ENVELOPE_RESTRICTS_REPLAY"
+                if requested_escalation_blocked
+                else "MATCHED_OR_REUSED"
+            ),
+            "effective_mutation_authorized": bool(
+                allow_code_edit and persisted_edit
+            ),
+            "effective_draft_pr_authorized": bool(
+                allow_draft_pr and persisted_draft
+            ),
             "decision_persistence": decision_result["status"],
             "transition_persistence": transition_result["status"],
             "integrity": graph.integrity_report(),
@@ -355,8 +431,10 @@ def admit_closed_loop(
         "stage": "SELF_CANARY",
         "admitted": True,
         "reason": (
-            "SELF_CANARY_MUTATION_ADMITTED"
-            if mutation_authorized
+            "SELF_CANARY_POLICY_REVOKED_STOPPED"
+            if started["policy_action"] == "STOPPED_POLICY_REVOKED"
+            else "SELF_CANARY_MUTATION_ADMITTED"
+            if started["effective_mutation_authorized"]
             else "SELF_CANARY_INVESTIGATION_ONLY"
         ),
         "repository": repository,
@@ -364,8 +442,10 @@ def admit_closed_loop(
         "resolved_sha": resolved_sha,
         "applab_sha": applab_sha,
         "risk": risk,
-        "mutation_authorized": mutation_authorized,
-        "draft_pr_authorized": draft_pr_authorized,
+        "mutation_authorized": started["effective_mutation_authorized"],
+        "draft_pr_authorized": started["effective_draft_pr_authorized"],
+        "requested_mutation_authorized": mutation_authorized,
+        "requested_draft_pr_authorized": draft_pr_authorized,
         "live_requested": bool(live_requested),
         "dispatch": False,
         "dispatch_owner": "EXISTING_DURABLE_CONTROL_PLANE",
@@ -488,6 +568,70 @@ def self_test() -> dict[str, Any]:
         assert killed["admitted"] is False
         assert killed["reason"] == "GLOBAL_KILL_SWITCH"
 
+        policy_cfg = json.loads(json.dumps(config))
+        policy_cfg["closed_loop"]["mutation_enabled"] = False
+        policy_cfg["closed_loop"]["draft_pr_enabled"] = False
+        policy_path = Path(tmp) / "v61a-policy-revoked.json"
+        policy_path.write_text(
+            json.dumps(policy_cfg, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        policy_replay = admit_closed_loop(
+            db_path=db_path,
+            config_path=policy_path,
+            repository="riccardopinato/AppLab",
+            source_ref="refs/heads/main",
+            resolved_sha=sha,
+            applab_sha=sha,
+            delivery_id="v61a-selftest",
+            risk="NORMAL",
+            now_ts=1006.0,
+        )
+        assert policy_replay["work_item_id"] == admitted["work_item_id"]
+        assert policy_replay["work_item_state"] == "STOPPED"
+        assert policy_replay["policy_action"] == "STOPPED_POLICY_REVOKED"
+        assert policy_replay["mutation_authorized"] is False
+        assert policy_replay["draft_pr_authorized"] is False
+
+        seeded_db = Path(tmp) / "v61a-seeded.sqlite3"
+        seeded_delivery = "v61a-seeded"
+        seeded_durable = event_pilot.admit(
+            db_path=seeded_db,
+            config_path=DEFAULT_CONFIG,
+            repository="riccardopinato/AppLab",
+            source_ref="refs/heads/main",
+            resolved_sha=sha,
+            applab_sha=sha,
+            delivery_id=seeded_delivery,
+            live_requested=False,
+            now_ts=1007.0,
+        )
+        with storemod.SQLiteShadowStore(seeded_db) as durable_store:
+            operation = durable_store.get_operation(seeded_durable["operation_id"])
+            graph = workgraph.AgentWorkGraphStore(durable_store)
+            seeded_item = workgraph.adapt_operation_to_work_item(
+                operation,
+                work_item_id="wrk_seeded_v61a",
+                risk="NORMAL",
+                allow_code_edit=True,
+                allow_draft_pr_steward=True,
+            )
+            graph.put_work_item(seeded_item)
+
+        seeded = admit_closed_loop(
+            db_path=seeded_db,
+            repository="riccardopinato/AppLab",
+            source_ref="refs/heads/main",
+            resolved_sha=sha,
+            applab_sha=sha,
+            delivery_id=seeded_delivery,
+            risk="NORMAL",
+            now_ts=1008.0,
+        )
+        assert seeded["work_item_id"] == "wrk_seeded_v61a"
+        assert seeded["work_item_persistence"] == "OPERATION_REUSE"
+        assert seeded["work_item_state"] == "INVESTIGATING"
+
     return {
         "schema_version": 1,
         "record_type": "APPLAB_V61A_CLOSED_LOOP_PILOT_PROOF",
@@ -500,6 +644,8 @@ def self_test() -> dict[str, Any]:
         "normal_risk_mutation_admitted": True,
         "high_risk_investigation_only": True,
         "duplicate_delivery_reuses_operation_and_work_item": True,
+        "policy_revocation_stops_existing_mutable_work_item": True,
+        "operation_reuse_uses_persisted_work_item_id": True,
         "existing_durable_substrate_reused": True,
         "parallel_dispatcher_created": False,
         "fixed_interval_polling_primary": False,
