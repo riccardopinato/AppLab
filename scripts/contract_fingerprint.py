@@ -63,6 +63,8 @@ CONTRACT_FILES = (
     "scripts/verify_repair_loop_v60d.py",
     "scripts/self_change_plan_v60g.py",
     "scripts/autonomous_pr_steward_v60e.py",
+    "scripts/agent_memory_v60f.py",
+    "integration/orchestration/contracts/agent-episodic-memory-v1.json",
     "integration/orchestration/contracts/autonomous-pr-steward-v1.json",
     "scripts/self_evidence_dag_v60g.py",
     "scripts/run_evidence_node_v60g.sh",
