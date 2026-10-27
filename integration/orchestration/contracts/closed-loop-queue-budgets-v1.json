@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_CLOSED_LOOP_QUEUE_BUDGETS",
+  "authority": "ORCHESTRATION_ONLY",
+  "queue_authority": "EXISTING_DURABLE_PER_REPO_QUEUE",
+  "observation_source": "V61B_RECONCILIATION_DIRECTIVES",
+  "runtime_budget": {
+    "default_max_seconds": 1800,
+    "ceiling_seconds": 3600
+  },
+  "cost_budget": {
+    "default_max_units": 500,
+    "ceiling_units": 1000
+  },
+  "observation_budget": {
+    "default_max_batches_per_work_item": 6,
+    "ceiling_batches_per_work_item": 12,
+    "max_coalesced_batches_per_cycle": 4,
+    "max_coalesced_batches_per_repository_per_cycle": 1
+  },
+  "budget_states": [
+    "ACTIVE",
+    "EXHAUSTED",
+    "STOPPED"
+  ],
+  "stop_reasons": [
+    "FILES_BUDGET_EXCEEDED",
+    "LINES_BUDGET_EXCEEDED",
+    "ATTEMPT_BUDGET_EXCEEDED",
+    "RUNTIME_BUDGET_EXCEEDED",
+    "COST_BUDGET_EXCEEDED",
+    "OBSERVATION_BUDGET_EXCEEDED",
+    "REPEATED_FAILURE_SIGNATURE",
+    "IDENTITY_MISMATCH"
+  ],
+  "invariants": [
+    "closed_loop_work_reuses_existing_per_repository_durable_queue",
+    "no_second_queue_or_scheduler_is_created",
+    "repository_ref_and_target_sha_are_immutable",
+    "work_item_file_line_and_attempt_limits_are_never_relaxed",
+    "runtime_and_cost_usage_are_cumulative_and_fail_closed",
+    "second_identical_failure_signature_stops_further_repair",
+    "github_status_fallback_queries_are_coalesced_by_repository_and_exact_sha",
+    "one_coalesced_observation_may_cover_multiple_waits_and_gates",
+    "already_terminal_or_not_due_waits_do_not_consume_observation_budget",
+    "observation_backpressure_defers_without consuming_v61b_fallback_budget",
+    "fallback_polling_remains_secondary_to_events",
+    "no_silent_target_sha_retargeting",
+    "merge_release_verification_and_certification_authority_are_unchanged"
+  ],
+  "authority_boundaries": {
+    "merge": "UNCHANGED",
+    "release": "DENIED",
+    "verification": "UNCHANGED",
+    "certification": "UNCHANGED"
+  }
+}
