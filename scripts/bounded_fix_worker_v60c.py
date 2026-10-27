@@ -453,6 +453,7 @@ def apply_bounded_patch(
     finally:
         if workspace.exists():
             _run(repo_root, "git", "worktree", "remove", "--force", str(workspace), check=False)
+        _run(repo_root, "git", "branch", "-D", branch, check=False)
         shutil.rmtree(temp_root, ignore_errors=True)
 
 
