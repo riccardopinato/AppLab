@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_VERIFY_REPAIR_LOOP",
+  "authority": "ORCHESTRATION_ONLY",
+  "required_fix_record_type": "BOUNDED_FIX_RESULT_V60C",
+  "required_fix_state": "READY_FOR_VERIFICATION",
+  "max_repair_attempts": 2,
+  "states": [
+    "NEEDS_REPAIR",
+    "NEEDS_FOCUSED_VERIFY",
+    "NEEDS_APPLAB_VERIFY",
+    "NEEDS_INVESTIGATION",
+    "WAITING_EXTERNAL",
+    "COMPLETE",
+    "STOPPED"
+  ],
+  "terminal_reason_codes": [
+    "VERIFIED_PASS",
+    "UNKNOWN_CLASSIFICATION",
+    "REPEATED_FAILURE_SIGNATURE",
+    "UNEXPLAINED_FAILURE_MUTATION",
+    "IDENTITY_NOT_PROVEN",
+    "BUDGET_EXHAUSTED",
+    "VERIFICATION_BLOCKED",
+    "HUMAN_DECISION_REQUIRED"
+  ],
+  "invariants": [
+    "bounded_fix_result_must_match_work_item_and_source_sha",
+    "focused_verification_precedes_applab_verification",
+    "applab_pass_must_bind_exact_fix_result_identity",
+    "failed_attempt_history_is_immutable",
+    "unknown_never_triggers_repair",
+    "same_failure_signature_after_second_repair_stops",
+    "unexplained_failure_class_mutation_stops",
+    "repair_attempt_budget_is_hard",
+    "loop_never_mints_pass_certified_merge_or_release"
+  ]
+}
