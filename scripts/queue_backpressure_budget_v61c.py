@@ -1428,7 +1428,7 @@ def self_test() -> dict[str, Any]:
         recovery.observe_event(
             db_path=db_path,
             wait_id=wait1["wait_id"],
-            event_id="evt_v61c-ready-1",
+            event_id="evt_v61c.ready.1",
             target_sha=sha_a,
             gate="AppLab CI",
             status="completed",
@@ -1444,7 +1444,7 @@ def self_test() -> dict[str, Any]:
                 recovery.observe_event(
                     db_path=db_path,
                     wait_id=wait1["wait_id"],
-                    event_id="evt_v61c-ready-2",
+                    event_id="evt_v61c.ready.2",
                     target_sha=sha_a,
                     gate="AppLab CodeQL",
                     status="completed",
