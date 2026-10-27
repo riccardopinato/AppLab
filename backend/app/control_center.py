@@ -11,6 +11,27 @@ DEFAULT_PATH = Path(
 )
 
 
+def empty_agent_operations() -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "record_type": "AGENTIC_OPERATIONS_STUDIO_V60I",
+        "authority": "READ_ONLY_PROJECTION",
+        "available": False,
+        "summary": {
+            "work_items": 0,
+            "active": 0,
+            "complete": 0,
+            "stopped_or_blocked": 0,
+            "draft_prs": 0,
+            "evidence_records": 0,
+        },
+        "work_items": [],
+        "source_of_truth": "DURABLE_BRAIN_AND_EVIDENCE_RECORDS",
+        "merge_authority": "NONE",
+        "release_authority": "NONE",
+    }
+
+
 def empty_snapshot() -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -23,6 +44,7 @@ def empty_snapshot() -> dict[str, Any]:
         },
         "projects": [],
         "recent": [],
+        "agent_operations": empty_agent_operations(),
         "available": False,
     }
 
@@ -43,12 +65,15 @@ def load_snapshot(path: Path | None = None) -> dict[str, Any]:
     projects = payload.get("projects")
     recent = payload.get("recent")
     summary = payload.get("summary")
+    agent_operations = payload.get("agent_operations")
     if not isinstance(projects, list):
         projects = []
     if not isinstance(recent, list):
         recent = []
     if not isinstance(summary, dict):
         summary = {}
+    if not isinstance(agent_operations, dict):
+        agent_operations = empty_agent_operations()
 
     normalized_summary = dict(summary)
     normalized_summary.update(
@@ -66,5 +91,6 @@ def load_snapshot(path: Path | None = None) -> dict[str, Any]:
         "summary": normalized_summary,
         "projects": projects[:100],
         "recent": recent[:100],
+        "agent_operations": agent_operations,
         "available": True,
     }
