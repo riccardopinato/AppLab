@@ -72,6 +72,8 @@ CONTRACT_FILES = (
     "scripts/controlled_closed_loop_expansion_v61d.py",
     "integration/orchestration/contracts/controlled-closed-loop-expansion-v1.json",
     "integration/orchestration/v61d-expansion.json",
+    "scripts/production_operations_evidence_v61e.py",
+    "integration/orchestration/contracts/production-slo-operations-evidence-v1.json",
     "scripts/ci_scope_v60g.py",
     ".github/workflows/ci.yml",
     "scripts/selftest_runtime_profile_v60g.py",
