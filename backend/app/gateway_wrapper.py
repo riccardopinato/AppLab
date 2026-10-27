@@ -8,6 +8,7 @@ from videobridge_gateway import gateway_server
 
 
 _original_handle_status = gateway_server.handle_status
+_original_send_json = web.WebSocketResponse.send_json
 
 
 def _display_config() -> dict[str, str]:
@@ -21,6 +22,31 @@ def _display_config() -> dict[str, str]:
         "hw.lcd.width": width,
         "hw.lcd.height": height,
     }
+
+
+def _is_legacy_synthetic_start(payload) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    start = payload.get("start")
+    return (
+        isinstance(start, dict)
+        and "iceServers" in start
+        and "ice_servers" not in start
+    )
+
+
+async def send_json_without_duplicate_start(self, data, *args, **kwargs):
+    # The pinned gateway emits a synthetic camelCase start immediately after
+    # RequestRtcStream, while current AEMU also emits its authoritative start
+    # over ReceiveJsepMessageStream. Forwarding both makes the 2.0.1 browser
+    # client create two peer connections and two input channels.
+    if _is_legacy_synthetic_start(data):
+        gateway_server.logging.info(
+            "Suppressing duplicate synthetic WebRTC start; "
+            "Video Bridge stream start is authoritative."
+        )
+        return None
+    return await _original_send_json(self, data, *args, **kwargs)
 
 
 async def handle_status(request):
@@ -55,6 +81,7 @@ async def handle_status(request):
 
 def main() -> None:
     gateway_server.handle_status = handle_status
+    web.WebSocketResponse.send_json = send_json_without_duplicate_start
     gateway_server.run_main()
 
 
