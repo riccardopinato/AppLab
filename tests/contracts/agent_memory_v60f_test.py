@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import agent_memory_v60f as memory  # noqa: E402
+import autonomous_failure_triage_v58a as triage_producer  # noqa: E402
 import causal_repo_investigator_v60b as investigator  # noqa: E402
 import verify_repair_loop_v60d as repair_loop  # noqa: E402
 
@@ -61,12 +62,26 @@ def main() -> int:
         "episodes/repair-2.json",
     )
     final_identity = repair_loop.repair_identity(second)
+    second_triage = triage_producer.build_triage(
+        {
+            "repository": "owner/app",
+            "resolved_sha": "b" * 40,
+            "result": "FAIL",
+            "build_error": "unit test failed in lib/final.dart line 10",
+        },
+        {
+            "repository": "owner/app",
+            "head_sha": "b" * 40,
+            "baseline_sha": "a" * 40,
+            "lane": "FAST_RUNTIME",
+        },
+    )
+    trigger_signature = second_triage["trigger_failure_signature"]["signature_sha256"]
 
     records = [
         {
             "record_type": "CAUSAL_REPO_INVESTIGATION_V60B",
             "repository": "owner/app",
-            "work_item_id": root_work,
             "resolved_sha": "a" * 40,
             "classification": "BUILD_OR_QUALITY_FAILURE",
             "ranked_candidate_files": [{"path": "lib/first.dart"}],
@@ -74,10 +89,10 @@ def main() -> int:
             "_source_ref": "episodes/investigation-1.json",
         },
         first,
+        second_triage,
         {
             "record_type": "CAUSAL_REPO_INVESTIGATION_V60B",
             "repository": "owner/app",
-            "work_item_id": second_work,
             "resolved_sha": "b" * 40,
             "classification": "BUILD_OR_QUALITY_FAILURE",
             "ranked_candidate_files": [{"path": "lib/final.dart"}],
@@ -94,12 +109,7 @@ def main() -> int:
             "reason_code": "VERIFIED_PASS",
             "repair_attempt_count": 2,
             "repair_identity_sha256": final_identity,
-            "attempt_signatures": [
-                {
-                    "signature_sha256": "sha256:" + "5" * 64,
-                    "classification": "BUILD_OR_QUALITY_FAILURE",
-                }
-            ],
+            "attempt_signatures": [],
             "_source_ref": "episodes/verdict.json",
         },
     ]
@@ -114,12 +124,16 @@ def main() -> int:
     assert success["files"] == ["lib/final.dart", "test/final_test.dart"]
     assert "lib/first.dart" not in success["files"]
     assert "test/final_test.dart" in success["required_regressions"]
+    assert "BUILD_OR_QUALITY_FAILURE" in success["classifications"]
+    assert trigger_signature in {
+        row["signature_sha256"] for row in success["failure_signatures"]
+    }
 
     ranking = memory.rank_strategies(
         derived,
         repository="owner/app",
         classification="BUILD_OR_QUALITY_FAILURE",
-        failure_signature="sha256:" + "5" * 64,
+        failure_signature=trigger_signature,
         candidate_files=["lib/final.dart", "lib/not-authorized.dart"],
     )
     assert ranking["strategies"]
@@ -222,6 +236,10 @@ def main() -> int:
         )
         (history / "unrelated.json").write_text(
             json.dumps({"record_type": "UNRELATED", "secret": "never-copy"}),
+            encoding="utf-8",
+        )
+        (history / "invalid-record-type.json").write_text(
+            json.dumps({"record_type": [], "repository": "owner/app"}),
             encoding="utf-8",
         )
         (history / "malformed.json").write_text(
