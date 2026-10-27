@@ -68,11 +68,16 @@ def main() -> int:
     runner = (ROOT / "scripts" / "run_emulator_selftest_v60g.sh").read_text(
         encoding="utf-8"
     )
+    assert "needs: scope" not in workflow
+    assert "Android runtime / required-check scope" in workflow
+    assert "steps.scope.outputs.run == 'true'" in workflow
+    assert "fetch-depth: 0" in workflow
+
     for required in (
         "Plan v6.0G self-test runtime depth",
         "selftest_runtime_profile_v60g.py",
-        "SELFTEST_PROFILE='${{ needs.scope.outputs.profile }}'",
-        "SELFTEST_SELECTED_LABS='${{ needs.scope.outputs.selected_labs }}'",
+        "SELFTEST_PROFILE='${{ steps.profile.outputs.profile }}'",
+        "SELFTEST_SELECTED_LABS='${{ steps.profile.outputs.selected_labs }}'",
         "bash scripts/run_emulator_selftest_v60g.sh",
     ):
         assert required in workflow, required
