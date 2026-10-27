@@ -34,19 +34,62 @@
       "STOPPED",
       "BLOCKED"
     ],
-    "terminal_states": ["COMPLETE", "STOPPED", "BLOCKED"],
+    "terminal_states": [
+      "COMPLETE",
+      "STOPPED",
+      "BLOCKED"
+    ],
     "allowed_transitions": {
-      "CREATED": ["INVESTIGATING", "PLANNED", "STOPPED", "BLOCKED"],
-      "INVESTIGATING": ["PLANNED", "STOPPED", "BLOCKED"],
-      "PLANNED": ["EXECUTING", "VERIFYING", "WAITING_EXTERNAL", "STOPPED", "BLOCKED"],
-      "EXECUTING": ["VERIFYING", "WAITING_EXTERNAL", "STOPPED", "BLOCKED"],
-      "VERIFYING": ["INVESTIGATING", "PLANNED", "WAITING_EXTERNAL", "COMPLETE", "STOPPED", "BLOCKED"],
-      "WAITING_EXTERNAL": ["INVESTIGATING", "PLANNED", "VERIFYING", "COMPLETE", "STOPPED", "BLOCKED"],
+      "CREATED": [
+        "INVESTIGATING",
+        "PLANNED",
+        "STOPPED",
+        "BLOCKED"
+      ],
+      "INVESTIGATING": [
+        "PLANNED",
+        "STOPPED",
+        "BLOCKED"
+      ],
+      "PLANNED": [
+        "EXECUTING",
+        "VERIFYING",
+        "WAITING_EXTERNAL",
+        "STOPPED",
+        "BLOCKED"
+      ],
+      "EXECUTING": [
+        "VERIFYING",
+        "WAITING_EXTERNAL",
+        "STOPPED",
+        "BLOCKED"
+      ],
+      "VERIFYING": [
+        "INVESTIGATING",
+        "PLANNED",
+        "WAITING_EXTERNAL",
+        "COMPLETE",
+        "STOPPED",
+        "BLOCKED"
+      ],
+      "WAITING_EXTERNAL": [
+        "INVESTIGATING",
+        "PLANNED",
+        "VERIFYING",
+        "COMPLETE",
+        "STOPPED",
+        "BLOCKED"
+      ],
       "COMPLETE": [],
       "STOPPED": [],
       "BLOCKED": []
     },
-    "risk_levels": ["LOW", "NORMAL", "HIGH", "SECURITY"]
+    "risk_levels": [
+      "LOW",
+      "NORMAL",
+      "HIGH",
+      "SECURITY"
+    ]
   },
   "authority_envelope": {
     "allowed_capabilities": [
@@ -115,7 +158,14 @@
       "state",
       "created_at"
     ],
-    "states": ["PLANNED", "RUNNING", "SUCCEEDED", "FAILED", "BLOCKED", "CANCELED"]
+    "states": [
+      "PLANNED",
+      "RUNNING",
+      "SUCCEEDED",
+      "FAILED",
+      "BLOCKED",
+      "CANCELED"
+    ]
   },
   "verdict": {
     "record_type": "APPLAB_WORK_VERDICT",
@@ -131,7 +181,11 @@
       "authority",
       "created_at"
     ],
-    "states": ["CONTINUE", "STOP", "COMPLETE"],
+    "states": [
+      "CONTINUE",
+      "STOP",
+      "COMPLETE"
+    ],
     "authority": "ORCHESTRATION_ONLY"
   },
   "terminal_conditions": [
@@ -149,10 +203,22 @@
   "invariants": [
     "durable_brain_operation_remains_source_operation",
     "work_graph_uses_same_sqlite_durable_substrate",
-    "decisions_actions_verdicts_transitions_are_append_only",
+    "decisions_actions_attempt_links_verdicts_transitions_are_append_only",
     "work_item_identity_is_immutable",
     "work_item_projection_is_rebuildable_from_transitions",
     "verdict_never_mints_pass_or_certified",
     "main_factory_core_secrets_workflow_branch_protection_release_test_weakening_self_approval_self_merge_remain_denied"
-  ]
+  ],
+  "attempt_link": {
+    "record_type": "APPLAB_WORK_ATTEMPT_LINK",
+    "required": [
+      "schema_version",
+      "record_type",
+      "attempt_link_id",
+      "work_item_id",
+      "action_id",
+      "attempt_id",
+      "created_at"
+    ]
+  }
 }
