@@ -1,3 +1,13 @@
+## AppLab v6.2 — Operational Proof & Reliability (active)
+
+The v6.1A–E **implementation** is complete and exact-head validated. The live
+closed-loop rollout remains **HOLD AT SELF_CANARY** until real bounded repair,
+recovery, independent review, immutable evidence and post-gate checks justify
+explicit promotion. The active v6.2 roadmap is in `ROADMAP.md` and
+`integration/roadmap/APPLAB_V62_OPERATIONAL_PROOF.md`. Successful CI or an
+APK runner job is not an autonomous repair receipt. The canonical agent entrypoint
+is `AGENTS.md`.
+
 ## v5.9 Journey-Aware Throughput
 
 AppLab now begins the measured runtime-acceleration program with a planning-only
