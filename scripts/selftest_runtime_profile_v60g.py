@@ -45,6 +45,7 @@ FULL_PATTERNS = (
     "scripts/restore_runtime_fixture.sh",
     "scripts/build_runtime_fixture_fallback.sh",
     "scripts/run_emulator_selftest_v60g.sh",
+    "scripts/execution_acceleration.py",
     "scripts/certification_gate.py",
     "scripts/package_build_contract.py",
     "scripts/validate_build_contract.py",
@@ -247,6 +248,7 @@ def _report(
 
 def self_test() -> None:
     assert plan(["scripts/verify_apk.sh"])["profile"] == "FULL"
+    assert plan(["scripts/execution_acceleration.py"])["profile"] == "FULL"
     assert plan([".github/workflows/production-certification.yml"])["profile"] == "FULL"
     network = plan(["scripts/network_lab.py"])
     assert network["profile"] == "FAST"
