@@ -42,6 +42,7 @@ LIMITS = {
     "scripts/bounded_fix_worker_v60c.py": 720,
     "scripts/verify_repair_loop_v60d.py": 980,
     "scripts/draft_pr_steward_v60e.py": 760,
+    "scripts/closed_loop_pilot_v61a.py": 620,
     "scripts/ci_scope_v60g.py": 180,
     "scripts/selftest_runtime_profile_v60g.py": 340,
     "scripts/review_evidence_dag_v60g.py": 430,
