@@ -29,11 +29,17 @@ def main() -> int:
         "scripts/future_unclassified_runtime.py"
     ]
 
+    network = planner.plan(["scripts/network_lab.py"])
+    assert network["profile"] == "FAST"
+    assert network["selected_labs"] == ["network"]
+    assert "network" in network["units"]
+
     mixed = planner.plan([
         "scripts/draft_pr_steward_v60e.py",
         "scripts/network_lab.py",
     ])
-    assert mixed["profile"] == "FULL"
+    assert mixed["profile"] == "FAST"
+    assert mixed["selected_labs"] == ["network"]
 
     workflow = (
         ROOT / ".github" / "workflows" / "emulator-self-test.yml"
@@ -42,9 +48,10 @@ def main() -> int:
         "Plan v6.0G self-test runtime depth",
         "selftest_runtime_profile_v60g.py",
         'SELFTEST_PROFILE="${{ needs.scope.outputs.profile }}"',
+        'SELFTEST_SELECTED_LABS="${{ needs.scope.outputs.selected_labs }}"',
         'if [[ "$SELFTEST_PROFILE" == "FAST" ]]',
         'test "$SELFTEST_PROFILE" = "FULL"',
-        "V60G_ORCHESTRATION_FAST",
+        "V60G_TARGETED_SELFTEST_UNIT",
         "RUN_MAESTRO=true",
         'assert result["maestro"] == "PASS"',
         "applab-report-certification",
