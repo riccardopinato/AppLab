@@ -73,6 +73,27 @@ def build_execution_plan(
     run_static = _bool(analysis_plan.get("run_static"), default_run_static)
     run_build = _bool(analysis_plan.get("run_build"), default_run_build)
     run_runtime = _bool(analysis_plan.get("run_runtime"), default_run_runtime)
+    risk_score = int(analysis_plan.get("risk_score", 0) or 0)
+    risk_reasons = [
+        str(value).strip()
+        for value in analysis_plan.get("risk_reasons", [])
+        if isinstance(value, str) and value.strip()
+    ]
+    changed_files = [
+        str(value).strip().replace("\\", "/")
+        for value in analysis_plan.get("changed_files", [])
+        if isinstance(value, str) and value.strip()
+    ]
+    changes = [
+        dict(value)
+        for value in analysis_plan.get("changes", [])
+        if isinstance(value, dict)
+    ]
+    capabilities = [
+        str(value).strip()
+        for value in analysis_plan.get("capabilities", [])
+        if isinstance(value, str) and value.strip()
+    ]
 
     semantic_keys = (
         "mode",
@@ -195,6 +216,11 @@ def build_execution_plan(
         "run_runtime": run_runtime,
         "selected_labs": selected,
         "selected_lab_count": len(selected),
+        "risk_score": risk_score,
+        "risk_reasons": risk_reasons,
+        "changed_files": sorted(dict.fromkeys(changed_files)),
+        "changes": changes,
+        "capabilities": capabilities,
         "selected_journeys": [
             value for value in analysis_plan.get("selected_journeys", [])
             if isinstance(value, str)
@@ -253,6 +279,10 @@ def self_test() -> None:
         "run_build": True,
         "run_runtime": True,
         "selected_labs": {"network": True, "storage": False, "persistence": True},
+        "risk_score": 80,
+        "risk_reasons": ["network auth surface"],
+        "changed_files": ["lib/network/client.dart"],
+        "capabilities": ["network"],
     }
     first = build_execution_plan(
         analysis_plan=plan,
@@ -283,6 +313,10 @@ def self_test() -> None:
         build_inputs=["post:", "prepare:"],
     )
     assert first["execution_key"] == second["execution_key"]
+    assert first["risk_score"] == 80
+    assert first["risk_reasons"] == ["network auth surface"]
+    assert first["changed_files"] == ["lib/network/client.dart"]
+    assert first["capabilities"] == ["network"]
     timed = dict(plan)
     timed["planner_ms"] = 99999.0
     timed_report = build_execution_plan(
