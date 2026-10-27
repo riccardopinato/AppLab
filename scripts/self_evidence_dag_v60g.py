@@ -210,12 +210,27 @@ def self_test() -> None:
     print("AppLab v6.0G Evidence DAG self-test PASS")
 
 
+def _write_github_output(path: str, values: dict[str, Any]) -> None:
+    if not path:
+        return
+    with Path(path).open("a", encoding="utf-8") as handle:
+        for key, value in values.items():
+            if isinstance(value, bool):
+                value = str(value).lower()
+            handle.write(f"{key}={value}\n")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--evidence-dir", default="")
     parser.add_argument("--trusted-dir", default="")
     parser.add_argument("--target-dir", default="")
     parser.add_argument("--cache-root", default="")
+    parser.add_argument("--node", default="")
+    parser.add_argument("--restore", action="store_true")
+    parser.add_argument("--save", action="store_true")
+    parser.add_argument("--fingerprint-only", action="store_true")
+    parser.add_argument("--github-output", default="")
     parser.add_argument("--output", default="")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
@@ -224,9 +239,30 @@ def main() -> int:
         return 0
     if not all((args.evidence_dir, args.trusted_dir, args.target_dir, args.cache_root)):
         raise SystemExit("--evidence-dir, --trusted-dir, --target-dir and --cache-root are required")
-    report = plan_all(
-        Path(args.evidence_dir), Path(args.trusted_dir), Path(args.target_dir), Path(args.cache_root)
-    )
+    evidence = Path(args.evidence_dir)
+    trusted = Path(args.trusted_dir)
+    target = Path(args.target_dir)
+    cache = Path(args.cache_root)
+    if args.node:
+        fp = node_fingerprint(args.node, evidence, trusted, target, {})
+        fingerprint = fp["fingerprint_sha256"]
+        if args.fingerprint_only:
+            print(fingerprint)
+            _write_github_output(args.github_output, {"fingerprint": fingerprint})
+            return 0
+        if args.restore:
+            hit = restore_node(args.node, fingerprint, cache, evidence)
+            report = {"node": args.node, "fingerprint_sha256": fingerprint, "cache_hit": hit}
+            _write_github_output(args.github_output, {"hit": hit, "fingerprint": fingerprint})
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return 0
+        if args.save:
+            report = save_node(args.node, fingerprint, cache, evidence)
+            _write_github_output(args.github_output, {"saved": True, "fingerprint": fingerprint})
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return 0
+        raise SystemExit("--node requires --restore, --save or --fingerprint-only")
+    report = plan_all(evidence, trusted, target, cache)
     rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:
         Path(args.output).write_text(rendered, encoding="utf-8")
