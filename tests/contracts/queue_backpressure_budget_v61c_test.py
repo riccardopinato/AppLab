@@ -24,7 +24,11 @@ def main() -> int:
     assert proof["work_item_file_line_attempt_budgets_preserved"] is True
     assert proof["runtime_cost_budgets_cumulative"] is True
     assert proof["attempt_reservation_idempotent"] is True
-    assert proof["duplicate_observation_plan_suppressed"] is True
+    assert proof["failure_occurrence_idempotent"] is True
+    assert proof["persisted_batch_replay_recovered"] is True
+    assert proof["cycle_capacity_persisted"] is True
+    assert proof["batch_journal_precedes_fallback_consumption"] is True
+    assert proof["ready_recovery_ignores_observation_exhaustion"] is True
     assert proof["repeated_failure_signature_stops"] is True
     assert proof["event_driven_primary"] is True
     assert proof["same_sha_waits_coalesced"] is True
