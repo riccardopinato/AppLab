@@ -617,15 +617,12 @@ def check_execution_acceleration_contract() -> None:
             and "needs.scope.outputs.run == 'true'" in required_workflow,
             "required status-check workflows must always instantiate on pull requests and scope expensive work at job level",
         )
+    emulator_scope_tokens = ("id: scope", "Decide whether trusted runtime work is applicable", "Plan v6.0G self-test runtime depth", "steps.scope.outputs.run == 'true'")
     require(
-        "pull_request:\n    paths:" not in emulator
-        and "id: scope" in emulator
-        and "Decide whether trusted runtime work is applicable" in emulator
-        and "Plan v6.0G self-test runtime depth" in emulator
-        and "steps.scope.outputs.run == 'true'" in emulator
-        and "needs: scope" not in emulator
-        and "\n  android-runtime:\n    runs-on: ubuntu-latest" in emulator,
-        "Emulator Self Test must preserve the android-runtime required context while gating expensive work inside the same job",
+        "pull_request:\n    paths:" not in emulator and "needs: scope" not in emulator
+        and "\n  android-runtime:\n    runs-on: ubuntu-latest" in emulator
+        and all(token in emulator for token in emulator_scope_tokens),
+        "Emulator Self Test must preserve android-runtime while gating expensive work in-job",
     )
     require(
         "inputs.flutter_version != ''" in flutter_runner,
