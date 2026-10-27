@@ -74,6 +74,7 @@ jobs:
             scripts/autonomous_pr_steward_v60e.py \
             scripts/agent_memory_v60f.py \
             scripts/sensor_mesh_v60h.py \
+            scripts/agent_operations_studio_v60i.py \
             scripts/self_evidence_dag_v60g.py \
             scripts/event_gateway_v54c.py \
             scripts/conductor_shadow_v54d.py \
@@ -232,6 +233,7 @@ jobs:
           python scripts/autonomous_pr_steward_v60e.py --self-test
           python scripts/agent_memory_v60f.py --self-test
           python scripts/sensor_mesh_v60h.py --self-test
+          python scripts/agent_operations_studio_v60i.py --self-test
           python scripts/self_evidence_dag_v60g.py --self-test
           python scripts/event_gateway_v54c.py --self-test
           python scripts/conductor_shadow_v54d.py --self-test
@@ -355,6 +357,7 @@ jobs:
           python tests/contracts/autonomous_pr_steward_v60e_test.py
           python tests/contracts/agent_memory_v60f_test.py
           python tests/contracts/sensor_mesh_v60h_test.py
+          python tests/contracts/agent_operations_studio_v60i_test.py
           python tests/contracts/event_gateway_v54c_test.py
           python tests/contracts/conductor_shadow_v54d_test.py
           python tests/contracts/durable_queue_v54e_test.py
