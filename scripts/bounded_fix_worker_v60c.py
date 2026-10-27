@@ -210,6 +210,8 @@ def _preflight_patch(
         raise WorkerError("binary patches are not allowed")
     if "rename from " in lowered or "rename to " in lowered:
         raise WorkerError("rename patches are not allowed in v6.0C")
+    if "deleted file mode " in lowered:
+        raise WorkerError("file deletion patches are not allowed in v6.0C")
     paths = _patch_paths(patch_text)
     if not paths:
         raise WorkerError("patch contains no repository paths")
@@ -281,20 +283,40 @@ def _test_weakening_findings(diff_text: str, contract: dict[str, Any]) -> list[s
     skips = tuple(str(x).lower() for x in contract["test_weakening_tokens"])
     findings: list[str] = []
     current_path = ""
+    deleted_assertions = 0
+    added_assertions = 0
+
+    def flush_hunk() -> None:
+        nonlocal deleted_assertions, added_assertions
+        if current_path and _is_test_path(current_path):
+            if deleted_assertions > added_assertions:
+                findings.append(f"assertion/test coverage deletion in {current_path}")
+        deleted_assertions = 0
+        added_assertions = 0
+
     for line in diff_text.splitlines():
         if line.startswith("diff --git "):
+            flush_hunk()
             parts = line.split()
-            current_path = _safe_rel(parts[3][2:] if len(parts) >= 4 and parts[3].startswith("b/") else "")
+            current_path = _safe_rel(
+                parts[3][2:] if len(parts) >= 4 and parts[3].startswith("b/") else ""
+            )
+            continue
+        if line.startswith("@@"):
+            flush_hunk()
             continue
         if not current_path or not _is_test_path(current_path):
             continue
         lower = line.lower()
         if line.startswith("-") and not line.startswith("---"):
             if any(token in lower for token in assertions):
-                findings.append(f"assertion/test deletion in {current_path}")
+                deleted_assertions += 1
         if line.startswith("+") and not line.startswith("+++"):
             if any(token in lower for token in skips):
                 findings.append(f"skip/disable insertion in {current_path}")
+            if any(token in lower for token in assertions):
+                added_assertions += 1
+    flush_hunk()
     return sorted(set(findings))
 
 
@@ -352,6 +374,10 @@ def apply_bounded_patch(
         _run(workspace, "git", "apply", str(patch_path))
 
         status = _status_paths(workspace)
+        untracked = sorted(path for path, code in status.items() if code == "??")
+        if untracked:
+            _run(workspace, "git", "add", "-N", "--", *untracked)
+            status = _status_paths(workspace)
         if not status:
             return {
                 "schema_version": 1,
