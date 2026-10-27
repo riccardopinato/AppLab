@@ -1,172 +1,139 @@
 # AppLab v6.0G — Self-Dogfooding Throughput
 
-Status: **IMPLEMENTED CANDIDATE / REAL TIMING EVIDENCE REQUIRED**
+Status: **IMPLEMENTED CANDIDATE / EXACT-HEAD TIMING EVIDENCE REQUIRED**
 
 ## Goal
 
-Reduce AppLab's own commit-to-green critical path without weakening any existing
-required check, trusted runtime boundary or certification authority.
+Reduce AppLab's own commit-to-green latency without weakening FULL depth,
+trusted-runtime authority, exact-source identity or certification.
 
-The v5.9.1 before-state is recorded in
-`integration/performance/V591_SELF_LOOP_BASELINE_2026-10-27.md`.
+v6.0G applies the same principles already used for downstream projects to
+AppLab itself:
 
-The two dominant self-costs were:
+- path/risk-aware self-test selection;
+- bounded FAST runtime smoke for orchestration-only changes;
+- targeted specialist-lab execution;
+- FULL fallback for unknown or verifier-critical surfaces;
+- content-addressed advisory-review fan-out;
+- safe exact-input cache reuse;
+- dependency-aware parallel execution.
 
-- Emulator Self Test: roughly 11m40 wall clock;
-- True Autonomous Review: roughly 9m40 when fully applicable.
+## Emulator Self Test
 
-v6.0G attacks both using existing AppLab principles rather than adding a second
-execution system.
+The required check remains one umbrella check, but its internal runtime depth is
+planned deterministically.
 
-## 1. Emulator Self Test — fail-closed FAST/FULL profile
+Profiles:
 
-`scripts/selftest_runtime_profile_v60g.py` classifies the exact PR diff.
+- **FULL** — historical self-test depth remains unchanged;
+- **FAST** — launch + Maestro + interaction + crash/visual sentinels, plus only
+  the specialist labs selected by the v6.0G self-test planner.
 
-### FULL
+FULL is mandatory when the diff touches:
 
-FULL remains mandatory when a change can alter runtime/certification semantics,
-including:
-
+- the self-test/runtime-fixture workflows;
 - `verify_apk.sh`;
-- specialist labs;
-- visual verification;
-- certification/build-contract/trusted-manifest logic;
-- project adapter behavior;
-- self-test fixture/application;
-- Maestro flows;
-- Emulator Self Test / runtime fixture workflows.
+- build-contract or trusted-manifest boundaries;
+- project auto-discovery/adapter semantics;
+- the self-test fixture or Maestro flow;
+- certification-gate semantics;
+- any unclassified script surface.
 
-Unknown `scripts/**` changes also fall back to FULL.
+Specialist producer changes are mapped to independent units:
 
-The existing deep path is retained intact:
-
-- Maestro/full runtime;
-- system;
+- lifecycle/system;
+- performance;
 - network;
 - persistence;
 - configuration;
-- resource pressure;
+- resource-pressure;
 - background;
 - storage;
-- upgrade;
-- no-Maestro canary;
-- FAST canary;
-- certification gate canary.
+- upgrade.
 
-### FAST
+Orchestration-only v6 scripts use the bounded FAST core path. Unknown
+`scripts/**` changes fail closed to FULL.
 
-Bounded orchestration/intelligence changes such as v6 A→I can use FAST.
+The planner never emits PASS. It only selects runtime work; `verify_apk.sh`
+remains the runtime authority.
 
-FAST still executes:
+## Autonomous Review Evidence DAG
 
-- install/launch;
-- Maestro primary self-test;
-- crash/ANR/log capture;
-- visual launch/post-Maestro evidence;
-- interaction sentinel;
-- verifier result aggregation.
+After the authoritative Evidence Graph is built, independent advisory producers
+are executed as a dependency-aware DAG.
 
-Specialist labs are explicitly selected as SKIPPED/NO_BASELINE by a frozen FAST
-analysis plan.
+Wave 1 may run in parallel:
 
-A FAST result is never represented as FULL.
+- planner feedback;
+- simulated-human QA;
+- competitive intelligence.
 
-## 2. Autonomous Review — exact-input Evidence DAG
+Wave 2 waits for simulated-human output:
 
-After Evidence Graph construction, four advisory producers are independent:
+- design-system advisor.
 
-- graph-aware planner feedback;
-- Simulated Human QA;
-- Design System & UI Library Advisor;
-- Competitive Product Intelligence.
+This ordering is required because the design advisor reads
+`simulated-human-qa.json`; running those two nodes concurrently would make the
+result race-dependent.
 
-v6.0G executes them concurrently through
-`scripts/review_evidence_dag_v60g.py`.
+The downstream release-assurance and virtual-review-council stages remain after
+the fan-out.
 
-The DAG is:
+## Content-addressed cache
 
-```
-core autonomous review
-  -> Evidence Graph
-      -> [planner feedback | simulated human | design advisor | competitive]
-          -> release assurance
-          -> virtual review council
-```
+The review fan-out cache key binds:
 
-The aggregate remains deterministic because each producer writes its own
-canonical output files and downstream aggregation still occurs after all four
-complete.
-
-## 3. Content-addressed review reuse
-
-The fan-out cache key binds:
-
-- exact target repository;
+- target repository;
 - exact target SHA;
 - exact AppLab workflow SHA;
 - Evidence Graph SHA-256;
 - analysis-plan SHA-256;
 - market-evidence SHA-256 when present;
-- producer script hashes;
-- max-files execution contract.
+- max-files policy;
+- hashes of every fan-out producer script.
 
-A cache hit restores only the four advisory producer outputs.
+Cache restore is accepted only when the exact key matches and every declared
+output exists. A producer/input change invalidates the fan-out cache.
 
-Changing source, AppLab implementation, trusted planning evidence, market
-evidence or producer code invalidates the cache.
+The cache contains advisory evidence only and cannot mint PASS or CERTIFIED.
 
-Cache reuse cannot mint runtime PASS/CERTIFIED because these four nodes are
-advisory-only.
+## Safety invariants
 
-## 4. Required-check contract
+- FULL/CERTIFICATION depth is not reduced by missing or unknown planning data.
+- Unknown script surfaces select FULL.
+- Required-check names remain stable.
+- Runtime PASS still comes only from existing trusted verification.
+- Review cache reuse is exact-input only.
+- Review fan-out is advisory and cannot change release/certification authority.
+- No new merge or release authority is introduced.
 
-The outer GitHub required checks are unchanged.
+## Validation
 
-v6.0G changes work *inside* Emulator Self Test / Autonomous Review; it does not
-remove those checks from branch protection.
+Contract coverage proves:
 
-The review workflow also keeps an explicit producer preflight so historical
-contract tests verify that the canonical producer scripts still physically
-exist even though execution moved behind a parallel fan-out coordinator.
+- FULL fallback for verifier/self-test/unknown script surfaces;
+- bounded FAST for orchestration-only changes;
+- targeted specialist-lab selection;
+- FULL dominance when mixed with a critical surface;
+- deterministic Evidence DAG fingerprints;
+- AppLab-SHA invalidation;
+- Evidence Graph invalidation;
+- complete-cache restore requirement;
+- dependency-safe review waves.
 
-## 5. Targets
+## Promotion evidence still required
 
-| Path | v6.0G target p95 |
-|---|---:|
-| docs/config non-runtime | <2 min |
-| localized orchestration script | <5–6 min |
-| ordinary AppLab FAST | <6 min |
-| runtime-sensitive FULL | <10 min where infrastructure permits |
-| FULL depth | unchanged |
-| certification | no artificial latency target |
+Implementation completion does not by itself claim the throughput target.
 
-The targets are objectives, not PASS criteria. Real exact-head workflow evidence
-must be recorded before declaring them achieved.
+Before v6.0G is marked production-complete, exact-head observations must show
+that ordinary orchestration/script PRs materially improve from the immutable
+v5.9.1 baseline in
+`integration/performance/V591_SELF_LOOP_BASELINE_2026-10-27.md`.
 
-## 6. Acceptance
+Targets remain:
 
-- [x] deterministic self-test FAST/FULL planner;
-- [x] unknown runtime scripts fail closed to FULL;
-- [x] runtime/certification surfaces force FULL;
-- [x] FAST preserves launch/Maestro/crash/visual/interaction sentinels;
-- [x] FULL path remains present and unchanged in depth;
-- [x] content-addressed review DAG;
-- [x] exact AppLab SHA included in review cache identity;
-- [x] four advisory producers execute in parallel;
-- [x] exact-input cache restore/save;
-- [x] incomplete cache fails closed;
-- [x] historical producer contract remains explicit;
-- [x] CI/contract/fingerprint/maintainability integration;
-- [ ] exact-head required checks GREEN;
-- [ ] first real FAST self-run timing recorded;
-- [ ] first real review fan-out/cache evidence recorded.
-
-## Authority
-
-Smart Test Plan remains FAST/FULL authority for target applications.
-
-v6.0G's self-profile governs only AppLab's own Emulator Self Test depth and is
-conservative by construction.
-
-Production Certification, physical-device, distribution/store and cross-app
-authority remain unchanged.
+- docs/config non-runtime: p95 < 2 min;
+- localized script change: p95 < 5–6 min;
+- ordinary AppLab FAST: p95 < 6 min;
+- runtime-sensitive change: p95 < 10 min where safely attainable;
+- FULL/certification: evidence depth over artificial latency.
