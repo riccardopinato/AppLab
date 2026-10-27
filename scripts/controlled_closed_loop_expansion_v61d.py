@@ -131,13 +131,53 @@ def load_policy(
     return payload
 
 
-def _target_catalog() -> dict[str, dict[str, Any]]:
-    legacy = legacy_expansion.load_policy()
-    expanded = json.loads(json.dumps(legacy))
-    expanded["active_stage"] = "EXPANDED_5"
-    sample = expanded["stages"]["EXPANDED_5"][0]
-    live = legacy_expansion.live_control_config(sample, expanded)
-    return {item["repository"]: dict(item) for item in live["pilot_targets"]}
+def _target_catalog(
+    repositories: list[str],
+) -> dict[str, dict[str, Any]]:
+    watchlist = json.loads(legacy_expansion.WATCHLIST.read_text(encoding="utf-8"))
+    watch_by_repo = {
+        item["repository"]: item
+        for item in watchlist["repositories"]
+        if item.get("enabled") is True and item.get("repository")
+    }
+    pilot = json.loads(legacy_expansion.PILOT.read_text(encoding="utf-8"))
+    pilot_by_repo = {
+        item["repository"]: dict(item)
+        for item in pilot["pilot_targets"]
+    }
+
+    catalog: dict[str, dict[str, Any]] = {}
+    for repository in repositories:
+        row = watch_by_repo.get(repository)
+        if row is None:
+            raise ExpansionError(
+                f"active-stage repository is not enabled in watchlist: {repository}"
+            )
+        engine = row.get("engine")
+        if engine not in legacy_expansion.SUPPORTED_ENGINES:
+            raise ExpansionError(f"unsupported live engine for {repository}")
+        if repository in pilot_by_repo:
+            target = pilot_by_repo[repository]
+        else:
+            ref = str(row.get("ref") or "main")
+            target = {
+                "repository": repository,
+                "source_ref": f"refs/heads/{ref}",
+                "event_types": [
+                    "push",
+                    "repository_dispatch",
+                    "workflow_dispatch",
+                ],
+                "run_maestro": bool(row.get("run_maestro", False)),
+                "history_key": (
+                    "v61d-"
+                    + repository.split("/", 1)[-1].lower().replace("_", "-")
+                ),
+                "analysis_mode": "fast",
+                "engine": engine,
+            }
+        catalog[repository] = target
+    return catalog
 
 
 def materialize_event_config(
@@ -148,8 +188,17 @@ def materialize_event_config(
     stage = str(stage or policy["active_stage"])
     if stage not in STAGES:
         raise ExpansionError("unknown materialization stage")
-    catalog = _target_catalog()
-    targets = [catalog[repo] for repo in policy["stages"][stage]]
+    enabled_repositories = [
+        repository
+        for repository in policy["stages"][stage]
+        if not policy["repository_kill_switches"][repository]
+    ]
+    if not enabled_repositories:
+        raise ExpansionError(
+            "all active-stage repositories are disabled by repository kill switches"
+        )
+    catalog = _target_catalog(enabled_repositories)
+    targets = [catalog[repo] for repo in enabled_repositories]
     return {
         "schema_version": 1,
         "enabled": bool(policy["enabled"]),
@@ -384,12 +433,24 @@ def admit_closed_loop(
     if not started["integrity"]["ok"]:
         raise ExpansionError("agent work graph integrity failure")
 
-    budget = budgets.register_budget(
-        db_path=db_path,
-        work_item_id=str(started["work_item_id"]),
-        now_ts=float(now_ts or 0.0),
-        occurred_at="1970-01-01T00:00:00Z",
+    terminal_states = set(
+        workgraph.load_contract()["work_item"]["terminal_states"]
     )
+    terminal_reuse = bool(started["terminal_reuse"]) or (
+        started["work_item_state"] in terminal_states
+    )
+    if terminal_reuse or started["policy_action"] == "STOPPED_POLICY_REVOKED":
+        budget_state = "TERMINAL_NO_NEW_BUDGET_ACTIVITY"
+        queue_backpressure = durable["queue_state"] == "DEFERRED"
+    else:
+        budget = budgets.register_budget(
+            db_path=db_path,
+            work_item_id=str(started["work_item_id"]),
+            now_ts=float(now_ts or 0.0),
+            occurred_at="1970-01-01T00:00:00Z",
+        )
+        budget_state = budget["budget_state"]
+        queue_backpressure = budget["queue_backpressure"]
 
     return {
         "schema_version": 1,
@@ -400,6 +461,8 @@ def admit_closed_loop(
         "reason": (
             "POLICY_REVOKED_STOPPED"
             if started["policy_action"] == "STOPPED_POLICY_REVOKED"
+            else "TERMINAL_REUSE_PRESERVED"
+            if terminal_reuse
             else "BOUNDED_MUTATION_ADMITTED"
             if started["effective_mutation_authorized"]
             else "INVESTIGATION_ONLY_ADMITTED"
@@ -418,8 +481,8 @@ def admit_closed_loop(
         "work_item_persistence": started["work_item_persistence"],
         "work_item_state": started["work_item_state"],
         "policy_action": started["policy_action"],
-        "budget_state": budget["budget_state"],
-        "queue_backpressure": budget["queue_backpressure"],
+        "budget_state": budget_state,
+        "queue_backpressure": queue_backpressure,
         "dispatch": False,
         "remote_write_performed": False,
         "dispatch_owner": "EXISTING_DURABLE_CONTROL_PLANE",
