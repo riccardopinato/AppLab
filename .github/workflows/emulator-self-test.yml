@@ -31,6 +31,8 @@ jobs:
       run: ${{ steps.scope.outputs.run }}
       profile: ${{ steps.profile.outputs.profile }}
       profile_reason: ${{ steps.profile.outputs.reason }}
+      selected_labs: ${{ steps.profile.outputs.selected_labs }}
+      units: ${{ steps.profile.outputs.units }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -140,24 +142,44 @@ jobs:
           script: |
             chmod +x scripts/*.sh
             SELFTEST_PROFILE="${{ needs.scope.outputs.profile }}"
+            SELFTEST_SELECTED_LABS="${{ needs.scope.outputs.selected_labs }}"
+            SELFTEST_UNITS="${{ needs.scope.outputs.units }}"
+            export SELFTEST_SELECTED_LABS SELFTEST_UNITS
             echo "AppLab v6.0G self-test profile: $SELFTEST_PROFILE (${{ needs.scope.outputs.profile_reason }})"
+            echo "AppLab v6.0G selected units: $SELFTEST_UNITS"
 
             if [[ "$SELFTEST_PROFILE" == "FAST" ]]; then
               python - <<'PY'
               import json
+              import os
               from pathlib import Path
+
               labs = [
                   "system", "performance", "network", "persistence",
                   "configuration", "resource_pressure", "background",
                   "storage", "upgrade",
               ]
+              selected = {
+                  value.strip()
+                  for value in os.environ.get("SELFTEST_SELECTED_LABS", "").split(",")
+                  if value.strip()
+              }
+              unknown = sorted(selected - set(labs))
+              assert not unknown, unknown
               payload = {
                   "schema_version": 1,
-                  "planner_version": "v6.0G-selftest",
+                  "planner_version": "v6.0G-selftest-1.1",
                   "mode": "fast",
                   "changed_files": [],
-                  "selected_labs": {name: False for name in labs},
-                  "reasons": {name: ["V60G_ORCHESTRATION_FAST"] for name in labs},
+                  "selected_labs": {name: name in selected for name in labs},
+                  "reasons": {
+                      name: (
+                          ["V60G_TARGETED_SELFTEST_UNIT"]
+                          if name in selected
+                          else ["V60G_UNSELECTED_SELFTEST_UNIT"]
+                      )
+                      for name in labs
+                  },
                   "fallback_full": False,
               }
               Path("v60g-fast-plan.json").write_text(
@@ -181,21 +203,36 @@ jobs:
               import json
               from pathlib import Path
 
+              import os
+
               root = Path("applab-report-fast")
               result = json.loads((root / "result.json").read_text(encoding="utf-8"))
               assert result["result"] == "PASS", result
               assert result["analysis_mode"] == "fast", result
               assert result["maestro"] == "PASS", result
-              lab_keys = [
-                  "system_lab", "performance_lab", "network_lab",
-                  "persistence_lab", "configuration_lab",
-                  "resource_pressure_lab", "background_lab",
-                  "storage_lab", "upgrade_lab",
-              ]
-              assert all(
-                  result[key] in {"SKIPPED", "NO_BASELINE"}
-                  for key in lab_keys
-              ), result
+              selected = {
+                  value.strip()
+                  for value in os.environ.get("SELFTEST_SELECTED_LABS", "").split(",")
+                  if value.strip()
+              }
+              key_by_lab = {
+                  "system": "system_lab",
+                  "performance": "performance_lab",
+                  "network": "network_lab",
+                  "persistence": "persistence_lab",
+                  "configuration": "configuration_lab",
+                  "resource_pressure": "resource_pressure_lab",
+                  "background": "background_lab",
+                  "storage": "storage_lab",
+                  "upgrade": "upgrade_lab",
+              }
+              for lab, key in key_by_lab.items():
+                  status = result[key]
+                  if lab in selected:
+                      allowed = {"PASS"} if lab == "system" else {"PASS", "WARN"}
+                      assert status in allowed, (lab, status, result)
+                  else:
+                      assert status in {"SKIPPED", "NO_BASELINE"}, (lab, status, result)
               assert (root / "launch.png").stat().st_size > 0
               assert (root / "post-maestro.png").stat().st_size > 0
               assert (root / "logcat.txt").stat().st_size > 0
