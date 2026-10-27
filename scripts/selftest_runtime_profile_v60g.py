@@ -43,6 +43,7 @@ FULL_PATTERNS = (
     "scripts/install_maestro.sh",
     "scripts/restore_runtime_fixture.sh",
     "scripts/build_runtime_fixture_fallback.sh",
+    "scripts/run_emulator_selftest_v60g.sh",
     "scripts/certification_gate.py",
     "scripts/package_build_contract.py",
     "scripts/validate_build_contract.py",
