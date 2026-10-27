@@ -2,7 +2,7 @@
 
 Current production baseline: **v5.9.1 — Truth & Debt Closure** (`main@bd0e0b1ae0a615b96fb3f160d81a6845bc51963b`).
 
-Active program: **v6.0 Closed-Loop Agentic Engineering**. v5.7E exact-artifact reuse evidence accrues in parallel and remains fail-closed until a real cache-hit promotion record exists.
+Active program: **v6.0 Closed-Loop Agentic Engineering**. v5.7B/v5.7E downstream adoption and exact-artifact reuse promotion gates are closed with real evidence.
 
 Factory baseline for this roadmap refresh: `App-Factory-Core@ed6466e774a28e95f9f371cd56bbf7278428776a` (Master 26.6 / Golden Index 22).
 
@@ -41,7 +41,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 | **v6.0B** | Causal Repo Investigator | **Implementation candidate:** deterministic candidate-file/root-cause ranking from diff, traces, labs, graph and history; exact-head validation pending | P0 |
 | **v6.0C** | Bounded Autonomous Fix Worker | **Implementation candidate:** exact-SHA ephemeral worktree patching with causal-scope, budget, protected-path and test-weakening gates; exact-head validation pending | P0 |
 | **v6.0D** | Verify–Repair Loop | **Implementation candidate:** focused verify → exact materialization → trusted AppLab evidence → PASS / new exact-SHA WorkItem / STOP, max 2 attempts; exact-head validation pending | P0 |
-| **v6.0G** | Self-Dogfooding Throughput | Apply journey/evidence DAG concepts to AppLab itself; target ordinary FAST <6 min p95 | P0/P1 |
+| **v6.0G** | Self-Dogfooding Throughput | **Implementation candidate:** fail-closed Emulator FAST/FULL profile + exact-input cached parallel advisory review fan-out; FULL depth unchanged; exact-head timing evidence pending | P0/P1 |
 | **v6.0E** | Autonomous PR Steward | **Implementation candidate:** explicit PR capabilities, exact patch→commit materialization, fast-forward-only `applab/repair/*`, draft create/reuse/update, no ready/approve/merge/release; exact-head validation pending | P1 |
 | **v6.0F** | Agent Memory & Policy Learning | Compressed episodic engineering memory; guardrails remain non-self-modifying | P1 |
 | **v6.0H** | Sensor Mesh | Risk-triggered scrcpy, LeakCanary, Semgrep, Trivy, MobSF/Hetty evidence producers | P2 |
