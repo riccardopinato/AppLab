@@ -88,6 +88,30 @@ def main() -> int:
             "repair_attempt_count": 2,
         },
     ]
+    records.append(
+        {
+            "schema_version": 1,
+            "record_type": "APPLAB_V61E_OPERATIONS_EVIDENCE",
+            "authority": "READ_ONLY_OPERATIONS_EVIDENCE",
+            "production_status": "MONITORING",
+            "active_stage": "SELF_CANARY",
+            "operation_count": 3,
+            "latency_alerts": [],
+            "repeated_signature_stops": 0,
+            "promotion": {"decision": "ELIGIBLE_FOR_EXPLICIT_PROMOTION"},
+            "operations_gate": {"decision": "ELIGIBLE_FOR_EXPLICIT_PROMOTION"},
+            "rollback": {
+                "decision": "NO_ROLLBACK_SIGNAL",
+                "recommended_stage": "SELF_CANARY",
+            },
+            "observation_totals": {
+                "covered_waits": 9,
+                "external_queries": 3,
+                "coalesced_wait_savings": 6,
+            },
+        }
+    )
+
     records.extend(
         [
             {
@@ -114,6 +138,13 @@ def main() -> int:
 
     snapshot = mod.build_agent_operations(records)
     assert snapshot["summary"]["stopped_or_blocked"] == 1
+    production = snapshot["production_operations"]
+    assert production["available"] is True
+    assert production["production_status"] == "MONITORING"
+    assert production["active_stage"] == "SELF_CANARY"
+    assert production["operations_gate"] == "ELIGIBLE_FOR_EXPLICIT_PROMOTION"
+    assert production["rollback"] == "NO_ROLLBACK_SIGNAL"
+    assert production["coalesced_wait_savings"] == 6
     assert snapshot["summary"]["complete"] == 1
     assert snapshot["summary"]["draft_prs"] == 1
     row = next(item for item in snapshot["work_items"] if item["work_item_id"] == "wrk_a")
