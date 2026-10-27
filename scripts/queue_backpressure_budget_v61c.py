@@ -1199,7 +1199,8 @@ def self_test() -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as raw:
         root = Path(raw)
         db_path = root / "v61c.sqlite3"
-        sha = "a" * 40
+        sha_a = "a" * 40
+        sha_b = "b" * 40
 
         durable = storemod.SQLiteShadowStore(db_path)
         try:
@@ -1208,14 +1209,15 @@ def self_test() -> dict[str, Any]:
                 durable, **event_pilot.QUEUE_LIMITS
             )
             work_items: list[str] = []
-            operation_ids: list[str] = []
-            for index in (1, 2, 3):
+            target_shas: list[str] = []
+            for index in (1, 2, 3, 4):
+                target_sha = sha_b if index == 3 else sha_a
                 operation = brain._operation_fixture(
                     f"op_v61c-{index}",
                     "riccardopinato/AppLab",
                     "refs/heads/main",
-                    sha,
-                    sha,
+                    target_sha,
+                    target_sha,
                     state="RUNNING",
                     force_generation=index,
                 )
@@ -1230,34 +1232,24 @@ def self_test() -> dict[str, Any]:
                 item["state"] = "VERIFYING"
                 graph.put_work_item(item)
                 work_items.append(item["work_item_id"])
-                operation_ids.append(operation["operation_id"])
+                target_shas.append(target_sha)
         finally:
             durable.close()
 
-        first_budget = register_budget(
-            db_path=db_path,
-            work_item_id=work_items[0],
-            now_ts=20.0,
-            occurred_at="2026-10-27T15:00:00Z",
-        )
-        second_budget = register_budget(
-            db_path=db_path,
-            work_item_id=work_items[1],
-            now_ts=20.0,
-            occurred_at="2026-10-27T15:00:00Z",
-        )
-        third_budget = register_budget(
-            db_path=db_path,
-            work_item_id=work_items[2],
-            now_ts=20.0,
-            occurred_at="2026-10-27T15:00:00Z",
-        )
-        assert first_budget["queue_state"] == "QUEUED"
-        assert second_budget["queue_state"] == "DEFERRED"
-        assert third_budget["queue_state"] == "DEFERRED"
-        assert second_budget["queue_backpressure"] is True
-        assert third_budget["queue_backpressure"] is True
-        assert first_budget["new_queue_created"] is False
+        budgets = [
+            register_budget(
+                db_path=db_path,
+                work_item_id=work_item_id,
+                now_ts=20.0,
+                occurred_at="2026-10-27T15:00:00Z",
+                max_observation_batches=1 if index == 0 else None,
+            )
+            for index, work_item_id in enumerate(work_items)
+        ]
+        assert budgets[0]["queue_state"] == "QUEUED"
+        assert all(row["queue_state"] == "DEFERRED" for row in budgets[1:])
+        assert all(row["queue_backpressure"] is True for row in budgets[1:])
+        assert budgets[0]["new_queue_created"] is False
 
         attempt1 = reserve_repair_attempt(
             db_path=db_path,
@@ -1282,15 +1274,6 @@ def self_test() -> dict[str, Any]:
         )
         assert attempt1_replay["authorized"] is True
         assert attempt1_replay["event_persistence"] == "REPLAY"
-
-        first_failure = note_failure_signature(
-            db_path=db_path,
-            work_item_id=work_items[2],
-            failure_signature="sig-demo",
-            occurred_at="2026-10-27T15:02:00Z",
-        )
-        assert first_failure["repeated"] is False
-
         attempt2 = reserve_repair_attempt(
             db_path=db_path,
             work_item_id=work_items[2],
@@ -1302,11 +1285,39 @@ def self_test() -> dict[str, Any]:
             occurred_at="2026-10-27T15:03:00Z",
         )
         assert attempt2["authorized"] is True
+
+        # Failure occurrences are distinct from delivery retries. A, B, A, A
+        # must stop only on the final consecutive A; replaying occurrence 3 must
+        # not create a synthetic fourth occurrence.
+        sequence = [
+            ("failure-1", "sig-a"),
+            ("failure-2", "sig-b"),
+            ("failure-3", "sig-a"),
+        ]
+        for occurrence_id, signature in sequence:
+            observed = note_failure_signature(
+                db_path=db_path,
+                work_item_id=work_items[3],
+                failure_signature=signature,
+                occurrence_id=occurrence_id,
+                occurred_at="2026-10-27T15:04:00Z",
+            )
+            assert observed["repeated"] is False
+        replayed = note_failure_signature(
+            db_path=db_path,
+            work_item_id=work_items[3],
+            failure_signature="sig-a",
+            occurrence_id="failure-3",
+            occurred_at="2026-10-27T15:04:01Z",
+        )
+        assert replayed["event_persistence"] == "REPLAY"
+        assert replayed["repeated"] is False
         repeated = note_failure_signature(
             db_path=db_path,
-            work_item_id=work_items[2],
-            failure_signature="sig-demo",
-            occurred_at="2026-10-27T15:04:00Z",
+            work_item_id=work_items[3],
+            failure_signature="sig-a",
+            occurrence_id="failure-4",
+            occurred_at="2026-10-27T15:04:02Z",
         )
         assert repeated["repeated"] is True
         assert repeated["budget_state"] == "STOPPED"
@@ -1314,7 +1325,7 @@ def self_test() -> dict[str, Any]:
         wait1 = recovery.begin_wait(
             db_path=db_path,
             work_item_id=work_items[0],
-            target_sha=sha,
+            target_sha=target_shas[0],
             required_gates=["AppLab CI", "AppLab CodeQL"],
             now_ts=100.0,
             occurred_at="2026-10-27T15:05:00Z",
@@ -1322,15 +1333,24 @@ def self_test() -> dict[str, Any]:
         wait2 = recovery.begin_wait(
             db_path=db_path,
             work_item_id=work_items[1],
-            target_sha=sha,
+            target_sha=target_shas[1],
             required_gates=["AppLab CI", "Emulator Self Test"],
             now_ts=100.0,
             occurred_at="2026-10-27T15:05:00Z",
         )
+        wait3 = recovery.begin_wait(
+            db_path=db_path,
+            work_item_id=work_items[2],
+            target_sha=target_shas[2],
+            required_gates=["AppLab CI"],
+            now_ts=100.0,
+            occurred_at="2026-10-27T15:05:00Z",
+        )
+        all_wait_ids = [wait1["wait_id"], wait2["wait_id"], wait3["wait_id"]]
 
         plan = plan_observation_batches(
             db_path=db_path,
-            wait_ids=[wait1["wait_id"], wait2["wait_id"]],
+            wait_ids=all_wait_ids,
             cycle_id="cycle-v61c-1",
             now_ts=221.0,
             actions_available=True,
@@ -1339,34 +1359,118 @@ def self_test() -> dict[str, Any]:
         assert plan["external_query_count"] == 1
         assert plan["covered_wait_count"] == 2
         assert plan["coalesced_wait_savings"] == 1
+        assert len(plan["deferred"]) == 1
+        assert plan["deferred"][0]["target_sha"] == sha_b
         assert plan["batches"][0]["pending_gates"] == [
             "AppLab CI",
             "AppLab CodeQL",
             "Emulator Self Test",
         ]
 
+        # Same cycle must recover the durable batch even though v6.1B moved the
+        # fallback deadline. Persisted cycle capacity keeps the second SHA
+        # deferred rather than admitting another batch for the same repository.
         replay = plan_observation_batches(
             db_path=db_path,
-            wait_ids=[wait1["wait_id"], wait2["wait_id"]],
+            wait_ids=all_wait_ids,
             cycle_id="cycle-v61c-1",
             now_ts=221.0,
             actions_available=True,
             occurred_at="2026-10-27T15:06:01Z",
         )
-        assert replay["external_query_count"] == 0
-        assert replay["batches"] == []
-        assert all(row.get("poll") is False for row in replay["immediate"])
+        assert replay["external_query_count"] == 1
+        assert replay["batches"][0]["status"] == "REPLAY"
+        assert len(replay["deferred"]) == 1
+        assert replay["deferred"][0]["target_sha"] == sha_b
 
-        too_early = plan_observation_batches(
+        # Prove crash recovery across the critical boundary: the batch+budget
+        # journal commits first, while v6.1B fallback_count is still untouched.
+        durable, _, _ = _open(db_path)
+        try:
+            wait3_snapshot = _wait_row(durable, wait3["wait_id"])
+        finally:
+            durable.close()
+        crash_reservation = _reserve_batch_intent(
             db_path=db_path,
-            wait_ids=[wait1["wait_id"], wait2["wait_id"]],
-            cycle_id="cycle-v61c-2",
-            now_ts=222.0,
-            actions_available=True,
-            occurred_at="2026-10-27T15:06:02Z",
+            cycle_id="cycle-v61c-crash",
+            repository="riccardopinato/AppLab",
+            target_sha=sha_b,
+            waits=[wait3_snapshot],
+            occurred_at="2026-10-27T15:06:10Z",
+            max_global=4,
+            max_per_repo=1,
         )
-        assert too_early["external_query_count"] == 0
-        assert all(row.get("poll") is False for row in too_early["immediate"])
+        assert crash_reservation["status"] == "INSERTED"
+        durable, _, _ = _open(db_path)
+        try:
+            assert _wait_row(durable, wait3["wait_id"])["fallback_count"] == 0
+        finally:
+            durable.close()
+        crash_recovery = plan_observation_batches(
+            db_path=db_path,
+            wait_ids=[wait3["wait_id"]],
+            cycle_id="cycle-v61c-crash",
+            now_ts=221.0,
+            actions_available=True,
+            occurred_at="2026-10-27T15:06:11Z",
+        )
+        assert crash_recovery["external_query_count"] == 1
+        durable, _, _ = _open(db_path)
+        try:
+            assert _wait_row(durable, wait3["wait_id"])["fallback_count"] == 1
+        finally:
+            durable.close()
+
+        # The first WorkItem has an observation budget of one, now fully
+        # consumed. Simulate interruption after v6.1B persisted READY but before
+        # its query-free resume. v6.1C must still recover READY before budget
+        # filtering.
+        recovery.observe_event(
+            db_path=db_path,
+            wait_id=wait1["wait_id"],
+            event_id="evt_v61c-ready-1",
+            target_sha=sha_a,
+            gate="AppLab CI",
+            status="completed",
+            conclusion="success",
+            occurred_at="2026-10-27T15:07:00Z",
+        )
+        original_resume = recovery._resume_ready_wait
+        def _interrupt_resume(*args: Any, **kwargs: Any) -> None:
+            raise RuntimeError("injected resume interruption")
+        recovery._resume_ready_wait = _interrupt_resume
+        try:
+            try:
+                recovery.observe_event(
+                    db_path=db_path,
+                    wait_id=wait1["wait_id"],
+                    event_id="evt_v61c-ready-2",
+                    target_sha=sha_a,
+                    gate="AppLab CodeQL",
+                    status="completed",
+                    conclusion="success",
+                    occurred_at="2026-10-27T15:07:01Z",
+                )
+            except RuntimeError as exc:
+                assert "injected resume interruption" in str(exc)
+            else:
+                raise AssertionError("expected injected READY resume interruption")
+        finally:
+            recovery._resume_ready_wait = original_resume
+
+        ready_recovery = plan_observation_batches(
+            db_path=db_path,
+            wait_ids=[wait1["wait_id"]],
+            cycle_id="cycle-v61c-ready-recovery",
+            now_ts=230.0,
+            actions_available=True,
+            occurred_at="2026-10-27T15:07:02Z",
+        )
+        assert ready_recovery["external_query_count"] == 0
+        assert any(
+            row.get("action") == "RECOVER_READY_FOR_EVALUATION"
+            for row in ready_recovery["immediate"]
+        )
 
         return {
             "schema_version": 1,
@@ -1377,10 +1481,14 @@ def self_test() -> dict[str, Any]:
             "work_item_file_line_attempt_budgets_preserved": True,
             "runtime_cost_budgets_cumulative": True,
             "attempt_reservation_idempotent": True,
-            "duplicate_observation_plan_suppressed": True,
+            "failure_occurrence_idempotent": True,
             "repeated_failure_signature_stops": True,
             "event_driven_primary": True,
             "same_sha_waits_coalesced": True,
+            "persisted_batch_replay_recovered": True,
+            "cycle_capacity_persisted": True,
+            "batch_journal_precedes_fallback_consumption": True,
+            "ready_recovery_ignores_observation_exhaustion": True,
             "coalesced_external_query_count": plan["external_query_count"],
             "coalesced_wait_count": plan["covered_wait_count"],
             "fixed_interval_polling_primary": False,
