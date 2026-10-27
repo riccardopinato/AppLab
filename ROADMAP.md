@@ -1,6 +1,6 @@
 # AppLab Roadmap
 
-Current production baseline: **v5.9.1 — Truth & Debt Closure** (`main@bd0e0b1ae0a615b96fb3f160d81a6845bc51963b`).
+Current main implementation baseline: **v6.0 Closed-Loop Agentic Engineering through v6.0I** (PR #185 merged as `426bbb57e1facad4160936d1590e438cb162ea4c`). The immutable pre-v6 performance comparison baseline remains v5.9.1 (`bd0e0b1ae0a615b96fb3f160d81a6845bc51963b`).
 
 Active program: **v6.0 Closed-Loop Agentic Engineering**. v5.7B/v5.7E downstream adoption and exact-artifact reuse promotion gates are closed with real evidence.
 
@@ -16,7 +16,9 @@ failure/evidence
   -> new trusted evidence
   -> at most bounded repair attempts
   -> draft PR stewardship
-  -> human/independent authority for approval, merge and release
+  -> independent review/check gates
+  -> post-gate automatic merge when all required gates are satisfied
+  -> human/independent release authority
 ```
 
 The canonical detailed design is `integration/roadmap/APPLAB_V6_CLOSED_LOOP_AGENTIC_ENGINEERING.md`.
@@ -41,11 +43,11 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 | **v6.0B** | Causal Repo Investigator | **LANDED / EXACT-HEAD VALIDATED:** deterministic candidate-file/root-cause ranking from diff, traces, labs, graph and history landed through PR #176 | P0 |
 | **v6.0C** | Bounded Autonomous Fix Worker | **LANDED / EXACT-HEAD VALIDATED:** exact-SHA ephemeral worktree patching with causal-scope, budget, protected-path and test-weakening gates landed through PR #176 | P0 |
 | **v6.0D** | Verify–Repair Loop | **LANDED / EXACT-HEAD VALIDATED:** focused verify → exact materialization → trusted AppLab evidence → PASS / new exact-SHA WorkItem / STOP, max 2 attempts, landed through PR #176 | P0 |
-| **v6.0G** | Self-Dogfooding Throughput | **IMPLEMENTATION LANDED / TIMING PROMOTION OPEN:** fail-closed Emulator FAST/FULL profile + exact-input cached parallel advisory review fan-out landed through PR #176; quantitative FAST timing evidence still required | P0/P1 |
+| **v6.0G** | Self-Dogfooding Throughput | **IMPLEMENTATION LANDED / TIMING PROMOTION OPEN:** fail-closed Emulator FAST/FULL profile + exact-input cached parallel advisory review fan-out landed through PR #176; exact-head timing collection is active and quantitative p95 promotion evidence is still required | P0/P1 |
 | **v6.0E** | Autonomous PR Steward | **LANDED / EXACT-HEAD VALIDATED:** explicit PR capabilities, exact patch→commit materialization, fast-forward-only `applab/repair/*`, draft create/reuse/update, no ready/approve/merge/release, landed through PR #176 | P1 |
 | **v6.0F** | Agent Memory & Policy Learning | **LANDED / EXACT-HEAD VALIDATED:** clean PR #181 landed on `main`; rebuildable identity-bound episodic memory + current-candidate-only strategy ranking; historical boosts cannot create candidates or raise autonomous-edit eligibility | P1 |
 | **v6.0H** | Sensor Mesh | **LANDED / EXACT-HEAD VALIDATED:** clean PR #184 landed on `main`; risk-triggered scrcpy, LeakCanary, Semgrep, Trivy, MobSF/Hetty evidence producers with exact-source/risk-context binding; evidence-only authority | P2 |
-| **v6.0I** | Agentic Operations Studio | **EXACT-HEAD VALIDATION ACTIVE:** read-only WorkItems, attempts, evidence, budget/authority and PR-state projection wired into Control Center; Repo Watcher passes the ledger explicitly and other restored-history producers, including Production Certification, preserve it through sibling-ledger auto-discovery; no certification authority change | P2 |
+| **v6.0I** | Agentic Operations Studio | **LANDED / EXACT-HEAD VALIDATED:** clean PR #185 reached GREEN 8/8 at `d235bd00270853967663ff16e2971dfb238423cf` and was merged to `main` as `426bbb57e1facad4160936d1590e438cb162ea4c`; read-only operations projection only, with no certification authority change | P2 |
 
 ### v6.0 authority envelope
 
@@ -64,7 +66,10 @@ Denied by default:
 - `DENY_BRANCH_PROTECTION`
 - `DENY_RELEASE`
 - `DENY_TEST_WEAKENING`
-- self-approval and self-merge.
+- `DENY_SELF_APPROVAL`
+- `DENY_UNGATED_MERGE`.
+
+Automatic merge is explicitly allowed for AppLab after the exact PR head has satisfied every applicable required check, required independent review/finding gate, contract/fingerprint and maintainability gate, with no unresolved blocking finding and no branch-protection bypass. This permission does not grant self-approval, release authority, secret access or permission to weaken verification. The v6.0E draft steward remains create/update-only; post-gate merge is a separate repository automation/executor authority.
 
 Initial repair budget:
 - max files: 5;

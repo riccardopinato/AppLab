@@ -1,11 +1,11 @@
 # AppLab v6.0E — Autonomous Draft PR Steward
 
-Status: **IMPLEMENTED CANDIDATE / EXACT-HEAD VALIDATION REQUIRED**
+Status: **LANDED / EXACT-HEAD VALIDATED through PR #176**
 
 ## Goal
 
 v6.0E materializes an already-authorized v6.0C repair into a real Git commit and
-keeps one draft repair PR moving without acquiring merge/release authority.
+keeps one draft repair PR moving. The steward itself does not acquire self-approval or release authority; post-gate merge is handled by a separate repository automation/executor authority.
 
 Code-edit permission and GitHub-write permission are deliberately separate.
 
@@ -76,11 +76,13 @@ An existing repair PR must:
 - have the expected repair branch as head.
 
 The steward never:
-- marks a PR ready;
-- approves;
-- dismisses review findings as resolved;
-- merges;
+- marks a PR ready merely to bypass a pending gate;
+- approves its own PR;
+- dismisses blocking review findings as resolved;
+- merges before all applicable exact-head required checks/reviews and blocking-finding gates are satisfied;
 - releases.
+
+After those gates are satisfied, a separate repository automation/executor may mark an eligible PR ready when required and merge it automatically. This post-gate authority is not a PASS/CERTIFIED authority and does not weaken branch protection.
 
 ## Credential boundary
 
@@ -122,6 +124,6 @@ Remote decision tests cover:
 ## Authority
 
 v6.0E may write only the repair branch and draft PR metadata under an explicitly
-authorized WorkItem.
+authorized WorkItem. Merge eligibility is evaluated separately against the exact PR head after all required gates complete.
 
-It cannot mint PASS/CERTIFIED. Trusted runtime remains v6.0D/AppLab evidence.
+It cannot mint PASS/CERTIFIED. Trusted runtime remains v6.0D/AppLab evidence. Post-gate automatic merge cannot override that evidence or release authority.
