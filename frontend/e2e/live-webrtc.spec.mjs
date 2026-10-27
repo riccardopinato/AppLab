@@ -330,6 +330,8 @@ test("streams real Android video and sends real WebRTC input", async ({
 
   const bounds = nodeBounds(beforeXml, "RUN INTERACTION TEST");
   const handler = video.locator("..");
+  await handler.scrollIntoViewIfNeeded();
+  await expect(handler).toBeVisible();
   const handlerBox = await handler.boundingBox();
   if (!handlerBox) throw new Error("WebRTC input handler has no browser bounding box");
 
@@ -373,7 +375,7 @@ test("streams real Android video and sends real WebRTC input", async ({
 
   const inputChannelState = await page.evaluate(() => {
     const probe = window.__applabRtcInputProbe;
-    const channel = probe?.channels?.input;
+    const channel = probe?.channels?.mouse;
     return {
       readyState: channel?.readyState || "missing",
       bufferedAmount: channel?.bufferedAmount ?? null,
@@ -437,7 +439,7 @@ test("streams real Android video and sends real WebRTC input", async ({
         browserErrors: [...browserErrors],
         inputChannel: await page.evaluate(() => {
           const probe = window.__applabRtcInputProbe;
-          const channel = probe?.channels?.input;
+          const channel = probe?.channels?.mouse;
           return {
             readyState: channel?.readyState || "missing",
             bufferedAmount: channel?.bufferedAmount ?? null,
@@ -469,8 +471,8 @@ test("streams real Android video and sends real WebRTC input", async ({
     const events = probe?.events || [];
     return {
       events,
-      inputSendCount: events.filter(
-        (event) => event.type === "send" && event.label === "input",
+      mouseSendCount: events.filter(
+        (event) => event.type === "send" && event.label === "mouse",
       ).length,
     };
   });
@@ -478,6 +480,7 @@ test("streams real Android video and sends real WebRTC input", async ({
     body: Buffer.from(JSON.stringify(inputAfter, null, 2)),
     contentType: "application/json",
   });
+  expect(inputAfter.mouseSendCount).toBeGreaterThanOrEqual(2);
 
   const browserShot = testInfo.outputPath("browser-webrtc-connected.png");
   await page.screenshot({ path: browserShot, fullPage: true });
