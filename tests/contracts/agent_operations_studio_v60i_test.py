@@ -21,6 +21,7 @@ def main() -> int:
         {
             "record_type": "APPLAB_WORK_ITEM",
             "work_item_id": "wrk_a",
+            "operation_id": "op_a",
             "repository": "owner/app",
             "resolved_sha": "a" * 40,
             "state": "EXECUTING",
@@ -42,10 +43,32 @@ def main() -> int:
             "resolved_sha": "a" * 40,
         },
         {
-            "record_type": "APPLAB_EVIDENCE_REF",
+            "record_type": "APPLAB_WORK_ATTEMPT_LINK",
             "work_item_id": "wrk_a",
+            "attempt_id": "att_a_1",
+            "action_id": "act_a",
+        },
+        {
+            "record_type": "APPLAB_ATTEMPT",
+            "attempt_id": "att_a_1",
+            "operation_id": "op_a",
+            "attempt_number": 1,
+            "executor": "GITHUB_ACTIONS",
+            "state": "RUNNING",
+        },
+        {
+            "record_type": "APPLAB_EVIDENCE_REF",
+            "evidence_ref_id": "ev_a_1",
+            "operation_id": "op_a",
+            "attempt_id": "att_a_1",
+            "artifact_name": "trusted-evidence-manifest.json",
+        },
+        {
+            "record_type": "SENSOR_MESH_EVIDENCE_V60H",
             "repository": "owner/app",
-            "resolved_sha": "a" * 40,
+            "source_sha": "a" * 40,
+            "producer": "SEMGREP",
+            "evidence_refs": ["report://semgrep"],
         },
         {
             "record_type": "APPLAB_WORK_TRANSITION",
@@ -95,7 +118,9 @@ def main() -> int:
     assert snapshot["summary"]["draft_prs"] == 1
     row = next(item for item in snapshot["work_items"] if item["work_item_id"] == "wrk_a")
     assert row["actions"] == 1
-    assert row["evidence_count"] == 1
+    assert row["attempts"] == 1
+    assert row["evidence_count"] == 2
+    assert row["sensor_producers"] == ["SEMGREP"]
     assert row["stop_reason"] == "BUDGET_EXHAUSTED"
     assert row["budget"]["repair_attempts"] == {"used": 2, "max": 2}
     assert "SELF_MERGE" in row["authority_envelope"]["denied_capabilities"]
