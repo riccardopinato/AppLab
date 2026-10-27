@@ -154,6 +154,40 @@ def main() -> int:
     assert repo["stopped_operations"] == 0
     assert repo["repeated_signature_stops"] == 0
 
+    # Delivery replay is idempotent by immutable operation identity.
+    replayed = mod.build_report([healthy_records[0], healthy_records[0], healthy_records[0]])
+    replay_repo = replayed["repositories"]["riccardopinato/AppLab"]
+    assert replayed["operation_count"] == 1
+    assert replay_repo["successful_closed_loop_operations"] == 1
+    assert replay_repo["observations"]["covered_waits"] == 4
+    assert replay_repo["latency"]["commit_to_green_seconds"]["samples"] == 1
+    assert replayed["promotion"]["decision"] == "HOLD"
+
+    conflicting = json.loads(json.dumps(healthy_records[0]))
+    conflicting["outcome"] = "FAILURE"
+    expect_error(
+        lambda: mod.build_report([healthy_records[0], conflicting]),
+        "conflicting replay for immutable operation identity",
+    )
+
+    # Missing latency measurements stay missing and never become zero samples.
+    partial_records = [
+        fixture(operation_id="partial1"),
+        fixture(operation_id="partial2"),
+        fixture(operation_id="partial3"),
+    ]
+    partial_records[0]["durations"] = {"commit_to_green_seconds": 400}
+    partial_records[1]["durations"] = {}
+    partial_records[2]["durations"] = {}
+    partial = mod.build_report(partial_records)
+    partial_latency = partial["repositories"]["riccardopinato/AppLab"]["latency"]
+    assert partial_latency["commit_to_green_seconds"]["samples"] == 1
+    assert partial_latency["commit_to_green_seconds"]["p50_seconds"] == 400.0
+    assert partial_latency["commit_to_green_seconds"]["status"] == "INSUFFICIENT_SAMPLES"
+    assert partial_latency["queue_wait_seconds"]["samples"] == 0
+    assert partial_latency["queue_wait_seconds"]["p50_seconds"] is None
+    assert partial_latency["queue_wait_seconds"]["status"] == "INSUFFICIENT_SAMPLES"
+
     # Real successes satisfy v6.1D evidence, but 6.1E never changes policy.
     assert healthy["promotion"]["decision"] == "ELIGIBLE_FOR_EXPLICIT_PROMOTION"
     assert healthy["promotion"]["next_stage"] == "PILOT_3"
