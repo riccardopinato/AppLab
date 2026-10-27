@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -138,6 +139,8 @@ def main() -> int:
             status="completed",
             conclusion="success",
             occurred_at="2026-10-27T14:02:00Z",
+            run_id="run-ci",
+            run_attempt=1,
             contract=contract,
         )
         assert first["gate_state"] == "SUCCESS"
@@ -153,9 +156,28 @@ def main() -> int:
             status="completed",
             conclusion="success",
             occurred_at="2026-10-27T14:02:00Z",
+            run_id="run-ci",
+            run_attempt=1,
             contract=contract,
         )
         assert duplicate["status"] == "REPLAY"
+
+        stale = recovery.observe_event(
+            db_path=db_path,
+            wait_id=wait["wait_id"],
+            event_id="evt_v61b_ci_stale",
+            target_sha=sha,
+            gate="AppLab CI",
+            status="in_progress",
+            conclusion=None,
+            occurred_at="2026-10-27T14:01:59Z",
+            run_id="run-ci",
+            run_attempt=1,
+            contract=contract,
+        )
+        assert stale["status"] == "STALE_EVENT_IGNORED"
+        assert stale["gate_state"] == "SUCCESS"
+        assert stale["pending_gates"] == ["AppLab CodeQL", "Emulator Self Test"]
 
         outage = recovery.reconcile_wait(
             db_path=db_path,
@@ -222,6 +244,140 @@ def main() -> int:
             assert recovery._wait_row(durable, wait["wait_id"])["fallback_count"] == 1
         finally:
             durable.close()
+
+        # Interrupted initialization replays into a fully active durable wait.
+        init_db = root / "init-recovery.sqlite3"
+        init_work, init_op = prepare_fixture(init_db, sha, "v61b-init")
+        original_operation_transition = recovery._operation_transition
+        fail_once = {"armed": True}
+
+        def interrupted_operation_transition(*args, **kwargs):
+            if (
+                fail_once["armed"]
+                and kwargs.get("to_state") == "WAITING_EXTERNAL"
+            ):
+                fail_once["armed"] = False
+                raise RuntimeError("injected operation transition interruption")
+            return original_operation_transition(*args, **kwargs)
+
+        recovery._operation_transition = interrupted_operation_transition
+        try:
+            try:
+                recovery.begin_wait(
+                    db_path=init_db,
+                    work_item_id=init_work,
+                    target_sha=sha,
+                    required_gates=gates,
+                    now_ts=1500.0,
+                    occurred_at="2026-10-27T14:30:00Z",
+                    contract=contract,
+                )
+                raise AssertionError("injected interruption did not fire")
+            except RuntimeError as exc:
+                assert "injected operation transition" in str(exc)
+        finally:
+            recovery._operation_transition = original_operation_transition
+
+        recovered_wait = recovery.begin_wait(
+            db_path=init_db,
+            work_item_id=init_work,
+            target_sha=sha,
+            required_gates=gates,
+            now_ts=1501.0,
+            occurred_at="2026-10-27T14:30:01Z",
+            contract=contract,
+        )
+        assert recovered_wait["status"] == "REPLAY"
+        init_store, init_graph = recovery._open(init_db)
+        try:
+            assert init_graph.get_work_item(init_work)["current_state"] == "WAITING_EXTERNAL"
+            assert init_store.get_operation(init_op)["current_state"] == "WAITING_EXTERNAL"
+        finally:
+            init_store.close()
+
+        # A committed READY projection is repaired by reconciliation if the
+        # coordinator died before WorkItem/operation transitions completed.
+        ready_db = root / "ready-recovery.sqlite3"
+        ready_work, ready_op = prepare_fixture(ready_db, sha, "v61b-ready")
+        ready_wait = recovery.begin_wait(
+            db_path=ready_db,
+            work_item_id=ready_work,
+            target_sha=sha,
+            required_gates=["AppLab CI"],
+            now_ts=1700.0,
+            occurred_at="2026-10-27T14:40:00Z",
+            contract=contract,
+        )
+        original_resume = recovery._resume_ready_wait
+
+        def interrupted_resume(*args, **kwargs):
+            raise RuntimeError("injected ready transition interruption")
+
+        recovery._resume_ready_wait = interrupted_resume
+        try:
+            try:
+                recovery.observe_event(
+                    db_path=ready_db,
+                    wait_id=ready_wait["wait_id"],
+                    event_id="evt_v61b_ready_green",
+                    target_sha=sha,
+                    gate="AppLab CI",
+                    status="completed",
+                    conclusion="success",
+                    occurred_at="2026-10-27T14:41:00Z",
+                    run_id="run-ready",
+                    contract=contract,
+                )
+                raise AssertionError("injected ready interruption did not fire")
+            except RuntimeError as exc:
+                assert "injected ready transition" in str(exc)
+        finally:
+            recovery._resume_ready_wait = original_resume
+
+        recovered_ready = recovery.reconcile_wait(
+            db_path=ready_db,
+            wait_id=ready_wait["wait_id"],
+            now_ts=1800.0,
+            actions_available=True,
+            occurred_at="2026-10-27T14:42:00Z",
+        )
+        assert recovered_ready["action"] == "RECOVER_READY_FOR_EVALUATION"
+        ready_store, ready_graph = recovery._open(ready_db)
+        try:
+            assert ready_graph.get_work_item(ready_work)["current_state"] == "VERIFYING"
+            assert ready_store.get_operation(ready_op)["current_state"] == "RUNNING"
+        finally:
+            ready_store.close()
+
+        # Two reconcilers racing the same due wait reserve one fallback poll.
+        race_db = root / "race.sqlite3"
+        race_work, _ = prepare_fixture(race_db, sha, "v61b-race")
+        race_wait = recovery.begin_wait(
+            db_path=race_db,
+            work_item_id=race_work,
+            target_sha=sha,
+            required_gates=["AppLab CI"],
+            now_ts=1900.0,
+            occurred_at="2026-10-27T14:50:00Z",
+            contract=contract,
+        )
+
+        def reconcile_race(index: int):
+            return recovery.reconcile_wait(
+                db_path=race_db,
+                wait_id=race_wait["wait_id"],
+                now_ts=2020.0,
+                actions_available=True,
+                occurred_at=f"2026-10-27T14:52:0{index}Z",
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            raced = list(executor.map(reconcile_race, [1, 2]))
+        assert sum(1 for row in raced if row["poll"]) == 1
+        assert {row["action"] for row in raced} == {
+            "POLL_PENDING_GATES",
+            "WAIT_EVENT",
+        }
 
         # Explicit supersession never mutates the old target identity.
         sup_db = root / "supersede.sqlite3"
