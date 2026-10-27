@@ -31,6 +31,10 @@ Every operation evidence record is bound to:
 AppLab self evidence requires source SHA == AppLab SHA. Downstream repositories
 keep source SHA and AppLab engine SHA distinct.
 
+Replayed evidence is idempotent by operation ID. Identical redelivery is counted
+once; a conflicting payload for the same immutable operation identity is
+rejected instead of being merged or counted again.
+
 ## SLOs and latency truth
 
 v6.1E reports p50/p95 independently for:
@@ -44,8 +48,10 @@ v6.1E reports p50/p95 independently for:
 The initial p95 values in the contract are **operations alert targets only**.
 They do not mint PASS/CERTIFIED and are not verification authority.
 
-A repository needs at least three operation samples before latency alert targets
-are evaluated. Fewer samples remain INSUFFICIENT_SAMPLES.
+A repository needs at least three measured samples for a specific latency metric
+before that metric's alert target is evaluated. Missing duration fields remain
+missing: they are not converted to zero and do not count toward the sample
+threshold. Fewer measured samples remain INSUFFICIENT_SAMPLES.
 
 This explicitly prevents GitHub execution time from being misreported as AppLab
 orchestration overhead.
