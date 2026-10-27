@@ -44,7 +44,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 | **v6.0G** | Self-Dogfooding Throughput | **Implementation candidate:** fail-closed Emulator FAST/FULL profile + exact-input cached parallel advisory review fan-out; FULL depth unchanged; exact-head timing evidence pending | P0/P1 |
 | **v6.0E** | Autonomous PR Steward | **Implementation candidate:** explicit PR capabilities, exact patch→commit materialization, fast-forward-only `applab/repair/*`, draft create/reuse/update, no ready/approve/merge/release; exact-head validation pending | P1 |
 | **v6.0F** | Agent Memory & Policy Learning | **Implementation candidate:** rebuildable identity-bound episodic memory + current-candidate-only strategy ranking; historical boosts cannot create candidates or raise autonomous-edit eligibility; exact-head validation pending | P1 |
-| **v6.0H** | Sensor Mesh | Risk-triggered scrcpy, LeakCanary, Semgrep, Trivy, MobSF/Hetty evidence producers | P2 |
+| **v6.0H** | Sensor Mesh | **Implementation candidate:** exact-SHA risk-triggered scrcpy, LeakCanary, Semgrep, Trivy and bounded MobSF/Hetty evidence routing; evidence-only authority; exact-head validation pending | P2 |
 | **v6.0I** | Agentic Operations Studio | WorkItems, attempts, cost, evidence, blocks and authority cockpit | P2 |
 
 ### v6.0 authority envelope
