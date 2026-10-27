@@ -136,6 +136,71 @@ test("streams real Android video and sends real WebRTC input", async ({
     if (message.type() === "error") browserErrors.push(message.text());
   });
 
+  await page.addInitScript(() => {
+    window.__applabRtcInputProbe = {
+      events: [],
+      channels: {},
+    };
+
+    const originalCreateDataChannel = RTCPeerConnection.prototype.createDataChannel;
+    RTCPeerConnection.prototype.createDataChannel = function (label, options) {
+      const channel = originalCreateDataChannel.call(this, label, options);
+      window.__applabRtcInputProbe.channels[label] = channel;
+      window.__applabRtcInputProbe.events.push({
+        type: "create",
+        label,
+        readyState: channel.readyState,
+        at: Date.now(),
+      });
+      channel.addEventListener("open", () => {
+        window.__applabRtcInputProbe.events.push({
+          type: "open",
+          label: channel.label,
+          readyState: channel.readyState,
+          at: Date.now(),
+        });
+      });
+      channel.addEventListener("close", () => {
+        window.__applabRtcInputProbe.events.push({
+          type: "close",
+          label: channel.label,
+          readyState: channel.readyState,
+          at: Date.now(),
+        });
+      });
+      channel.addEventListener("error", () => {
+        window.__applabRtcInputProbe.events.push({
+          type: "error",
+          label: channel.label,
+          readyState: channel.readyState,
+          at: Date.now(),
+        });
+      });
+      return channel;
+    };
+
+    const originalSend = RTCDataChannel.prototype.send;
+    RTCDataChannel.prototype.send = function (data) {
+      const byteLength =
+        typeof data?.byteLength === "number"
+          ? data.byteLength
+          : typeof data?.size === "number"
+            ? data.size
+            : typeof data?.length === "number"
+              ? data.length
+              : null;
+      window.__applabRtcInputProbe.events.push({
+        type: "send",
+        label: this.label,
+        readyState: this.readyState,
+        byteLength,
+        bufferedAmount: this.bufferedAmount,
+        at: Date.now(),
+      });
+      return originalSend.call(this, data);
+    };
+  });
+
   await page.goto(FRONTEND, { waitUntil: "domcontentloaded" });
 
   let liveView;
@@ -306,6 +371,21 @@ test("streams real Android video and sends real WebRTC input", async ({
   const browserY =
     handlerBox.y + offsetY + (nativeY / inputHeight) * renderedHeight;
 
+  const inputChannelState = await page.evaluate(() => {
+    const probe = window.__applabRtcInputProbe;
+    const channel = probe?.channels?.input;
+    return {
+      readyState: channel?.readyState || "missing",
+      bufferedAmount: channel?.bufferedAmount ?? null,
+      events: probe?.events || [],
+    };
+  });
+  await testInfo.attach("webrtc-input-channel-before-click.json", {
+    body: Buffer.from(JSON.stringify(inputChannelState, null, 2)),
+    contentType: "application/json",
+  });
+  expect(inputChannelState.readyState).toBe("open");
+
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     const alreadyApplied = (await hierarchy(request)).includes("INTERACTION_OK");
     if (alreadyApplied) break;
@@ -336,6 +416,15 @@ test("streams real Android video and sends real WebRTC input", async ({
           "http://127.0.0.1:8080/api/v1/emulator/status",
         ),
         browserErrors: [...browserErrors],
+        inputChannel: await page.evaluate(() => {
+          const probe = window.__applabRtcInputProbe;
+          const channel = probe?.channels?.input;
+          return {
+            readyState: channel?.readyState || "missing",
+            bufferedAmount: channel?.bufferedAmount ?? null,
+            events: probe?.events || [],
+          };
+        }),
       };
       await testInfo.attach(`webrtc-pointer-recovery-attempt-${attempt}.json`, {
         body: Buffer.from(JSON.stringify(payload, null, 2)),
@@ -347,6 +436,22 @@ test("streams real Android video and sends real WebRTC input", async ({
   }
 
   expect((await hierarchy(request)).includes("INTERACTION_OK")).toBe(true);
+
+  const inputAfter = await page.evaluate(() => {
+    const probe = window.__applabRtcInputProbe;
+    const events = probe?.events || [];
+    return {
+      events,
+      inputSendCount: events.filter(
+        (event) => event.type === "send" && event.label === "input",
+      ).length,
+    };
+  });
+  await testInfo.attach("webrtc-input-channel-after-click.json", {
+    body: Buffer.from(JSON.stringify(inputAfter, null, 2)),
+    contentType: "application/json",
+  });
+  expect(inputAfter.inputSendCount).toBeGreaterThanOrEqual(2);
 
   const browserShot = testInfo.outputPath("browser-webrtc-connected.png");
   await page.screenshot({ path: browserShot, fullPage: true });
