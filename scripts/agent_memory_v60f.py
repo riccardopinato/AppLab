@@ -77,7 +77,7 @@ def _source_sha(record: dict[str, Any]) -> str:
 
 def _valid_source_record(record: dict[str, Any]) -> bool:
     kind = record.get("record_type")
-    if kind not in SUPPORTED_TYPES:
+    if not isinstance(kind, str) or kind not in SUPPORTED_TYPES:
         return False
     repository = _repository(record)
     if not REPOSITORY_RE.fullmatch(repository):
@@ -158,22 +158,33 @@ def _regressions(record: dict[str, Any]) -> list[str]:
 
 
 def _signatures(record: dict[str, Any]) -> list[dict[str, str]]:
-    rows = record.get("attempt_signatures")
-    if not isinstance(rows, list):
-        return []
+    rows: list[Any] = []
+    trigger = record.get("trigger_failure_signature")
+    if isinstance(trigger, dict):
+        rows.append(trigger)
+    attempts = record.get("attempt_signatures")
+    if isinstance(attempts, list):
+        rows.extend(attempts)
+
     result: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
     for row in rows:
         if not isinstance(row, dict):
             continue
-        signature = _clean(row.get("signature_sha256"))
+        signature = _clean(row.get("signature_sha256")).lower()
         classification = _clean(row.get("classification"))
-        if SHA256_RE.fullmatch(signature.lower()):
-            result.append(
-                {
-                    "signature_sha256": signature.lower(),
-                    "classification": classification,
-                }
-            )
+        if not SHA256_RE.fullmatch(signature):
+            continue
+        key = (signature, classification)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(
+            {
+                "signature_sha256": signature,
+                "classification": classification,
+            }
+        )
     return result
 
 
@@ -210,10 +221,12 @@ def build_memory(
     clean_records = [row for row in records if _valid_source_record(row)]
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     by_work: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    by_source: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     repair_by_identity: dict[str, dict[str, Any]] = {}
 
     for record in clean_records:
         grouped[_key(record)].append(record)
+        by_source[(_repository(record), _source_sha(record))].append(record)
         wid = _work_item_id(record)
         if wid:
             by_work[(_repository(record), wid)].append(record)
@@ -264,6 +277,8 @@ def build_memory(
                 local_changed.extend(_clean(x) for x in changed if _clean(x))
 
         signatures: list[dict[str, str]] = []
+        for triage in triages:
+            signatures.extend(_signatures(triage))
         stop_reasons: list[str] = []
         complete_verdicts: list[dict[str, Any]] = []
         for verdict in verdicts:
@@ -320,7 +335,15 @@ def build_memory(
 
         if final_repair is not None and final_verdict is not None:
             final_work_item = _work_item_id(final_repair)
-            related = by_work.get((repository, final_work_item), [])
+            related = list(by_work.get((repository, final_work_item), []))
+            final_source_sha = _source_sha(final_repair)
+            related.extend(
+                row
+                for row in by_source.get((repository, final_source_sha), [])
+                if not _work_item_id(row)
+                and row.get("record_type")
+                in {"AUTONOMOUS_FAILURE_TRIAGE_V58A", "CAUSAL_REPO_INVESTIGATION_V60B"}
+            )
             final_investigations = [
                 row for row in related
                 if row.get("record_type") == "CAUSAL_REPO_INVESTIGATION_V60B"
@@ -344,6 +367,19 @@ def build_memory(
             for row in final_triages:
                 final_regressions.extend(_regressions(row))
 
+            final_signatures: list[dict[str, str]] = []
+            seen_signatures: set[tuple[str, str]] = set()
+            for row in [*final_triages, final_verdict]:
+                for signature in _signatures(row):
+                    key = (
+                        signature["signature_sha256"],
+                        signature["classification"],
+                    )
+                    if key in seen_signatures:
+                        continue
+                    seen_signatures.add(key)
+                    final_signatures.append(signature)
+
             changed = [
                 _clean(value)
                 for value in final_repair.get("changed_files", [])
@@ -359,7 +395,7 @@ def build_memory(
                     "current_candidate_files": list(dict.fromkeys(current_candidates)),
                     "required_regressions": list(dict.fromkeys(final_regressions)),
                     "classifications": final_classifications or classifications,
-                    "failure_signatures": _signatures(final_verdict),
+                    "failure_signatures": final_signatures,
                     "source_refs": sorted(
                         set(
                             _source_refs([final_repair, final_verdict])
