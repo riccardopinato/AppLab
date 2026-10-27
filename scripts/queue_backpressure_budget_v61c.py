@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS agent_observation_batches (
     wait_ids_json TEXT NOT NULL,
     work_item_ids_json TEXT NOT NULL,
     pending_gates_json TEXT NOT NULL,
+    fallback_counts_json TEXT NOT NULL,
     state TEXT NOT NULL,
     created_at TEXT NOT NULL,
     UNIQUE(cycle_id, repository, target_sha)
@@ -574,9 +575,11 @@ def note_failure_signature(
     db_path: Path,
     work_item_id: str,
     failure_signature: str,
+    occurrence_id: str,
     occurred_at: str,
 ) -> dict[str, Any]:
     signature = str(failure_signature).strip()
+    occurrence = brain._require_non_empty_string(occurrence_id, "occurrence_id")
     if not signature:
         raise BudgetError("failure_signature must be non-empty")
 
@@ -585,35 +588,65 @@ def note_failure_signature(
         durable.db.execute("BEGIN IMMEDIATE")
         try:
             row = _budget_row(durable, work_item_id)
-            repeated = bool(row["last_failure_signature"]) and (
-                str(row["last_failure_signature"]) == signature
-            )
-            payload = {
-                "failure_signature": signature,
-                "repeated": repeated,
-            }
-            event_result = _event(
-                durable,
-                work_item_id=work_item_id,
-                event_kind="FAILURE_SIGNATURE",
-                payload=payload,
-                occurred_at=occurred_at,
-            )
-            if event_result["status"] == "REPLAY":
+            event_id = _id("bev", work_item_id, "FAILURE_SIGNATURE", occurrence)
+            existing = durable.db.execute(
+                """
+                SELECT payload_json
+                FROM agent_repair_budget_events
+                WHERE budget_event_id=?
+                """,
+                (event_id,),
+            ).fetchone()
+            if existing is not None:
+                payload = json.loads(existing["payload_json"])
+                if (
+                    str(payload.get("occurrence_id")) != occurrence
+                    or str(payload.get("failure_signature")) != signature
+                ):
+                    raise BudgetError(
+                        "failure occurrence replay conflicts with immutable signature"
+                    )
                 durable.db.commit()
                 current = _budget_row(durable, work_item_id)
                 return {
-                    "repeated": repeated,
+                    "repeated": bool(payload["repeated"]),
                     "budget_state": current["state"],
                     "reason": current["stop_reason"] or "RECORDED",
                     "event_persistence": "REPLAY",
                 }
 
+            repeated = bool(row["last_failure_signature"]) and (
+                str(row["last_failure_signature"]) == signature
+            )
+            payload = {
+                "occurrence_id": occurrence,
+                "failure_signature": signature,
+                "repeated": repeated,
+            }
+            durable.db.execute(
+                """
+                INSERT INTO agent_repair_budget_events(
+                    budget_event_id,work_item_id,event_kind,payload_sha256,
+                    payload_json,created_at
+                ) VALUES (?,?,?,?,?,?)
+                """,
+                (
+                    event_id,
+                    work_item_id,
+                    "FAILURE_SIGNATURE",
+                    brain.sha256_json(payload),
+                    _canonical(payload),
+                    occurred_at,
+                ),
+            )
+
             if repeated:
                 durable.db.execute(
                     """
                     UPDATE agent_repair_budgets
-                    SET state='STOPPED',stop_reason='REPEATED_FAILURE_SIGNATURE',updated_at=?
+                    SET state='STOPPED',
+                        stop_reason='REPEATED_FAILURE_SIGNATURE',
+                        updated_at=?
                     WHERE work_item_id=?
                     """,
                     (occurred_at, work_item_id),
@@ -646,53 +679,176 @@ def note_failure_signature(
         durable.close()
 
 
-def _reserve_observation_budget(
+def _batch_from_row(row: Any) -> dict[str, Any]:
+    item = dict(row)
+    item["wait_ids"] = json.loads(item.pop("wait_ids_json"))
+    item["work_item_ids"] = json.loads(item.pop("work_item_ids_json"))
+    item["pending_gates"] = json.loads(item.pop("pending_gates_json"))
+    item["fallback_counts"] = json.loads(item.pop("fallback_counts_json"))
+    return item
+
+
+def _reserve_batch_intent(
     *,
     db_path: Path,
-    work_item_id: str,
+    cycle_id: str,
+    repository: str,
+    target_sha: str,
+    waits: list[dict[str, Any]],
     occurred_at: str,
-    batch_id: str,
-) -> bool:
+    max_global: int,
+    max_per_repo: int,
+) -> dict[str, Any]:
+    batch_id = _id("obs", cycle_id, repository, target_sha)
     durable, _, _ = _open(db_path)
     try:
         durable.db.execute("BEGIN IMMEDIATE")
         try:
-            row = _budget_row(durable, work_item_id)
-            if row["state"] == "STOPPED":
+            existing = durable.db.execute(
+                "SELECT * FROM agent_observation_batches WHERE batch_id=?",
+                (batch_id,),
+            ).fetchone()
+            if existing is not None:
                 durable.db.commit()
-                return False
-            used = int(row["consumed_observation_batches"])
-            maximum = int(row["max_observation_batches"])
-            if used >= maximum:
+                return {
+                    "status": "REPLAY",
+                    "batch": _batch_from_row(existing),
+                    "held": [],
+                }
+
+            global_count = int(
                 durable.db.execute(
                     """
-                    UPDATE agent_repair_budgets
-                    SET state='STOPPED',stop_reason='OBSERVATION_BUDGET_EXCEEDED',updated_at=?
-                    WHERE work_item_id=?
+                    SELECT COUNT(*) AS n
+                    FROM agent_observation_batches
+                    WHERE cycle_id=?
                     """,
-                    (occurred_at, work_item_id),
-                )
-                durable.db.commit()
-                return False
-            payload = {"batch_id": batch_id, "next_count": used + 1}
-            event_result = _event(
-                durable,
-                work_item_id=work_item_id,
-                event_kind="OBSERVATION_BATCH",
-                payload=payload,
-                occurred_at=occurred_at,
+                    (cycle_id,),
+                ).fetchone()["n"]
             )
-            if event_result["status"] == "INSERTED":
+            repo_count = int(
                 durable.db.execute(
                     """
-                    UPDATE agent_repair_budgets
-                    SET consumed_observation_batches=?,updated_at=?
-                    WHERE work_item_id=?
+                    SELECT COUNT(*) AS n
+                    FROM agent_observation_batches
+                    WHERE cycle_id=? AND repository=?
                     """,
-                    (used + 1, occurred_at, work_item_id),
+                    (cycle_id, repository),
+                ).fetchone()["n"]
+            )
+            if global_count >= max_global or repo_count >= max_per_repo:
+                durable.db.commit()
+                return {
+                    "status": "DEFERRED",
+                    "batch": None,
+                    "held": [],
+                    "reason": "OBSERVATION_BACKPRESSURE",
+                }
+
+            accepted: list[dict[str, Any]] = []
+            held: list[dict[str, Any]] = []
+            for wait in waits:
+                work_item_id = str(wait["work_item_id"])
+                budget = _budget_row(durable, work_item_id)
+                if budget["state"] == "STOPPED":
+                    held.append(
+                        {
+                            "wait_id": wait["wait_id"],
+                            "reason": budget["stop_reason"] or "BUDGET_STOPPED",
+                        }
+                    )
+                    continue
+                used = int(budget["consumed_observation_batches"])
+                maximum = int(budget["max_observation_batches"])
+                if used >= maximum:
+                    durable.db.execute(
+                        """
+                        UPDATE agent_repair_budgets
+                        SET state='STOPPED',
+                            stop_reason='OBSERVATION_BUDGET_EXCEEDED',
+                            updated_at=?
+                        WHERE work_item_id=?
+                        """,
+                        (occurred_at, work_item_id),
+                    )
+                    held.append(
+                        {
+                            "wait_id": wait["wait_id"],
+                            "reason": "OBSERVATION_BUDGET_EXHAUSTED",
+                        }
+                    )
+                    continue
+
+                payload = {"batch_id": batch_id, "next_count": used + 1}
+                event_result = _event(
+                    durable,
+                    work_item_id=work_item_id,
+                    event_kind="OBSERVATION_BATCH",
+                    payload=payload,
+                    occurred_at=occurred_at,
                 )
+                if event_result["status"] == "INSERTED":
+                    durable.db.execute(
+                        """
+                        UPDATE agent_repair_budgets
+                        SET consumed_observation_batches=?,updated_at=?
+                        WHERE work_item_id=?
+                        """,
+                        (used + 1, occurred_at, work_item_id),
+                    )
+                accepted.append(wait)
+
+            if not accepted:
+                durable.db.commit()
+                return {"status": "HELD", "batch": None, "held": held}
+
+            wait_ids = sorted(str(wait["wait_id"]) for wait in accepted)
+            work_item_ids = sorted(
+                {str(wait["work_item_id"]) for wait in accepted}
+            )
+            gates = sorted(
+                {
+                    gate
+                    for wait in accepted
+                    for gate in wait["required_gates"]
+                    if wait["gate_states"].get(gate) == "PENDING"
+                }
+            )
+            fallback_counts = {
+                str(wait["wait_id"]): int(wait["fallback_count"])
+                for wait in accepted
+            }
+            durable.db.execute(
+                """
+                INSERT INTO agent_observation_batches(
+                    batch_id,cycle_id,repository,target_sha,wait_ids_json,
+                    work_item_ids_json,pending_gates_json,fallback_counts_json,
+                    state,created_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    batch_id,
+                    cycle_id,
+                    repository,
+                    target_sha,
+                    _canonical(wait_ids),
+                    _canonical(work_item_ids),
+                    _canonical(gates),
+                    _canonical(fallback_counts),
+                    "RESERVED",
+                    occurred_at,
+                ),
+            )
+            row = durable.db.execute(
+                "SELECT * FROM agent_observation_batches WHERE batch_id=?",
+                (batch_id,),
+            ).fetchone()
             durable.db.commit()
-            return True
+            return {
+                "status": "INSERTED",
+                "batch": _batch_from_row(row),
+                "held": held,
+            }
         except Exception:
             if durable.db.in_transaction:
                 durable.db.rollback()
@@ -701,54 +857,35 @@ def _reserve_observation_budget(
         durable.close()
 
 
-def plan_observation_batches(
+def _recover_batch(
     *,
     db_path: Path,
-    wait_ids: list[str],
-    cycle_id: str,
+    batch: dict[str, Any],
+    status: str,
     now_ts: float,
     actions_available: bool,
     occurred_at: str,
 ) -> dict[str, Any]:
-    contract = load_contract()
-    cycle_id = brain._require_non_empty_string(cycle_id, "cycle_id")
-    unique_waits = sorted({str(value).strip() for value in wait_ids if str(value).strip()})
-
     durable, _, _ = _open(db_path)
     try:
-        snapshots = [_wait_row(durable, wait_id) for wait_id in unique_waits]
-        budget_rows: dict[str, dict[str, Any]] = {}
-        for wait in snapshots:
-            budget_rows[wait["work_item_id"]] = _budget_row(
-                durable, wait["work_item_id"]
-            )
+        waits = [_wait_row(durable, wait_id) for wait_id in batch["wait_ids"]]
+        budgets = {
+            wait["work_item_id"]: _budget_row(durable, wait["work_item_id"])
+            for wait in waits
+        }
     finally:
         durable.close()
 
+    query_waits: list[dict[str, Any]] = []
     immediate: list[dict[str, Any]] = []
-    due_groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
     held: list[dict[str, Any]] = []
 
-    for wait in snapshots:
-        budget = budget_rows[wait["work_item_id"]]
-        if budget["state"] == "STOPPED":
-            held.append(
-                {
-                    "wait_id": wait["wait_id"],
-                    "reason": budget["stop_reason"] or "BUDGET_STOPPED",
-                }
-            )
-            continue
-        if int(budget["consumed_observation_batches"]) >= int(
-            budget["max_observation_batches"]
+    for wait in waits:
+        if (
+            str(wait["repository"]) != str(batch["repository"])
+            or str(wait["target_sha"]) != str(batch["target_sha"])
         ):
-            held.append(
-                {
-                    "wait_id": wait["wait_id"],
-                    "reason": "OBSERVATION_BUDGET_EXHAUSTED",
-                }
-            )
-            continue
+            raise BudgetError("persisted observation batch identity drift")
 
         state = str(wait["state"])
         if state == "READY_FOR_EVALUATION":
@@ -772,6 +909,202 @@ def plan_observation_batches(
                 }
             )
             continue
+
+        budget = budgets[wait["work_item_id"]]
+        if budget["state"] == "STOPPED":
+            held.append(
+                {
+                    "wait_id": wait["wait_id"],
+                    "reason": budget["stop_reason"] or "BUDGET_STOPPED",
+                }
+            )
+            continue
+        if not actions_available:
+            immediate.append(
+                recovery.reconcile_wait(
+                    db_path=db_path,
+                    wait_id=wait["wait_id"],
+                    now_ts=now_ts,
+                    actions_available=False,
+                    occurred_at=occurred_at,
+                )
+            )
+            continue
+
+        baseline = int(batch["fallback_counts"][wait["wait_id"]])
+        current_count = int(wait["fallback_count"])
+        if current_count < baseline:
+            raise BudgetError("fallback counter regressed below batch reservation")
+        if current_count == baseline:
+            directive = recovery.reconcile_wait(
+                db_path=db_path,
+                wait_id=wait["wait_id"],
+                now_ts=now_ts,
+                actions_available=True,
+                occurred_at=occurred_at,
+            )
+            if directive.get("poll") is True:
+                query_waits.append(wait)
+                continue
+
+            durable, _, _ = _open(db_path)
+            try:
+                refreshed = _wait_row(durable, wait["wait_id"])
+            finally:
+                durable.close()
+            if int(refreshed["fallback_count"]) > baseline:
+                query_waits.append(refreshed)
+            else:
+                immediate.append(directive)
+            continue
+
+        # A larger count proves that a bounded v6.1B fallback reservation was
+        # committed after this durable batch intent. The query can therefore be
+        # recovered without consuming another fallback slot.
+        query_waits.append(wait)
+
+    gates = sorted(
+        {
+            gate
+            for wait in query_waits
+            for gate in wait["required_gates"]
+            if wait["gate_states"].get(gate) == "PENDING"
+        }
+    )
+    active_wait_ids = sorted(str(wait["wait_id"]) for wait in query_waits)
+    active_work_items = sorted(
+        {str(wait["work_item_id"]) for wait in query_waits}
+    )
+    return {
+        "batch": {
+            "batch_id": batch["batch_id"],
+            "status": status,
+            "repository": batch["repository"],
+            "target_sha": batch["target_sha"],
+            "wait_ids": active_wait_ids,
+            "reserved_wait_ids": list(batch["wait_ids"]),
+            "work_item_ids": active_work_items,
+            "pending_gates": gates,
+            "external_query_required": bool(active_wait_ids and gates),
+        },
+        "immediate": immediate,
+        "held": held,
+    }
+
+
+def plan_observation_batches(
+    *,
+    db_path: Path,
+    wait_ids: list[str],
+    cycle_id: str,
+    now_ts: float,
+    actions_available: bool,
+    occurred_at: str,
+) -> dict[str, Any]:
+    contract = load_contract()
+    cycle_id = brain._require_non_empty_string(cycle_id, "cycle_id")
+    unique_waits = sorted(
+        {str(value).strip() for value in wait_ids if str(value).strip()}
+    )
+    unique_wait_set = set(unique_waits)
+
+    durable, _, _ = _open(db_path)
+    try:
+        snapshots = [_wait_row(durable, wait_id) for wait_id in unique_waits]
+        budget_rows = {
+            wait["work_item_id"]: _budget_row(durable, wait["work_item_id"])
+            for wait in snapshots
+        }
+        persisted_rows = durable.db.execute(
+            """
+            SELECT * FROM agent_observation_batches
+            WHERE cycle_id=?
+            ORDER BY repository,target_sha,batch_id
+            """,
+            (cycle_id,),
+        ).fetchall()
+        persisted_batches = [_batch_from_row(row) for row in persisted_rows]
+    finally:
+        durable.close()
+
+    persisted_wait_ids: set[str] = set()
+    for batch in persisted_batches:
+        batch_waits = set(str(value) for value in batch["wait_ids"])
+        if not batch_waits.issubset(unique_wait_set):
+            raise BudgetError("cycle replay omits a persisted observation wait")
+        persisted_wait_ids.update(batch_waits)
+
+    batches: list[dict[str, Any]] = []
+    immediate: list[dict[str, Any]] = []
+    held: list[dict[str, Any]] = []
+    deferred: list[dict[str, Any]] = []
+
+    # Durable reservations are recovered before due-time or budget filtering.
+    # A coordinator restart therefore cannot lose a batch whose fallback
+    # reservation was committed before the external query ran.
+    for batch in persisted_batches:
+        recovered = _recover_batch(
+            db_path=db_path,
+            batch=batch,
+            status="REPLAY",
+            now_ts=now_ts,
+            actions_available=actions_available,
+            occurred_at=occurred_at,
+        )
+        batches.append(recovered["batch"])
+        immediate.extend(recovered["immediate"])
+        held.extend(recovered["held"])
+
+    due_groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for wait in snapshots:
+        if wait["wait_id"] in persisted_wait_ids:
+            continue
+
+        state = str(wait["state"])
+        # Query-free recovery must remain available even after the observation
+        # budget is exhausted.
+        if state == "READY_FOR_EVALUATION":
+            immediate.append(
+                recovery.reconcile_wait(
+                    db_path=db_path,
+                    wait_id=wait["wait_id"],
+                    now_ts=now_ts,
+                    actions_available=actions_available,
+                    occurred_at=occurred_at,
+                )
+            )
+            continue
+        if state != "WAITING":
+            immediate.append(
+                {
+                    "wait_id": wait["wait_id"],
+                    "action": "NOOP_TERMINAL_WAIT",
+                    "state": state,
+                    "poll": False,
+                }
+            )
+            continue
+
+        budget = budget_rows[wait["work_item_id"]]
+        if budget["state"] == "STOPPED":
+            held.append(
+                {
+                    "wait_id": wait["wait_id"],
+                    "reason": budget["stop_reason"] or "BUDGET_STOPPED",
+                }
+            )
+            continue
+        if int(budget["consumed_observation_batches"]) >= int(
+            budget["max_observation_batches"]
+        ):
+            held.append(
+                {
+                    "wait_id": wait["wait_id"],
+                    "reason": "OBSERVATION_BUDGET_EXHAUSTED",
+                }
+            )
+            continue
+
         if not actions_available or float(now_ts) < float(wait["next_fallback_at"]):
             immediate.append(
                 recovery.reconcile_wait(
@@ -800,136 +1133,48 @@ def plan_observation_batches(
     obs_cfg = contract["observation_budget"]
     max_global = int(obs_cfg["max_coalesced_batches_per_cycle"])
     max_per_repo = int(obs_cfg["max_coalesced_batches_per_repository_per_cycle"])
-    selected: list[tuple[tuple[str, str], list[dict[str, Any]]]] = []
-    deferred: list[dict[str, Any]] = []
-    per_repo: dict[str, int] = {}
 
-    for key in sorted(due_groups):
-        repository, target_sha = key
-        if len(selected) >= max_global or per_repo.get(repository, 0) >= max_per_repo:
+    for (repository, target_sha), waits in sorted(due_groups.items()):
+        reservation = _reserve_batch_intent(
+            db_path=db_path,
+            cycle_id=cycle_id,
+            repository=repository,
+            target_sha=target_sha,
+            waits=waits,
+            occurred_at=occurred_at,
+            max_global=max_global,
+            max_per_repo=max_per_repo,
+        )
+        held.extend(reservation.get("held", []))
+        if reservation["status"] == "DEFERRED":
             deferred.append(
                 {
                     "repository": repository,
                     "target_sha": target_sha,
-                    "wait_ids": [wait["wait_id"] for wait in due_groups[key]],
-                    "reason": "OBSERVATION_BACKPRESSURE",
+                    "wait_ids": [wait["wait_id"] for wait in waits],
+                    "reason": reservation["reason"],
                 }
             )
             continue
-        selected.append((key, due_groups[key]))
-        per_repo[repository] = per_repo.get(repository, 0) + 1
-
-    batches: list[dict[str, Any]] = []
-    for (repository, target_sha), waits in selected:
-        batch_id = _id("obs", cycle_id, repository, target_sha)
-
-        durable, _, _ = _open(db_path)
-        try:
-            existing = durable.db.execute(
-                "SELECT * FROM agent_observation_batches WHERE batch_id=?",
-                (batch_id,),
-            ).fetchone()
-            if existing is not None:
-                batches.append(
-                    {
-                        "batch_id": batch_id,
-                        "status": "REPLAY",
-                        "repository": repository,
-                        "target_sha": target_sha,
-                        "wait_ids": json.loads(existing["wait_ids_json"]),
-                        "work_item_ids": json.loads(existing["work_item_ids_json"]),
-                        "pending_gates": json.loads(existing["pending_gates_json"]),
-                        "external_query_required": True,
-                    }
-                )
-                continue
-        finally:
-            durable.close()
-
-        directives: list[tuple[dict[str, Any], dict[str, Any]]] = []
-        for wait in waits:
-            directive = recovery.reconcile_wait(
-                db_path=db_path,
-                wait_id=wait["wait_id"],
-                now_ts=now_ts,
-                actions_available=actions_available,
-                occurred_at=occurred_at,
-            )
-            if directive.get("poll") is True:
-                directives.append((wait, directive))
-            else:
-                immediate.append(directive)
-
-        if not directives:
+        batch = reservation.get("batch")
+        if batch is None:
             continue
-
-        accepted: list[tuple[dict[str, Any], dict[str, Any]]] = []
-        for wait, directive in directives:
-            if _reserve_observation_budget(
-                db_path=db_path,
-                work_item_id=wait["work_item_id"],
-                occurred_at=occurred_at,
-                batch_id=batch_id,
-            ):
-                accepted.append((wait, directive))
-            else:
-                held.append(
-                    {
-                        "wait_id": wait["wait_id"],
-                        "reason": "OBSERVATION_BUDGET_EXHAUSTED",
-                    }
-                )
-        if not accepted:
-            continue
-
-        wait_id_values = sorted(wait["wait_id"] for wait, _ in accepted)
-        work_item_values = sorted({wait["work_item_id"] for wait, _ in accepted})
-        gates = sorted(
-            {
-                gate
-                for _, directive in accepted
-                for gate in directive.get("pending_gates", [])
-            }
+        recovered = _recover_batch(
+            db_path=db_path,
+            batch=batch,
+            status=reservation["status"],
+            now_ts=now_ts,
+            actions_available=actions_available,
+            occurred_at=occurred_at,
         )
-        durable, _, _ = _open(db_path)
-        try:
-            with durable.db:
-                durable.db.execute(
-                    """
-                    INSERT INTO agent_observation_batches(
-                        batch_id,cycle_id,repository,target_sha,wait_ids_json,
-                        work_item_ids_json,pending_gates_json,state,created_at
-                    ) VALUES (?,?,?,?,?,?,?,?,?)
-                    """,
-                    (
-                        batch_id,
-                        cycle_id,
-                        repository,
-                        target_sha,
-                        _canonical(wait_id_values),
-                        _canonical(work_item_values),
-                        _canonical(gates),
-                        "RESERVED",
-                        occurred_at,
-                    ),
-                )
-        finally:
-            durable.close()
+        batches.append(recovered["batch"])
+        immediate.extend(recovered["immediate"])
+        held.extend(recovered["held"])
 
-        batches.append(
-            {
-                "batch_id": batch_id,
-                "status": "INSERTED",
-                "repository": repository,
-                "target_sha": target_sha,
-                "wait_ids": wait_id_values,
-                "work_item_ids": work_item_values,
-                "pending_gates": gates,
-                "external_query_required": True,
-            }
-        )
-
-    covered_waits = sum(len(batch["wait_ids"]) for batch in batches)
+    external_batches = [
+        batch for batch in batches if batch["external_query_required"]
+    ]
+    covered_waits = sum(len(batch["wait_ids"]) for batch in external_batches)
     return {
         "schema_version": 1,
         "record_type": "APPLAB_V61C_OBSERVATION_PLAN",
@@ -939,9 +1184,11 @@ def plan_observation_batches(
         "immediate": immediate,
         "held": held,
         "deferred": deferred,
-        "external_query_count": len(batches),
+        "external_query_count": len(external_batches),
         "covered_wait_count": covered_waits,
-        "coalesced_wait_savings": max(0, covered_waits - len(batches)),
+        "coalesced_wait_savings": max(
+            0, covered_waits - len(external_batches)
+        ),
         "fixed_interval_polling_primary": False,
         "network_call_per_wait": False,
         "target_sha_mutation_performed": False,
