@@ -116,7 +116,15 @@ def main() -> int:
         assert report["merge_performed"] is False
         assert report["release_performed"] is False
         assert result_patch.is_file()
-        # The worker edited only its ephemeral worktree.
+        assert worker._run(
+            root,
+            "git",
+            "show-ref",
+            "--verify",
+            f"refs/heads/{report['branch']}",
+            check=False,
+        ).returncode != 0
+        # The worker edited only its ephemeral worktree and removes its local branch ref.
         assert (root / "lib/client.py").read_text(encoding="utf-8") == "def value():\n    return 1\n"
 
         # A new regression test is allowed when the investigator explicitly
