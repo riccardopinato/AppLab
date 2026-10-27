@@ -48,6 +48,9 @@ LIMITS = {
     # v6.1B owns durable wait/event/reconciliation/supersession semantics.
     # Growth beyond 1060 requires extracting the wait persistence adapter.
     "scripts/event_driven_recovery_v61b.py": 1060,
+    # v6.1C composes existing queue + v6.1B wait primitives; future growth
+    # beyond 1160 requires extracting the budget ledger or observation planner.
+    "scripts/queue_backpressure_budget_v61c.py": 1160,
     "scripts/ci_scope_v60g.py": 180,
     "scripts/selftest_runtime_profile_v60g.py": 340,
     "scripts/review_evidence_dag_v60g.py": 430,
