@@ -2,7 +2,7 @@
 
 v6.0 implementation closure baseline: **main `094256b85c206dd6090f708ab59aa3d33d784269`** after PR #188 (`92f56e5e170fffec08c52b42509924f237693304`) and PR #187 (`094256b85c206dd6090f708ab59aa3d33d784269`). The immutable pre-v6 performance comparison baseline remains v5.9.1 (`bd0e0b1ae0a615b96fb3f160d81a6845bc51963b`).
 
-Completed program: **v6.0 Closed-Loop Agentic Engineering**. Next planned program: **v6.1 Controlled Closed-Loop Productionization**. v5.7B/v5.7E downstream adoption and exact-artifact reuse promotion gates are closed with real evidence.
+Completed program: **v6.0 Closed-Loop Agentic Engineering**. Active program: **v6.1 Controlled Closed-Loop Productionization**. v5.7B/v5.7E downstream adoption and exact-artifact reuse promotion gates are closed with real evidence.
 
 Factory baseline for this roadmap refresh: `App-Factory-Core@7b84e33df715cf2a48bda7c7495d0690819bff0f` (Master 26.6 / Golden Index 23).
 
@@ -105,7 +105,7 @@ The objective is never “continue until green”. The objective is “continue 
 
 FAST/FULL, Production Certification, physical-device, distribution/store and cross-app authority boundaries remain unchanged throughout v6.
 
-## Planned — AppLab v6.1 Controlled Closed-Loop Productionization
+## Active — AppLab v6.1 Controlled Closed-Loop Productionization
 
 Goal: move the bounded v6 engineering loop from individually proven components
 to a durable, recoverable and evidence-gated production control plane without
@@ -117,11 +117,11 @@ those mechanisms with a parallel orchestration stack.
 
 | Step | Maxi-step | Planned outcome | Priority |
 |---|---|---|---:|
-| **v6.1A** | Closed-Loop Pilot Admission | Admit the complete v6 WorkItem → investigation → bounded repair → verify → draft-PR loop first on AppLab self-repo only, with explicit allowlist, global kill switch, immutable source SHA, existing authority envelope and no release authority | P0 |
-| **v6.1B** | Durable Recovery & Supersession | Bind v6 WorkItem/Action/Attempt state to the existing durable recovery matrix: duplicate delivery, event loss, executor outage, interrupted attempt, coordinator restart, expired lease, superseding SHA and watcher recovery; terminal operations remain terminal | P0 |
-| **v6.1C** | Queue, Backpressure & Repair Budgets | Route admitted closed-loop work through the existing per-repository durable queue with concurrency/backpressure plus file, line, attempt, runtime and cost budgets; no retry storm and no silent target-SHA mutation | P0/P1 |
+| **v6.1A** | Closed-Loop Pilot Admission | **IMPLEMENTED CANDIDATE / EXACT-HEAD VALIDATION REQUIRED:** self-only AppLab admission controller binds the existing durable operation to the v6 WorkItem, enforces AppLab/main allowlist, global kill switch, exact `resolved_sha == applab_sha`, LOW/NORMAL mutation risk, v6 authority envelope and GitHub Actions fallback without creating a second scheduler or release authority | P0 |
+| **v6.1B** | Durable Recovery & Supersession | Bind v6 WorkItem/Action/Attempt state to the existing durable recovery matrix and make event-driven state transitions + persisted waiting the primary progression model; reconciliation/watchdog recovers duplicate delivery, event loss, executor outage, interrupted attempt, restart, expired lease and superseding SHA, while bounded polling is fallback only and terminal operations remain terminal | P0 |
+| **v6.1C** | Queue, Backpressure & Repair Budgets | Route admitted work through the existing per-repository durable queue with concurrency/backpressure and file, line, attempt, runtime/cost/observation budgets; coalesce GitHub status observation, re-evaluate pending/changed gates rather than starting one fixed polling loop per job, prevent retry storms and never silently retarget SHA | P0/P1 |
 | **v6.1D** | Controlled Multi-Repo Expansion | Expand only after real pilot evidence: AppLab self → bounded 3-repository cohort → bounded 5-repository cohort; global/per-repo kill switches and GitHub Actions fallback remain; ALL_COMPATIBLE requires a later explicit promotion decision | P1 |
-| **v6.1E** | Production SLO, Rollback & Operations Evidence | Track commit-to-green, queue/start/runtime p50/p95, repair success/failure, repeated-signature STOPs, rollback, false-repair indicators and authority envelope in the read-only Operations Studio; define evidence thresholds for promotion/demotion without changing PASS/CERTIFIED authority | P1 |
+| **v6.1E** | Production SLO, Rollback & Operations Evidence | Track commit-to-green, queue/start/runtime p50/p95, repair success/failure, repeated-signature STOPs, rollback, false-repair indicators and authority envelope; separate actual GitHub execution time from AppLab orchestration/wait overhead and record event/reconciliation/fallback-observation efficiency before promotion/demotion | P1 |
 
 ### v6.1 admission rules
 
@@ -135,6 +135,8 @@ those mechanisms with a parallel orchestration stack.
   independent.
 - Superseding SHA is explicit and never silently retargets an active repair.
 - GitHub Actions fallback remains until a separate evidence-backed decision.
+- Fixed-interval polling is not the primary wait primitive once v6.1B lands: GitHub state changes are event-driven where available, durable waiting is persisted, reconciliation/watchdog recovers missed signals and bounded polling is fallback only.
+- Already terminal/green required checks and immutable PR-head identity are not fully rediscovered on every observation; pending or changed gates are re-evaluated unless the target SHA changes.
 - Automatic merge remains post-gate only and cannot self-approve or bypass
   branch protection.
 - Production Certification remains the sole certification authority.

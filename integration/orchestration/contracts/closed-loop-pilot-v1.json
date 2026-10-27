@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_CLOSED_LOOP_PILOT_ADMISSION",
+  "authority": "ORCHESTRATION_ONLY",
+  "stage": "SELF_CANARY",
+  "allowed_repositories": [
+    "riccardopinato/AppLab"
+  ],
+  "allowed_source_refs": [
+    "refs/heads/main"
+  ],
+  "autonomous_mutation_risks": [
+    "LOW",
+    "NORMAL"
+  ],
+  "require_self_applab_sha_equal_source": true,
+  "github_actions_fallback": true,
+  "release_authority": "DENIED",
+  "mandatory_denials": [
+    "WRITE_MAIN",
+    "WRITE_FACTORY_CORE",
+    "READ_SECRETS",
+    "EDIT_WORKFLOW",
+    "EDIT_BRANCH_PROTECTION",
+    "RELEASE",
+    "WEAKEN_TESTS",
+    "SELF_APPROVE",
+    "SELF_MERGE"
+  ],
+  "closed_loop_components": [
+    "WORK_ITEM",
+    "CAUSAL_INVESTIGATION",
+    "BOUNDED_REPAIR",
+    "FOCUSED_VERIFY",
+    "DRAFT_PR_STEWARDSHIP",
+    "APPLAB_TRUSTED_VERIFY"
+  ],
+  "invariants": [
+    "self_repo_only_until_explicit_multi_repo_promotion",
+    "source_and_applab_sha_are_exact_and_equal_for_self_canary",
+    "existing_durable_store_queue_and_work_graph_are_reused",
+    "pilot_is_globally_kill_switchable",
+    "high_and_security_risk_never_receive_autonomous_mutation_authority",
+    "draft_pr_steward_never_merges_approves_or_releases",
+    "post_gate_merge_remains_external_repository_automation",
+    "github_actions_fallback_remains_available",
+    "verification_and_certification_authority_are_unchanged",
+    "fixed_interval_polling_is_not_introduced_as_a_primary_wait_primitive"
+  ]
+}

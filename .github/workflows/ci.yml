@@ -115,6 +115,7 @@ jobs:
             scripts/bounded_fix_worker_v60c.py \
             scripts/verify_repair_loop_v60d.py \
             scripts/draft_pr_steward_v60e.py \
+            scripts/closed_loop_pilot_v61a.py \
             scripts/ci_scope_v60g.py \
             scripts/selftest_runtime_profile_v60g.py \
             scripts/review_evidence_dag_v60g.py \
@@ -275,6 +276,7 @@ jobs:
           python scripts/bounded_fix_worker_v60c.py --self-test
           python scripts/verify_repair_loop_v60d.py --self-test
           python scripts/draft_pr_steward_v60e.py --self-test
+          python scripts/closed_loop_pilot_v61a.py --self-test
           python scripts/ci_scope_v60g.py --self-test
           python tests/contracts/ci_scope_v60g_test.py
           python scripts/selftest_runtime_profile_v60g.py --self-test
@@ -404,6 +406,7 @@ jobs:
           python tests/contracts/bounded_fix_worker_v60c_test.py
           python tests/contracts/verify_repair_loop_v60d_test.py
           python tests/contracts/draft_pr_steward_v60e_test.py
+          python tests/contracts/closed_loop_pilot_v61a_test.py
           python tests/contracts/selftest_runtime_profile_v60g_test.py
           python tests/contracts/review_evidence_dag_v60g_test.py
           python tests/contracts/event_gateway_v54c_test.py

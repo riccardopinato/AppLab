@@ -97,6 +97,7 @@ FAST_PATTERNS = (
     "scripts/bounded_fix_worker_v60c.py",
     "scripts/verify_repair_loop_v60d.py",
     "scripts/draft_pr_steward_v60e.py",
+    "scripts/closed_loop_pilot_v61a.py",
     "scripts/autonomous_failure_triage_v58a.py",
     "scripts/contract_fingerprint.py",
     "scripts/maintainability_budget.py",
