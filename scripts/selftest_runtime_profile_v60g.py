@@ -95,7 +95,7 @@ FAST_PATTERNS = (
     "scripts/selftest_runtime_profile_v60g.py",
     "scripts/agent_memory_v60f.py",
     "scripts/sensor_mesh_v60h.py",
-    "scripts/agentic_operations_snapshot_v60i.py",
+    "scripts/agent_operations_studio_v60i.py",
     "integration/orchestration/**",
     "integration/performance/**",
 )
@@ -261,6 +261,9 @@ def self_test() -> None:
     ])
     assert mixed["profile"] == "FAST"
     assert mixed["selected_labs"] == ["configuration"]
+    operations = plan(["scripts/agent_operations_studio_v60i.py"])
+    assert operations["profile"] == "FAST"
+    assert operations["reason"] == "BOUNDED_ORCHESTRATION_SURFACE"
     docs = plan(["integration/performance/NOTE.md"])
     assert docs["profile"] == "FAST"
     empty = plan([])
