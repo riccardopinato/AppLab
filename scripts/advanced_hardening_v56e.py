@@ -10,6 +10,7 @@ PRODUCERS={
  "SEMGREP":{"wave":"FIRST_WAVE_SECURITY","artifact_role":"SOURCE_SECURITY","physical":False},
  "TRIVY":{"wave":"FIRST_WAVE_SECURITY","artifact_role":"DEPENDENCY_SECURITY","physical":False},
  "MOBSF":{"wave":"SECOND_WAVE_MOBILE","artifact_role":"MOBILE_SECURITY_ANALYSIS","physical":False},
+ "HETTY":{"wave":"SECOND_WAVE_NETWORK","artifact_role":"NETWORK_SECURITY_CAPTURE","physical":False},
 }
 SHA_RE=re.compile(r"^[0-9a-f]{40}$")
 HASH_RE=re.compile(r"^[0-9a-f]{64}$")
@@ -22,7 +23,7 @@ def normalize(data:dict[str,Any])->dict[str,Any]:
     if "/" not in repository or not SHA_RE.fullmatch(source_sha): raise ValueError("invalid repository/source identity")
     artifact_sha=str(data.get("artifact_sha256","")).lower()
     if artifact_sha and not HASH_RE.fullmatch(artifact_sha): raise ValueError("invalid artifact hash")
-    if producer in {"SCRCPY_CAPTURE","LEAKCANARY"} and not HASH_RE.fullmatch(artifact_sha):
+    if producer in {"SCRCPY_CAPTURE","LEAKCANARY","MOBSF","HETTY"} and not HASH_RE.fullmatch(artifact_sha):
         raise ValueError("artifact-bound pilot requires exact artifact hash")
     rule=PRODUCERS[producer]
     if producer=="LEAKCANARY" and str(data.get("artifact_role","")).upper() in {"RELEASE","PRODUCTION_RELEASE"}:
@@ -55,6 +56,8 @@ def self_test():
     try: normalize({"producer":"LEAKCANARY","repository":"owner/app","source_sha":"e"*40,"evidence_refs":["report://3"]})
     except ValueError: pass
     else: raise AssertionError("LeakCanary without debug artifact hash must fail closed")
+    net=normalize({"producer":"HETTY","repository":"owner/app","source_sha":"f"*40,"artifact_sha256":"3"*64,"evidence_refs":["har://1"]})
+    assert net["artifact_role"]=="NETWORK_SECURITY_CAPTURE" and net["can_mint_pass"] is False
     print("AppLab v5.6E advanced hardening pilot self-test PASS")
 
 def main()->int:
