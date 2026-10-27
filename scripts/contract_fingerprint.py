@@ -68,6 +68,7 @@ CONTRACT_FILES = (
     "scripts/agent_operations_studio_v60i.py",
     "scripts/control_center_snapshot.py",
     "frontend/src/ControlCenter.tsx",
+    "frontend/src/AgentOperationsPanel.tsx",
     ".github/workflows/repo-watcher.yml",
     ".github/workflows/production-certification.yml",
     "scripts/advanced_hardening_v56e.py",
