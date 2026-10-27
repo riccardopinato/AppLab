@@ -371,8 +371,10 @@ def build_investigation(
             add("EVIDENCE_GRAPH_CHANGED", "evidence_graph_changed", path)
         if path in graph_states["impacted"]:
             add("EVIDENCE_GRAPH_IMPACTED", "evidence_graph_impacted", path)
+        historical_boost = 0
         if path in prior:
             add("PRIOR_SUCCESSFUL_FIX", "prior_fix_path", path)
+            historical_boost = int(weights["prior_fix_path"])
         if path in changed and (
             path in diagnostic_paths or (len(basename) >= 5 and basename in diagnostic_lower)
         ):
@@ -382,9 +384,16 @@ def build_investigation(
                 path,
             )
 
-        if score < int(contract["candidate_threshold"]):
+        # Historical memory may rank a candidate that current evidence already
+        # supports, but it cannot create a candidate or raise autonomous-edit
+        # eligibility. Threshold and confidence use current evidence only.
+        current_evidence_score = score - historical_boost
+        if current_evidence_score < int(contract["candidate_threshold"]):
             continue
-        confidence = min(0.99, 0.35 + (score / 180.0))
+        confidence = min(
+            0.99,
+            0.35 + (current_evidence_score / 180.0),
+        )
         if bool(plan.get("analysis_truncated")):
             confidence = max(0.05, confidence - 0.20)
         if inventory_truncated:
@@ -394,6 +403,8 @@ def build_investigation(
                 "path": path,
                 "kind": _candidate_kind(path),
                 "score": score,
+                "current_evidence_score": current_evidence_score,
+                "historical_score_boost": historical_boost,
                 "confidence": round(confidence, 3),
                 "signals": signals,
                 "paired_tests": _paired_tests(path, inventory),
@@ -476,6 +487,8 @@ def build_investigation(
             "automatic_merge": False,
             "automatic_release": False,
             "candidate_scores_are_advisory": True,
+            "historical_memory_cannot_create_candidate": True,
+            "historical_memory_cannot_raise_autonomy_eligibility": True,
         },
     }
 

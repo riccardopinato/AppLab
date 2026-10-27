@@ -39,6 +39,7 @@ ALL_UNITS = (
 FULL_PATTERNS = (
     ".github/workflows/emulator-self-test.yml",
     ".github/workflows/runtime-fixture-build.yml",
+    ".github/workflows/production-certification.yml",
     "scripts/verify_apk.sh",
     "scripts/install_maestro.sh",
     "scripts/restore_runtime_fixture.sh",
@@ -92,6 +93,11 @@ FAST_PATTERNS = (
     "scripts/bounded_fix_worker_v60c.py",
     "scripts/verify_repair_loop_v60d.py",
     "scripts/draft_pr_steward_v60e.py",
+    "scripts/autonomous_failure_triage_v58a.py",
+    "scripts/contract_fingerprint.py",
+    "scripts/maintainability_budget.py",
+    "scripts/advanced_hardening_v56e.py",
+    "scripts/control_center_snapshot.py",
     "scripts/selftest_runtime_profile_v60g.py",
     "scripts/agent_memory_v60f.py",
     "scripts/sensor_mesh_v60h.py",
@@ -241,6 +247,7 @@ def _report(
 
 def self_test() -> None:
     assert plan(["scripts/verify_apk.sh"])["profile"] == "FULL"
+    assert plan([".github/workflows/production-certification.yml"])["profile"] == "FULL"
     network = plan(["scripts/network_lab.py"])
     assert network["profile"] == "FAST"
     assert network["selected_labs"] == ["network"]
@@ -264,6 +271,22 @@ def self_test() -> None:
     operations = plan(["scripts/agent_operations_studio_v60i.py"])
     assert operations["profile"] == "FAST"
     assert operations["reason"] == "BOUNDED_ORCHESTRATION_SURFACE"
+    f_delta = plan([
+        "scripts/agent_memory_v60f.py",
+        "scripts/autonomous_failure_triage_v58a.py",
+        "scripts/contract_fingerprint.py",
+        "scripts/maintainability_budget.py",
+    ])
+    assert f_delta["profile"] == "FAST"
+    assert f_delta["reason"] == "BOUNDED_ORCHESTRATION_SURFACE"
+    h_delta = plan([
+        "scripts/sensor_mesh_v60h.py",
+        "scripts/advanced_hardening_v56e.py",
+        "scripts/contract_fingerprint.py",
+        "scripts/maintainability_budget.py",
+    ])
+    assert h_delta["profile"] == "FAST"
+    assert h_delta["reason"] == "BOUNDED_ORCHESTRATION_SURFACE"
     docs = plan(["integration/performance/NOTE.md"])
     assert docs["profile"] == "FAST"
     empty = plan([])

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from verification_intelligence import classify_failure
+import verify_repair_loop_v60d as repair_loop
 
 LAB_SURFACES = {
     "system": ["AndroidManifest/native integration", "permissions/system UI"],
@@ -75,6 +76,7 @@ def build_triage(result: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
         hypotheses.append(f"{lab} failure is causally related to the current changed-file impact set")
 
     retryable = bool(intelligence.get("retryable", False))
+    trigger_failure_signature = repair_loop.failure_signature(result, plan)
     return {
         "schema_version": 1,
         "record_type": "AUTONOMOUS_FAILURE_TRIAGE_V58A",
@@ -84,6 +86,7 @@ def build_triage(result: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
         "baseline_sha": str(plan.get("baseline_sha", "")),
         "analysis_lane": str(result.get("analysis_lane", plan.get("lane", ""))),
         "classification": kind,
+        "trigger_failure_signature": trigger_failure_signature,
         "retryable": retryable,
         "recommended_action": CLASS_ACTION.get(kind, "INVESTIGATE_BEFORE_RETRY"),
         "failed_labs": failed_labs,
@@ -135,6 +138,8 @@ def self_test() -> None:
         plan,
     )
     assert build["classification"] == "BUILD_OR_QUALITY_FAILURE"
+    assert build["trigger_failure_signature"]["classification"] == "BUILD_OR_QUALITY_FAILURE"
+    assert str(build["trigger_failure_signature"]["signature_sha256"]).startswith("sha256:")
     assert any("reconnect expected 2 messages" in item for item in build["root_cause_hypotheses"])
 
     unknown = build_triage(

@@ -33,19 +33,19 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 - [x] **v5.7E evidence closure:** real same-identity Anna rerun produced `cache_hit=true`, `promotion_ready=true`, `READY / EXACT_ARTIFACT_REUSE_PROVEN`; evidence: `integration/performance/V57E_EXACT_ARTIFACT_REUSE_EVIDENCE_2026-10-27.md`.
 - [x] **Baseline performance record:** preserved in `integration/performance/V591_SELF_LOOP_BASELINE_2026-10-27.md` as the before-state for v6.0G.
 
-## Planned — AppLab v6.0 Closed-Loop Agentic Engineering
+## Active — AppLab v6.0 Closed-Loop Agentic Engineering
 
 | Step | Maxi-step | Outcome | Priority |
 |---|---|---|---:|
-| **v6.0A** | Unified Agent Work Graph | **Implementation candidate:** durable `WorkItem -> Decision -> Action -> Attempt -> Evidence -> Verdict` model; exact-head validation pending | P0 |
-| **v6.0B** | Causal Repo Investigator | **Implementation candidate:** deterministic candidate-file/root-cause ranking from diff, traces, labs, graph and history; exact-head validation pending | P0 |
-| **v6.0C** | Bounded Autonomous Fix Worker | **Implementation candidate:** exact-SHA ephemeral worktree patching with causal-scope, budget, protected-path and test-weakening gates; exact-head validation pending | P0 |
-| **v6.0D** | Verify–Repair Loop | **Implementation candidate:** focused verify → exact materialization → trusted AppLab evidence → PASS / new exact-SHA WorkItem / STOP, max 2 attempts; exact-head validation pending | P0 |
-| **v6.0G** | Self-Dogfooding Throughput | **Implementation candidate:** fail-closed Emulator FAST/FULL profile + exact-input cached parallel advisory review fan-out; FULL depth unchanged; exact-head timing evidence pending | P0/P1 |
-| **v6.0E** | Autonomous PR Steward | **Implementation candidate:** explicit PR capabilities, exact patch→commit materialization, fast-forward-only `applab/repair/*`, draft create/reuse/update, no ready/approve/merge/release; exact-head validation pending | P1 |
-| **v6.0F** | Agent Memory & Policy Learning | Compressed episodic engineering memory; guardrails remain non-self-modifying | P1 |
-| **v6.0H** | Sensor Mesh | Risk-triggered scrcpy, LeakCanary, Semgrep, Trivy, MobSF/Hetty evidence producers | P2 |
-| **v6.0I** | Agentic Operations Studio | WorkItems, attempts, cost, evidence, blocks and authority cockpit | P2 |
+| **v6.0A** | Unified Agent Work Graph | **LANDED / EXACT-HEAD VALIDATED:** durable `WorkItem -> Decision -> Action -> Attempt -> Evidence -> Verdict` model landed through PR #176 | P0 |
+| **v6.0B** | Causal Repo Investigator | **LANDED / EXACT-HEAD VALIDATED:** deterministic candidate-file/root-cause ranking from diff, traces, labs, graph and history landed through PR #176 | P0 |
+| **v6.0C** | Bounded Autonomous Fix Worker | **LANDED / EXACT-HEAD VALIDATED:** exact-SHA ephemeral worktree patching with causal-scope, budget, protected-path and test-weakening gates landed through PR #176 | P0 |
+| **v6.0D** | Verify–Repair Loop | **LANDED / EXACT-HEAD VALIDATED:** focused verify → exact materialization → trusted AppLab evidence → PASS / new exact-SHA WorkItem / STOP, max 2 attempts, landed through PR #176 | P0 |
+| **v6.0G** | Self-Dogfooding Throughput | **IMPLEMENTATION LANDED / TIMING PROMOTION OPEN:** fail-closed Emulator FAST/FULL profile + exact-input cached parallel advisory review fan-out landed through PR #176; quantitative FAST timing evidence still required | P0/P1 |
+| **v6.0E** | Autonomous PR Steward | **LANDED / EXACT-HEAD VALIDATED:** explicit PR capabilities, exact patch→commit materialization, fast-forward-only `applab/repair/*`, draft create/reuse/update, no ready/approve/merge/release, landed through PR #176 | P1 |
+| **v6.0F** | Agent Memory & Policy Learning | **EXACT-HEAD VALIDATION ACTIVE:** clean PR #181; rebuildable identity-bound episodic memory + current-candidate-only strategy ranking; historical boosts cannot create candidates or raise autonomous-edit eligibility | P1 |
+| **v6.0H** | Sensor Mesh | **PENDING CLEAN REBUILD AFTER v6.0F:** risk-triggered scrcpy, LeakCanary, Semgrep, Trivy, MobSF/Hetty evidence producers; evidence-only authority | P2 |
+| **v6.0I** | Agentic Operations Studio | **PENDING CLEAN REBUILD AFTER v6.0H:** read-only WorkItems, attempts, cost, evidence, blocks and authority cockpit | P2 |
 
 ### v6.0 authority envelope
 
@@ -171,10 +171,12 @@ observable proxy. Missing downstream evidence remains incomplete, never PASS.
 - [x] **v5.7D Factory Reuse Planner:** resolve the current App-Factory-Core
   Golden Registry and produce compatibility-review candidates for adopted
   repositories; never write downstream code automatically.
-- [ ] **v5.7E Throughput & Verification Reuse:** shadow admission for
-  Build Once -> Verify Many is implemented using exact build-input readiness.
-  Production reuse remains disabled until a real adopted repository is eligible,
-  exact-artifact identity is present and a separate promotion gate passes.
+- [x] **v5.7E Throughput & Verification Reuse:** production admission is proven
+  on the real adopted Anna's Diary repository using exact source/build identity,
+  an exact APK SHA-256 cache hit and a successful trusted verifier rerun.
+  Promotion evidence is recorded in
+  `integration/performance/V57E_EXACT_ARTIFACT_REUSE_EVIDENCE_2026-10-27.md`.
+  Coverage reduction remains disabled and certification authority is unchanged.
 
 ### v5.7 execution rules
 
