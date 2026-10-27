@@ -44,6 +44,7 @@ LIMITS = {
     "scripts/draft_pr_steward_v60e.py": 760,
     "scripts/selftest_runtime_profile_v60g.py": 340,
     "scripts/review_evidence_dag_v60g.py": 430,
+    "scripts/agent_memory_v60f.py": 720,
     "scripts/warm_runtime_route_v59e.py": 190,
     "scripts/journey_shard_runtime.py": 180,
     "scripts/journey_shard_aggregate.py": 220,
