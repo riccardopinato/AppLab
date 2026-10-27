@@ -62,6 +62,8 @@ CONTRACT_FILES = (
     "scripts/bounded_fix_worker_v60c.py",
     "scripts/verify_repair_loop_v60d.py",
     "scripts/self_change_plan_v60g.py",
+    "scripts/autonomous_pr_steward_v60e.py",
+    "integration/orchestration/contracts/autonomous-pr-steward-v1.json",
     "scripts/self_evidence_dag_v60g.py",
     "scripts/run_evidence_node_v60g.sh",
     "integration/performance/contracts/self-dogfooding-plan-v1.json",
