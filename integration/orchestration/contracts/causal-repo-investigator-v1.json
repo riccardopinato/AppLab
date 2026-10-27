@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_CAUSAL_REPO_INVESTIGATOR",
+  "authority": "PROPOSAL_ONLY",
+  "deterministic_failure_classes": [
+    "APP_RUNTIME_FAILURE",
+    "APP_VISUAL_FAILURE",
+    "BUILD_OR_QUALITY_FAILURE"
+  ],
+  "non_editable_failure_classes": [
+    "INFRA_ERROR",
+    "FLAKY_SUSPECT",
+    "UNKNOWN_FAILURE",
+    "NONE"
+  ],
+  "states": [
+    "LOCALIZED",
+    "INSUFFICIENT_EVIDENCE",
+    "NON_CODE_FAILURE"
+  ],
+  "score_weights": {
+    "changed_file": 50,
+    "dependency_impacted": 30,
+    "exact_diagnostic_path": 70,
+    "diagnostic_basename": 35,
+    "failed_lab_path_signal": 25,
+    "surface_path_signal": 15,
+    "evidence_graph_changed": 15,
+    "evidence_graph_impacted": 10,
+    "prior_fix_path": 10,
+    "changed_plus_diagnostic_bonus": 15
+  },
+  "candidate_threshold": 25,
+  "max_candidates": 12,
+  "max_repository_files": 5000,
+  "invariants": [
+    "unknown_or_infrastructure_failure_never_becomes_code_patch_candidate",
+    "candidate_file_must_be_repository_tracked_or_present",
+    "candidate_score_must_expose_contributing_signals",
+    "truncated_or_ambiguous_evidence_lowers_confidence",
+    "investigator_never_modifies_repository",
+    "investigator_never_mints_pass_or_certified"
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_VERIFY_REPAIR_LOOP",
+  "authority": "ORCHESTRATION_ONLY",
+  "max_repair_attempts": 2,
+  "states": [
+    "NEEDS_REPAIR",
+    "NEEDS_FOCUSED_VERIFY",
+    "NEEDS_MATERIALIZATION",
+    "NEEDS_APPLAB_VERIFY",
+    "NEEDS_INVESTIGATION",
+    "WAITING_EXTERNAL",
+    "COMPLETE",
+    "STOPPED"
+  ],
+  "next_actions": [
+    "APPLY_BOUNDED_REPAIR",
+    "RUN_FOCUSED_VERIFY",
+    "MATERIALIZE_DRAFT_BRANCH",
+    "RUN_APPLAB_FAST",
+    "RUN_APPLAB_FULL",
+    "INVESTIGATE",
+    "WAIT_EXTERNAL",
+    "NONE"
+  ],
+  "terminal_reason_codes": [
+    "VERIFIED_PASS",
+    "UNKNOWN_CLASSIFICATION",
+    "SCOPE_EXCEEDED",
+    "PROTECTED_PATH",
+    "SECURITY_SENSITIVE_SCOPE",
+    "TEST_WEAKENING_REQUIRED",
+    "REPEATED_FAILURE_SIGNATURE",
+    "UNEXPLAINED_FAILURE_MUTATION",
+    "IDENTITY_NOT_PROVEN",
+    "VERIFICATION_NOT_TRUSTED",
+    "BUDGET_EXHAUSTED",
+    "HUMAN_DECISION_REQUIRED",
+    "VERIFICATION_BLOCKED"
+  ],
+  "deterministic_failure_classes": [
+    "APP_RUNTIME_FAILURE",
+    "APP_VISUAL_FAILURE",
+    "BUILD_OR_QUALITY_FAILURE"
+  ],
+  "non_repair_failure_classes": [
+    "INFRA_ERROR",
+    "FLAKY_SUSPECT",
+    "UNKNOWN_FAILURE",
+    "NONE"
+  ],
+  "trusted_runtime": {
+    "producer": "trusted-apk-verifier",
+    "require_trusted_true": true,
+    "require_exact_repository": true,
+    "require_exact_resolved_sha": true
+  },
+  "invariants": [
+    "root_and_attempt_work_items_are_identity_bound",
+    "attempt_two_must_start_from_attempt_one_materialized_sha",
+    "repair_result_must_bind_attempt_work_item_and_exact_source_sha",
+    "focused_verification_must_bind_repair_identity",
+    "applab_pass_requires_validated_trusted_evidence_binding",
+    "trusted_app_pass_is_observed_not_minted",
+    "failed_attempt_history_is_immutable",
+    "unknown_failure_stops_code_repair",
+    "same_failure_signature_after_second_repair_stops",
+    "unexplained_failure_class_mutation_stops",
+    "repair_attempt_budget_is_hard",
+    "loop_never_pushes_merges_or_releases"
+  ]
+}

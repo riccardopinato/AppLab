@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_DRAFT_PR_STEWARD",
+  "authority": "DRAFT_BRANCH_AND_PR_ONLY",
+  "branch_prefix": "applab/repair/",
+  "max_repair_attempts": 2,
+  "required_capabilities": {
+    "create": "CREATE_DRAFT_PR",
+    "update": "UPDATE_DRAFT_PR"
+  },
+  "mandatory_denials": [
+    "WRITE_MAIN",
+    "WRITE_FACTORY_CORE",
+    "READ_SECRETS",
+    "EDIT_WORKFLOW",
+    "EDIT_BRANCH_PROTECTION",
+    "RELEASE",
+    "WEAKEN_TESTS",
+    "SELF_APPROVE",
+    "SELF_MERGE"
+  ],
+  "allowed_states": [
+    "MATERIALIZED_LOCAL",
+    "DRAFT_PR_CREATED",
+    "DRAFT_PR_UPDATED",
+    "BLOCKED"
+  ],
+  "invariants": [
+    "exact_work_item_sha_must_equal_materialization_parent",
+    "result_patch_hash_must_match_v60c_repair_result",
+    "repair_branch_is_namespaced_and_never_base_branch",
+    "first_remote_materialization_requires_absent_repair_branch",
+    "update_requires_remote_repair_branch_head_equal_current_work_item_sha",
+    "remote_push_is_fast_forward_only",
+    "existing_pr_must_be_draft_and_match_base_and_head",
+    "steward_never_marks_ready_approves_merges_or_releases",
+    "credentials_are_opaque_transport_and_never_read_or_logged",
+    "materialization_output_binds_repair_identity_to_exact_commit_sha"
+  ]
+}
