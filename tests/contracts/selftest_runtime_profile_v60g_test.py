@@ -19,6 +19,19 @@ def main() -> int:
     assert execution_contract["profile"] == "FULL"
     assert execution_contract["reason"] == "RUNTIME_OR_CERTIFICATION_SURFACE_CHANGED"
 
+    runtime_transport = planner.plan([
+        "backend/app/runtime.py",
+        "backend/app/gateway_wrapper.py",
+        "frontend/e2e/live-webrtc.spec.mjs",
+    ])
+    assert runtime_transport["profile"] == "FULL"
+    assert runtime_transport["reason"] == "RUNTIME_OR_CERTIFICATION_SURFACE_CHANGED"
+    assert set(runtime_transport["full_trigger_files"]) == {
+        "backend/app/runtime.py",
+        "backend/app/gateway_wrapper.py",
+        "frontend/e2e/live-webrtc.spec.mjs",
+    }
+
     fast = planner.plan([
         "scripts/agent_work_graph_v60a.py",
         "tests/contracts/agent_work_graph_v60a_test.py",
