@@ -99,6 +99,7 @@ FAST_PATTERNS = (
     "scripts/draft_pr_steward_v60e.py",
     "scripts/closed_loop_pilot_v61a.py",
     "scripts/event_driven_recovery_v61b.py",
+    "scripts/queue_backpressure_budget_v61c.py",
     "scripts/autonomous_failure_triage_v58a.py",
     "scripts/contract_fingerprint.py",
     "scripts/maintainability_budget.py",
@@ -285,6 +286,9 @@ def self_test() -> None:
     operations = plan(["scripts/agent_operations_studio_v60i.py"])
     assert operations["profile"] == "FAST"
     assert operations["reason"] == "BOUNDED_ORCHESTRATION_SURFACE"
+    queue_budget = plan(["scripts/queue_backpressure_budget_v61c.py"])
+    assert queue_budget["profile"] == "FAST"
+    assert queue_budget["reason"] == "BOUNDED_ORCHESTRATION_SURFACE"
     f_delta = plan([
         "scripts/agent_memory_v60f.py",
         "scripts/autonomous_failure_triage_v58a.py",
