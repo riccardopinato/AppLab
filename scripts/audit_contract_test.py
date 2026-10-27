@@ -49,8 +49,8 @@ def check_version_alignment() -> None:
         encoding="utf-8"
     )
     require(
-        f'APPLAB_VERSION="{EXPECTED_VERSION}"' in emulator
-        and 'APPLAB_VERSION="4.1.0"' not in emulator,
+        f'APPLAB_VERSION: "{EXPECTED_VERSION}"' in emulator
+        and 'APPLAB_VERSION: "4.1.0"' not in emulator,
         "Emulator self-test report identity is stale",
     )
 
