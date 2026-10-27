@@ -339,7 +339,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          python .applab/scripts/autonomous_experiment_planner.py \
+          bash .applab/scripts/run_evidence_node_v60g.sh experiment python .applab/scripts/autonomous_experiment_planner.py \
             --evidence-dir "$GITHUB_WORKSPACE/applab-autonomous-review" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
 
@@ -347,7 +347,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          python .applab/scripts/applab_analyst.py \
+          bash .applab/scripts/run_evidence_node_v60g.sh analyst python .applab/scripts/applab_analyst.py \
             --evidence-dir "$GITHUB_WORKSPACE/applab-autonomous-review" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
 
@@ -355,7 +355,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          python .applab/scripts/evidence_graph.py \
+          bash .applab/scripts/run_evidence_node_v60g.sh evidence_graph python .applab/scripts/evidence_graph.py \
             --evidence-dir "$GITHUB_WORKSPACE/applab-autonomous-review" \
             --trusted-runtime-dir "$GITHUB_WORKSPACE/trusted-runtime" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
@@ -364,7 +364,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          python .applab/scripts/planner_feedback.py \
+          bash .applab/scripts/run_evidence_node_v60g.sh planner_feedback python .applab/scripts/planner_feedback.py \
             --graph "$GITHUB_WORKSPACE/applab-autonomous-review/evidence-graph.json" \
             --analysis-plan "$GITHUB_WORKSPACE/trusted-runtime/analysis-plan.json" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
@@ -377,7 +377,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          python .applab/scripts/simulated_human_qa.py \
+          bash .applab/scripts/run_evidence_node_v60g.sh simulated_human python .applab/scripts/simulated_human_qa.py \
             --evidence-dir "$GITHUB_WORKSPACE/applab-autonomous-review" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
 
@@ -387,7 +387,7 @@ jobs:
           MAX_FILES: ${{ inputs.max_files || '3500' }}
         run: |
           set -Eeuo pipefail
-          python .applab/scripts/design_system_advisor.py \
+          bash .applab/scripts/run_evidence_node_v60g.sh design_advisor python .applab/scripts/design_system_advisor.py \
             --repo-root "$GITHUB_WORKSPACE/target" \
             --evidence-dir "$GITHUB_WORKSPACE/applab-autonomous-review" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review" \
@@ -410,7 +410,7 @@ jobs:
           if [[ -f "$GITHUB_WORKSPACE/target/$MARKET_EVIDENCE_PATH" ]]; then
             ARGS+=(--market-evidence "$GITHUB_WORKSPACE/target/$MARKET_EVIDENCE_PATH")
           fi
-          python .applab/scripts/competitive_product_intelligence.py "${ARGS[@]}"
+          bash .applab/scripts/run_evidence_node_v60g.sh competitive python .applab/scripts/competitive_product_intelligence.py "${ARGS[@]}"
 
       - name: Bind trusted release evidence for assurance
         shell: bash
@@ -427,14 +427,14 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          python .applab/scripts/release_assurance.py \
+          bash .applab/scripts/run_evidence_node_v60g.sh release_assurance python .applab/scripts/release_assurance.py \
             --report-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
 
       - name: Build Virtual Product Review Council
         shell: bash
         run: |
           set -Eeuo pipefail
-          python .applab/scripts/virtual_product_review_council.py \
+          bash .applab/scripts/run_evidence_node_v60g.sh review_council python .applab/scripts/virtual_product_review_council.py \
             --evidence-dir "$GITHUB_WORKSPACE/applab-autonomous-review" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
 
@@ -442,7 +442,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ steps.longitudinal_scope.outputs.artifact_name }}
-          path: .applab-longitudinal/**/*.json
+          path: .applab-longitudinal/**
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 90
