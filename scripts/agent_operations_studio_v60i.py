@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import production_operations_evidence_v61e as production_evidence
+
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
@@ -45,55 +47,12 @@ def _attempt_number(record: dict[str, Any]) -> int:
         return 0
 
 
-def _production_projection(records: list[dict[str, Any]]) -> dict[str, Any]:
-    projection = {
-        "available": False,
-        "production_status": "NO_EVIDENCE",
-        "active_stage": "",
-        "operation_count": 0,
-        "promotion": "HOLD",
-        "operations_gate": "HOLD",
-        "rollback": "NO_ROLLBACK_SIGNAL",
-        "recommended_stage": "",
-        "latency_alert_count": 0,
-        "repeated_signature_stops": 0,
-        "covered_waits": 0,
-        "external_queries": 0,
-        "coalesced_wait_savings": 0,
-        "authority": "READ_ONLY_OPERATIONS_EVIDENCE",
-    }
-    for record in records:
-        if not isinstance(record, dict) or record.get("record_type") != "APPLAB_V61E_OPERATIONS_EVIDENCE":
-            continue
-        observation = record.get("observation_totals") if isinstance(record.get("observation_totals"), dict) else {}
-        promotion = record.get("promotion") if isinstance(record.get("promotion"), dict) else {}
-        gate = record.get("operations_gate") if isinstance(record.get("operations_gate"), dict) else {}
-        rollback = record.get("rollback") if isinstance(record.get("rollback"), dict) else {}
-        projection = {
-            "available": bool(record.get("operation_count")),
-            "production_status": str(record.get("production_status") or "NO_EVIDENCE"),
-            "active_stage": str(record.get("active_stage") or ""),
-            "operation_count": int(record.get("operation_count", 0) or 0),
-            "promotion": str(promotion.get("decision") or "HOLD"),
-            "operations_gate": str(gate.get("decision") or "HOLD"),
-            "rollback": str(rollback.get("decision") or "NO_ROLLBACK_SIGNAL"),
-            "recommended_stage": str(rollback.get("recommended_stage") or ""),
-            "latency_alert_count": len(record.get("latency_alerts") or []),
-            "repeated_signature_stops": int(record.get("repeated_signature_stops", 0) or 0),
-            "covered_waits": int(observation.get("covered_waits", 0) or 0),
-            "external_queries": int(observation.get("external_queries", 0) or 0),
-            "coalesced_wait_savings": int(observation.get("coalesced_wait_savings", 0) or 0),
-            "authority": "READ_ONLY_OPERATIONS_EVIDENCE",
-        }
-    return projection
-
-
 def build_agent_operations(records: list[dict[str, Any]]) -> dict[str, Any]:
     items: dict[str, dict[str, Any]] = {}
     operation_to_work: dict[str, str] = {}
     attempt_to_work: dict[str, str] = {}
     source_to_work: dict[tuple[str, str], list[str]] = {}
-    production_operations = _production_projection(records)
+    production_operations = production_evidence.studio_projection(records)
 
     for record in records:
         if not isinstance(record, dict):
