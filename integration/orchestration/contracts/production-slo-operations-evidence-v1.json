@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_PRODUCTION_SLO_OPERATIONS_EVIDENCE",
+  "authority": "READ_ONLY_OPERATIONS_EVIDENCE",
+  "record_type": "APPLAB_V61E_OPERATION_EVIDENCE",
+  "summary_record_type": "APPLAB_V61E_OPERATIONS_EVIDENCE",
+  "minimum_latency_samples_per_repository": 3,
+  "latency_alert_targets": {
+    "commit_to_green_p95_seconds": 900,
+    "queue_wait_p95_seconds": 120,
+    "orchestration_overhead_p95_seconds": 180,
+    "github_execution_p95_seconds": 720,
+    "repair_runtime_p95_seconds": 600
+  },
+  "promotion_evidence_fields": [
+    "successful_closed_loop_operations",
+    "failed_closed_loop_operations",
+    "authority_breaches",
+    "false_repairs",
+    "recovery_failures",
+    "exact_identity_violations"
+  ],
+  "rollback_triggers": [
+    "FAILED_CLOSED_LOOP_OPERATION",
+    "AUTHORITY_BREACH",
+    "FALSE_REPAIR",
+    "RECOVERY_FAILURE",
+    "EXACT_IDENTITY_VIOLATION"
+  ],
+  "observation_efficiency_fields": [
+    "event_observations",
+    "reconciliation_recoveries",
+    "fallback_observation_batches",
+    "covered_waits",
+    "external_queries"
+  ],
+  "invariants": [
+    "production_evidence_is_read_only_and_cannot_mint_pass_or_certified",
+    "source_repository_ref_source_sha_and_applab_sha_are_immutable_evidence_identity",
+    "github_execution_time_is_reported_separately_from_applab_orchestration_overhead",
+    "latency_targets_are_operational_alerts_not_verification_or_certification_authority",
+    "insufficient_latency_samples_remain_monitoring_only",
+    "promotion_eligibility_reuses_v61d_evidence_gate_and_never_changes_policy",
+    "rollback_is_a_recommendation_and_never_mutates_stage_or_kill_switches",
+    "false_repair_authority_breach_recovery_failure_and_identity_violation_fail_closed",
+    "repeated_failure_signature_stops_are_counted_as_safety_stops_not_successes",
+    "event_driven_progression_and_bounded_fallback_efficiency_are_reported",
+    "operations_studio_projection_remains_read_only",
+    "merge_release_verification_and_certification_authority_are_unchanged"
+  ],
+  "authority_boundaries": {
+    "policy_change": "NONE",
+    "merge": "NONE",
+    "release": "NONE",
+    "verification": "UNCHANGED",
+    "certification": "UNCHANGED"
+  }
+}
