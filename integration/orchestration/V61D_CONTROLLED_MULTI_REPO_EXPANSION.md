@@ -1,6 +1,18 @@
 # AppLab v6.1D — Controlled Multi-Repo Expansion
 
-Status: **IMPLEMENTED CANDIDATE / PROMOTION HELD AT SELF_CANARY**
+Status: **LANDED / EXACT-HEAD VALIDATED / PROMOTION HELD AT SELF_CANARY**
+
+## Landing evidence
+
+- PR: #194
+- exact validated head: `b87a93a5b28be0a06b0368eba8ed398accaddaf6`
+- required workflows: **8/8 GREEN**
+- unresolved review threads at merge: **0**
+- squash merge on `main`: `0204cc5f2c738d898b98de2f1516b3e47987d272`
+- review hardening preserved repository kill switches in exported configs,
+  isolated inactive out-of-cohort repositories, and kept terminal/policy-revoked
+  WorkItems from receiving new budget activity.
+- live policy remains **SELF_CANARY**; this landing is not PILOT_3 promotion.
 
 ## Purpose
 
