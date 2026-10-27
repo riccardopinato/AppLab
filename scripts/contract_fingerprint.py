@@ -64,6 +64,8 @@ CONTRACT_FILES = (
     "scripts/self_change_plan_v60g.py",
     "scripts/autonomous_pr_steward_v60e.py",
     "scripts/agent_memory_v60f.py",
+    "scripts/sensor_mesh_v60h.py",
+    "scripts/advanced_hardening_v56e.py",
     "integration/orchestration/contracts/agent-episodic-memory-v1.json",
     "integration/orchestration/contracts/autonomous-pr-steward-v1.json",
     "scripts/self_evidence_dag_v60g.py",
