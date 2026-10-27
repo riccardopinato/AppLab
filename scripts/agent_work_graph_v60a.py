@@ -187,6 +187,23 @@ def validate_action(
     return payload
 
 
+def validate_attempt_link(
+    payload: dict[str, Any], contract: dict[str, Any]
+) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise WorkGraphError("attempt_link must be an object")
+    spec = contract["attempt_link"]
+    _require_fields(payload, spec["required"], "attempt_link")
+    if payload.get("schema_version") != 1 or payload.get("record_type") != spec["record_type"]:
+        raise WorkGraphError("attempt_link contract mismatch")
+    _require_work_id(payload.get("attempt_link_id"), "attempt_link_id")
+    _require_work_id(payload.get("work_item_id"), "work_item_id")
+    _require_work_id(payload.get("action_id"), "action_id")
+    brain._require_id(payload.get("attempt_id"), "attempt_id")
+    brain._require_non_empty_string(payload.get("created_at"), "created_at")
+    return payload
+
+
 def validate_verdict(payload: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise WorkGraphError("verdict must be an object")
@@ -302,6 +319,17 @@ CREATE TABLE IF NOT EXISTS agent_work_actions (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS agent_work_attempt_links (
+    attempt_link_id TEXT PRIMARY KEY,
+    work_item_id TEXT NOT NULL REFERENCES agent_work_items(work_item_id),
+    action_id TEXT NOT NULL REFERENCES agent_work_actions(action_id),
+    attempt_id TEXT NOT NULL REFERENCES attempts(attempt_id),
+    payload_sha256 TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(work_item_id, attempt_id)
+);
+
 CREATE TABLE IF NOT EXISTS agent_work_verdicts (
     verdict_id TEXT PRIMARY KEY,
     work_item_id TEXT NOT NULL REFERENCES agent_work_items(work_item_id),
@@ -332,6 +360,10 @@ CREATE TRIGGER IF NOT EXISTS agent_actions_no_update
 BEFORE UPDATE ON agent_work_actions BEGIN SELECT RAISE(ABORT, 'agent actions append-only'); END;
 CREATE TRIGGER IF NOT EXISTS agent_actions_no_delete
 BEFORE DELETE ON agent_work_actions BEGIN SELECT RAISE(ABORT, 'agent actions append-only'); END;
+CREATE TRIGGER IF NOT EXISTS agent_attempt_links_no_update
+BEFORE UPDATE ON agent_work_attempt_links BEGIN SELECT RAISE(ABORT, 'agent attempt links append-only'); END;
+CREATE TRIGGER IF NOT EXISTS agent_attempt_links_no_delete
+BEFORE DELETE ON agent_work_attempt_links BEGIN SELECT RAISE(ABORT, 'agent attempt links append-only'); END;
 CREATE TRIGGER IF NOT EXISTS agent_verdicts_no_update
 BEFORE UPDATE ON agent_work_verdicts BEGIN SELECT RAISE(ABORT, 'agent verdicts append-only'); END;
 CREATE TRIGGER IF NOT EXISTS agent_verdicts_no_delete
@@ -366,6 +398,18 @@ class AgentWorkGraphStore:
 
     def _operation(self, operation_id: str) -> dict[str, Any]:
         return self.store.get_operation(operation_id)
+
+    def _validate_evidence_refs(self, work_item_id: str, refs: list[str]) -> None:
+        operation_id = self.get_work_item(work_item_id)["operation_id"]
+        for ref in refs:
+            evidence = self.db.execute(
+                "SELECT operation_id FROM evidence_refs WHERE evidence_ref_id=?",
+                (ref,),
+            ).fetchone()
+            if evidence is None:
+                raise WorkGraphError("work graph references unknown evidence")
+            if evidence["operation_id"] != operation_id:
+                raise WorkGraphError("work graph evidence belongs to another operation")
 
     def put_work_item(self, payload: dict[str, Any]) -> dict[str, Any]:
         operation = self._operation(str(payload.get("operation_id") or ""))
@@ -424,6 +468,7 @@ class AgentWorkGraphStore:
     def put_decision(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_decision(payload, self.contract)
         self.get_work_item(payload["work_item_id"])
+        self._validate_evidence_refs(payload["work_item_id"], payload["evidence_ref_ids"])
         digest = self._digest(payload)
         existing = self.db.execute(
             "SELECT payload_sha256,sequence_number FROM agent_work_decisions WHERE decision_id=?",
@@ -490,6 +535,56 @@ class AgentWorkGraphStore:
             )
         return {"status": "INSERTED", "action_id": payload["action_id"]}
 
+    def put_attempt_link(self, payload: dict[str, Any]) -> dict[str, Any]:
+        validate_attempt_link(payload, self.contract)
+        item = self.get_work_item(payload["work_item_id"])
+        action = self.db.execute(
+            "SELECT work_item_id FROM agent_work_actions WHERE action_id=?",
+            (payload["action_id"],),
+        ).fetchone()
+        if action is None or action["work_item_id"] != payload["work_item_id"]:
+            raise WorkGraphError("attempt link action identity mismatch")
+        attempt = self.db.execute(
+            "SELECT operation_id FROM attempts WHERE attempt_id=?",
+            (payload["attempt_id"],),
+        ).fetchone()
+        if attempt is None:
+            raise WorkGraphError("attempt link references unknown durable attempt")
+        if attempt["operation_id"] != item["operation_id"]:
+            raise WorkGraphError("attempt link belongs to another operation")
+        digest = self._digest(payload)
+        existing = self.db.execute(
+            "SELECT payload_sha256 FROM agent_work_attempt_links WHERE attempt_link_id=?",
+            (payload["attempt_link_id"],),
+        ).fetchone()
+        if existing:
+            if existing["payload_sha256"] != digest:
+                raise WorkGraphError("attempt_link_id reused with conflicting immutable payload")
+            return {"status": "REPLAY", "attempt_link_id": payload["attempt_link_id"]}
+        duplicate = self.db.execute(
+            "SELECT attempt_link_id FROM agent_work_attempt_links WHERE work_item_id=? AND attempt_id=?",
+            (payload["work_item_id"], payload["attempt_id"]),
+        ).fetchone()
+        if duplicate:
+            return {"status": "ATTEMPT_REUSE", "attempt_link_id": duplicate["attempt_link_id"]}
+        with self.db:
+            self.db.execute(
+                """
+                INSERT INTO agent_work_attempt_links(
+                    attempt_link_id,work_item_id,action_id,attempt_id,payload_sha256,payload_json
+                ) VALUES (?,?,?,?,?,?)
+                """,
+                (
+                    payload["attempt_link_id"],
+                    payload["work_item_id"],
+                    payload["action_id"],
+                    payload["attempt_id"],
+                    digest,
+                    brain.canonical_json(payload),
+                ),
+            )
+        return {"status": "INSERTED", "attempt_link_id": payload["attempt_link_id"]}
+
     def put_verdict(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_verdict(payload, self.contract)
         self.get_work_item(payload["work_item_id"])
@@ -499,15 +594,7 @@ class AgentWorkGraphStore:
         ).fetchone()
         if decision is None or decision["work_item_id"] != payload["work_item_id"]:
             raise WorkGraphError("verdict decision identity mismatch")
-        for ref in payload["evidence_ref_ids"]:
-            evidence = self.db.execute(
-                "SELECT operation_id FROM evidence_refs WHERE evidence_ref_id=?", (ref,)
-            ).fetchone()
-            if evidence is None:
-                raise WorkGraphError("verdict references unknown evidence")
-            operation_id = self.get_work_item(payload["work_item_id"])["operation_id"]
-            if evidence["operation_id"] != operation_id:
-                raise WorkGraphError("verdict evidence belongs to another operation")
+        self._validate_evidence_refs(payload["work_item_id"], payload["evidence_ref_ids"])
         digest = self._digest(payload)
         existing = self.db.execute(
             "SELECT payload_sha256 FROM agent_work_verdicts WHERE verdict_id=?",
@@ -652,6 +739,7 @@ class AgentWorkGraphStore:
             "agent_work_items",
             "agent_work_decisions",
             "agent_work_actions",
+            "agent_work_attempt_links",
             "agent_work_verdicts",
             "agent_work_transitions",
         ):
@@ -718,6 +806,24 @@ def self_test() -> None:
                 "created_at": "2026-10-27T00:02:00Z",
             }
             assert graph.put_action(action)["status"] == "INSERTED"
+            attempt = brain._attempt_fixture(
+                "att_v60a", "op_v60a", 1, "SUCCEEDED", "NONE", False
+            )
+            assert durable.put_attempt(attempt)["status"] == "INSERTED"
+            attempt_link = {
+                "schema_version": 1,
+                "record_type": "APPLAB_WORK_ATTEMPT_LINK",
+                "attempt_link_id": "lnk_v60a_1",
+                "work_item_id": "wrk_v60a",
+                "action_id": "act_v60a_1",
+                "attempt_id": "att_v60a",
+                "created_at": "2026-10-27T00:02:30Z",
+            }
+            assert graph.put_attempt_link(attempt_link)["status"] == "INSERTED"
+            evidence = storemod._evidence_fixture(
+                "evd_v60a_1", operation, "att_v60a"
+            )
+            assert durable.put_evidence_ref(evidence)["status"] == "INSERTED"
             verdict = {
                 "schema_version": 1,
                 "record_type": "APPLAB_WORK_VERDICT",
@@ -726,7 +832,7 @@ def self_test() -> None:
                 "decision_id": "dec_v60a_1",
                 "state": "CONTINUE",
                 "reason_code": "MORE_EVIDENCE_REQUIRED",
-                "evidence_ref_ids": [],
+                "evidence_ref_ids": ["evd_v60a_1"],
                 "authority": "ORCHESTRATION_ONLY",
                 "created_at": "2026-10-27T00:03:00Z",
             }
