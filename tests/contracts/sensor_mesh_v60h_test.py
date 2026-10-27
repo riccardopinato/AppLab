@@ -28,6 +28,8 @@ def main() -> int:
 
     low = mesh.plan_sensors(
         {
+            "repository": "owner/app",
+            "resolved_sha": "a" * 40,
             "risk_score": 10,
             "selected_labs": {},
             "changed_files": ["lib/presentation/home.dart"],
@@ -42,6 +44,8 @@ def main() -> int:
 
     dependency = mesh.plan_sensors(
         {
+            "repository": "owner/app",
+            "resolved_sha": "b" * 40,
             "risk_score": 25,
             "selected_labs": {},
             "changed_files": ["pubspec.lock"],
@@ -52,6 +56,8 @@ def main() -> int:
 
     security = mesh.plan_sensors(
         {
+            "repository": "owner/app",
+            "resolved_sha": "c" * 40,
             "risk_score": 80,
             "selected_labs": {"network": True, "resource_pressure": True},
             "changed_files": [
