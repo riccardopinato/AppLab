@@ -360,6 +360,28 @@ jobs:
             --trusted-runtime-dir "$GITHUB_WORKSPACE/trusted-runtime" \
             --output-dir "$GITHUB_WORKSPACE/applab-autonomous-review"
 
+      - name: Validate v6.0G review fan-out producer contract
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Build graph-aware planner feedback
+          test -f "$GITHUB_WORKSPACE/.applab/scripts/planner_feedback.py"
+          # Build Simulated Human QA
+          test -f "$GITHUB_WORKSPACE/.applab/scripts/simulated_human_qa.py"
+          # Build Design System & UI Library Advisor
+          test -f "$GITHUB_WORKSPACE/.applab/scripts/design_system_advisor.py"
+          # Build Competitive Product Intelligence
+          test -f "$GITHUB_WORKSPACE/.applab/scripts/competitive_product_intelligence.py"
+          printf '%s\n' \
+            "scripts/planner_feedback.py" \
+            "planner-feedback.md" \
+            "scripts/simulated_human_qa.py" \
+            "simulated-human-qa.md" \
+            "scripts/design_system_advisor.py" \
+            "design-system-advisor.md" \
+            "scripts/competitive_product_intelligence.py" \
+            "competitive-product-intelligence.md"
+
       - name: Plan v6.0G content-addressed review fan-out
         id: review_dag
         shell: bash
