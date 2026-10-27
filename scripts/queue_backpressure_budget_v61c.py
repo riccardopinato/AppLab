@@ -341,6 +341,48 @@ def register_budget(
         durable.close()
 
 
+
+def _existing_attempt_reservation(
+    durable: storemod.SQLiteShadowStore,
+    *,
+    work_item_id: str,
+    attempt_number: int,
+    changed_files: int,
+    changed_lines: int,
+    runtime_seconds: int,
+    cost_units: int,
+) -> dict[str, Any] | None:
+    rows = durable.db.execute(
+        """
+        SELECT payload_json
+        FROM agent_repair_budget_events
+        WHERE work_item_id=? AND event_kind='ATTEMPT_RESERVATION'
+        ORDER BY created_at ASC,budget_event_id ASC
+        """,
+        (work_item_id,),
+    ).fetchall()
+    requested = {
+        "attempt_number": attempt_number,
+        "changed_files": changed_files,
+        "changed_lines": changed_lines,
+        "runtime_seconds": runtime_seconds,
+        "cost_units": cost_units,
+    }
+    for row in rows:
+        payload = json.loads(row["payload_json"])
+        if int(payload.get("attempt_number", 0)) != attempt_number:
+            continue
+        persisted = {
+            key: int(payload.get(key, -1))
+            for key in requested
+        }
+        if persisted != requested:
+            raise BudgetError(
+                "attempt reservation replay conflicts with immutable attempt usage"
+            )
+        return payload
+    return None
+
 def reserve_repair_attempt(
     *,
     db_path: Path,
@@ -362,6 +404,24 @@ def reserve_repair_attempt(
         durable.db.execute("BEGIN IMMEDIATE")
         try:
             row = _budget_row(durable, work_item_id)
+            existing_reservation = _existing_attempt_reservation(
+                durable,
+                work_item_id=work_item_id,
+                attempt_number=attempt_number,
+                changed_files=changed_files,
+                changed_lines=changed_lines,
+                runtime_seconds=runtime_seconds,
+                cost_units=cost_units,
+            )
+            if existing_reservation is not None:
+                durable.db.commit()
+                current = _budget_row(durable, work_item_id)
+                return {
+                    "authorized": bool(existing_reservation["authorized"]),
+                    "reason": str(existing_reservation["reason"]),
+                    "budget_state": current["state"],
+                    "event_persistence": "REPLAY",
+                }
             if row["state"] == "STOPPED":
                 durable.db.commit()
                 return {
