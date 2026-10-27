@@ -55,6 +55,7 @@ def main() -> int:
             operation,
             work_item_id="wrk_steward",
             allow_code_edit=True,
+            allow_draft_pr_steward=True,
         )
         assert "CREATE_DRAFT_PR" in work_item["authority_envelope"]["allowed_capabilities"]
         assert "UPDATE_DRAFT_PR" in work_item["authority_envelope"]["allowed_capabilities"]
