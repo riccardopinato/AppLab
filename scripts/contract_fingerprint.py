@@ -63,6 +63,8 @@ CONTRACT_FILES = (
     "scripts/verify_repair_loop_v60d.py",
     "scripts/draft_pr_steward_v60e.py",
     "scripts/closed_loop_pilot_v61a.py",
+    "scripts/self_canary_witness_v62a.py",
+    ".github/workflows/controlled-event-pilot.yml",
     "integration/orchestration/contracts/closed-loop-pilot-v1.json",
     "integration/orchestration/v61-closed-loop-pilot.json",
     "scripts/event_driven_recovery_v61b.py",

@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "scripts/controlled_event_v54g.py"
+      - "scripts/self_canary_witness_v62a.py"
+      - "tests/contracts/self_canary_witness_v62a_test.py"
       - "tests/contracts/controlled_event_v54g_test.py"
       - "integration/orchestration/contracts/controlled-event-pilot-v1.json"
       - "integration/orchestration/v54g-pilot.json"
@@ -13,6 +15,8 @@ on:
     branches: [main]
     paths:
       - "scripts/controlled_event_v54g.py"
+      - "scripts/self_canary_witness_v62a.py"
+      - "tests/contracts/self_canary_witness_v62a_test.py"
       - "tests/contracts/controlled_event_v54g_test.py"
       - "integration/orchestration/contracts/controlled-event-pilot-v1.json"
       - "integration/orchestration/v54g-pilot.json"
@@ -105,6 +109,27 @@ jobs:
 
           cat "$GITHUB_WORKSPACE/v54g-admission.json" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Bind live v6 WorkItem to existing dispatched operation
+        if: steps.control.outputs.dispatch == 'true' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python scripts/closed_loop_pilot_v61a.py \
+            --db "$GITHUB_WORKSPACE/.applab-v54g/control-plane.sqlite3" \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-ref "refs/heads/main" \
+            --resolved-sha "$GITHUB_SHA" \
+            --applab-sha "$(git rev-parse HEAD)" \
+            --delivery-id "$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT" \
+            --live-requested > "$GITHUB_WORKSPACE/v61a-closed-loop.json"
+          python scripts/self_canary_witness_v62a.py \
+            --admission "$GITHUB_WORKSPACE/v54g-admission.json" \
+            --closed-loop "$GITHUB_WORKSPACE/v61a-closed-loop.json" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --output "$GITHUB_WORKSPACE/v62a-admission-witness.json"
+          cat "$GITHUB_WORKSPACE/v62a-admission-witness.json" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload admission and durable ledger
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -112,6 +137,8 @@ jobs:
           path: |
             .applab-v54g/
             v54g-admission.json
+            v61a-closed-loop.json
+            v62a-admission-witness.json
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 30
@@ -177,6 +204,17 @@ jobs:
           python scripts/controlled_event_v54g.py finalize             --db "$GITHUB_WORKSPACE/.applab-v54g/control-plane.sqlite3"             --operation-id "$OPERATION_ID"             --worker-id "$WORKER_ID"             --job-result "$VERIFY_RESULT"             --output "$GITHUB_WORKSPACE/v54g-final.json"
           cat "$GITHUB_WORKSPACE/v54g-final.json" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Finalize v6.2A observation without granting repair promotion
+        if: hashFiles('v62a-admission-witness.json') != ''
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python scripts/self_canary_witness_v62a.py \
+            --witness "$GITHUB_WORKSPACE/v62a-admission-witness.json" \
+            --final "$GITHUB_WORKSPACE/v54g-final.json" \
+            --output "$GITHUB_WORKSPACE/v62a-final-witness.json"
+          cat "$GITHUB_WORKSPACE/v62a-final-witness.json" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Save updated non-authoritative pilot ledger
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
@@ -191,6 +229,8 @@ jobs:
             .applab-v54g/
             v54g-admission.json
             v54g-final.json
+            v62a-admission-witness.json
+            v62a-final-witness.json
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 30
