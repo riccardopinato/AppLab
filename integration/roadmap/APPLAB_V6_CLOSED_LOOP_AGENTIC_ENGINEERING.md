@@ -1,6 +1,6 @@
 # AppLab v6.0 — Closed-Loop Agentic Engineering
 
-Status: **PLANNED / IMPLEMENTATION PROGRAM**  
+Status: **IMPLEMENTATION LANDED / v6.0G TIMING PROMOTION OPEN**  
 Factory baseline: `App-Factory-Core@ed6466e774a28e95f9f371cd56bbf7278428776a`
 
 ## 1. Why v6
@@ -146,9 +146,11 @@ Allowed:
 Forbidden:
 - approve own PR;
 - dismiss/resolve external findings unilaterally;
-- merge;
+- merge before the exact-head required checks/reviews and blocking-finding gates are satisfied;
 - release;
 - alter branch protection.
+
+Post-gate automatic merge is allowed as a separate repository automation/executor authority once all applicable exact-head gates are satisfied. It never converts a red, missing or unresolved gate into success and does not grant self-approval or release authority.
 
 ## 7. Agent Memory & Policy Learning — v6.0F
 
@@ -256,4 +258,4 @@ proposal-only
  -> draft PR steward
 ```
 
-Auto-merge and autonomous release remain outside this program.
+Post-gate automatic merge is allowed when every applicable exact-head gate is satisfied. Self-approval and autonomous release remain outside this program.
