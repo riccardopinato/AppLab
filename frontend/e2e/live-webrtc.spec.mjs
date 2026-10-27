@@ -386,7 +386,14 @@ test("streams real Android video and sends real WebRTC input", async ({
   });
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const alreadyApplied = (await hierarchy(request)).includes("INTERACTION_OK");
+    const beforeAttempt = await endpointDiagnostics(
+      request,
+      `${BACKEND}/api/ui/hierarchy`,
+    );
+    const alreadyApplied =
+      beforeAttempt.ok &&
+      typeof beforeAttempt.body === "object" &&
+      String(beforeAttempt.body?.xml || "").includes("INTERACTION_OK");
     if (alreadyApplied) break;
 
     await page.mouse.move(browserX, browserY);
@@ -396,7 +403,17 @@ test("streams real Android video and sends real WebRTC input", async ({
 
     try {
       await expect
-        .poll(async () => (await hierarchy(request)).includes("INTERACTION_OK"), {
+        .poll(async () => {
+          const snapshot = await endpointDiagnostics(
+            request,
+            `${BACKEND}/api/ui/hierarchy`,
+          );
+          return (
+            snapshot.ok &&
+            typeof snapshot.body === "object" &&
+            String(snapshot.body?.xml || "").includes("INTERACTION_OK")
+          );
+        }, {
           timeout: 20_000,
           message: "Android UI did not react to the WebRTC pointer input",
         })
@@ -408,7 +425,10 @@ test("streams real Android video and sends real WebRTC input", async ({
         error: String(error),
         native: { x: nativeX, y: nativeY, bounds },
         browser: { x: browserX, y: browserY, handlerBox },
-        hierarchy: await hierarchy(request),
+        hierarchy: await endpointDiagnostics(
+          request,
+          `${BACKEND}/api/ui/hierarchy`,
+        ),
         runtime: await endpointDiagnostics(request, `${BACKEND}/api/runtime`),
         gateway: await endpointDiagnostics(
           request,
@@ -434,7 +454,15 @@ test("streams real Android video and sends real WebRTC input", async ({
     }
   }
 
-  expect((await hierarchy(request)).includes("INTERACTION_OK")).toBe(true);
+  const finalHierarchy = await endpointDiagnostics(
+    request,
+    `${BACKEND}/api/ui/hierarchy`,
+  );
+  expect(finalHierarchy.ok).toBeTruthy();
+  expect(
+    typeof finalHierarchy.body === "object" &&
+      String(finalHierarchy.body?.xml || "").includes("INTERACTION_OK"),
+  ).toBe(true);
 
   const inputAfter = await page.evaluate(() => {
     const probe = window.__applabRtcInputProbe;
