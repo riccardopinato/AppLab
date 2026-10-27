@@ -54,6 +54,18 @@ def main() -> int:
     )
     assert dependency["selected_sensor_ids"] == ["TRIVY"]
 
+    execution_plan = mesh.plan_sensors(
+        {
+            "repository": "owner/app",
+            "resolved_sha": "d" * 40,
+            "risk_score": 30,
+            "selected_labs": ["resource_pressure"],
+            "changed_files": ["lib/cache/session.dart"],
+        },
+        {"project_type": "flutter"},
+    )
+    assert "LEAKCANARY" in execution_plan["selected_sensor_ids"]
+
     security = mesh.plan_sensors(
         {
             "repository": "owner/app",
@@ -126,6 +138,35 @@ def main() -> int:
     assert "SCRCPY_CAPTURE" in missing
     assert "MOBSF" in missing
     assert aggregate["missing_evidence_is_pass"] is False
+
+    foreign_sem = mesh.normalize_sensor_evidence({
+        "producer": "SEMGREP",
+        "repository": "other/app",
+        "source_sha": "f" * 40,
+        "evidence_refs": ["report://foreign-semgrep"],
+    })
+    foreign_trivy = mesh.normalize_sensor_evidence({
+        "producer": "TRIVY",
+        "repository": "owner/app",
+        "source_sha": "f" * 40,
+        "evidence_refs": ["report://stale-trivy"],
+    })
+    identity_plan = mesh.plan_sensors(
+        {
+            "repository": "owner/app",
+            "resolved_sha": "e" * 40,
+            "risk_score": 70,
+            "selected_labs": {},
+            "changed_files": ["pubspec.lock"],
+        },
+        {"project_type": "flutter"},
+    )
+    foreign_aggregate = mesh.aggregate(identity_plan, [foreign_sem, foreign_trivy])
+    assert foreign_aggregate["complete"] is False
+    assert all(
+        row["state"] == "SELECTED_REQUIRES_EXECUTOR"
+        for row in foreign_aggregate["sensors"]
+    )
 
     mesh.self_test()
     print("AppLab v6.0H sensor mesh contract PASS")
