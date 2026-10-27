@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_BOUNDED_FIX_WORKER",
+  "authority": "BRANCH_WORKSPACE_ONLY",
+  "supported_failure_classes": [
+    "APP_RUNTIME_FAILURE",
+    "APP_VISUAL_FAILURE",
+    "BUILD_OR_QUALITY_FAILURE"
+  ],
+  "required_investigation_state": "LOCALIZED",
+  "required_edit_recommendation": "ELIGIBLE_FOR_BOUNDED_REPAIR",
+  "budgets": {
+    "max_files": 5,
+    "max_changed_lines": 250,
+    "max_repair_attempts": 2
+  },
+  "protected_prefixes": [
+    ".github/workflows/",
+    ".github/actions/",
+    "governance/",
+    "integration/orchestration/contracts/"
+  ],
+  "protected_exact_paths": [
+    "AGENTS.md",
+    "CURRENT.yaml",
+    "ROADMAP.md",
+    "PRODUCT_BIBLE.md",
+    "MASTER_PROMPT_CURRENT.txt"
+  ],
+  "protected_name_patterns": [
+    ".env",
+    ".jks",
+    ".keystore",
+    ".p12",
+    ".pfx",
+    ".pem",
+    ".key",
+    "key.properties"
+  ],
+  "test_weakening_tokens": [
+    "skip:",
+    "@ignore",
+    "@disabled",
+    "pytest.mark.skip",
+    "unittest.skip",
+    "xit(",
+    "xdescribe(",
+    "xtest("
+  ],
+  "assertion_tokens": [
+    "assert ",
+    "assert(",
+    "expect(",
+    "verify(",
+    "should",
+    "pytest.raises",
+    "test(",
+    "it("
+  ],
+  "output_states": [
+    "READY_FOR_VERIFICATION",
+    "BLOCKED",
+    "NO_CHANGE"
+  ],
+  "invariants": [
+    "exact_source_sha_must_match_workspace_head",
+    "investigation_must_be_bounded_repair_eligible",
+    "work_item_must_allow_code_edit",
+    "patch_paths_must_be_candidate_or_regression_paths",
+    "protected_paths_are_never_modified",
+    "file_and_line_budgets_are_enforced_after_apply",
+    "test_assertion_deletion_or_skip_insertion_is_rejected",
+    "worker_never_pushes_merges_releases_or_edits_main",
+    "worker_result_does_not_mint_pass_or_certified"
+  ]
+}
