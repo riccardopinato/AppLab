@@ -10,6 +10,7 @@ PRODUCERS={
  "SEMGREP":{"wave":"FIRST_WAVE_SECURITY","artifact_role":"SOURCE_SECURITY","physical":False},
  "TRIVY":{"wave":"FIRST_WAVE_SECURITY","artifact_role":"DEPENDENCY_SECURITY","physical":False},
  "MOBSF":{"wave":"SECOND_WAVE_MOBILE","artifact_role":"MOBILE_SECURITY_ANALYSIS","physical":False},
+ "HETTY":{"wave":"SECOND_WAVE_NETWORK","artifact_role":"NETWORK_REPLAY","physical":False},
 }
 SHA_RE=re.compile(r"^[0-9a-f]{40}$")
 HASH_RE=re.compile(r"^[0-9a-f]{64}$")
