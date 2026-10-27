@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import AgentOperationsPanel, { type AgentOperationsSnapshot } from "./AgentOperationsPanel";
 
 type ReleaseMeta = {
   artifact_url?: string;
@@ -124,48 +125,6 @@ type RecentRow = {
     }>;
   };
   release?: ReleaseMeta;
-};
-
-type AgentOperationRow = {
-  work_item_id: string;
-  repository: string;
-  resolved_sha: string;
-  state: string;
-  risk: string;
-  attempts: number;
-  actions: number;
-  evidence_count: number;
-  stop_reason: string;
-  next_action: string;
-  pr_state: string;
-  pr_number?: number | null;
-  pr_url: string;
-  authority_envelope: {
-    allowed_capabilities?: string[];
-    denied_capabilities?: string[];
-  };
-  sensor_producers?: string[];
-  budget: {
-    repair_attempts?: { used?: number; max?: number };
-    files?: { max?: number };
-    changed_lines?: { used?: number; max?: number };
-  };
-};
-
-type AgentOperationsSnapshot = {
-  available: boolean;
-  summary: {
-    work_items: number;
-    active: number;
-    complete: number;
-    stopped_or_blocked: number;
-    draft_prs: number;
-    evidence_records: number;
-  };
-  work_items: AgentOperationRow[];
-  source_of_truth: string;
-  merge_authority: string;
-  release_authority: string;
 };
 
 type Snapshot = {
@@ -848,8 +807,9 @@ export default function ControlCenter({ backend, staticBase }: { backend: string
         <p className="runtime-error">Studio unavailable: {studioError}</p>
       ) : null}
 
-      {snapshot?.agent_operations ? (
-        <div className="studio-shell">
+      <AgentOperationsPanel snapshot={snapshot?.agent_operations} />
+
+      <div className="studio-shell">
           <div className="studio-head">
             <div>
               <span className="panel-kicker">AGENTIC OPERATIONS · READ ONLY</span>
