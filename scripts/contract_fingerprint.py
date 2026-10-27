@@ -62,6 +62,8 @@ CONTRACT_FILES = (
     "scripts/bounded_fix_worker_v60c.py",
     "scripts/verify_repair_loop_v60d.py",
     "scripts/draft_pr_steward_v60e.py",
+    "scripts/ci_scope_v60g.py",
+    ".github/workflows/ci.yml",
     "scripts/selftest_runtime_profile_v60g.py",
     "scripts/run_emulator_selftest_v60g.sh",
     "scripts/review_evidence_dag_v60g.py",

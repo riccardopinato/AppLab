@@ -57,6 +57,18 @@ Orchestration-only v6 scripts use the bounded FAST core path. Unknown
 The planner never emits PASS. It only selects runtime work; `verify_apk.sh`
 remains the runtime authority.
 
+### CI docs-only fast path
+
+The AppLab CI workflow now resolves a fail-closed scope before heavy work:
+
+- pull requests containing only `.md`/`.mdx` changes select `DOCS_ONLY`;
+- empty, malformed, mixed, workflow, script, source, dependency or unknown changes select `FULL`;
+- pushes always select `FULL`;
+- `DOCS_ONLY` keeps the required AppLab CI workflow present and runs diff-integrity checks, while skipping code/dependency/runtime/container work whose inputs cannot have changed;
+- CodeQL and every other independently required workflow retain their own authority and path rules.
+
+The classifier is fingerprinted, maintainability-budgeted and covered by a producer-shaped workflow contract. This is a path-aware execution optimization, not a PASS/CERTIFIED shortcut.
+
 ## Autonomous Review Evidence DAG
 
 After the authoritative Evidence Graph is built, independent advisory producers
