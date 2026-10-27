@@ -867,7 +867,7 @@ def self_test() -> dict[str, Any]:
             )
             work_items: list[str] = []
             operation_ids: list[str] = []
-            for index in (1, 2):
+            for index in (1, 2, 3):
                 operation = brain._operation_fixture(
                     f"op_v61c-{index}",
                     "riccardopinato/AppLab",
@@ -904,14 +904,22 @@ def self_test() -> dict[str, Any]:
             now_ts=20.0,
             occurred_at="2026-10-27T15:00:00Z",
         )
+        third_budget = register_budget(
+            db_path=db_path,
+            work_item_id=work_items[2],
+            now_ts=20.0,
+            occurred_at="2026-10-27T15:00:00Z",
+        )
         assert first_budget["queue_state"] == "QUEUED"
         assert second_budget["queue_state"] == "DEFERRED"
+        assert third_budget["queue_state"] == "DEFERRED"
         assert second_budget["queue_backpressure"] is True
+        assert third_budget["queue_backpressure"] is True
         assert first_budget["new_queue_created"] is False
 
         attempt1 = reserve_repair_attempt(
             db_path=db_path,
-            work_item_id=work_items[0],
+            work_item_id=work_items[2],
             attempt_number=1,
             changed_files=2,
             changed_lines=80,
@@ -922,7 +930,7 @@ def self_test() -> dict[str, Any]:
         assert attempt1["authorized"] is True
         first_failure = note_failure_signature(
             db_path=db_path,
-            work_item_id=work_items[0],
+            work_item_id=work_items[2],
             failure_signature="sig-demo",
             occurred_at="2026-10-27T15:02:00Z",
         )
@@ -930,7 +938,7 @@ def self_test() -> dict[str, Any]:
 
         attempt2 = reserve_repair_attempt(
             db_path=db_path,
-            work_item_id=work_items[0],
+            work_item_id=work_items[2],
             attempt_number=2,
             changed_files=1,
             changed_lines=40,
@@ -941,7 +949,7 @@ def self_test() -> dict[str, Any]:
         assert attempt2["authorized"] is True
         repeated = note_failure_signature(
             db_path=db_path,
-            work_item_id=work_items[0],
+            work_item_id=work_items[2],
             failure_signature="sig-demo",
             occurred_at="2026-10-27T15:04:00Z",
         )
@@ -964,23 +972,6 @@ def self_test() -> dict[str, Any]:
             now_ts=100.0,
             occurred_at="2026-10-27T15:05:00Z",
         )
-
-        # The first WorkItem was stopped by repeated failure, so use a fresh
-        # active budget for its wait projection before testing coalescing.
-        durable, _, _ = _open(db_path)
-        try:
-            with durable.db:
-                durable.db.execute(
-                    """
-                    UPDATE agent_repair_budgets
-                    SET state='ACTIVE',stop_reason='',last_failure_signature='',
-                        consumed_observation_batches=0,updated_at=?
-                    WHERE work_item_id=?
-                    """,
-                    ("2026-10-27T15:05:30Z", work_items[0]),
-                )
-        finally:
-            durable.close()
 
         plan = plan_observation_batches(
             db_path=db_path,
