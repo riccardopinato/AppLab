@@ -67,6 +67,8 @@ CONTRACT_FILES = (
     "scripts/review_evidence_dag_v60g.py",
     "scripts/agent_memory_v60f.py",
     "scripts/sensor_mesh_v60h.py",
+    "scripts/agent_operations_studio_v60i.py",
+    "frontend/src/AgentOperationsPanel.tsx",
     "integration/orchestration/contracts/sensor-mesh-v1.json",
     ".github/workflows/sensor-mesh.yml",
     "integration/orchestration/contracts/agent-memory-v1.json",
