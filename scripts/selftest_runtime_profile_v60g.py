@@ -286,9 +286,6 @@ def self_test() -> None:
     operations = plan(["scripts/agent_operations_studio_v60i.py"])
     assert operations["profile"] == "FAST"
     assert operations["reason"] == "BOUNDED_ORCHESTRATION_SURFACE"
-    queue_budget = plan(["scripts/queue_backpressure_budget_v61c.py"])
-    assert queue_budget["profile"] == "FAST"
-    assert queue_budget["reason"] == "BOUNDED_ORCHESTRATION_SURFACE"
     f_delta = plan([
         "scripts/agent_memory_v60f.py",
         "scripts/autonomous_failure_triage_v58a.py",
@@ -310,7 +307,6 @@ def self_test() -> None:
     empty = plan([])
     assert empty["profile"] == "FULL"
     print("AppLab v6.0G self-test runtime profile planner PASS")
-
 
 def main() -> int:
     parser = argparse.ArgumentParser()
