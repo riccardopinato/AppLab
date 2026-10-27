@@ -170,7 +170,16 @@ def main() -> int:
         "conflicting replay for immutable operation identity",
     )
 
-    # Non-finite latency measurements fail closed before aggregation.\n    for invalid_latency in (float("nan"), float("inf"), float("-inf"), 1e309):\n        non_finite = fixture(operation_id="non-finite")\n        non_finite["durations"]["commit_to_green_seconds"] = invalid_latency\n        expect_error(\n            lambda row=non_finite: mod.build_report([row]),\n            "finite non-negative number",\n        )\n\n    # Missing latency measurements stay missing and never become zero samples.
+    # Non-finite latency measurements fail closed before aggregation.
+    for invalid_latency in (float("nan"), float("inf"), float("-inf"), 1e309):
+        non_finite = fixture(operation_id="non-finite")
+        non_finite["durations"]["commit_to_green_seconds"] = invalid_latency
+        expect_error(
+            lambda row=non_finite: mod.build_report([row]),
+            "finite non-negative number",
+        )
+
+    # Missing latency measurements stay missing and never become zero samples.
     partial_records = [
         fixture(operation_id="partial1"),
         fixture(operation_id="partial2"),
