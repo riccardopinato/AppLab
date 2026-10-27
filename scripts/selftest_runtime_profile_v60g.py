@@ -99,6 +99,7 @@ FAST_PATTERNS = (
     "scripts/draft_pr_steward_v60e.py",
     "scripts/closed_loop_pilot_v61a.py",
     "scripts/event_driven_recovery_v61b.py",
+    "scripts/queue_backpressure_budget_v61c.py",
     "scripts/autonomous_failure_triage_v58a.py",
     "scripts/contract_fingerprint.py",
     "scripts/maintainability_budget.py",
@@ -306,7 +307,6 @@ def self_test() -> None:
     empty = plan([])
     assert empty["profile"] == "FULL"
     print("AppLab v6.0G self-test runtime profile planner PASS")
-
 
 def main() -> int:
     parser = argparse.ArgumentParser()
