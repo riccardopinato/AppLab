@@ -48,8 +48,9 @@ The investigator records uncertainty rather than hiding it:
 
 - truncated impact analysis lowers confidence;
 - bounded repository inventory truncation lowers confidence;
-- closely scored top candidates are flagged;
-- absence of an explicit diagnostic path is flagged;
+- closely scored top candidates block autonomous repair eligibility;
+- absence of an explicit diagnostic path is flagged and blocks multi-candidate repair eligibility;
+- stale/mismatched Evidence Graph identity is ignored instead of influencing scores;
 - protected paths may be localized but cannot be declared eligible for bounded
   autonomous repair.
 
@@ -76,7 +77,7 @@ The investigator is proposal-only and performs no repository mutation.
 - [x] changed/impacted-file scoring;
 - [x] diagnostic/stack path scoring;
 - [x] specialist-lab and surface scoring;
-- [x] Evidence Graph signal support;
+- [x] Evidence Graph signal support with repository/SHA identity binding;
 - [x] prior successful-repair signal support;
 - [x] paired test discovery;
 - [x] ambiguity/truncation handling;
