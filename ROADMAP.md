@@ -41,7 +41,7 @@ Goal: start v6 from a truth-clean baseline rather than carrying stale PR/documen
 | **v6.0B** | Causal Repo Investigator | **Implementation candidate:** deterministic candidate-file/root-cause ranking from diff, traces, labs, graph and history; exact-head validation pending | P0 |
 | **v6.0C** | Bounded Autonomous Fix Worker | **Implementation candidate:** exact-SHA ephemeral worktree patching with causal-scope, budget, protected-path and test-weakening gates; exact-head validation pending | P0 |
 | **v6.0D** | Verify–Repair Loop | **Implementation candidate:** canonical v6.0C fix-result → focused verify → AppLab verify, max 2 bounded repairs with identity-bound stop conditions | P0 |
-| **v6.0G** | Self-Dogfooding Throughput | Apply journey/evidence DAG concepts to AppLab itself; target ordinary FAST <6 min p95 | P0/P1 |
+| **v6.0G** | Self-Dogfooding Throughput | **Implementation candidate:** path-aware self runtime + exact-input Evidence DAG reuse; FULL self-validation and post-merge p95 evidence pending | P0/P1 |
 | **v6.0E** | Autonomous PR Steward | Create/update draft PRs, react to CI/review, never self-approve/merge/release | P1 |
 | **v6.0F** | Agent Memory & Policy Learning | Compressed episodic engineering memory; guardrails remain non-self-modifying | P1 |
 | **v6.0H** | Sensor Mesh | Risk-triggered scrcpy, LeakCanary, Semgrep, Trivy, MobSF/Hetty evidence producers | P2 |
