@@ -69,7 +69,8 @@ def main() -> int:
         encoding="utf-8"
     )
     assert "needs: scope" not in workflow
-    assert "Android runtime / required-check scope" in workflow
+    assert "\n  android-runtime:\n    runs-on: ubuntu-latest" in workflow
+    assert "name: Android runtime / required-check scope" not in workflow
     assert "steps.scope.outputs.run == 'true'" in workflow
     assert "fetch-depth: 0" in workflow
 
