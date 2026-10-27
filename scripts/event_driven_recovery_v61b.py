@@ -694,6 +694,45 @@ def reconcile_wait(
         durable.close()
 
 
+def _complete_supersession(
+    durable: storemod.SQLiteShadowStore,
+    graph: workgraph.AgentWorkGraphStore,
+    wait: dict[str, Any],
+    *,
+    new_target_sha: str,
+    occurred_at: str,
+) -> None:
+    item = graph.get_work_item(wait["work_item_id"])
+    operation = durable.get_operation(wait["operation_id"])
+    if item["current_state"] == "WAITING_EXTERNAL":
+        _work_transition(
+            graph,
+            work_item_id=wait["work_item_id"],
+            from_state="WAITING_EXTERNAL",
+            to_state="STOPPED",
+            reason="V61B_SUPERSEDED_TARGET_SHA",
+            occurred_at=occurred_at,
+            identity=wait["wait_id"] + new_target_sha,
+        )
+    elif item["current_state"] != "STOPPED":
+        raise RecoveryError("superseded WorkItem is outside STOPPED recovery state")
+
+    operation = durable.get_operation(wait["operation_id"])
+    if operation["current_state"] == "WAITING_EXTERNAL":
+        # Durable Brain v1 has no WAITING_EXTERNAL -> SUPERSEDED edge.
+        _operation_transition(
+            durable,
+            operation_id=wait["operation_id"],
+            from_state="WAITING_EXTERNAL",
+            to_state="CANCELED",
+            reason="V61B_SUPERSEDED_TARGET_SHA",
+            occurred_at=occurred_at,
+            identity=wait["wait_id"] + new_target_sha,
+        )
+    elif operation["current_state"] != "CANCELED":
+        raise RecoveryError("superseded operation is outside CANCELED recovery state")
+
+
 def supersede_wait(
     *,
     db_path: Path,
@@ -711,6 +750,37 @@ def supersede_wait(
         wait = _wait_row(durable, wait_id)
         if new_target_sha == wait["target_sha"]:
             raise RecoveryError("superseding SHA must differ from immutable target")
+
+        if wait["state"] == "SUPERSEDED":
+            if wait["superseded_by_sha"] != new_target_sha:
+                raise RecoveryError("wait already superseded by a different SHA")
+            _complete_supersession(
+                durable,
+                graph,
+                wait,
+                new_target_sha=new_target_sha,
+                occurred_at=occurred_at,
+            )
+            return {
+                "schema_version": 1,
+                "record_type": "APPLAB_V61B_SUPERSESSION",
+                "authority": "ORCHESTRATION_ONLY",
+                "wait_id": wait_id,
+                "state": "SUPERSEDED",
+                "action": "REPLAY_COMPLETED",
+                "old_target_sha": wait["target_sha"],
+                "new_target_sha": new_target_sha,
+                "work_item_terminal_state": graph.get_work_item(
+                    wait["work_item_id"]
+                )["current_state"],
+                "operation_terminal_state": durable.get_operation(
+                    wait["operation_id"]
+                )["current_state"],
+                "new_operation_required": True,
+                "silent_retarget": False,
+                "dispatch": False,
+            }
+
         if wait["state"] != "WAITING":
             return {
                 "schema_version": 1,
@@ -744,40 +814,29 @@ def supersede_wait(
                 """,
                 (new_target_sha, occurred_at, wait_id),
             )
-
-        if item["current_state"] == "WAITING_EXTERNAL":
-            _work_transition(
-                graph,
-                work_item_id=wait["work_item_id"],
-                from_state="WAITING_EXTERNAL",
-                to_state="STOPPED",
-                reason="V61B_SUPERSEDED_TARGET_SHA",
-                occurred_at=occurred_at,
-                identity=wait_id + new_target_sha,
-            )
-        if operation["current_state"] == "WAITING_EXTERNAL":
-            # The durable brain v1 does not permit WAITING_EXTERNAL -> SUPERSEDED.
-            # CANCELED is therefore the explicit terminal projection for a running
-            # operation whose immutable target has been superseded.
-            _operation_transition(
-                durable,
-                operation_id=wait["operation_id"],
-                from_state="WAITING_EXTERNAL",
-                to_state="CANCELED",
-                reason="V61B_SUPERSEDED_TARGET_SHA",
-                occurred_at=occurred_at,
-                identity=wait_id + new_target_sha,
-            )
+        wait = _wait_row(durable, wait_id)
+        _complete_supersession(
+            durable,
+            graph,
+            wait,
+            new_target_sha=new_target_sha,
+            occurred_at=occurred_at,
+        )
         return {
             "schema_version": 1,
             "record_type": "APPLAB_V61B_SUPERSESSION",
             "authority": "ORCHESTRATION_ONLY",
             "wait_id": wait_id,
             "state": "SUPERSEDED",
+            "action": "SUPERSEDED",
             "old_target_sha": wait["target_sha"],
             "new_target_sha": new_target_sha,
-            "work_item_terminal_state": graph.get_work_item(wait["work_item_id"])["current_state"],
-            "operation_terminal_state": durable.get_operation(wait["operation_id"])["current_state"],
+            "work_item_terminal_state": graph.get_work_item(
+                wait["work_item_id"]
+            )["current_state"],
+            "operation_terminal_state": durable.get_operation(
+                wait["operation_id"]
+            )["current_state"],
             "new_operation_required": True,
             "silent_retarget": False,
             "dispatch": False,
