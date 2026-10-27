@@ -70,6 +70,7 @@ The work graph adds append-only:
 
 - decisions;
 - actions;
+- action-to-attempt links;
 - work verdicts;
 - WorkItem transitions.
 
@@ -102,7 +103,8 @@ Trusted runtime and Production Certification remain unchanged.
 - [x] deterministic validators;
 - [x] v5.4 Operation -> WorkItem adapter;
 - [x] same durable SQLite substrate;
-- [x] append-only decision/action/verdict/transition history;
+- [x] append-only decision/action/attempt-link/verdict/transition history;
+- [x] action -> durable Attempt -> EvidenceRef lineage enforcement;
 - [x] restart-safe projection;
 - [x] idempotent replay;
 - [x] explicit authority envelope;
