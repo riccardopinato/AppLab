@@ -115,7 +115,8 @@ def plan(
         },
         "layers": [
             ["evidence_graph"],
-            sorted(NODE_OUTPUTS),
+            ["competitive", "planner_feedback", "simulated_human"],
+            ["design_advisor"],
             ["release_assurance", "virtual_review_council"],
         ],
         "pass_certified_authority": "UNCHANGED",
@@ -228,13 +229,29 @@ def run_fanout(
     )
     started = time.monotonic()
     results: list[dict[str, Any]] = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(commands)) as pool:
+
+    # Wave 1 contains only producers that read the immutable pre-fanout
+    # evidence set. design_advisor must wait for simulated-human-qa.json,
+    # otherwise parallel execution is race-dependent and cache-unsafe.
+    first_wave = ("planner_feedback", "simulated_human", "competitive")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(first_wave)) as pool:
         futures = {
-            pool.submit(_run_node, name, command, log_dir=log_dir): name
-            for name, command in commands.items()
+            pool.submit(_run_node, name, commands[name], log_dir=log_dir): name
+            for name in first_wave
         }
         for future in concurrent.futures.as_completed(futures):
             results.append(future.result())
+
+    failures = [row for row in results if row["returncode"] != 0]
+    if not failures:
+        results.append(
+            _run_node(
+                "design_advisor",
+                commands["design_advisor"],
+                log_dir=log_dir,
+            )
+        )
+
     results.sort(key=lambda row: row["node"])
     failures = [row for row in results if row["returncode"] != 0]
     report = {
