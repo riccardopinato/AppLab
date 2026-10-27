@@ -8,6 +8,14 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_CONTRACT = (
+    ROOT
+    / "integration"
+    / "orchestration"
+    / "contracts"
+    / "agent-memory-v1.json"
+)
 MAX_EPISODES_DEFAULT = 500
 SUPPORTED_TYPES = {
     "AUTONOMOUS_FAILURE_TRIAGE_V58A",
@@ -19,6 +27,19 @@ SUPPORTED_TYPES = {
 
 class MemoryError(ValueError):
     pass
+
+
+def load_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("schema_version") != 1:
+        raise MemoryError("unsupported episodic memory contract version")
+    if payload.get("contract_name") != "APPLAB_AGENT_EPISODIC_MEMORY":
+        raise MemoryError("unexpected episodic memory contract")
+    if payload.get("authority") != "ADVISORY_RANKING_ONLY":
+        raise MemoryError("episodic memory authority mismatch")
+    if set(payload.get("source_record_types") or []) != SUPPORTED_TYPES:
+        raise MemoryError("episodic memory source record types drifted")
+    return payload
 
 
 def _clean(value: Any) -> str:
@@ -119,8 +140,10 @@ def build_memory(
     *,
     max_episodes: int = MAX_EPISODES_DEFAULT,
 ) -> dict[str, Any]:
-    if max_episodes < 1:
-        raise MemoryError("max_episodes must be >= 1")
+    contract = load_contract()
+    ceiling = int(contract["max_episodes"])
+    if max_episodes < 1 or max_episodes > ceiling:
+        raise MemoryError(f"max_episodes must be between 1 and {ceiling}")
 
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for record in records:
@@ -254,7 +277,7 @@ def build_memory(
             "occurrences": count,
             "classification": (
                 "PATTERN_3_REVIEW"
-                if count >= 3
+                if count >= int(contract["pattern3_threshold"])
                 else "OBSERVE"
             ),
             "automatic_policy_change": False,
@@ -368,6 +391,9 @@ def rank_strategies(
 
 
 def self_test() -> None:
+    contract = load_contract()
+    assert contract["authority"] == "ADVISORY_RANKING_ONLY"
+    assert "MODIFY_POLICY" in contract["mandatory_denials"]
     records = [
         {
             "record_type": "CAUSAL_REPO_INVESTIGATION_V60B",
