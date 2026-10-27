@@ -24,6 +24,8 @@ def main() -> int:
     assert proof["normal_risk_mutation_admitted"] is True
     assert proof["high_risk_investigation_only"] is True
     assert proof["duplicate_delivery_reuses_operation_and_work_item"] is True
+    assert proof["policy_revocation_stops_existing_mutable_work_item"] is True
+    assert proof["operation_reuse_uses_persisted_work_item_id"] is True
     assert proof["existing_durable_substrate_reused"] is True
     assert proof["parallel_dispatcher_created"] is False
     assert proof["fixed_interval_polling_primary"] is False
