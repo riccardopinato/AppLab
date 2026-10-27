@@ -48,6 +48,13 @@ def main() -> int:
             "resolved_sha": "a" * 40,
         },
         {
+            "record_type": "APPLAB_WORK_TRANSITION",
+            "work_item_id": "wrk_a",
+            "from_state": "EXECUTING",
+            "to_state": "VERIFYING",
+            "reason_code": "FIX_READY",
+        },
+        {
             "record_type": "VERIFY_REPAIR_LOOP_DECISION_V60D",
             "root_work_item_id": "wrk_a",
             "root_resolved_sha": "a" * 40,
@@ -60,13 +67,6 @@ def main() -> int:
     ]
     records.extend(
         [
-            {
-                "record_type": "APPLAB_WORK_TRANSITION",
-                "work_item_id": "wrk_a",
-                "from_state": "EXECUTING",
-                "to_state": "VERIFYING",
-                "reason_code": "FIX_READY",
-            },
             {
                 "record_type": "VERIFY_REPAIR_LOOP_DECISION_V60D",
                 "root_work_item_id": "wrk_root",
