@@ -61,6 +61,8 @@ CONTRACT_FILES = (
     "scripts/causal_repo_investigator_v60b.py",
     "scripts/bounded_fix_worker_v60c.py",
     "scripts/verify_repair_loop_v60d.py",
+    "scripts/draft_pr_steward_v60e.py",
+    "integration/orchestration/contracts/draft-pr-steward-v1.json",
     "integration/orchestration/contracts/verify-repair-loop-v1.json",
     "integration/orchestration/contracts/bounded-fix-worker-v1.json",
     "integration/orchestration/contracts/causal-repo-investigator-v1.json",
