@@ -73,6 +73,54 @@ def main() -> int:
         assert ambiguous["state"] == "LOCALIZED"
         assert "top causal candidates are closely scored" in ambiguous["unresolved_uncertainty"]
         assert "diagnostics contain no explicit repository path" in ambiguous["unresolved_uncertainty"]
+        assert ambiguous["edit_recommendation"] == "HUMAN_OR_DEEPER_INVESTIGATION_REQUIRED"
+
+
+        stale_graph = {
+            "identity": {
+                "repository": "owner/other",
+                "resolved_sha": "b" * 40,
+            },
+            "nodes": [
+                {
+                    "type": "File",
+                    "key": "lib/data/sync_client.dart",
+                    "attributes": {
+                        "path": "lib/data/sync_client.dart",
+                        "changed": True,
+                    },
+                }
+            ],
+        }
+        stale = mod.build_investigation(
+            {
+                **base_triage,
+                "root_cause_hypotheses": [
+                    "lib/data/sync_client.dart:71 request retries after reconnect"
+                ],
+            },
+            plan,
+            root,
+            evidence_graph=stale_graph,
+        )
+        assert stale["evidence_summary"]["graph_accepted"] is False
+        assert "evidence graph ignored: GRAPH_REPOSITORY_MISMATCH" in stale["unresolved_uncertainty"]
+
+        bounded_contract = dict(mod.load_contract())
+        bounded_contract["max_repository_files"] = 1
+        truncated_inventory = mod.build_investigation(
+            {
+                **base_triage,
+                "root_cause_hypotheses": [
+                    "lib/data/sync_client.dart:71 request retries after reconnect"
+                ],
+            },
+            plan,
+            root,
+            contract=bounded_contract,
+        )
+        assert truncated_inventory["evidence_summary"]["inventory_truncated"] is True
+        assert truncated_inventory["edit_recommendation"] == "HUMAN_OR_DEEPER_INVESTIGATION_REQUIRED"
 
         # Workflow localization is allowed as evidence, but the investigator
         # must not declare it eligible for autonomous bounded repair.
