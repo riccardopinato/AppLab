@@ -123,13 +123,31 @@ def _diagnostic_paths(text: str) -> set[str]:
     return {_safe_rel(match.group(1)) for match in PATH_RE.finditer(text) if _safe_rel(match.group(1))}
 
 
-def _graph_file_states(graph: dict[str, Any] | None) -> dict[str, set[str]]:
+def _graph_file_states(
+    graph: dict[str, Any] | None,
+    *,
+    repository: str,
+    resolved_sha: str,
+) -> tuple[dict[str, set[str]], bool, str]:
     states = {"changed": set(), "impacted": set()}
+    if graph is None:
+        return states, False, "NOT_PROVIDED"
     if not isinstance(graph, dict):
-        return states
+        return states, False, "INVALID_GRAPH_ROOT"
+    identity = graph.get("identity")
+    if not isinstance(identity, dict):
+        return states, False, "MISSING_GRAPH_IDENTITY"
+    graph_repository = str(identity.get("repository") or "")
+    graph_sha = str(identity.get("resolved_sha") or "")
+    if not graph_repository or not graph_sha:
+        return states, False, "INCOMPLETE_GRAPH_IDENTITY"
+    if repository and graph_repository != repository:
+        return states, False, "GRAPH_REPOSITORY_MISMATCH"
+    if resolved_sha and graph_sha != resolved_sha:
+        return states, False, "GRAPH_SHA_MISMATCH"
     nodes = graph.get("nodes")
     if not isinstance(nodes, list):
-        return states
+        return states, False, "MISSING_GRAPH_NODES"
     for node in nodes:
         if not isinstance(node, dict) or node.get("type") != "File":
             continue
@@ -141,7 +159,7 @@ def _graph_file_states(graph: dict[str, Any] | None) -> dict[str, set[str]]:
             states["changed"].add(path)
         if attrs.get("dependency_impacted") is True or str(attrs.get("change_state", "")).upper() == "DEPENDENCY_IMPACT":
             states["impacted"].add(path)
-    return states
+    return states, True, "IDENTITY_MATCH"
 
 
 def _prior_fix_paths(history: dict[str, Any] | None) -> set[str]:
@@ -296,7 +314,11 @@ def build_investigation(
     diagnostic_text = _diagnostic_text(triage, diagnostics)
     diagnostic_lower = diagnostic_text.lower()
     diagnostic_paths = _diagnostic_paths(diagnostic_text)
-    graph_states = _graph_file_states(evidence_graph)
+    graph_states, graph_accepted, graph_state = _graph_file_states(
+        evidence_graph,
+        repository=base["repository"],
+        resolved_sha=base["resolved_sha"],
+    )
     prior = _prior_fix_paths(history)
     surface_tokens = _surface_tokens(triage)
     failed_labs = {
@@ -382,16 +404,22 @@ def build_investigation(
     ranked = ranked[: int(contract["max_candidates"])]
 
     uncertainty: list[str] = []
+    if evidence_graph is not None and not graph_accepted:
+        uncertainty.append(f"evidence graph ignored: {graph_state}")
     if bool(plan.get("analysis_truncated")):
         uncertainty.append("impact analysis is truncated")
     if inventory_truncated:
         uncertainty.append("repository candidate inventory exceeded bounded scan limit")
+    ambiguous = False
     if ranked and len(ranked) > 1:
         margin = int(ranked[0]["score"]) - int(ranked[1]["score"])
         if margin < 15:
+            ambiguous = True
             uncertainty.append("top causal candidates are closely scored")
     if not diagnostic_paths:
         uncertainty.append("diagnostics contain no explicit repository path")
+        if len(ranked) > 1:
+            ambiguous = True
 
     regressions = [
         str(value)
@@ -414,6 +442,8 @@ def build_investigation(
             "ELIGIBLE_FOR_BOUNDED_REPAIR"
             if float(top["confidence"]) >= 0.65
             and not bool(plan.get("analysis_truncated"))
+            and not inventory_truncated
+            and not ambiguous
             and not protected
             else "HUMAN_OR_DEEPER_INVESTIGATION_REQUIRED"
         )
@@ -434,6 +464,8 @@ def build_investigation(
             "changed_file_count": len(changed),
             "impacted_file_count": len(impacted),
             "diagnostic_path_count": len(diagnostic_paths),
+            "graph_accepted": graph_accepted,
+            "graph_state": graph_state,
             "graph_changed_count": len(graph_states["changed"]),
             "graph_impacted_count": len(graph_states["impacted"]),
             "prior_fix_path_count": len(prior),
@@ -486,6 +518,10 @@ def self_test() -> None:
             "analysis_truncated": False,
         }
         graph = {
+            "identity": {
+                "repository": "owner/app",
+                "resolved_sha": "b" * 40,
+            },
             "nodes": [
                 {
                     "type": "File",
