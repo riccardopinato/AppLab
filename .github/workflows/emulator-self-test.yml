@@ -133,7 +133,7 @@ jobs:
 
       - name: Full Android runtime verification
         env:
-          APPLAB_VERSION: "6.0.0"
+          APPLAB_VERSION: "5.3.5"
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
           api-level: 35
