@@ -268,10 +268,21 @@ test("streams real Android video and sends real WebRTC input", async ({
   const handlerBox = await handler.boundingBox();
   if (!handlerBox) throw new Error("WebRTC input handler has no browser bounding box");
 
-  // Match the upstream event_handler.tsx scaling exactly. The handler status
-  // falls back to 1080x2424 when the gateway status omits hw.lcd dimensions.
-  const inputWidth = 1080;
-  const inputHeight = 2424;
+  // Use the same gateway display metadata consumed by upstream
+  // android-emulator-webrtc. Missing dimensions are a contract failure because
+  // a guessed fallback can silently misroute pointer input.
+  const gatewayStatus = await endpointDiagnostics(
+    request,
+    "http://127.0.0.1:8080/api/v1/emulator/status",
+  );
+  expect(gatewayStatus.ok).toBeTruthy();
+  const hardwareConfig =
+    gatewayStatus.body?.platformConfig || gatewayStatus.body?.hardwareConfig || {};
+  const inputWidth = Number(hardwareConfig["hw.lcd.width"]);
+  const inputHeight = Number(hardwareConfig["hw.lcd.height"]);
+  expect(Number.isFinite(inputWidth) && inputWidth > 0).toBeTruthy();
+  expect(Number.isFinite(inputHeight) && inputHeight > 0).toBeTruthy();
+
   const nativeX = (bounds.left + bounds.right) / 2;
   const nativeY = (bounds.top + bounds.bottom) / 2;
   const deviceRatio = inputWidth / inputHeight;
