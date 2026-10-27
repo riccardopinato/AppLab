@@ -1,0 +1,131 @@
+name: Sensor Mesh Plan
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        description: Target repository in owner/name form
+        required: true
+        type: string
+      resolved_sha:
+        description: Exact target source SHA
+        required: true
+        type: string
+      plan_json:
+        description: AppLab risk/execution plan JSON
+        required: true
+        type: string
+      project_json:
+        description: Project capability/physical-validation JSON
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Target repository in owner/name form
+        required: true
+        type: string
+      resolved_sha:
+        description: Exact target source SHA
+        required: true
+        type: string
+      plan_json:
+        description: AppLab risk/execution plan JSON
+        required: true
+        type: string
+      project_json:
+        description: Project capability/physical-validation JSON
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-sensor-mesh-${{ inputs.repository }}-${{ inputs.resolved_sha }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Plan risk-triggered sensors
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: riccardopinato/AppLab
+          ref: ${{ job.workflow_sha }}
+          persist-credentials: false
+
+      - name: Materialize identity-bound inputs
+        shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+          TARGET_SHA: ${{ inputs.resolved_sha }}
+          PLAN_JSON: ${{ inputs.plan_json }}
+          PROJECT_JSON: ${{ inputs.project_json }}
+        run: |
+          set -Eeuo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          repository = os.environ["TARGET_REPOSITORY"].strip()
+          sha = os.environ["TARGET_SHA"].lower()
+          if "/" not in repository:
+              raise SystemExit("invalid repository")
+          if not re.fullmatch(r"[0-9a-f]{40}", sha):
+              raise SystemExit("resolved_sha must be exact 40-hex")
+          plan = json.loads(os.environ["PLAN_JSON"])
+          project = json.loads(os.environ["PROJECT_JSON"])
+          if not isinstance(plan, dict) or not isinstance(project, dict):
+              raise SystemExit("plan/project JSON roots must be objects")
+          plan["repository"] = repository
+          plan["resolved_sha"] = sha
+          project["repository"] = repository
+          Path("sensor-plan-input.json").write_text(
+              json.dumps(plan, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          Path("sensor-project-input.json").write_text(
+              json.dumps(project, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Build v6.0H sensor plan
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python scripts/sensor_mesh_v60h.py \
+            --plan sensor-plan-input.json \
+            --project sensor-project-input.json \
+            --output sensor-mesh-plan.json
+
+      - name: Publish plan summary
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          payload = json.load(open("sensor-mesh-plan.json", encoding="utf-8"))
+          print("## AppLab v6.0H Sensor Mesh")
+          print()
+          print(f"- Repository: `{payload['repository']}`")
+          print(f"- Source SHA: `{payload['resolved_sha']}`")
+          print(f"- Risk: `{payload['risk_score']}`")
+          selected = payload.get("selected_sensor_ids") or []
+          print("- Selected: " + (", ".join(f"`{x}`" for x in selected) if selected else "none"))
+          print("- Authority: evidence routing only; missing sensor evidence is never PASS")
+          PY
+
+      - name: Upload sensor plan
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-sensor-mesh-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: sensor-mesh-plan.json
+          if-no-files-found: error
+          retention-days: 30
