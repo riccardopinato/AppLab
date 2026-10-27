@@ -24,6 +24,7 @@ def main() -> int:
     assert proof["work_item_file_line_attempt_budgets_preserved"] is True
     assert proof["runtime_cost_budgets_cumulative"] is True
     assert proof["attempt_reservation_idempotent"] is True
+    assert proof["duplicate_observation_plan_suppressed"] is True
     assert proof["repeated_failure_signature_stops"] is True
     assert proof["event_driven_primary"] is True
     assert proof["same_sha_waits_coalesced"] is True
