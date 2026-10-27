@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_AGENT_EPISODIC_MEMORY",
+  "authority": "ADVISORY_RANKING_ONLY",
+  "max_episodes": 500,
+  "max_strategy_results": 5,
+  "pattern3_threshold": 3,
+  "source_record_types": [
+    "AUTONOMOUS_FAILURE_TRIAGE_V58A",
+    "CAUSAL_REPO_INVESTIGATION_V60B",
+    "BOUNDED_FIX_RESULT_V60C",
+    "VERIFY_REPAIR_LOOP_DECISION_V60D"
+  ],
+  "mandatory_denials": [
+    "MODIFY_POLICY",
+    "MODIFY_FACTORY_CORE",
+    "MODIFY_GUARDRAILS",
+    "MINT_PASS",
+    "MINT_CERTIFIED",
+    "AUTOMATIC_CODE_CHANGE",
+    "ADD_CAUSAL_CANDIDATE",
+    "RAISE_AUTONOMY_ELIGIBILITY"
+  ],
+  "invariants": [
+    "memory_is_derived_rebuildable_and_noncanonical",
+    "source_records_remain_authoritative",
+    "only_allowlisted_record_types_are_ingested",
+    "successful_repair_requires_exact_final_repair_identity_binding",
+    "historical_memory_cannot_create_a_current_causal_candidate",
+    "historical_memory_cannot_raise_autonomous_edit_eligibility",
+    "strategy_output_is_limited_to_current_candidate_overlap",
+    "pattern3_is_observation_not_policy_promotion",
+    "memory_truncation_is_explicit",
+    "source_refs_preserve_provenance",
+    "memory_never_reads_or_copies_unselected_payload_fields"
+  ]
+}
