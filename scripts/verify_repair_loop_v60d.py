@@ -864,6 +864,80 @@ def _read_json(path: str) -> dict[str, Any]:
     return payload
 
 
+def _public_cli_projection(report: dict[str, Any]) -> dict[str, Any]:
+    state = report.get("state")
+    if state == "NEEDS_REPAIR":
+        safe_state = "NEEDS_REPAIR"
+    elif state == "NEEDS_FOCUSED_VERIFY":
+        safe_state = "NEEDS_FOCUSED_VERIFY"
+    elif state == "NEEDS_MATERIALIZATION":
+        safe_state = "NEEDS_MATERIALIZATION"
+    elif state == "NEEDS_APPLAB_VERIFY":
+        safe_state = "NEEDS_APPLAB_VERIFY"
+    elif state == "NEEDS_INVESTIGATION":
+        safe_state = "NEEDS_INVESTIGATION"
+    elif state == "WAITING_EXTERNAL":
+        safe_state = "WAITING_EXTERNAL"
+    elif state == "COMPLETE":
+        safe_state = "COMPLETE"
+    else:
+        safe_state = "STOPPED"
+
+    action = report.get("next_action")
+    if action == "APPLY_BOUNDED_REPAIR":
+        safe_action = "APPLY_BOUNDED_REPAIR"
+    elif action == "RUN_FOCUSED_VERIFY":
+        safe_action = "RUN_FOCUSED_VERIFY"
+    elif action == "MATERIALIZE_DRAFT_BRANCH":
+        safe_action = "MATERIALIZE_DRAFT_BRANCH"
+    elif action == "RUN_APPLAB_FAST":
+        safe_action = "RUN_APPLAB_FAST"
+    elif action == "RUN_APPLAB_FULL":
+        safe_action = "RUN_APPLAB_FULL"
+    elif action == "INVESTIGATE":
+        safe_action = "INVESTIGATE"
+    elif action == "WAIT_EXTERNAL":
+        safe_action = "WAIT_EXTERNAL"
+    else:
+        safe_action = "NONE"
+
+    reason = report.get("reason_code")
+    if reason == "VERIFIED_PASS":
+        safe_reason = "VERIFIED_PASS"
+    elif reason == "UNKNOWN_CLASSIFICATION":
+        safe_reason = "UNKNOWN_CLASSIFICATION"
+    elif reason == "SCOPE_EXCEEDED":
+        safe_reason = "SCOPE_EXCEEDED"
+    elif reason == "PROTECTED_PATH":
+        safe_reason = "PROTECTED_PATH"
+    elif reason == "SECURITY_SENSITIVE_SCOPE":
+        safe_reason = "SECURITY_SENSITIVE_SCOPE"
+    elif reason == "TEST_WEAKENING_REQUIRED":
+        safe_reason = "TEST_WEAKENING_REQUIRED"
+    elif reason == "REPEATED_FAILURE_SIGNATURE":
+        safe_reason = "REPEATED_FAILURE_SIGNATURE"
+    elif reason == "UNEXPLAINED_FAILURE_MUTATION":
+        safe_reason = "UNEXPLAINED_FAILURE_MUTATION"
+    elif reason == "IDENTITY_NOT_PROVEN":
+        safe_reason = "IDENTITY_NOT_PROVEN"
+    elif reason == "VERIFICATION_NOT_TRUSTED":
+        safe_reason = "VERIFICATION_NOT_TRUSTED"
+    elif reason == "BUDGET_EXHAUSTED":
+        safe_reason = "BUDGET_EXHAUSTED"
+    elif reason == "VERIFICATION_BLOCKED":
+        safe_reason = "VERIFICATION_BLOCKED"
+    else:
+        safe_reason = "HUMAN_DECISION_REQUIRED"
+
+    return {
+        "schema_version": 1,
+        "record_type": "VERIFY_REPAIR_LOOP_PUBLIC_DECISION_V60D",
+        "state": safe_state,
+        "next_action": safe_action,
+        "reason_code": safe_reason,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root-work-item", default="")
@@ -892,20 +966,10 @@ def main() -> int:
         attempts,
         plan=_read_json(args.plan) if args.plan else {},
     )
-    # CLI output is intentionally a non-sensitive projection. The in-process
-    # report may contain repository/source/evidence identity and must not be
-    # persisted or logged from arbitrary caller-provided JSON.
-    public_report = {
-        "schema_version": 1,
-        "record_type": "VERIFY_REPAIR_LOOP_PUBLIC_DECISION_V60D",
-        "state": str(report.get("state") or "STOPPED"),
-        "next_action": str(report.get("next_action") or "NONE"),
-        "reason_code": str(report.get("reason_code") or "HUMAN_DECISION_REQUIRED"),
-        "repair_attempt_count": int(report.get("repair_attempt_count", 0) or 0),
-        "observed_verification_result": str(
-            report.get("observed_verification_result") or ""
-        ),
-    }
+    # CLI output is intentionally a non-sensitive projection. Only
+    # hard-coded enum literals are emitted; caller-provided repository/source/
+    # evidence values never flow into logs or arbitrary output files.
+    public_report = _public_cli_projection(report)
     rendered = json.dumps(public_report, indent=2, sort_keys=True) + "\n"
     if args.output:
         Path(args.output).write_text(rendered, encoding="utf-8")
