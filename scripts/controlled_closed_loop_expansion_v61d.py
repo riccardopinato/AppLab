@@ -602,6 +602,11 @@ def self_test() -> dict[str, Any]:
             json.dumps(killed_policy, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+        killed_config = materialize_event_config(killed_policy)
+        assert [
+            item["repository"] for item in killed_config["pilot_targets"]
+        ] == ["riccardopinato/AppLab", "riccardopinato/TrailPath"]
+
         killed = admit_closed_loop(
             db_path=root / "killed.sqlite3",
             repository="riccardopinato/CamperBoss",
@@ -614,6 +619,61 @@ def self_test() -> dict[str, Any]:
         )
         assert killed["admitted"] is False
         assert killed["reason"] == "REPOSITORY_KILL_SWITCH"
+
+        revoked_db = root / "revoked.sqlite3"
+        first_mutable = admit_closed_loop(
+            db_path=revoked_db,
+            repository="riccardopinato/CamperBoss",
+            source_ref="refs/heads/main",
+            resolved_sha="f" * 40,
+            applab_sha=applab_sha,
+            delivery_id="v61d-revoked",
+            policy_path=policy_path,
+            now_ts=105.0,
+        )
+        assert first_mutable["mutation_authorized"] is True
+
+        revoked_policy = json.loads(json.dumps(pilot3))
+        revoked_policy["closed_loop"]["mutation_enabled"] = False
+        revoked_policy["closed_loop"]["draft_pr_enabled"] = False
+        revoked_path = root / "revoked-policy.json"
+        revoked_path.write_text(
+            json.dumps(revoked_policy, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        revoked = admit_closed_loop(
+            db_path=revoked_db,
+            repository="riccardopinato/CamperBoss",
+            source_ref="refs/heads/main",
+            resolved_sha="f" * 40,
+            applab_sha=applab_sha,
+            delivery_id="v61d-revoked",
+            policy_path=revoked_path,
+            now_ts=106.0,
+        )
+        assert revoked["reason"] == "POLICY_REVOKED_STOPPED"
+        assert revoked["work_item_state"] == "STOPPED"
+        assert revoked["budget_state"] == "TERMINAL_NO_NEW_BUDGET_ACTIVITY"
+        assert revoked["dispatch"] is False
+
+        original_watchlist = legacy_expansion.WATCHLIST
+        watchlist = json.loads(original_watchlist.read_text(encoding="utf-8"))
+        for item in watchlist["repositories"]:
+            if item.get("repository") == "riccardopinato/Notes-Ecosistema":
+                item["enabled"] = False
+        isolated_watchlist = root / "watchlist-isolated.json"
+        isolated_watchlist.write_text(
+            json.dumps(watchlist, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        try:
+            legacy_expansion.WATCHLIST = isolated_watchlist
+            isolated = materialize_event_config(policy)
+        finally:
+            legacy_expansion.WATCHLIST = original_watchlist
+        assert [item["repository"] for item in isolated["pilot_targets"]] == [
+            "riccardopinato/AppLab"
+        ]
 
     return {
         "schema_version": 1,
@@ -629,6 +689,9 @@ def self_test() -> dict[str, Any]:
         "downstream_bounded_mutation_admission_proven": True,
         "high_risk_investigation_only": True,
         "global_and_repository_kill_switches_preserved": True,
+        "repository_kill_switch_materialization_proven": True,
+        "inactive_out_of_cohort_watchlist_isolated": True,
+        "terminal_replay_skips_budget_activity": True,
         "existing_durable_queue_work_graph_and_budgets_reused": True,
         "remote_dispatch_created": False,
         "github_actions_fallback": True,
