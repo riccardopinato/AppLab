@@ -124,7 +124,11 @@ def validate_record(
     if not isinstance(durations, dict):
         raise OperationsEvidenceError("durations must be an object")
     normalized_durations = {
-        field: _non_negative_number(durations.get(field, 0), f"durations.{field}")
+        field: (
+            _non_negative_number(durations[field], f"durations.{field}")
+            if field in durations and durations[field] is not None
+            else None
+        )
         for field in LATENCY_FIELDS
     }
 
@@ -226,7 +230,11 @@ def _latency_summary(
         "repair_runtime_seconds": "repair_runtime_p95_seconds",
     }
     for field in LATENCY_FIELDS:
-        values = [float(row["durations"][field]) for row in rows]
+        values = [
+            float(row["durations"][field])
+            for row in rows
+            if row["durations"].get(field) is not None
+        ]
         p50 = percentile(values, 0.50)
         p95 = percentile(values, 0.95)
         target = float(targets[target_map[field]])
@@ -409,6 +417,25 @@ def _operations_gate(
     }
 
 
+def _deduplicate_operations(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_operation: dict[str, dict[str, Any]] = {}
+    fingerprints: dict[str, str] = {}
+    for row in rows:
+        operation_id = str(row["operation_id"])
+        fingerprint = brain.sha256_json(row)
+        if operation_id not in by_operation:
+            by_operation[operation_id] = row
+            fingerprints[operation_id] = fingerprint
+            continue
+        if fingerprints[operation_id] != fingerprint:
+            raise OperationsEvidenceError(
+                f"conflicting replay for immutable operation identity: {operation_id}"
+            )
+    return list(by_operation.values())
+
+
 def build_report(
     records: list[dict[str, Any]],
     *,
@@ -418,7 +445,9 @@ def build_report(
     contract = load_contract(contract_path)
     policy = expansion.load_policy(policy_path)
     active_stage = str(policy["active_stage"])
-    normalized = [validate_record(record, contract=contract) for record in records]
+    normalized = _deduplicate_operations(
+        [validate_record(record, contract=contract) for record in records]
+    )
 
     allowed = set(policy["stages"]["PILOT_5"])
     for row in normalized:
