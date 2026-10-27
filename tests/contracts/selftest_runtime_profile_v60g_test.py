@@ -23,6 +23,10 @@ def main() -> int:
     assert "launch" in fast["fast_core_sentinels_required"]
     assert "maestro" in fast["fast_core_sentinels_required"]
 
+    operations = planner.plan(["scripts/agent_operations_studio_v60i.py"])
+    assert operations["profile"] == "FAST"
+    assert operations["reason"] == "BOUNDED_ORCHESTRATION_SURFACE"
+
     unknown = planner.plan(["scripts/future_unclassified_runtime.py"])
     assert unknown["profile"] == "FULL"
     assert unknown["unknown_runtime_files"] == [
