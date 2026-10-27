@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -81,8 +82,8 @@ def _non_negative_number(value: Any, field: str) -> float:
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         raise OperationsEvidenceError(f"{field} must be numeric")
     number = float(value)
-    if number < 0:
-        raise OperationsEvidenceError(f"{field} must be non-negative")
+    if not math.isfinite(number) or number < 0:
+        raise OperationsEvidenceError(f"{field} must be a finite non-negative number")
     return number
 
 
