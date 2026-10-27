@@ -1071,8 +1071,9 @@ def self_test() -> dict[str, Any]:
             actions_available=True,
             occurred_at="2026-10-27T15:06:01Z",
         )
-        assert replay["external_query_count"] == 1
-        assert replay["batches"][0]["status"] == "REPLAY"
+        assert replay["external_query_count"] == 0
+        assert replay["batches"] == []
+        assert all(row.get("poll") is False for row in replay["immediate"])
 
         too_early = plan_observation_batches(
             db_path=db_path,
@@ -1094,6 +1095,7 @@ def self_test() -> dict[str, Any]:
             "work_item_file_line_attempt_budgets_preserved": True,
             "runtime_cost_budgets_cumulative": True,
             "attempt_reservation_idempotent": True,
+            "duplicate_observation_plan_suppressed": True,
             "repeated_failure_signature_stops": True,
             "event_driven_primary": True,
             "same_sha_waits_coalesced": True,
