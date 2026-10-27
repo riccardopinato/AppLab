@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_BOUNDED_FIX_WORKER",
+  "authority": "BOUNDED_WORKSPACE_EDIT_ONLY",
+  "required_branch_prefix": "applab-repair/",
+  "candidate_min_confidence": 0.65,
+  "max_files": 5,
+  "max_changed_lines": 250,
+  "max_repair_attempts": 2,
+  "protected_prefixes": [
+    ".github/workflows/",
+    ".github/actions/",
+    "integration/orchestration/contracts/"
+  ],
+  "protected_paths": [
+    "AGENTS.md",
+    "ROADMAP.md",
+    "CURRENT.yaml",
+    ".github/CODEOWNERS"
+  ],
+  "test_assertion_tokens": [
+    "assert",
+    "expect(",
+    "pytest.raises",
+    "should",
+    "assertthat",
+    "assertequals",
+    "asserttrue",
+    "assertfalse"
+  ],
+  "test_skip_tokens": [
+    "@ignore",
+    "@skip",
+    "pytest.mark.skip",
+    "skip:",
+    "skip = true",
+    "disabled = true"
+  ],
+  "invariants": [
+    "exact_source_sha_required",
+    "isolated_repair_branch_required",
+    "candidate_file_proof_required",
+    "work_item_must_allow_code_edit",
+    "security_risk_work_item_denied",
+    "protected_paths_denied",
+    "before_hash_required_for_existing_files",
+    "new_files_allowed_only_for_required_regression_tests",
+    "test_assertion_strength_must_not_decrease",
+    "test_skip_signals_must_not_increase",
+    "all_edits_validate_before_any_write",
+    "write_failure_rolls_back_all_files",
+    "worker_never_pushes_merges_releases_or_changes_verification_authority"
+  ]
+}
