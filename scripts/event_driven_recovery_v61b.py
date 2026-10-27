@@ -212,6 +212,57 @@ def _decision(
     return graph.put_decision(payload)
 
 
+def _activate_wait(
+    durable: storemod.SQLiteShadowStore,
+    graph: workgraph.AgentWorkGraphStore,
+    wait: dict[str, Any],
+    *,
+    occurred_at: str,
+) -> None:
+    item = graph.get_work_item(wait["work_item_id"])
+    operation = durable.get_operation(wait["operation_id"])
+    terminal_work = set(graph.contract["work_item"]["terminal_states"])
+    terminal_ops = set(durable.brain_contract["operation"]["terminal_states"])
+    if item["current_state"] in terminal_work or operation["current_state"] in terminal_ops:
+        return
+
+    allowed_sources = {"PLANNED", "EXECUTING", "VERIFYING"}
+    if item["current_state"] in allowed_sources:
+        _decision(
+            graph,
+            work_item_id=wait["work_item_id"],
+            kind="WAIT_EXTERNAL",
+            reason="V61B_EXTERNAL_GATES_PENDING",
+            occurred_at=occurred_at,
+            identity=wait["wait_id"],
+        )
+        _work_transition(
+            graph,
+            work_item_id=wait["work_item_id"],
+            from_state=item["current_state"],
+            to_state="WAITING_EXTERNAL",
+            reason="V61B_EXTERNAL_GATES_PENDING",
+            occurred_at=occurred_at,
+            identity=wait["wait_id"],
+        )
+    elif item["current_state"] != "WAITING_EXTERNAL":
+        raise RecoveryError("persisted wait WorkItem is outside recovery state")
+
+    operation = durable.get_operation(wait["operation_id"])
+    if operation["current_state"] == "RUNNING":
+        _operation_transition(
+            durable,
+            operation_id=wait["operation_id"],
+            from_state="RUNNING",
+            to_state="WAITING_EXTERNAL",
+            reason="V61B_EXTERNAL_GATES_PENDING",
+            occurred_at=occurred_at,
+            identity=wait["wait_id"],
+        )
+    elif operation["current_state"] != "WAITING_EXTERNAL":
+        raise RecoveryError("persisted wait operation is outside recovery state")
+
+
 def begin_wait(
     *,
     db_path: Path,
@@ -259,6 +310,13 @@ def begin_wait(
         ).fetchone()
         if existing:
             wait = _wait_row(durable, wait_id)
+            if wait["state"] == "WAITING":
+                _activate_wait(
+                    durable,
+                    graph,
+                    wait,
+                    occurred_at=occurred_at,
+                )
             return {
                 "schema_version": 1,
                 "record_type": "APPLAB_V61B_WAIT",
@@ -313,31 +371,12 @@ def begin_wait(
                 ),
             )
 
-        _decision(
-            graph,
-            work_item_id=work_item_id,
-            kind="WAIT_EXTERNAL",
-            reason="V61B_EXTERNAL_GATES_PENDING",
-            occurred_at=occurred_at,
-            identity=wait_id,
-        )
-        _work_transition(
-            graph,
-            work_item_id=work_item_id,
-            from_state=item["current_state"],
-            to_state="WAITING_EXTERNAL",
-            reason="V61B_EXTERNAL_GATES_PENDING",
-            occurred_at=occurred_at,
-            identity=wait_id,
-        )
-        _operation_transition(
+        persisted_wait = _wait_row(durable, wait_id)
+        _activate_wait(
             durable,
-            operation_id=operation["operation_id"],
-            from_state="RUNNING",
-            to_state="WAITING_EXTERNAL",
-            reason="V61B_EXTERNAL_GATES_PENDING",
+            graph,
+            persisted_wait,
             occurred_at=occurred_at,
-            identity=wait_id,
         )
         return {
             "schema_version": 1,
