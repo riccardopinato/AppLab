@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_EVENT_DRIVEN_DURABLE_RECOVERY",
+  "authority": "ORCHESTRATION_ONLY",
+  "primary_progression": "EVENT_DRIVEN",
+  "recovery_model": "DURABLE_WAIT_PLUS_RECONCILIATION",
+  "fallback_polling": {
+    "enabled": true,
+    "primary": false,
+    "interval_seconds": 120,
+    "max_polls": 3,
+    "scope": "PENDING_GATES_ONLY"
+  },
+  "wait_states": [
+    "WAITING",
+    "READY_FOR_EVALUATION",
+    "SUPERSEDED",
+    "STOPPED"
+  ],
+  "gate_states": [
+    "PENDING",
+    "SUCCESS",
+    "FAILURE"
+  ],
+  "green_terminal_conclusions": [
+    "success",
+    "neutral",
+    "skipped"
+  ],
+  "pending_statuses": [
+    "queued",
+    "pending",
+    "requested",
+    "waiting",
+    "in_progress"
+  ],
+  "invariants": [
+    "target_sha_is_immutable",
+    "event_observations_are_append_only_and_idempotent",
+    "duplicate_event_delivery_never_restarts_work",
+    "only_pending_or_changed_gates_are_re_evaluated",
+    "fixed_interval_polling_is_not_primary",
+    "fallback_polling_is_bounded",
+    "actions_outage_holds_durable_wait_without_retry_storm",
+    "coordinator_restart_recovers_same_wait_projection",
+    "superseding_sha_is_explicit_and_never_silently_retargets_work",
+    "terminal_work_items_and_operations_are_never_redispatched",
+    "ready_for_evaluation_does_not_mint_pass_or_certified",
+    "github_actions_remains_an_execution_fallback",
+    "merge_release_and_certification_authority_are_unchanged"
+  ],
+  "authority_boundaries": {
+    "merge": "UNCHANGED",
+    "release": "DENIED",
+    "verification": "UNCHANGED",
+    "certification": "UNCHANGED"
+  }
+}
