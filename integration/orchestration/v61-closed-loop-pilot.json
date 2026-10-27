@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "kill_switch": false,
+  "rollout": "SELF_REPO_MAIN_CANARY",
+  "max_live_operations_per_event": 1,
+  "ledger_authority": "NON_AUTHORITATIVE_PILOT_CONTINUITY",
+  "pilot_targets": [
+    {
+      "repository": "riccardopinato/AppLab",
+      "source_ref": "refs/heads/main",
+      "event_types": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "run_maestro": false,
+      "history_key": "v61a-applab-self-canary",
+      "analysis_mode": "fast",
+      "engine": "native_android"
+    }
+  ],
+  "closed_loop": {
+    "enabled": true,
+    "mutation_enabled": true,
+    "draft_pr_enabled": true,
+    "allowed_repositories": [
+      "riccardopinato/AppLab"
+    ],
+    "allowed_source_refs": [
+      "refs/heads/main"
+    ],
+    "allowed_mutation_risks": [
+      "LOW",
+      "NORMAL"
+    ],
+    "github_actions_fallback": true,
+    "post_gate_merge_authority": "EXTERNAL_REPOSITORY_AUTOMATION",
+    "release_authority": "DENIED"
+  }
+}
