@@ -243,6 +243,7 @@ def adapt_operation_to_work_item(
     work_item_id: str,
     risk: str = "NORMAL",
     allow_code_edit: bool = False,
+    allow_draft_pr_steward: bool = False,
 ) -> dict[str, Any]:
     brain.validate_operation(operation, brain.load_contract())
     contract = load_contract()
@@ -255,6 +256,8 @@ def adapt_operation_to_work_item(
     ]
     if allow_code_edit:
         allowed.append("ALLOW_CODE_EDIT")
+    if allow_draft_pr_steward:
+        allowed.extend(["CREATE_DRAFT_PR", "UPDATE_DRAFT_PR"])
     item = {
         "schema_version": 1,
         "record_type": "APPLAB_WORK_ITEM",
