@@ -270,6 +270,11 @@ def _validate_trusted_runtime(
         trusted_contract["producer"]
     ):
         raise RepairLoopError("unexpected trusted evidence producer")
+    manifest_sha = str(trusted_evidence.get("manifest_sha256") or "").lower()
+    if not SHA256_RE.fullmatch(manifest_sha):
+        raise RepairLoopError("trusted evidence manifest hash is missing or invalid")
+    if int(trusted_evidence.get("file_count", 0) or 0) < 1:
+        raise RepairLoopError("trusted evidence manifest contains no evidence files")
     binding = trusted_evidence.get("binding")
     if not isinstance(binding, dict):
         raise RepairLoopError("trusted evidence binding is missing")
@@ -735,6 +740,8 @@ def _attempt(
         payload["trusted_evidence"] = {
             "trusted": True,
             "producer": "trusted-apk-verifier",
+            "manifest_sha256": "sha256:" + "f" * 64,
+            "file_count": 8,
             "binding": {
                 "repository": work_item["repository"],
                 "resolved_sha": repaired_sha,
