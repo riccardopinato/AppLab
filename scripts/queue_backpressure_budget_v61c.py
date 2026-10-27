@@ -167,6 +167,29 @@ def _wait_row(durable: storemod.SQLiteShadowStore, wait_id: str) -> dict[str, An
     return item
 
 
+def _assert_active_identity(
+    durable: storemod.SQLiteShadowStore,
+    graph: workgraph.AgentWorkGraphStore,
+    queue: queue_mod.DurablePerRepoQueue,
+    *,
+    work_item_id: str,
+    operation_id: str,
+) -> None:
+    item = graph.get_work_item(work_item_id)
+    operation = durable.get_operation(operation_id)
+    entry = queue._entry(operation_id)
+    if entry is None:
+        raise BudgetError("closed-loop operation is not routed through durable queue")
+    terminal_work = set(graph.contract["work_item"]["terminal_states"])
+    terminal_ops = set(durable.brain_contract["operation"]["terminal_states"])
+    if item["current_state"] in terminal_work:
+        raise BudgetError("terminal WorkItem cannot receive new repair budget activity")
+    if operation["current_state"] in terminal_ops:
+        raise BudgetError("terminal durable operation cannot receive new repair budget activity")
+    if str(entry["state"]) in {"DONE", "BLOCKED", "SUPERSEDED"}:
+        raise BudgetError("terminal queue entry cannot receive new repair budget activity")
+
+
 def _event(
     durable: storemod.SQLiteShadowStore,
     *,
@@ -217,8 +240,13 @@ def register_budget(
             raise BudgetError("WorkItem/operation target SHA mismatch")
 
         queue_entry = queue._entry(operation["operation_id"])
-        if queue_entry is None:
-            raise BudgetError("closed-loop operation is not routed through durable queue")
+        _assert_active_identity(
+            durable,
+            graph,
+            queue,
+            work_item_id=work_item_id,
+            operation_id=operation["operation_id"],
+        )
 
         work_limits = item.get("budgets") or {}
         max_files = int(work_limits.get("max_files", -1))
@@ -399,11 +427,18 @@ def reserve_repair_attempt(
     if attempt_number < 1:
         raise BudgetError("attempt_number must be >= 1")
 
-    durable, _, _ = _open(db_path)
+    durable, graph, queue = _open(db_path)
     try:
         durable.db.execute("BEGIN IMMEDIATE")
         try:
             row = _budget_row(durable, work_item_id)
+            _assert_active_identity(
+                durable,
+                graph,
+                queue,
+                work_item_id=work_item_id,
+                operation_id=str(row["operation_id"]),
+            )
             existing_reservation = _existing_attempt_reservation(
                 durable,
                 work_item_id=work_item_id,
