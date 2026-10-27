@@ -66,7 +66,12 @@ def main() -> int:
         assert first == second
         assert first["cache_key"].startswith("applab-review-fanout-v60g-")
         assert len(first["nodes"]) == 4
-        assert len(first["layers"][1]) == 4
+        assert first["layers"][1] == [
+            "competitive",
+            "planner_feedback",
+            "simulated_human",
+        ]
+        assert first["layers"][2] == ["design_advisor"]
 
         changed_sha = dag.plan(
             applab_root=applab,
