@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_CONTROLLED_CLOSED_LOOP_EXPANSION",
+  "authority": "ORCHESTRATION_ONLY",
+  "promotion_order": [
+    "SELF_CANARY",
+    "PILOT_3",
+    "PILOT_5"
+  ],
+  "stage_sizes": {
+    "SELF_CANARY": 1,
+    "PILOT_3": 3,
+    "PILOT_5": 5
+  },
+  "self_repository": "riccardopinato/AppLab",
+  "allowed_source_refs": [
+    "refs/heads/main"
+  ],
+  "autonomous_mutation_risks": [
+    "LOW",
+    "NORMAL"
+  ],
+  "promotion_thresholds": {
+    "minimum_successful_closed_loop_operations_per_repository": 3,
+    "maximum_failed_closed_loop_operations_per_repository": 0,
+    "maximum_authority_breaches": 0,
+    "maximum_false_repairs": 0,
+    "maximum_recovery_failures": 0,
+    "maximum_exact_identity_violations": 0
+  },
+  "mandatory_denials": [
+    "WRITE_MAIN",
+    "WRITE_FACTORY_CORE",
+    "READ_SECRETS",
+    "EDIT_WORKFLOW",
+    "EDIT_BRANCH_PROTECTION",
+    "RELEASE",
+    "WEAKEN_TESTS",
+    "SELF_APPROVE",
+    "SELF_MERGE"
+  ],
+  "invariants": [
+    "promotion_is_explicit_and_evidence_gated",
+    "v55_infrastructure_evidence_does_not_grant_v61_mutation_authority",
+    "all_compatible_is_not_a_v61d_stage",
+    "stage_membership_only_expands_never_silently_retargets",
+    "repository_ref_and_source_sha_are_immutable",
+    "applab_self_requires_source_sha_equal_applab_sha",
+    "downstream_source_sha_and_applab_engine_sha_remain_distinct_immutable_identities",
+    "existing_durable_store_queue_work_graph_and_v61c_budgets_are_reused",
+    "global_and_per_repository_kill_switches_fail_closed",
+    "high_and_security_risk_are_investigation_only",
+    "no_live_remote_dispatch_is_created_by_the_expansion_controller",
+    "github_actions_fallback_remains_available",
+    "event_driven_waiting_and_reconciliation_remain_primary",
+    "merge_release_verification_and_certification_authority_are_unchanged"
+  ],
+  "authority_boundaries": {
+    "merge": "POST_GATE_EXTERNAL_ONLY",
+    "release": "DENIED",
+    "verification": "UNCHANGED",
+    "certification": "UNCHANGED"
+  }
+}

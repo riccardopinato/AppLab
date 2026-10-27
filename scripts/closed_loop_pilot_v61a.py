@@ -161,6 +161,7 @@ def _persist_work_item(
     allow_code_edit: bool,
     allow_draft_pr: bool,
     risk: str,
+    reason_code: str = "V61A_SELF_CANARY_ADMITTED",
 ) -> dict[str, Any]:
     graph_contract = workgraph.load_contract()
     with storemod.SQLiteShadowStore(db_path) as durable:
@@ -272,7 +273,7 @@ def _persist_work_item(
                 "decision_id": decision_id,
                 "work_item_id": work_item_id,
                 "kind": "INVESTIGATE",
-                "reason_code": "V61A_SELF_CANARY_ADMITTED",
+                "reason_code": reason_code,
                 "evidence_ref_ids": [],
                 "created_at": created_at,
             }
@@ -283,7 +284,7 @@ def _persist_work_item(
                 work_item_id=work_item_id,
                 from_state="CREATED",
                 to_state="INVESTIGATING",
-                reason_code="V61A_SELF_CANARY_ADMITTED",
+                reason_code=reason_code,
                 created_at=created_at,
             )
         else:
