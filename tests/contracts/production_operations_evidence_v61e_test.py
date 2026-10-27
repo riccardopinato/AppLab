@@ -133,8 +133,6 @@ def main() -> int:
             fallback_batches=1,
             covered_waits=5,
             external_queries=1,
-            repeated_signature_stop=True,
-            outcome="STOPPED",
         ),
         fixture(
             operation_id="op_d",
@@ -151,16 +149,16 @@ def main() -> int:
     healthy = mod.build_report(healthy_records)
     repo = healthy["repositories"]["riccardopinato/AppLab"]
 
-    # STOP due to repeated failure signature is a safety stop, not a success.
-    assert repo["successful_closed_loop_operations"] == 3
+    assert repo["successful_closed_loop_operations"] == 4
     assert repo["failed_closed_loop_operations"] == 0
-    assert repo["stopped_operations"] == 1
-    assert repo["repeated_signature_stops"] == 1
+    assert repo["stopped_operations"] == 0
+    assert repo["repeated_signature_stops"] == 0
 
-    # Three real successes satisfy v6.1D evidence, but 6.1E never changes policy.
+    # Real successes satisfy v6.1D evidence, but 6.1E never changes policy.
     assert healthy["promotion"]["decision"] == "ELIGIBLE_FOR_EXPLICIT_PROMOTION"
     assert healthy["promotion"]["next_stage"] == "PILOT_3"
     assert healthy["promotion"]["policy_changed"] is False
+    assert healthy["operations_gate"]["decision"] == "ELIGIBLE_FOR_EXPLICIT_PROMOTION"
     assert healthy["policy_change_performed"] is False
 
     # GitHub runtime and AppLab overhead stay separately inspectable.
@@ -176,7 +174,26 @@ def main() -> int:
     assert repo["observations"]["external_queries"] == 4
     assert repo["observations"]["coalesced_wait_savings"] == 12
     assert repo["observations"]["fallback_queries_per_wait"] == 0.25
-    assert healthy["repeated_signature_stops"] == 1
+    assert healthy["repeated_signature_stops"] == 0
+
+    safety_stop = mod.build_report(
+        [
+            fixture(operation_id="safe1"),
+            fixture(operation_id="safe2"),
+            fixture(operation_id="safe3"),
+            fixture(
+                operation_id="safe-stop",
+                outcome="STOPPED",
+                repeated_signature_stop=True,
+            ),
+        ]
+    )
+    assert safety_stop["promotion"]["decision"] == "ELIGIBLE_FOR_EXPLICIT_PROMOTION"
+    assert safety_stop["operations_gate"]["decision"] == "HOLD"
+    assert any(
+        "REPEATED_FAILURE_SIGNATURE_STOP" in blocker
+        for blocker in safety_stop["operations_gate"]["blockers"]
+    )
 
     # Operational latency alerts are read-only and do not mint verification truth.
     slow = mod.build_report(
@@ -209,6 +226,7 @@ def main() -> int:
     ]
     assert false_repair["rollback"]["policy_changed"] is False
     assert false_repair["promotion"]["decision"] == "HOLD"
+    assert false_repair["operations_gate"]["decision"] == "HOLD"
 
     authority = mod.build_report(
         [
