@@ -44,6 +44,8 @@
     "rollback_is_a_recommendation_and_never_mutates_stage_or_kill_switches",
     "false_repair_authority_breach_recovery_failure_and_identity_violation_fail_closed",
     "repeated_failure_signature_stops_are_counted_as_safety_stops_not_successes",
+    "repeated_failure_signature_stop_blocks_operations_promotion_recommendation",
+    "rollback_failure_blocks_operations_promotion_recommendation",
     "event_driven_progression_and_bounded_fallback_efficiency_are_reported",
     "operations_studio_projection_remains_read_only",
     "merge_release_verification_and_certification_authority_are_unchanged"
@@ -54,5 +56,6 @@
     "release": "NONE",
     "verification": "UNCHANGED",
     "certification": "UNCHANGED"
-  }
+  },
+  "self_repository": "riccardopinato/AppLab"
 }
