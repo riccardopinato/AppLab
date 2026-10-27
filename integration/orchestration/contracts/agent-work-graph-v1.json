@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "contract_name": "APPLAB_AGENT_WORK_GRAPH",
+  "authority": "ORCHESTRATION_ONLY",
+  "work_item": {
+    "record_type": "APPLAB_WORK_ITEM",
+    "required": [
+      "schema_version",
+      "record_type",
+      "work_item_id",
+      "operation_id",
+      "repository",
+      "source_ref",
+      "resolved_sha",
+      "applab_sha",
+      "risk",
+      "state",
+      "authority",
+      "authority_envelope",
+      "budgets",
+      "acceptance_criteria",
+      "required_evidence",
+      "rollback",
+      "terminal_conditions"
+    ],
+    "states": [
+      "CREATED",
+      "INVESTIGATING",
+      "PLANNED",
+      "EXECUTING",
+      "VERIFYING",
+      "WAITING_EXTERNAL",
+      "COMPLETE",
+      "STOPPED",
+      "BLOCKED"
+    ],
+    "terminal_states": [
+      "COMPLETE",
+      "STOPPED",
+      "BLOCKED"
+    ],
+    "allowed_transitions": {
+      "CREATED": [
+        "INVESTIGATING",
+        "PLANNED",
+        "STOPPED",
+        "BLOCKED"
+      ],
+      "INVESTIGATING": [
+        "PLANNED",
+        "STOPPED",
+        "BLOCKED"
+      ],
+      "PLANNED": [
+        "EXECUTING",
+        "VERIFYING",
+        "WAITING_EXTERNAL",
+        "STOPPED",
+        "BLOCKED"
+      ],
+      "EXECUTING": [
+        "VERIFYING",
+        "WAITING_EXTERNAL",
+        "STOPPED",
+        "BLOCKED"
+      ],
+      "VERIFYING": [
+        "INVESTIGATING",
+        "PLANNED",
+        "WAITING_EXTERNAL",
+        "COMPLETE",
+        "STOPPED",
+        "BLOCKED"
+      ],
+      "WAITING_EXTERNAL": [
+        "INVESTIGATING",
+        "PLANNED",
+        "VERIFYING",
+        "COMPLETE",
+        "STOPPED",
+        "BLOCKED"
+      ],
+      "COMPLETE": [],
+      "STOPPED": [],
+      "BLOCKED": []
+    },
+    "risk_levels": [
+      "LOW",
+      "NORMAL",
+      "HIGH",
+      "SECURITY"
+    ]
+  },
+  "authority_envelope": {
+    "allowed_capabilities": [
+      "READ_REPOSITORY",
+      "READ_EVIDENCE",
+      "RUN_FOCUSED_TESTS",
+      "RUN_APPLAB_FAST",
+      "RUN_APPLAB_FULL",
+      "ALLOW_CODE_EDIT",
+      "CREATE_DRAFT_PR",
+      "UPDATE_DRAFT_PR"
+    ],
+    "mandatory_denials": [
+      "WRITE_MAIN",
+      "WRITE_FACTORY_CORE",
+      "READ_SECRETS",
+      "EDIT_WORKFLOW",
+      "EDIT_BRANCH_PROTECTION",
+      "RELEASE",
+      "WEAKEN_TESTS",
+      "SELF_APPROVE",
+      "SELF_MERGE"
+    ]
+  },
+  "budgets": {
+    "max_files": 5,
+    "max_changed_lines": 250,
+    "max_repair_attempts": 2,
+    "max_agent_actions": 24
+  },
+  "decision": {
+    "record_type": "APPLAB_WORK_DECISION",
+    "required": [
+      "schema_version",
+      "record_type",
+      "decision_id",
+      "work_item_id",
+      "kind",
+      "reason_code",
+      "evidence_ref_ids",
+      "created_at"
+    ],
+    "kinds": [
+      "INVESTIGATE",
+      "PLAN_REPAIR",
+      "APPLY_PATCH",
+      "RUN_FOCUSED_TESTS",
+      "RUN_APPLAB_FAST",
+      "RUN_APPLAB_FULL",
+      "CREATE_DRAFT_PR",
+      "UPDATE_DRAFT_PR",
+      "WAIT_EXTERNAL",
+      "STOP",
+      "COMPLETE"
+    ]
+  },
+  "action": {
+    "record_type": "APPLAB_WORK_ACTION",
+    "required": [
+      "schema_version",
+      "record_type",
+      "action_id",
+      "work_item_id",
+      "decision_id",
+      "capability",
+      "state",
+      "created_at"
+    ],
+    "states": [
+      "PLANNED",
+      "RUNNING",
+      "SUCCEEDED",
+      "FAILED",
+      "BLOCKED",
+      "CANCELED"
+    ]
+  },
+  "verdict": {
+    "record_type": "APPLAB_WORK_VERDICT",
+    "required": [
+      "schema_version",
+      "record_type",
+      "verdict_id",
+      "work_item_id",
+      "decision_id",
+      "state",
+      "reason_code",
+      "evidence_ref_ids",
+      "authority",
+      "created_at"
+    ],
+    "states": [
+      "CONTINUE",
+      "STOP",
+      "COMPLETE"
+    ],
+    "authority": "ORCHESTRATION_ONLY"
+  },
+  "terminal_conditions": [
+    "UNKNOWN_CLASSIFICATION",
+    "SCOPE_EXCEEDED",
+    "PROTECTED_PATH",
+    "SECURITY_SENSITIVE_SCOPE",
+    "TEST_WEAKENING_REQUIRED",
+    "REPEATED_FAILURE_SIGNATURE",
+    "UNEXPLAINED_FAILURE_MUTATION",
+    "IDENTITY_NOT_PROVEN",
+    "BUDGET_EXHAUSTED",
+    "HUMAN_DECISION_REQUIRED"
+  ],
+  "invariants": [
+    "durable_brain_operation_remains_source_operation",
+    "work_graph_uses_same_sqlite_durable_substrate",
+    "decisions_actions_attempt_links_verdicts_transitions_are_append_only",
+    "work_item_identity_is_immutable",
+    "work_item_projection_is_rebuildable_from_transitions",
+    "verdict_never_mints_pass_or_certified",
+    "main_factory_core_secrets_workflow_branch_protection_release_test_weakening_self_approval_self_merge_remain_denied"
+  ],
+  "attempt_link": {
+    "record_type": "APPLAB_WORK_ATTEMPT_LINK",
+    "required": [
+      "schema_version",
+      "record_type",
+      "attempt_link_id",
+      "work_item_id",
+      "action_id",
+      "attempt_id",
+      "created_at"
+    ]
+  }
+}
