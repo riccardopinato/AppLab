@@ -32,6 +32,7 @@ def inspect_repair(root: Path, db: Path, admission: dict, closed: dict,
         and admission.get("resolved_sha") == closed.get("resolved_sha") == sha
         and admission.get("applab_sha") == closed.get("applab_sha") == sha
         and admission.get("operation_id") == closed.get("operation_id")
+        and closed.get("effective_draft_pr_authorized") is True
         and closed.get("effective_mutation_authorized") is True
         and closed.get("work_item_state") == "INVESTIGATING"
     ):
@@ -43,6 +44,9 @@ def inspect_repair(root: Path, db: Path, admission: dict, closed: dict,
             graph.integrity_report()["ok"]
             and work["operation_id"] == admission["operation_id"]
             and work["resolved_sha"] == sha
+            and work["repository"] == SELF
+            and work["applab_sha"] == sha
+            and work["source_ref"] == "refs/heads/main"
             and work["current_state"] == "INVESTIGATING"
             and work["risk"] in ("LOW", "NORMAL")
         ):
