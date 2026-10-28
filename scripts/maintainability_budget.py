@@ -45,6 +45,7 @@ LIMITS = {
     # v6.1A settled near 700 lines after fail-closed immutable-policy replay;
     # growth beyond 740 requires extraction before adding more orchestration.
     "scripts/closed_loop_pilot_v61a.py": 740,
+    "scripts/self_canary_witness_v62a.py": 260,
     # v6.1B owns durable wait/event/reconciliation/supersession semantics.
     # Growth beyond 1060 requires extracting the wait persistence adapter.
     "scripts/event_driven_recovery_v61b.py": 1060,
