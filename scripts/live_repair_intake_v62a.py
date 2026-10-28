@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from pathlib import Path
 
 import agent_work_graph_v60a as graphmod
 import causal_repo_investigator_v60b as investigator
 import durable_store_v54b as storemod
+import self_canary_witness_v62a as witness
 
 SELF = "riccardopinato/AppLab"
 
@@ -37,6 +39,22 @@ def inspect_repair(root: Path, db: Path, admission: dict, closed: dict,
         and closed.get("work_item_state") == "INVESTIGATING"
     ):
         raise RepairAdmissionError("EXACT_LIVE_ADMISSION_REQUIRED")
+    delivery = str(admission.get("source_delivery_id") or "")
+    parts = delivery.split(":")
+    if len(parts) != 2 or not all(part.isdigit() and int(part) > 0 for part in parts):
+        raise RepairAdmissionError("GITHUB_DELIVERY_IDENTITY_MISSING")
+    run_id, run_attempt = map(int, parts)
+    witness.admission_witness(admission, closed, run_id=run_id,
+                              run_attempt=run_attempt)
+    if os.environ.get("GITHUB_ACTIONS") == "true" and (
+        os.environ.get("GITHUB_RUN_ID") != str(run_id)
+        or os.environ.get("GITHUB_RUN_ATTEMPT") != str(run_attempt)
+        or os.environ.get("GITHUB_EVENT_NAME") != "push"
+        or os.environ.get("GITHUB_REF") != "refs/heads/main"
+        or os.environ.get("GITHUB_SHA") != sha
+    ):
+        raise RepairAdmissionError("GITHUB_RUNTIME_EVENT_MISMATCH")
+
     with storemod.SQLiteShadowStore(db) as store:
         graph = graphmod.AgentWorkGraphStore(store, graphmod.load_contract())
         work = graph.get_work_item(closed["work_item_id"])
