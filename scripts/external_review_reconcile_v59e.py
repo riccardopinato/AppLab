@@ -10,6 +10,7 @@ from typing import Any
 
 import external_review_support_v59e as support
 import watchdog_github_v59e as github
+import external_review_permission_v62 as permission
 
 ENGINE_VERSION = "5.9E"
 
@@ -33,26 +34,7 @@ def bounded_rotation(
     ]
 
 
-def request_review(
-    repository: str,
-    pr_number: int,
-    head_sha: str,
-    attempt: int,
-    request_body: str,
-    token: str,
-) -> None:
-    body = (
-        request_body.strip()
-        + "\n\n"
-        + f"<!-- applab-review-watchdog:v1 head={head_sha} attempt={attempt} -->"
-    )
-    github.api(
-        f"https://api.github.com/repos/{repository}/issues/{pr_number}/comments",
-        token,
-        method="POST",
-        payload={"body": body},
-        user_agent="AppLab-External-Review-Watchdog/5.9E",
-    )
+request_review = permission.request_review
 
 
 def reconcile(
@@ -115,15 +97,10 @@ def reconcile(
             watchdog_actor_login=watchdog_actor_login,
         )
         if decision["action"] == "REQUEST_REVIEW" and not dry_run:
-            request_review(
-                repository,
-                number,
-                decision["expected_head_sha"],
-                decision["retry_count"] + 1,
-                request_body,
-                token,
-            )
-            decision["dispatch"] = "COMMENTED"
+            decision.update(permission.attempt_request(lambda: request_review(
+                repository, number, decision["expected_head_sha"],
+                decision["retry_count"] + 1, request_body, token,
+            )))
         else:
             decision["dispatch"] = "DRY_RUN" if dry_run else "NONE"
         rows.append(decision)
@@ -138,6 +115,14 @@ def reconcile(
         "reviewed_pr_count": len(rows),
         "retrigger_count": sum(
             1 for row in rows if row.get("dispatch") == "COMMENTED"
+        ),
+        "blocked_request_count": sum(
+            1 for row in rows if row.get("dispatch") == "BLOCKED"
+        ),
+        "status": (
+            "BLOCKED_REVIEW_REQUEST"
+            if any(row.get("dispatch") == "BLOCKED" for row in rows)
+            else "OBSERVED"
         ),
         "merge_authority_unchanged": True,
         "rows": rows,
@@ -201,7 +186,9 @@ def main() -> int:
             encoding="utf-8",
         )
     print(json.dumps(payload, indent=2, sort_keys=True))
-    return 0
+    # Artifacts are saved before marking the workflow failed. Never mask an
+    # inability to request independent review as successful reconciliation.
+    return 1 if payload.get("blocked_request_count", 0) else 0
 
 
 if __name__ == "__main__":

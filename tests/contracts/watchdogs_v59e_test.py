@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import sys
+import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -159,6 +160,70 @@ def test_review_watchdog() -> None:
         max_retries=2,
     )
     assert timed["retry_count"] == 1
+
+
+
+
+def test_review_request_permission_failure_is_recorded() -> None:
+    """A GitHub Actions 403 must create an auditable STOP, not false success."""
+    head = "a" * 40
+    now = datetime(2026, 10, 28, 9, 0, tzinfo=timezone.utc)
+    pr = {
+        "number": 202,
+        "title": "live self-canary",
+        "draft": False,
+        "head": {"sha": head},
+        "created_at": "2026-10-27T23:00:00Z",
+        "updated_at": "2026-10-27T23:00:00Z",
+    }
+    original_list = github.paginated_list
+    original_request = reconcile.request_review
+    calls: list[str] = []
+
+    def fake_list(url: str, token: str, **kwargs):
+        if "/pulls?" in url:
+            return [pr]
+        if "/issues/202/comments" in url:
+            return [review_comment(
+                head, status="running", created="2026-10-27T23:00:00Z"
+            )]
+        raise AssertionError(url)
+
+    def denied(*args, **kwargs):
+        calls.append("request")
+        raise urllib.error.HTTPError(
+            "https://api.github.com/repos/owner/app/issues/202/comments",
+            403, "Forbidden", {}, None
+        )
+
+    github.paginated_list = fake_list
+    reconcile.request_review = denied
+    try:
+        result = reconcile.reconcile(
+            repository="owner/app",
+            config={
+                "timeout_seconds": 900,
+                "max_retries": 2,
+                "include_drafts": False,
+                "max_open_prs_per_run": 20,
+                "scan_rotation_seconds": 900,
+            },
+            token="test", dry_run=False, now=now,
+        )
+    finally:
+        github.paginated_list = original_list
+        reconcile.request_review = original_request
+    assert calls == ["request"]
+    assert result["status"] == "BLOCKED_REVIEW_REQUEST"
+    assert result["blocked_request_count"] == 1
+    assert result["retrigger_count"] == 0
+    assert result["merge_authority_unchanged"] is True
+    row = result["rows"][0]
+    assert row["state"] == "BLOCKED"
+    assert row["dispatch"] == "BLOCKED"
+    assert row["review_request_http_status"] == 403
+    assert row["operator_action_required"] is True
+    assert row["exact_head"] is True
 
 
 def test_supersession_identity() -> None:
@@ -344,6 +409,7 @@ def test_workflow_run_pagination_and_disabled_payload() -> None:
 
 def main() -> int:
     test_review_watchdog()
+    test_review_request_permission_failure_is_recorded()
     test_supersession_identity()
     test_comment_pagination()
     test_bounded_pr_rotation()
