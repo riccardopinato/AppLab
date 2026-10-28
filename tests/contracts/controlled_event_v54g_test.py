@@ -150,6 +150,78 @@ def main() -> int:
         assert failed["watchdog_required"] is True
         assert failed["certification_authority_changed"] is False
 
+        # v6.2B: a real cancelled trusted job is a durable failed operation.
+        # Repeating its exact identity must never redispatch or mint PASS.
+        cancel_db = root / "cancelled.sqlite3"
+        cancelled_admission = pilot.admit(
+            db_path=cancel_db,
+            config_path=enabled_path,
+            repository=target["repository"],
+            source_ref=target["source_ref"],
+            resolved_sha="a" * 40,
+            applab_sha="a" * 40,
+            delivery_id="github-run-cancelled:1",
+            live_requested=True,
+            now_ts=3200.0,
+        )
+        assert cancelled_admission["dispatch"] is True
+        cancelled_final = pilot.finalize(
+            db_path=cancel_db,
+            operation_id=cancelled_admission["operation_id"],
+            worker_id=cancelled_admission["worker_id"],
+            job_result="cancelled",
+            now_ts=3300.0,
+        )
+        assert cancelled_final["verification_job_result"] == "cancelled"
+        assert cancelled_final["operation_terminal_state"] == "FAILED"
+        assert cancelled_final["queue_state"] == "BLOCKED"
+        assert cancelled_final["watchdog_required"] is True
+        assert cancelled_final["certification_authority_changed"] is False
+        assert cancelled_final["queue_integrity"]["ok"] is True
+
+        cancelled_replay = pilot.admit(
+            db_path=cancel_db,
+            config_path=enabled_path,
+            repository=target["repository"],
+            source_ref=target["source_ref"],
+            resolved_sha="a" * 40,
+            applab_sha="a" * 40,
+            delivery_id="github-run-cancelled-replay:1",
+            live_requested=True,
+            now_ts=3400.0,
+        )
+        assert cancelled_replay["operation_id"] == cancelled_admission["operation_id"]
+        assert cancelled_replay["dispatch"] is False
+        assert cancelled_replay["event_persistence"] == "DEDUPED"
+        try:
+            pilot.finalize(
+                db_path=cancel_db,
+                operation_id=cancelled_admission["operation_id"],
+                worker_id=cancelled_admission["worker_id"],
+                job_result="success",
+                now_ts=3500.0,
+            )
+        except pilot.PilotError:
+            pass
+        else:
+            raise AssertionError("cancelled terminal operation was re-finalized")
+
+        # A genuinely different, immutable SHA can receive a separate WorkItem
+        # admission. This does not retroactively clear the cancelled receipt.
+        fresh_after_cancel = pilot.admit(
+            db_path=cancel_db,
+            config_path=enabled_path,
+            repository=target["repository"],
+            source_ref=target["source_ref"],
+            resolved_sha="b" * 40,
+            applab_sha="b" * 40,
+            delivery_id="github-run-fresh-sha:1",
+            live_requested=True,
+            now_ts=3600.0,
+        )
+        assert fresh_after_cancel["operation_id"] != cancelled_admission["operation_id"]
+        assert fresh_after_cancel["dispatch"] is True
+
         # Kill switch overrides a live request without dropping Event/Operation evidence.
         disabled_config = dict(enabled_config)
         disabled_config["kill_switch"] = True
