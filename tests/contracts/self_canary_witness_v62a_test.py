@@ -72,8 +72,12 @@ def test_v62c_live_observation_fail_closed() -> None:
     bridge.self_test()
 
 
+from live_repair_bridge_v62a_test import test_reject_untrusted_event
+
+
 if __name__ == "__main__":
     test_witness_self_test()
     test_cancelled_witness_never_becomes_success()
     test_v62c_live_observation_fail_closed()
+    test_reject_untrusted_event()
     print("v6.2A/v6.2B cancellation contract regression PASS")
