@@ -7,6 +7,7 @@ import hashlib
 import json
 import subprocess
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 import agent_work_graph_v60a as graphmod
@@ -32,6 +33,18 @@ def run(root: Path, db: Path, admission: dict, closed: dict, triage: dict,
         work = graph.get_work_item(observed["work_item_id"])
         if not graph.integrity_report()["ok"]:
             raise AttemptBlocked("DURABLE_GRAPH_INTEGRITY")
+        # A durable state transition is the exclusive repair lease. Replays
+        # cannot pass the intake INVESTIGATING-state check a second time.
+        occurred = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        for old, new in (("INVESTIGATING", "PLANNED"), ("PLANNED", "EXECUTING")):
+            transition_id = "trn_" + hashlib.sha256(
+                (work["work_item_id"] + ":V62A:" + new).encode()
+            ).hexdigest()[:24]
+            graph.transition(
+                transition_id=transition_id, work_item_id=work["work_item_id"],
+                from_state=old, to_state=new, reason_code="V62A_BOUND_REPAIR_LEASE",
+                created_at=occurred)
+
     with tempfile.TemporaryDirectory(prefix="applab-v62a-attempt-") as raw:
         result_patch = Path(raw) / "validated.patch"
         repair = worker.apply_bounded_patch(
