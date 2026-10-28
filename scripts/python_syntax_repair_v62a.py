@@ -24,6 +24,8 @@ def generate(root: Path, log: str) -> tuple[dict, dict, str]:
     if path not in tracked.splitlines():
         raise NotRepairable("NOT_TRACKED")
     old = file.read_text(encoding="utf-8")
+    if not old.endswith("\n"):
+        raise NotRepairable("UNTERMINATED_SOURCE_UNSUPPORTED")
     try:
         compile(old, path, "exec")
     except SyntaxError as err:
