@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -115,15 +116,31 @@ def reconcile(
             watchdog_actor_login=watchdog_actor_login,
         )
         if decision["action"] == "REQUEST_REVIEW" and not dry_run:
-            request_review(
-                repository,
-                number,
-                decision["expected_head_sha"],
-                decision["retry_count"] + 1,
-                request_body,
-                token,
-            )
-            decision["dispatch"] = "COMMENTED"
+            try:
+                request_review(
+                    repository,
+                    number,
+                    decision["expected_head_sha"],
+                    decision["retry_count"] + 1,
+                    request_body,
+                    token,
+                )
+            except urllib.error.HTTPError as exc:
+                # The scheduled GitHub token can have issues:write yet still
+                # receive a 403 from the comment endpoint. This is NOT a
+                # completed review or a retrigger; preserve an auditable STOP.
+                decision.update({
+                    "state": "BLOCKED",
+                    "reason": "REVIEW_REQUEST_PERMISSION_DENIED"
+                    if exc.code in {401, 403}
+                    else "REVIEW_REQUEST_HTTP_FAILED",
+                    "dispatch": "BLOCKED",
+                    "review_request_http_status": int(exc.code),
+                    "operator_action_required": True,
+                })
+                exc.close()
+            else:
+                decision["dispatch"] = "COMMENTED"
         else:
             decision["dispatch"] = "DRY_RUN" if dry_run else "NONE"
         rows.append(decision)
@@ -138,6 +155,14 @@ def reconcile(
         "reviewed_pr_count": len(rows),
         "retrigger_count": sum(
             1 for row in rows if row.get("dispatch") == "COMMENTED"
+        ),
+        "blocked_request_count": sum(
+            1 for row in rows if row.get("dispatch") == "BLOCKED"
+        ),
+        "status": (
+            "BLOCKED_REVIEW_REQUEST"
+            if any(row.get("dispatch") == "BLOCKED" for row in rows)
+            else "OBSERVED"
         ),
         "merge_authority_unchanged": True,
         "rows": rows,
@@ -201,7 +226,9 @@ def main() -> int:
             encoding="utf-8",
         )
     print(json.dumps(payload, indent=2, sort_keys=True))
-    return 0
+    # Artifacts are saved before marking the workflow failed. Never mask an
+    # inability to request independent review as successful reconciliation.
+    return 1 if payload.get("blocked_request_count", 0) else 0
 
 
 if __name__ == "__main__":
