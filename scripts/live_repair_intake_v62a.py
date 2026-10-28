@@ -22,7 +22,12 @@ def inspect_repair(root: Path, db: Path, admission: dict, closed: dict,
                    triage: dict, plan: dict, diagnostics: str) -> dict:
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
     if not (
-        admission.get("repository") == closed.get("repository") == SELF
+        admission.get("admitted") is True and admission.get("live") is True
+        and admission.get("dispatch") is True
+        and closed.get("live_requested") is True
+        and closed.get("dispatch") is False
+        and closed.get("stage") == "SELF_CANARY"
+        and admission.get("repository") == closed.get("repository") == SELF
         and admission.get("source_ref") == closed.get("source_ref") == "refs/heads/main"
         and admission.get("resolved_sha") == closed.get("resolved_sha") == sha
         and admission.get("applab_sha") == closed.get("applab_sha") == sha
