@@ -5,6 +5,7 @@ on:
     paths:
       - "scripts/controlled_event_v54g.py"
       - "scripts/self_canary_witness_v62a.py"
+      - "scripts/live_canary_operations_v62c.py"
       - "tests/contracts/self_canary_witness_v62a_test.py"
       - "tests/contracts/controlled_event_v54g_test.py"
       - "integration/orchestration/contracts/controlled-event-pilot-v1.json"
@@ -16,6 +17,7 @@ on:
     paths:
       - "scripts/controlled_event_v54g.py"
       - "scripts/self_canary_witness_v62a.py"
+      - "scripts/live_canary_operations_v62c.py"
       - "tests/contracts/self_canary_witness_v62a_test.py"
       - "tests/contracts/controlled_event_v54g_test.py"
       - "integration/orchestration/contracts/controlled-event-pilot-v1.json"
@@ -215,6 +217,24 @@ jobs:
             --output "$GITHUB_WORKSPACE/v62a-final-witness.json"
           cat "$GITHUB_WORKSPACE/v62a-final-witness.json" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Produce v6.2C read-only operations and Studio observation
+        if: hashFiles('v62a-final-witness.json') != ''
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python scripts/live_canary_operations_v62c.py \
+            --legacy "$GITHUB_WORKSPACE/v54g-admission.json" \
+            --closed-loop "$GITHUB_WORKSPACE/v61a-closed-loop.json" \
+            --runner-final "$GITHUB_WORKSPACE/v54g-final.json" \
+            --admission-witness "$GITHUB_WORKSPACE/v62a-admission-witness.json" \
+            --final-witness "$GITHUB_WORKSPACE/v62a-final-witness.json" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --run-sha "$GITHUB_SHA" \
+            --event-name "$GITHUB_EVENT_NAME" \
+            --output "$GITHUB_WORKSPACE/v62c-operations-report.json"
+          cat "$GITHUB_WORKSPACE/v62c-operations-report.json" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Save updated non-authoritative pilot ledger
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
@@ -231,6 +251,7 @@ jobs:
             v54g-final.json
             v62a-admission-witness.json
             v62a-final-witness.json
+            v62c-operations-report.json
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 30

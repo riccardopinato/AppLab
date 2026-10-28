@@ -4,6 +4,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 import self_canary_witness_v62a as mod  # noqa: E402
+import live_canary_operations_v62c as bridge  # noqa: E402
 
 
 def test_witness_self_test() -> None:
@@ -67,7 +68,12 @@ def test_cancelled_witness_never_becomes_success() -> None:
             raise AssertionError("contradictory cancelled evidence accepted")
 
 
+def test_v62c_live_observation_fail_closed() -> None:
+    bridge.self_test()
+
+
 if __name__ == "__main__":
     test_witness_self_test()
     test_cancelled_witness_never_becomes_success()
+    test_v62c_live_observation_fail_closed()
     print("v6.2A/v6.2B cancellation contract regression PASS")
