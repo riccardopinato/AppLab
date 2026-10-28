@@ -33,6 +33,22 @@ def run(root: Path, db: Path, admission: dict, closed: dict, triage: dict,
         work = graph.get_work_item(observed["work_item_id"])
         if not graph.integrity_report()["ok"]:
             raise AttemptBlocked("DURABLE_GRAPH_INTEGRITY")
+        # Immutable Work Graph action records the attempted code edit.
+        occurred = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        suffix = hashlib.sha256(work["work_item_id"].encode()).hexdigest()[:24]
+        decision_id, action_id = "dec_" + suffix, "act_" + suffix
+        graph.put_decision({
+            "schema_version": 1, "record_type": "APPLAB_WORK_DECISION",
+            "decision_id": decision_id, "work_item_id": work["work_item_id"],
+            "kind": "APPLY_PATCH", "reason_code": "V62A_BOUNDED_REPAIR",
+            "evidence_ref_ids": [], "created_at": occurred,
+        })
+        graph.put_action({
+            "schema_version": 1, "record_type": "APPLAB_WORK_ACTION",
+            "action_id": action_id, "work_item_id": work["work_item_id"],
+            "decision_id": decision_id, "capability": "ALLOW_CODE_EDIT",
+            "state": "RUNNING", "created_at": occurred,
+        })
         # A durable state transition is the exclusive repair lease. Replays
         # cannot pass the intake INVESTIGATING-state check a second time.
         occurred = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
