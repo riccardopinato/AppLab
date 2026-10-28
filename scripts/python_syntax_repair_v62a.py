@@ -44,7 +44,8 @@ def generate(root: Path, log: str) -> tuple[dict, dict, str]:
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
     triage = {"repository": "riccardopinato/AppLab", "resolved_sha": sha,
               "classification": "BUILD_OR_QUALITY_FAILURE",
-              "root_cause_hypotheses": [f"{path}:{line} missing colon"]}
+              "root_cause_hypotheses": [f"{path}:{line} missing colon"],
+              "required_regression_evidence": [path]}
     plan = {"repository": "riccardopinato/AppLab", "head_sha": sha,
             "changed_files": [path], "analysis_truncated": False}
     body = "".join(difflib.unified_diff(
