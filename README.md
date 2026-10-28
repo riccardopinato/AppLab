@@ -1,12 +1,16 @@
 ## AppLab v6.2 — Operational Proof & Reliability (active)
 
-The v6.1A–E **implementation** is complete and exact-head validated. The live
+The v6.1A–E **implementation** is complete and exact-head validated. A real
+AppLab main self-canary (Actions run #40690909916, commit `7b3e723`) passed
+trusted Android verification but explicitly recorded no autonomous code repair.
+The live
 closed-loop rollout remains **HOLD AT SELF_CANARY** until real bounded repair,
 recovery, independent review, immutable evidence and post-gate checks justify
 explicit promotion. The active v6.2 roadmap is in `ROADMAP.md` and
 `integration/roadmap/APPLAB_V62_OPERATIONAL_PROOF.md`. Successful CI or an
 APK runner job is not an autonomous repair receipt. The canonical agent entrypoint
-is `AGENTS.md`.
+is `AGENTS.md`. v6.2 gate evidence and open legacy-PR disposition are documented
+in `integration/roadmap/V62_GATE_AND_HYGIENE_EVIDENCE_2026-10-28.md`.
 
 ## v5.9 Journey-Aware Throughput
 
