@@ -64,6 +64,19 @@ def run(root: Path, db: Path, admission: dict, closed: dict, triage: dict,
                            cwd=working, check=True)
             subprocess.run(["python", "-m", "compileall", "-q", "scripts"],
                            cwd=working, check=True, timeout=90)
+            tests = repair.get("required_regression_targets", [])
+            if not tests:
+                raise AttemptBlocked("NO_FOCUSED_TEST_EVIDENCE")
+            for test in tests:
+                if not isinstance(test, str) or ".." in Path(test).parts:
+                    raise AttemptBlocked("UNSAFE_FOCUSED_TEST")
+                if test.startswith("tests/") and test.endswith("_test.py"):
+                    subprocess.run(["python", test], cwd=working, check=True, timeout=90)
+                elif test.startswith("scripts/") and test.endswith(".py"):
+                    subprocess.run(["python", "-m", "py_compile", test],
+                                   cwd=working, check=True, timeout=90)
+                else:
+                    raise AttemptBlocked("UNSUPPORTED_FOCUSED_TEST")
         finally:
             subprocess.run(["git", "worktree", "remove", "--force", str(working)],
                            cwd=root, check=True, stdout=subprocess.DEVNULL)
