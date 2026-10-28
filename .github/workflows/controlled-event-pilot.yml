@@ -5,6 +5,7 @@ on:
     paths:
       - "scripts/controlled_event_v54g.py"
       - "scripts/self_canary_witness_v62a.py"
+      - "scripts/live_canary_operations_v62c.py"
       - "tests/contracts/self_canary_witness_v62a_test.py"
       - "tests/contracts/controlled_event_v54g_test.py"
       - "integration/orchestration/contracts/controlled-event-pilot-v1.json"
@@ -16,6 +17,7 @@ on:
     paths:
       - "scripts/controlled_event_v54g.py"
       - "scripts/self_canary_witness_v62a.py"
+      - "scripts/live_canary_operations_v62c.py"
       - "tests/contracts/self_canary_witness_v62a_test.py"
       - "tests/contracts/controlled_event_v54g_test.py"
       - "integration/orchestration/contracts/controlled-event-pilot-v1.json"
