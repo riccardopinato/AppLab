@@ -116,6 +116,7 @@ jobs:
             scripts/verify_repair_loop_v60d.py \
             scripts/draft_pr_steward_v60e.py \
             scripts/closed_loop_pilot_v61a.py \
+            scripts/self_canary_witness_v62a.py \
             scripts/event_driven_recovery_v61b.py \
             scripts/queue_backpressure_budget_v61c.py \
             scripts/controlled_closed_loop_expansion_v61d.py \
@@ -281,6 +282,8 @@ jobs:
           python scripts/verify_repair_loop_v60d.py --self-test
           python scripts/draft_pr_steward_v60e.py --self-test
           python scripts/closed_loop_pilot_v61a.py --self-test
+          python scripts/self_canary_witness_v62a.py --self-test
+          python tests/contracts/self_canary_witness_v62a_test.py
           python scripts/event_driven_recovery_v61b.py --self-test
           python scripts/queue_backpressure_budget_v61c.py --self-test
           python scripts/controlled_closed_loop_expansion_v61d.py --self-test
