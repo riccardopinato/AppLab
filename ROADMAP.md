@@ -2,7 +2,7 @@
 
 v6.0 implementation closure baseline: **main `094256b85c206dd6090f708ab59aa3d33d784269`** after PR #188 (`92f56e5e170fffec08c52b42509924f237693304`) and PR #187 (`094256b85c206dd6090f708ab59aa3d33d784269`). The immutable pre-v6 performance comparison baseline remains v5.9.1 (`bd0e0b1ae0a615b96fb3f160d81a6845bc51963b`).
 
-Completed program: **v6.0 Closed-Loop Agentic Engineering**. Active program: **v6.1 Controlled Closed-Loop Productionization**. v5.7B/v5.7E downstream adoption and exact-artifact reuse promotion gates are closed with real evidence.
+Completed implementation programs: **v6.0 Closed-Loop Agentic Engineering** and **v6.1 Controlled Closed-Loop Productionization**. Active operational proof program: **v6.2 Operational Proof & Reliability**. v5.7B/v5.7E downstream adoption and exact-artifact reuse promotion gates are closed with real evidence.
 
 Factory baseline for this roadmap refresh: `App-Factory-Core@7b84e33df715cf2a48bda7c7495d0690819bff0f` (Master 26.6 / Golden Index 23).
 
@@ -107,7 +107,11 @@ FAST/FULL, Production Certification, physical-device, distribution/store and cro
 
 ## Active — AppLab v6.2 Operational Proof & Reliability
 
-**Roadmap authorized for execution; rollout remains HOLD AT SELF_CANARY.** Implement in five independently gated stages: **v6.2A Self-Canary Real-Evidence Bridge**, **v6.2B Failure & Recovery Campaign**, **v6.2C Live Operations Pipeline**, **v6.2D Post-Gate Merge & PILOT_3 Decision**, and **v6.2E Hygiene & Reliability Closure**. The source of truth for detailed scope and acceptance is `integration/roadmap/APPLAB_V62_OPERATIONAL_PROOF.md`. v6.1 exact-head CI is not equivalent to real repair evidence. Neither multi-repo autonomous edit rights nor cohort promotion is implied.
+**Roadmap authorized for execution; rollout remains HOLD AT SELF_CANARY.**
+
+Evidence checkpoint 2026-10-28: PR #202 (real WorkItem witness), #203 (fail-closed review-permission diagnostics) and #205 (cancel/replay regression) are merged. The first real canary #40660650650 was CANCELLED; the next real canary #40690909916 succeeded at trusted verify only and reported `promotion_counted=false`, **zero** autonomous repairs. PR #206 proposes read-only live v6.2C operations/Studio projection, not a repair proof. #204 remains open (cancellation root cause unproven). Gated squash merges with independent exact-head review are demonstrated by #205; moving to PILOT_3 is still explicitly denied. See `integration/roadmap/V62_GATE_AND_HYGIENE_EVIDENCE_2026-10-28.md`.
+
+ Implement in five independently gated stages: **v6.2A Self-Canary Real-Evidence Bridge**, **v6.2B Failure & Recovery Campaign**, **v6.2C Live Operations Pipeline**, **v6.2D Post-Gate Merge & PILOT_3 Decision**, and **v6.2E Hygiene & Reliability Closure**. The source of truth for detailed scope and acceptance is `integration/roadmap/APPLAB_V62_OPERATIONAL_PROOF.md`. v6.1 exact-head CI is not equivalent to real repair evidence. Neither multi-repo autonomous edit rights nor cohort promotion is implied.
 
 ## Completed — AppLab v6.1 Controlled Closed-Loop Productionization
 
