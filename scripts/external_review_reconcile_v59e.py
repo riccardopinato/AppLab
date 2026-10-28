@@ -4,13 +4,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import external_review_support_v59e as support
 import watchdog_github_v59e as github
+import external_review_permission_v62 as permission
 
 ENGINE_VERSION = "5.9E"
 
@@ -34,26 +34,7 @@ def bounded_rotation(
     ]
 
 
-def request_review(
-    repository: str,
-    pr_number: int,
-    head_sha: str,
-    attempt: int,
-    request_body: str,
-    token: str,
-) -> None:
-    body = (
-        request_body.strip()
-        + "\n\n"
-        + f"<!-- applab-review-watchdog:v1 head={head_sha} attempt={attempt} -->"
-    )
-    github.api(
-        f"https://api.github.com/repos/{repository}/issues/{pr_number}/comments",
-        token,
-        method="POST",
-        payload={"body": body},
-        user_agent="AppLab-External-Review-Watchdog/5.9E",
-    )
+request_review = permission.request_review
 
 
 def reconcile(
@@ -116,31 +97,10 @@ def reconcile(
             watchdog_actor_login=watchdog_actor_login,
         )
         if decision["action"] == "REQUEST_REVIEW" and not dry_run:
-            try:
-                request_review(
-                    repository,
-                    number,
-                    decision["expected_head_sha"],
-                    decision["retry_count"] + 1,
-                    request_body,
-                    token,
-                )
-            except urllib.error.HTTPError as exc:
-                # The scheduled GitHub token can have issues:write yet still
-                # receive a 403 from the comment endpoint. This is NOT a
-                # completed review or a retrigger; preserve an auditable STOP.
-                decision.update({
-                    "state": "BLOCKED",
-                    "reason": "REVIEW_REQUEST_PERMISSION_DENIED"
-                    if exc.code in {401, 403}
-                    else "REVIEW_REQUEST_HTTP_FAILED",
-                    "dispatch": "BLOCKED",
-                    "review_request_http_status": int(exc.code),
-                    "operator_action_required": True,
-                })
-                exc.close()
-            else:
-                decision["dispatch"] = "COMMENTED"
+            decision.update(permission.attempt_request(lambda: request_review(
+                repository, number, decision["expected_head_sha"],
+                decision["retry_count"] + 1, request_body, token,
+            )))
         else:
             decision["dispatch"] = "DRY_RUN" if dry_run else "NONE"
         rows.append(decision)

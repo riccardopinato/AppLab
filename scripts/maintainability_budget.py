@@ -34,6 +34,7 @@ LIMITS = {
     "scripts/watchdog_github_v59e.py": 80,
     "scripts/external_review_support_v59e.py": 250,
     "scripts/external_review_reconcile_v59e.py": 220,
+    "scripts/external_review_permission_v62.py": 110,
     "scripts/supersession_support_v59e.py": 260,
     "scripts/supersession_watchdog_v59e.py": 220,
     "scripts/audit_contract_v59e.py": 180,
