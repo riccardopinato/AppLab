@@ -285,6 +285,7 @@ jobs:
           python scripts/self_canary_witness_v62a.py --self-test
           python tests/contracts/self_canary_witness_v62a_test.py
           python tests/contracts/python_syntax_repair_v62a_test.py
+          python tests/contracts/repair_intake_workflow_v62a_test.py
           python scripts/event_driven_recovery_v61b.py --self-test
           python scripts/queue_backpressure_budget_v61c.py --self-test
           python scripts/controlled_closed_loop_expansion_v61d.py --self-test
