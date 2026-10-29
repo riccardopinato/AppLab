@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "scripts/continuous_maintenance_v56.py"
+      - "scripts/v62_background_proof.py"
       - "integration/orchestration/contracts/continuous-maintenance-v56.json"
       - "integration/orchestration/V56_CONTINUOUS_MAINTENANCE_MODE.md"
       - ".github/workflows/continuous-maintenance.yml"
@@ -25,6 +26,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: applab-continuous-maintenance
@@ -150,6 +152,25 @@ jobs:
             --output .applab-maintenance/verification-reuse.json
           cat .applab-maintenance/factory-adoption-observatory.md >> "$GITHUB_STEP_SUMMARY"
           cat .applab-maintenance/factory-runtime-acceleration.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Observe live v6.2 self-canary and repair proofs
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p .applab-maintenance
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?per_page=100" > "$RUNNER_TEMP/v62-runs.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" > "$RUNNER_TEMP/v62-artifacts.json"
+          python scripts/v62_background_proof.py \
+            --runs "$RUNNER_TEMP/v62-runs.json" \
+            --artifacts "$RUNNER_TEMP/v62-artifacts.json" \
+            --policy integration/orchestration/v61d-expansion.json \
+            --output-json .applab-maintenance/v62-background-proof.json \
+            --output-md .applab-maintenance/v62-background-proof.md
+          cat .applab-maintenance/v62-background-proof.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save maintenance queue
         if: always()
