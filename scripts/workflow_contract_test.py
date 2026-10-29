@@ -238,12 +238,14 @@ def validate() -> None:
     flutter_runner = (ROOT / ".github/workflows/external-project-runner.yml").read_text(encoding="utf-8")
     native_runner = (ROOT / ".github/workflows/external-native-android-runner.yml").read_text(encoding="utf-8")
     gradle_action = "gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6"
-    assert gradle_action in flutter_runner and gradle_action in native_runner, (
+    gradle_setup = flutter_runner.index("- name: Setup Gradle build cache for Flutter")
+    gradle_end = flutter_runner.index("- name: Adaptive Flutter checks and build", gradle_setup)
+    gradle_block = flutter_runner[gradle_setup:gradle_end]
+    assert f"uses: {gradle_action}" in gradle_block and gradle_action in native_runner, (
         "Flutter and native external build runners must both cache Gradle safely"
     )
-    gradle_setup = flutter_runner.index("- name: Setup Gradle build cache for Flutter")
-    assert flutter_runner.index("- name: Post dependency preparation") < gradle_setup < flutter_runner.index("- name: Adaptive Flutter checks and build")
-    assert "if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'" in flutter_runner, (
+    assert flutter_runner.index("- name: Post dependency preparation") < gradle_setup < gradle_end
+    assert "if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'" in gradle_block, (
         "Gradle setup must not run for analysis-only or exact-APK cache reuse"
     )
 
