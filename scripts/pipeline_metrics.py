@@ -45,6 +45,14 @@ def summarize(plan:dict,quality:dict|None=None,shadow:dict|None=None,runtime:dic
         if build_cache_applicable is not False and "hit" in build_cache
         else None
     )
+    # Report coverage gaps without changing FAST/FULL or trusted runtime authority.
+    selection=plan.get("journey_selection")
+    selection=selection if isinstance(selection,dict) else {}
+    raw_unmatched=selection.get("unmatched_paths")
+    raw_unmatched=raw_unmatched if isinstance(raw_unmatched,list) else []
+    unmatched=[value for value in raw_unmatched if isinstance(value,str)][:100]
+    selected=plan.get("selected_journeys")
+    selected=selected if isinstance(selected,list) else []
     producer_timings={k:float(v) for k,v in (q.get("timings") or {}).items() if isinstance(v,(int,float))}
     cached_quality_timings_ignored=bool(build_cache_hit is True and producer_timings)
     timings={} if build_cache_hit is True else producer_timings
@@ -79,6 +87,12 @@ def summarize(plan:dict,quality:dict|None=None,shadow:dict|None=None,runtime:dic
       "changed_file_count":len(plan.get("changed_files",[])),
       "impacted_file_count":len(plan.get("impacted_files",[])),
       "selected_lab_count":sum(bool(v) for v in plan.get("selected_labs",{}).values()),
+      "journey_selection_state":selection.get("state"),
+      "journey_catalog_count":selection.get("catalog_count"),
+      "journey_selected_count":len(selected),
+      "journey_unmatched_path_count":len(unmatched),
+      "journey_unmatched_paths":unmatched[:25],
+      "journey_enforcement_eligible":selection.get("enforcement_eligible") is True,
       "shadow_full":bool(plan.get("shadow_full")),
       "shadow_divergence_count":len(s.get("divergences",[])),
       "shadow_false_negative_count":int(s.get("false_negative_count",0) or 0),
@@ -154,6 +168,24 @@ def main()->int:
             workflow_started_at="2000-01-01T00:00:00Z",
         )
         assert y["budget_exceeded"] and y["budget_ratio"] is not None
+        gaps=summarize(
+            {"selected_labs":{}, "selected_journeys":["core-shell"],
+             "journey_selection":{"state":"CATALOG_PARTIAL_UNMATCHED",
+               "catalog_count":9, "unmatched_paths":[".maestro/applab-smoke.yaml",
+               ".maestro/journey/personalization.yaml"], "enforcement_eligible":False}},
+        )
+        assert gaps["journey_unmatched_path_count"]==2
+        assert gaps["journey_unmatched_paths"]==[".maestro/applab-smoke.yaml",
+                                                  ".maestro/journey/personalization.yaml"]
+        assert gaps["journey_selection_state"]=="CATALOG_PARTIAL_UNMATCHED"
+        assert gaps["journey_enforcement_eligible"] is False
+        eligible=summarize({"selected_labs":{},"selected_journeys":["core-shell"],
+            "journey_selection":{"state":"CATALOG_SELECTED","catalog_count":9,
+                                 "unmatched_paths":[],"enforcement_eligible":True}})
+        assert eligible["journey_unmatched_path_count"]==0
+        assert eligible["journey_enforcement_eligible"] is True
+        invalid=summarize({"selected_labs":{},"journey_selection":{"unmatched_paths":"bad"}})
+        assert invalid["journey_unmatched_path_count"]==0
         print("AppLab pipeline metrics self-test PASS"); return 0
     if not a.plan or not a.output: raise SystemExit("--plan and --output are required")
     p=read_json(a.plan); q=read_json(a.quality); s=read_json(a.shadow); r=read_json(a.runtime_timing); e=read_json(a.execution_plan)
