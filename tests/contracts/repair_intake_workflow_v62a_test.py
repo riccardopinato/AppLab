@@ -15,10 +15,14 @@ def check() -> None:
     gate = str(job["if"])
     for required in ("always()", "github.event_name == 'push'",
                      "needs.verify.result == 'failure'",
+                     "needs.python_quality.result == 'failure'",
                      "needs.finalize.result == 'success'",
                      "needs.admit.outputs.dispatch == 'true'"):
         assert required in gate, required
-    assert set(job["needs"]) == {"admit", "verify", "finalize"}
+    assert set(job["needs"]) == {"admit", "verify", "finalize", "python_quality"}
+    python_job = jobs["python_quality"]
+    assert python_job["permissions"]["contents"] == "read"
+    assert "python -m compileall -q scripts" in python_job["steps"][-1]["run"]
     assert job["permissions"]["contents"] == "read"
     assert job["permissions"]["actions"] == "read"
     assert "pull-requests" not in job["permissions"]
