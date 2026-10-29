@@ -20,7 +20,14 @@ def run() -> None:
                         ("git", "add", "."), ("git", "commit", "-qm", "fixture")):
             subprocess.run(command, cwd=root, check=True)
         diagnostic = 'File "/repo/scripts/broken.py", line 1\nSyntaxError: expected \':\''
-        triage, plan, patch = generate(root, diagnostic)
+        observed = subprocess.run(
+            ("python", "-m", "compileall", "-q", "scripts"),
+            cwd=root, capture_output=True, text=True, check=False)
+        assert observed.returncode != 0
+        emitted = observed.stdout + observed.stderr
+        triage, plan, patch = generate(root, emitted)
+        _, _, patch_absolute = generate(root, diagnostic)
+        assert patch == patch_absolute
         assert triage["classification"] == "BUILD_OR_QUALITY_FAILURE"
         assert plan["changed_files"] == ["scripts/broken.py"]
         assert "+def broken():" in patch
