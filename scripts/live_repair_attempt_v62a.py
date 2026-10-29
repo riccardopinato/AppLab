@@ -157,13 +157,15 @@ def main() -> None:
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--repo-root", default=".")
     parser.add_argument("--publish", action="store_true")
+    parser.add_argument("--expected-patch-sha256", default="")
     args = parser.parse_args()
     def read(key: str) -> dict:
         return json.loads(Path(getattr(args, key)).read_text(encoding="utf-8"))
     result = run(Path(args.repo_root).resolve(), Path(args.db),
                  read("admission"), read("closed_loop"), read("triage"),
                  read("plan"), Path(args.diagnostics).read_text(encoding="utf-8"),
-                 Path(args.patch), publish=args.publish)
+                 Path(args.patch), publish=args.publish,
+                 expected_patch_sha256=args.expected_patch_sha256 or None)
     Path(args.output).write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     print(json.dumps({"state": result["next"], "promotion_counted": False}))
 
