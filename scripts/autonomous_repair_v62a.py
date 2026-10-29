@@ -13,14 +13,16 @@ import python_syntax_repair_v62a as proposal
 
 def process(root: Path, db: Path, admission: dict, closed: dict,
             diagnostics: str, publish: bool = False,
-            patch_output: Path | None = None) -> dict:
+            patch_output: Path | None = None,
+            expected_patch_sha256: str | None = None) -> dict:
     triage, plan, diff = proposal.generate(root, diagnostics)
     with tempfile.TemporaryDirectory(prefix="applab-v62a-proposal-") as raw:
         patch = Path(raw) / "candidate.patch"
         patch.write_text(diff, encoding="utf-8")
         return execution.run(root, db, admission, closed, triage, plan,
                              diagnostics, patch, publish=publish,
-                             evidence_patch_path=patch_output)
+                             evidence_patch_path=patch_output,
+                             expected_patch_sha256=expected_patch_sha256)
 
 
 def main() -> None:
@@ -32,6 +34,7 @@ def main() -> None:
     parser.add_argument("--diagnostics", type=Path, required=True)
     parser.add_argument("--publish", action="store_true")
     parser.add_argument("--patch-output", type=Path)
+    parser.add_argument("--expected-patch-sha256", default="")
     parser.add_argument("--output", type=Path, required=True)
     a = parser.parse_args()
     root = a.repo_root.resolve()
@@ -39,7 +42,8 @@ def main() -> None:
                      json.loads(a.admission.read_text(encoding="utf-8")),
                      json.loads(a.closed_loop.read_text(encoding="utf-8")),
                      a.diagnostics.read_text(encoding="utf-8"), a.publish,
-                     a.patch_output)
+                     a.patch_output,
+                     a.expected_patch_sha256 or None)
     a.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     print(json.dumps({"status": result["next"], "promotion_counted": False}))
 
