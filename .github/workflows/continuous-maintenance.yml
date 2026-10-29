@@ -162,6 +162,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p .applab-maintenance
+          rm -f .applab-maintenance/v62-background-proof.json .applab-maintenance/v62-background-proof.md
           gh api "repos/$GITHUB_REPOSITORY/actions/runs?per_page=100" > "$RUNNER_TEMP/v62-runs.json"
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" > "$RUNNER_TEMP/v62-artifacts.json"
           python scripts/v62_background_proof.py \
