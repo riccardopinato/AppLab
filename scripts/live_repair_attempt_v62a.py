@@ -23,7 +23,7 @@ class AttemptBlocked(ValueError):
 
 def run(root: Path, db: Path, admission: dict, closed: dict, triage: dict,
         plan: dict, diagnostics: str, patch: Path,
-        *, publish: bool = False) -> dict:
+        *, publish: bool = False, evidence_patch_path: Path | None = None) -> dict:
     observed = intake.inspect_repair(root, db, admission, closed,
                                       triage, plan, diagnostics)
     if observed["next"] != "BOUNDED_WORKER_ELIGIBLE":
@@ -114,7 +114,12 @@ def run(root: Path, db: Path, admission: dict, closed: dict, triage: dict,
         else:
             materialized = steward.materialize_local(
                 root, work, repair, result_patch, **args)
+        if evidence_patch_path is not None:
+            evidence_patch_path.parent.mkdir(parents=True, exist_ok=True)
+            evidence_patch_path.write_bytes(result_patch.read_bytes())
         return {
+            "candidate_patch_artifact": str(evidence_patch_path.name) if evidence_patch_path else None,
+            "candidate_commit_persisted": False,
             "schema_version": 1,
             "record_type": "APPLAB_V62A_BOUNDED_REPAIR_EXECUTION",
             "repository": "riccardopinato/AppLab",
