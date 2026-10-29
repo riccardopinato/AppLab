@@ -604,6 +604,13 @@ jobs:
           APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}
         run: bash -Eeuo pipefail -c "$APPLAB_POST_PUB_GET_COMMAND"
 
+      # Cache Gradle dependency downloads, task outputs and transforms across
+      # distinct Flutter source SHAs. This is NOT an APK/build-contract cache:
+      # AppLab still builds the target commit and hashes the produced APK.
+      - name: Setup Gradle build cache for Flutter
+        if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+
       - name: Adaptive Flutter checks and build
         id: quality
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
