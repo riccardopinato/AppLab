@@ -48,6 +48,10 @@ LIMITS = {
     "scripts/closed_loop_pilot_v61a.py": 740,
     "scripts/self_canary_witness_v62a.py": 260,
     "scripts/live_canary_operations_v62c.py": 250,
+    "scripts/live_repair_intake_v62a.py": 175,
+    "scripts/live_repair_attempt_v62a.py": 240,
+    "scripts/python_syntax_repair_v62a.py": 110,
+    "scripts/autonomous_repair_v62a.py": 90,
     # v6.1B owns durable wait/event/reconciliation/supersession semantics.
     # Growth beyond 1060 requires extracting the wait persistence adapter.
     "scripts/event_driven_recovery_v61b.py": 1060,
