@@ -282,7 +282,7 @@ jobs:
   repair_intake:
     name: Read-only causal repair on genuine failed canary
     needs: [admit, verify, finalize, python_quality]
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.admit.outputs.dispatch == 'true' && (needs.verify.result == 'failure' || needs.python_quality.result == 'failure') && needs.finalize.result == 'success' }}
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.run_attempt == 1 && needs.admit.outputs.dispatch == 'true' && (needs.verify.result == 'failure' || needs.python_quality.result == 'failure') && needs.finalize.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
