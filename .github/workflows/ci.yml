@@ -63,6 +63,12 @@ jobs:
           sudo apt-get install -y shellcheck
           shellcheck scripts/*.sh watch-profiles/*.sh
 
+      - name: Set up Python 3.12 for static tests
+        if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+
       - name: Python tests
         if: ${{ needs.scope.outputs.mode != 'DOCS_ONLY' }}
         run: |

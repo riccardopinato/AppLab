@@ -604,6 +604,10 @@ jobs:
           APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}
         run: bash -Eeuo pipefail -c "$APPLAB_POST_PUB_GET_COMMAND"
 
+      - name: Setup Gradle build cache for Flutter
+        if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+
       - name: Adaptive Flutter checks and build
         id: quality
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
