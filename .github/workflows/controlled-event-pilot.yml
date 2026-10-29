@@ -265,10 +265,23 @@ jobs:
           include-hidden-files: true
           retention-days: 30
 
+  python_quality:
+    name: Python syntax quality for real AppLab source
+    needs: admit
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.admit.outputs.dispatch == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Compile actual repository scripts
+        run: python -m compileall -q scripts
+
   repair_intake:
     name: Read-only causal repair on genuine failed canary
-    needs: [admit, verify, finalize]
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.admit.outputs.dispatch == 'true' && needs.verify.result == 'failure' && needs.finalize.result == 'success' }}
+    needs: [admit, verify, finalize, python_quality]
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.admit.outputs.dispatch == 'true' && (needs.verify.result == 'failure' || needs.python_quality.result == 'failure') && needs.finalize.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
