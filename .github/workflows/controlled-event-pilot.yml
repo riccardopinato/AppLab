@@ -19,6 +19,7 @@ on:
   push:
     branches: [main]
     paths:
+      - "scripts/**/*.py"
       - "scripts/controlled_event_v54g.py"
       - "scripts/self_canary_witness_v62a.py"
       - "scripts/live_canary_operations_v62c.py"
