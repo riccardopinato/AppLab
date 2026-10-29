@@ -316,12 +316,14 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          python scripts/autonomous_repair_v62a.py --db .applab-v54g/control-plane.sqlite3 --admission v54g-admission.json --closed-loop v61a-closed-loop.json --diagnostics failed-canary.log --output v62a-local-repair.json
+          python scripts/autonomous_repair_v62a.py --db .applab-v54g/control-plane.sqlite3 --admission v54g-admission.json --closed-loop v61a-closed-loop.json --diagnostics failed-canary.log --patch-output v62a-candidate.patch --output v62a-local-repair.json
       - name: Upload non-authoritative repair observation
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: applab-v62a-local-repair-${{ github.run_id }}
-          path: v62a-local-repair.json
+          path: |
+            v62a-local-repair.json
+            v62a-candidate.patch
           if-no-files-found: warn
           retention-days: 30
