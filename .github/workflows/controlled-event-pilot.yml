@@ -263,3 +263,48 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 30
+
+  repair_intake:
+    name: Read-only causal repair on genuine failed canary
+    needs: [admit, verify, finalize]
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.admit.outputs.dispatch == 'true' && needs.verify.result == 'failure' && needs.finalize.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Download durable final evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: applab-v54g-final-${{ github.run_id }}
+          path: .
+      - name: Read exact failed verification evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" > failed-jobs.json
+          jq -e --arg sha "$GITHUB_SHA" '[.jobs[] | select(.head_sha == $sha and .conclusion == "failure")] | length == 1' failed-jobs.json
+          JOB_ID="$(jq -r --arg sha "$GITHUB_SHA" '.jobs[] | select(.head_sha == $sha and .conclusion == "failure") | .id' failed-jobs.json)"
+          gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$JOB_ID/logs" > failed-canary.log
+          test -s failed-canary.log
+          test "$(wc -c < failed-canary.log)" -le 1048576
+      - name: Run bounded local causal repair without remote changes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python scripts/autonomous_repair_v62a.py --db .applab-v54g/control-plane.sqlite3 --admission v54g-admission.json --closed-loop v61a-closed-loop.json --diagnostics failed-canary.log --output v62a-local-repair.json
+      - name: Upload non-authoritative repair observation
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-v62a-local-repair-${{ github.run_id }}
+          path: v62a-local-repair.json
+          if-no-files-found: warn
+          retention-days: 30
