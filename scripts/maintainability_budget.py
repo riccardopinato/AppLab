@@ -48,6 +48,7 @@ LIMITS = {
     "scripts/closed_loop_pilot_v61a.py": 740,
     "scripts/self_canary_witness_v62a.py": 260,
     "scripts/live_canary_operations_v62c.py": 250,
+    "scripts/v62_background_proof.py": 220,
     "scripts/live_repair_intake_v62a.py": 175,
     "scripts/live_repair_attempt_v62a.py": 240,
     "scripts/python_syntax_repair_v62a.py": 110,

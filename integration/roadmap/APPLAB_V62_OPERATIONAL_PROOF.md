@@ -1,8 +1,16 @@
 # AppLab v6.2 — Operational Proof & Reliability
 
-Status: **ACTIVE / v6.2A witness integrated, real repair proof still NOT VERIFIED**.
+Status: **IMPLEMENTATION HANDOFF IN PROGRESS — operational proof remains background / NOT VERIFIED (0/3)**. Once PR for handoff is exact-head green and merged, classify v6.2 as **IMPLEMENTATION COMPLETE**, with live rollout still SELF_CANARY.
 Baseline: `AppLab/main@ac87ae7cd4fd8ceb4f279847f714257b7c730397`.
-Factory baseline: `App-Factory-Core@7b84e33df715cf2a48bda7c7495d0690819bff0f` (Master 26.6 / Golden Index 23).
+Factory baseline for this development handoff: `App-Factory-Core@174a05e165076c9e4b2d61a20acd85ca6b215f12` (CURRENT Master v27 ACTIVE / Golden Index 23).
+
+## Separation of implementation and longitudinal proof (user-authorized, 2026-10-29)
+
+**Implementation deliverable:** v6.2A–E code/monitoring/hygiene can be merged and handed off without simulating three successful repairs. Existing self-canary investigator, bounded worker, focused checks, exact-patch persistence and draft PR steward are connected, with a separate draft-only publication job. The existing hourly Continuous Maintenance workflow observes real GitHub runs and repair-artifact metadata without granting an extra scheduler, verifier or merge authority.
+
+**Operational acceptance (continues in background):** the three independent real repairs, trusted verification, independent exact-head review and protected external merge receipts still gate **promotion**, any claim of a production-proven autonomous closed loop, and broader repository rollout. Current verified count **0/3**; normal green CI, draft PR creation and metadata sightings count as zero. The evidence campaign is tracked in issue #208 and remains open until the real receipts exist. Failed-cancellation analysis #204 is independent.
+
+**Authority preserved:** SELF_CANARY only; autonomous drafts do not approve or merge themselves. No automatic stage promotion, no new release rights, no change to FAST/FULL/CERTIFIED or physical/store requirements. The roadmap implementation milestone and proof campaign now have separate closure definitions.
 
 ## Objective
 

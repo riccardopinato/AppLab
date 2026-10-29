@@ -38,6 +38,27 @@ def check() -> None:
     assert "GITHUB_SHA" in commands
     assert "v61a-closed-loop.json" in content
     assert "promotion_counted" not in commands
+    draft = jobs["repair_draft_pr"]
+    assert set(draft["needs"]) == {"admit", "verify", "finalize", "python_quality", "repair_intake"}
+    publish_gate = str(draft["if"])
+    for expected in ("github.event_name == 'push'", "github.ref == 'refs/heads/main'",
+                     "github.run_attempt == 1",
+                     "needs.repair_intake.result == 'success'",
+                     "needs.admit.outputs.dispatch == 'true'"):
+        assert expected in publish_gate, expected
+    assert draft["permissions"]["contents"] == "write"
+    assert draft["permissions"]["pull-requests"] == "write"
+    assert draft["permissions"]["actions"] == "read"
+    publish_commands = "\\n".join(step.get("run", "") for step in draft["steps"])
+    for required in ("v62a-local-repair.json", "v62a-candidate.patch",
+                     "sha256sum v62a-candidate.patch", "--publish",
+                     "--expected-patch-sha256", "GITHUB_SHA",
+                     "refs/heads/main", "DRAFT_PR_CREATED"):
+        assert required in publish_commands, required
+    assert "gh pr merge" not in publish_commands
+    assert "gh pr review" not in publish_commands
+    assert ".promotion_counted == false" in publish_commands
+
 
 
 if __name__ == "__main__":

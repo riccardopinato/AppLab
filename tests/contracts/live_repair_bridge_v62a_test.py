@@ -24,7 +24,29 @@ def test_reject_untrusted_event() -> None:
         else:
             raise AssertionError("worker bypassed the admission guard")
 
+def test_direct_repair_cli_offers_expected_patch_hash() -> None:
+    import subprocess
+    script = Path(__file__).resolve().parents[2] / "scripts" / "live_repair_attempt_v62a.py"
+    result = subprocess.run([sys.executable, str(script), "--help"],
+                            capture_output=True, text=True, check=True)
+    assert "--publish" in result.stdout
+    assert "--expected-patch-sha256" in result.stdout
+
+
+def test_reject_publication_without_persisted_patch_hash() -> None:
+    params = (Path("."), Path("not-present.db"), {}, {}, {}, {}, "",
+              Path("not-present.patch"))
+    try:
+        attempt.run(*params, publish=True)
+    except attempt.AttemptBlocked as error:
+        assert "PUBLISHED_DRAFT_REQUIRES_APPROVED_PATCH_HASH" in str(error)
+    else:
+        raise AssertionError("draft publication accepted without exact patch hash")
+
+
 
 if __name__ == "__main__":
     test_reject_untrusted_event()
+    test_reject_publication_without_persisted_patch_hash()
+    test_direct_repair_cli_offers_expected_patch_hash()
     print("v6.2A real WorkItem rejection regression PASS")

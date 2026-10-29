@@ -23,7 +23,12 @@ class AttemptBlocked(ValueError):
 
 def run(root: Path, db: Path, admission: dict, closed: dict, triage: dict,
         plan: dict, diagnostics: str, patch: Path,
-        *, publish: bool = False, evidence_patch_path: Path | None = None) -> dict:
+        *, publish: bool = False, evidence_patch_path: Path | None = None,
+        expected_patch_sha256: str | None = None) -> dict:
+    if publish and (not isinstance(expected_patch_sha256, str)
+                    or len(expected_patch_sha256) != 64
+                    or any(char not in "0123456789abcdef" for char in expected_patch_sha256)):
+        raise AttemptBlocked("PUBLISHED_DRAFT_REQUIRES_APPROVED_PATCH_HASH")
     observed = intake.inspect_repair(root, db, admission, closed,
                                       triage, plan, diagnostics)
     if observed["next"] != "BOUNDED_WORKER_ELIGIBLE":
@@ -68,6 +73,9 @@ def run(root: Path, db: Path, admission: dict, closed: dict, triage: dict,
             attempt_number=1, result_patch_path=result_patch)
         if repair.get("state") != "READY_FOR_VERIFICATION":
             raise AttemptBlocked("BOUNDED_PATCH_NOT_READY")
+        if publish and repair["result_patch_sha256"] != expected_patch_sha256:
+            raise AttemptBlocked("READ_ONLY_CANDIDATE_PATCH_IDENTITY_MISMATCH")
+
         # Focused executable validation uses only an ephemeral detached worktree.
         working = Path(raw) / "focused"
         subprocess.run(["git", "worktree", "add", "--detach",
@@ -149,13 +157,15 @@ def main() -> None:
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--repo-root", default=".")
     parser.add_argument("--publish", action="store_true")
+    parser.add_argument("--expected-patch-sha256", default="")
     args = parser.parse_args()
     def read(key: str) -> dict:
         return json.loads(Path(getattr(args, key)).read_text(encoding="utf-8"))
     result = run(Path(args.repo_root).resolve(), Path(args.db),
                  read("admission"), read("closed_loop"), read("triage"),
                  read("plan"), Path(args.diagnostics).read_text(encoding="utf-8"),
-                 Path(args.patch), publish=args.publish)
+                 Path(args.patch), publish=args.publish,
+                 expected_patch_sha256=args.expected_patch_sha256 or None)
     Path(args.output).write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     print(json.dumps({"state": result["next"], "promotion_counted": False}))
 

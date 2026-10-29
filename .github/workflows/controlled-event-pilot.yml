@@ -327,3 +327,90 @@ jobs:
             v62a-candidate.patch
           if-no-files-found: warn
           retention-days: 30
+
+  repair_draft_pr:
+    name: Publish bounded self-canary repair as draft PR
+    needs: [admit, verify, finalize, python_quality, repair_intake]
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.run_attempt == 1 && needs.admit.outputs.dispatch == 'true' && needs.repair_intake.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Load independently produced read-only patch receipt
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: applab-v62a-local-repair-${{ github.run_id }}
+          path: .
+      - name: Load original exact-head durable admission
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: applab-v54g-final-${{ github.run_id }}
+          path: .
+      - name: Validate immutable patch, source and live failure identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+          test -s .applab-v54g/control-plane.sqlite3
+          test -s v62a-local-repair.json
+          test -s v62a-candidate.patch
+          jq -e --arg sha "$GITHUB_SHA" '
+            .source_sha == $sha and .promotion_counted == false and
+            .materialization_state == "MATERIALIZED_LOCAL" and
+            .candidate_commit_persisted == false and
+            .candidate_patch_artifact == "v62a-candidate.patch" and
+            (.operation_id | type == "string") and
+            (.work_item_id | type == "string") and
+            (.patch_sha256 | test("^[a-f0-9]{64}$"))
+          ' v62a-local-repair.json
+          PATCH_SHA="$(sha256sum v62a-candidate.patch | cut -d' ' -f1)"
+          test "$PATCH_SHA" = "$(jq -r '.patch_sha256' v62a-local-repair.json)"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" > failed-jobs.json
+          JOB_ID="$(jq -r --arg sha "$GITHUB_SHA" '
+            [.jobs[] | select(.head_sha == $sha and .conclusion == "failure")] |
+            if length == 1 then .[0].id else empty end
+          ' failed-jobs.json)"
+          test -n "$JOB_ID"
+          gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$JOB_ID/logs" > failed-canary.log
+          test -s failed-canary.log
+          test "$(wc -c < failed-canary.log)" -le 1048576
+      - name: Create draft PR using existing bounded steward
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          EXPECTED="$(jq -r '.patch_sha256' v62a-local-repair.json)"
+          python scripts/autonomous_repair_v62a.py \
+            --db .applab-v54g/control-plane.sqlite3 \
+            --admission v54g-admission.json \
+            --closed-loop v61a-closed-loop.json \
+            --diagnostics failed-canary.log \
+            --publish \
+            --expected-patch-sha256 "$EXPECTED" \
+            --output v62a-draft-pr.json
+          jq -e '(.materialization_state == "DRAFT_PR_CREATED" or
+                   .materialization_state == "DRAFT_PR_UPDATED") and
+                   .promotion_counted == false and
+                   .independent_review_verified == false and
+                   .post_gate_merge_verified == false and
+                   (.draft_pr_url | startswith("https://github.com/"))' v62a-draft-pr.json
+          echo "Draft repair PR emitted; independent review/check/merge gates remain mandatory." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload draft PR provenance (never proof of completed repair)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-v62a-draft-pr-${{ github.run_id }}
+          path: v62a-draft-pr.json
+          if-no-files-found: warn
+          retention-days: 30

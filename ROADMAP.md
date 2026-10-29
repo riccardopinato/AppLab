@@ -2,7 +2,7 @@
 
 v6.0 implementation closure baseline: **main `094256b85c206dd6090f708ab59aa3d33d784269`** after PR #188 (`92f56e5e170fffec08c52b42509924f237693304`) and PR #187 (`094256b85c206dd6090f708ab59aa3d33d784269`). The immutable pre-v6 performance comparison baseline remains v5.9.1 (`bd0e0b1ae0a615b96fb3f160d81a6845bc51963b`).
 
-Completed implementation programs: **v6.0 Closed-Loop Agentic Engineering** and **v6.1 Controlled Closed-Loop Productionization**. Active operational proof program: **v6.2 Operational Proof & Reliability**. v5.7B/v5.7E downstream adoption and exact-artifact reuse promotion gates are closed with real evidence.
+Completed implementation programs: **v6.0 Closed-Loop Agentic Engineering**, **v6.1 Controlled Closed-Loop Productionization**, and **v6.2 bounded self-canary feature delivery (once the implementation-handoff PR is merged)**. The **v6.2 three-real-repair proof campaign is ongoing background operations**, not a prerequisite to starting subsequent implementation work. The rollout still stays `SELF_CANARY`; automatic promotion to PILOT_3/PILOT_5 is not authorized. v5.7B/v5.7E evidence gates were independently closed.
 
 Factory baseline for this roadmap refresh: `App-Factory-Core@7b84e33df715cf2a48bda7c7495d0690819bff0f` (Master 26.6 / Golden Index 23).
 
@@ -105,7 +105,15 @@ The objective is never “continue until green”. The objective is “continue 
 
 FAST/FULL, Production Certification, physical-device, distribution/store and cross-app authority boundaries remain unchanged throughout v6.
 
-## Active — AppLab v6.2 Operational Proof & Reliability
+## Implementation handoff — AppLab v6.2 (post-merge)
+    
+**Feature code landing:** PRs #202, #203, #205, #206, #207 and #209 landed; this handoff adds the validated self-only draft PR publisher and an hourly read-only proof observer through the existing Continuous Maintenance workflow. **Status becomes IMPLEMENTATION_COMPLETE only when the handoff PR passes exact-head checks and merges.** No completed autonomous end-to-end repair is claimed.
+    
+**Operational validation:** issue #208 tracks three independent real causal repair→PR→independent review→protected merge receipts asynchronously; current independently verified count is **0/3**. This is a controlled rollout/promotion gate, not a developer productivity blockade. Issue #204 separately tracks an unresolved cancelled-run root cause. Production rollouts and multi-repo mutation remain blocked until distinct audited evidence and an explicit policy decision.
+    
+**Next product delivery:** prioritize useful app-level analysis, verified diagnostic coverage, and bounded draft PR creation while collecting the production proof data in parallel. See `integration/roadmap/V62_IMPLEMENTATION_HANDOFF_2026-10-29.md` and the original acceptance requirements below.
+    
+## Historical operational acceptance — AppLab v6.2 Operational Proof & Reliability
 
 **Roadmap authorized for execution; rollout remains HOLD AT SELF_CANARY.**
 
