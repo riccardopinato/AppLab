@@ -257,6 +257,7 @@ jobs:
             .applab-v54g/
             v54g-admission.json
             v54g-final.json
+            v61a-closed-loop.json
             v62a-admission-witness.json
             v62a-final-witness.json
             v62c-operations-report.json
@@ -289,6 +290,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+          test -s .applab-v54g/control-plane.sqlite3
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" > failed-jobs.json
           jq -e --arg sha "$GITHUB_SHA" '[.jobs[] | select(.head_sha == $sha and .conclusion == "failure")] | length == 1' failed-jobs.json
           JOB_ID="$(jq -r --arg sha "$GITHUB_SHA" '.jobs[] | select(.head_sha == $sha and .conclusion == "failure") | .id' failed-jobs.json)"
