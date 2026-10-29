@@ -16,6 +16,7 @@ def check() -> None:
     for required in ("always()", "github.event_name == 'push'",
                      "needs.verify.result == 'failure'",
                      "needs.python_quality.result == 'failure'",
+                     "github.run_attempt == 1",
                      "needs.finalize.result == 'success'",
                      "needs.admit.outputs.dispatch == 'true'"):
         assert required in gate, required
