@@ -28,6 +28,10 @@ def check() -> None:
     assert "pull-requests" not in job["permissions"]
     commands = "\n".join(step.get("run", "") for step in job["steps"])
     assert "scripts/autonomous_repair_v62a.py" in commands
+    assert "--patch-output v62a-candidate.patch" in commands
+    artifact = job["steps"][-1]["with"]["path"]
+    assert "v62a-local-repair.json" in artifact
+    assert "v62a-candidate.patch" in artifact
     assert "--publish" not in commands
     assert "gh api" in commands
     assert "GITHUB_SHA" in commands
