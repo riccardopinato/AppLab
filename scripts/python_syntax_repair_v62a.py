@@ -6,7 +6,7 @@ import re
 import subprocess
 from pathlib import Path
 
-PATTERN = re.compile(r'File "[^"]*/(?P<path>scripts/[\w/-]+\.py)", line (?P<line>\d+)')
+PATTERN = re.compile(r'File "(?:[^"]*/)?(?P<path>scripts/[\w/-]+\.py)", line (?P<line>\d+)')
 BLOCK = re.compile(r'^\s*(?:def|async def|class|if|for|while|with)\b')
 
 class NotRepairable(ValueError):
