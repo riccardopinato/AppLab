@@ -1,16 +1,25 @@
-## AppLab v6.2 — Operational Proof & Reliability (active)
+## AppLab v6.2 — feature delivery + background proof
 
-The v6.1A–E **implementation** is complete and exact-head validated. A real
-AppLab main self-canary (Actions run #40690909916, commit `7b3e723`) passed
-trusted Android verification but explicitly recorded no autonomous code repair.
-The live
-closed-loop rollout remains **HOLD AT SELF_CANARY** until real bounded repair,
-recovery, independent review, immutable evidence and post-gate checks justify
-explicit promotion. The active v6.2 roadmap is in `ROADMAP.md` and
-`integration/roadmap/APPLAB_V62_OPERATIONAL_PROOF.md`. Successful CI or an
-APK runner job is not an autonomous repair receipt. The canonical agent entrypoint
-is `AGENTS.md`. v6.2 gate evidence and open legacy-PR disposition are documented
-in `integration/roadmap/V62_GATE_AND_HYGIENE_EVIDENCE_2026-10-28.md`.
+**Implementation handoff:** the v6.2 self-canary repair bridge now includes reproducible
+Python failure localization, bounded patch generation, focused checks, an
+immutable candidate patch artifact, and a separate **draft-only PR publisher**
+gated on the same exact patch hash. This branch becomes implementation-complete
+only after a reviewed, exact-head green merge.
+
+**Continuous learning while other apps are developed:** the existing hourly
+Continuous Maintenance workflow reads real GitHub run and artifact metadata
+and uploads `v62-background-proof.json` / `v62-background-proof.md`. These
+are observation artifacts, not validation certificates. The original
+three independently completed repairs remain **0/3 verified**, tracked under
+issue #208 as background operational proof. Issue #204 still tracks the
+cancelled first canary.
+
+**Rollout remains SELF_CANARY.** A generated draft is not a completed repair;
+independent review, exact-head checks, external protected merge, trusted
+artifact evidence and explicit policy are required before any broader rollout.
+No automatic promotion, release, self-review, self-merge or certification
+authority is added. See `ROADMAP.md` and
+`integration/roadmap/V62_IMPLEMENTATION_HANDOFF_2026-10-29.md`.
 
 ## v5.9 Journey-Aware Throughput
 
