@@ -1,0 +1,70 @@
+name: AppLab Source Gate Watcher
+
+# Automatic, read-only portfolio checks. APK runners are never called here.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - "watchlist.json"
+      - "scripts/source_gate_watch.py"
+      - ".github/workflows/source-gate-watcher.yml"
+  repository_dispatch:
+    types: [applab-watch]
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Optional owner/name; blank checks every enabled app"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: applab-source-watcher
+  cancel-in-progress: true
+
+jobs:
+  source:
+    name: Source-only portfolio gate (no APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Regression test the source gate
+        run: python3 scripts/source_gate_watch.py --self-test
+
+      - name: Inspect enabled repositories without executing target code
+        id: inspect
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          APPLAB_TARGET_TOKEN: ${{ secrets.APPLAB_TARGET_TOKEN }}
+          ONLY_REPOSITORY: ${{ inputs.repository || github.event.client_payload.repository || '' }}
+        run: |
+          set -Eeuo pipefail
+          ARGS=(--watchlist watchlist.json --output-dir source-gate-evidence)
+          if [[ -n "$ONLY_REPOSITORY" ]]; then
+            ARGS+=(--repository "$ONLY_REPOSITORY")
+          fi
+          python3 scripts/source_gate_watch.py "${ARGS[@]}"
+
+      - name: Summarize source-only evidence
+        if: always()
+        run: |
+          if [[ -f source-gate-evidence/source-gate.md ]]; then
+            cat source-gate-evidence/source-gate.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload source-only evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: applab-source-gate-${{ github.run_id }}
+          path: source-gate-evidence/
+          if-no-files-found: warn
+          retention-days: 7
