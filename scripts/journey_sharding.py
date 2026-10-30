@@ -51,6 +51,43 @@ def admitted_repositories(trusted_root: Path) -> dict[str, str]:
     return result
 
 
+def full_shadow_opted_in(trusted_root: Path, repository: str) -> bool:
+    """An explicit trusted-repository opt-in; never an authority escalation."""
+    payload = read_json(trusted_root / "config" / "journey-sharding-pilots.json")
+    items = payload.get("repositories", {})
+    entry = items.get(repository.lower()) if isinstance(items, dict) else None
+    return (
+        isinstance(entry, dict)
+        and entry.get("mode") == "shadow"
+        and entry.get("full_shadow") is True
+    )
+
+
+def full_shadow_groups(selected: list[str], catalog: dict[str, Any]) -> list[dict[str, Any]]:
+    """Disjoint UI / diary / deep groups, each run on its own isolated emulator."""
+    if len(set(selected)) != len(selected) or set(selected) != set(catalog):
+        return []
+    ui: list[str] = []
+    diary: list[str] = []
+    deep: list[str] = []
+    for journey_id in selected:
+        item = catalog[journey_id]
+        surfaces = item.get("surfaces", [])
+        if item.get("risk_class") == "deep":
+            deep.append(journey_id)
+        elif any(surface in {"memories", "diary"} for surface in surfaces):
+            diary.append(journey_id)
+        else:
+            ui.append(journey_id)
+    if not ui or not diary or not deep:
+        return []
+    return [
+        {"id": "full-ui-navigation", "journeys": ui},
+        {"id": "full-diary-memories", "journeys": diary},
+        {"id": "full-deep-security", "journeys": deep},
+    ]
+
+
 def build_plan(
     *,
     contract_root: Path,
@@ -79,18 +116,23 @@ def build_plan(
     mode = admissions.get(repo.lower(), "")
     if not mode:
         return {**base, "mode": "disabled", "reason": "repository is not admitted to journey sharding"}
-    if str(plan.get("lane", "")) != "FAST_RUNTIME":
-        return {**base, "reason": "parallel sharding is FAST-only in v5.9C"}
+    lane = str(plan.get("lane", ""))
+    full_shadow = (
+        lane == "FULL_RUNTIME"
+        and mode == "shadow"
+        and full_shadow_opted_in(trusted_root, repo)
+    )
+    if lane != "FAST_RUNTIME" and not full_shadow:
+        return {**base, "reason": "FULL sharding requires trusted shadow opt-in; certification is excluded"}
     selection = plan.get("journey_selection")
     selected = plan.get("selected_journeys")
-    if (
-        not isinstance(selection, dict)
-        or selection.get("enforcement_eligible") is not True
-        or selection.get("unmatched_paths")
-        or not isinstance(selected, list)
-        or len(selected) < 2
-    ):
+    if not isinstance(selection, dict) or not isinstance(selected, list) or len(selected) < 2:
         return {**base, "reason": "journey plan is not safely shardable"}
+    if not full_shadow and (
+        selection.get("enforcement_eligible") is not True
+        or selection.get("unmatched_paths")
+    ):
+        return {**base, "reason": "FAST journey plan is not safely shardable"}
 
     evidence = contract_root / "target-evidence"
     try:
@@ -106,6 +148,23 @@ def build_plan(
 
     if any(not isinstance(value, str) or value not in catalog for value in selected):
         return {**base, "reason": "selected journey is absent from trusted catalog"}
+
+    if full_shadow:
+        shards = full_shadow_groups(selected, catalog)
+        if len(shards) != MAX_PARALLEL_SHARDS:
+            return {**base, "reason": "FULL shadow needs complete disjoint UI/diary/deep coverage"}
+        return {
+            **base,
+            "enabled": True,
+            "mode": "shadow",
+            "authoritative": False,
+            "lane": "FULL_RUNTIME",
+            "selected_journeys": selected,
+            "coordinator_journeys": [],
+            "shards": shards,
+            "coverage_union_verified": True,
+            "reason": "advisory FULL parallel shadow; canonical FULL remains sole PASS authority",
+        }
 
     deep = [
         value for value in selected
@@ -218,7 +277,48 @@ def self_test() -> None:
             contract_root=contract, trusted_root=trusted, repository="owner/other"
         )
         assert blocked["enabled"] is False
-    print("AppLab v5.9C journey sharding planner self-test PASS")
+
+        # FULL never shards without explicit shadow-only opt-in.
+        config_path = trusted / "config" / "journey-sharding-pilots.json"
+        current = read_json(config_path)
+        current["repositories"]["owner/app"]["full_shadow"] = True
+        config_path.write_text(json.dumps(current), encoding="utf-8")
+        (evidence / ".maestro" / "memory.yaml").write_text("appId: demo\n", encoding="utf-8")
+        project_path = evidence / "applab.project.json"
+        project = read_json(project_path)
+        project["journeys"]["catalog"]["memory"] = {
+            "flow": ".maestro/memory.yaml", "paths": ["lib/diary/**"],
+            "labs": [], "surfaces": ["memories"], "capabilities": ["diary"],
+            "risk_class": "normal", "always_fast": False,
+        }
+        project_path.write_text(json.dumps(project), encoding="utf-8")
+        analysis_path = contract / "analysis-plan.json"
+        analysis = read_json(analysis_path)
+        analysis.update({
+            "lane": "FULL_RUNTIME",
+            "selected_journeys": ["shell", "memory", "vault-deep"],
+            "journey_selection": {"enforcement_eligible": False,
+                                  "unmatched_paths": ["lib/unmapped_runtime.dart"]},
+        })
+        analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+        full = build_plan(contract_root=contract, trusted_root=trusted, repository="owner/app")
+        assert full["enabled"] and full["mode"] == "shadow" and not full["authoritative"], full
+        assert len(full["shards"]) == 3 and full["coordinator_journeys"] == [], full
+        assert set().union(*(set(s["journeys"]) for s in full["shards"])) == set(analysis["selected_journeys"])
+        assert full["coverage_union_verified"] is True
+        analysis["selected_journeys"] = ["shell", "vault-deep"]
+        analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+        assert not build_plan(contract_root=contract, trusted_root=trusted, repository="owner/app")["enabled"]
+        analysis["selected_journeys"] = ["shell", "memory", "vault-deep"]
+        analysis["lane"] = "CERTIFICATION"
+        analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+        assert not build_plan(contract_root=contract, trusted_root=trusted, repository="owner/app")["enabled"]
+        analysis["lane"] = "FULL_RUNTIME"
+        analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+        current["repositories"]["owner/app"]["mode"] = "authoritative"
+        config_path.write_text(json.dumps(current), encoding="utf-8")
+        assert not build_plan(contract_root=contract, trusted_root=trusted, repository="owner/app")["enabled"]
+    print("AppLab v6.3D shadow FULL three-way sharding planner self-test PASS")
 
 
 def main() -> int:
