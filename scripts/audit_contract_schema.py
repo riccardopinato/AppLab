@@ -101,9 +101,11 @@ def run_check(namespace: dict[str, Any]) -> None:
         and "python tests/contracts/evidence_schema_registry_test.py" in ci,
         "CI must run independent schema-registry contracts",
     )
+    source_watcher = (root / ".github/workflows/source-gate-watcher.yml").read_text(encoding="utf-8")
     require(
-        '"scripts/evidence_contract_registry.py"' in watcher,
-        "Repo Watcher must invalidate on registry contract changes",
+        '"scripts/evidence_contract_registry.py"' in source_watcher
+        and '"scripts/evidence_contract_registry.py"' in fingerprint,
+        "Evidence registry must invalidate runtime identity and refresh source-only watcher",
     )
     require(
         "Validate registered evidence contracts" in review

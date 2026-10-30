@@ -1,3 +1,10 @@
+## Default AppLab Source Gate — 30 October 2026
+
+Automatic cross-app checks run source-only without APK builds or emulators.
+The Android Repo Watcher is now an explicit manual opt-in (`run_android=true`).
+Source-structure results do not constitute lint/test/runtime or certification PASS.
+See `integration/hardening/SOURCE_GATE_DEFAULT_2026-10-30.md`.
+
 ## AppLab v6.2 — feature delivery + background proof
 
 **Implementation handoff:** the v6.2 self-canary repair bridge now includes reproducible

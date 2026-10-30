@@ -75,10 +75,13 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     ".github/workflows/repo-watcher.yml": (
         "source_ref: ${{ matrix.ref }}",
         "baseline_sha: ${{ matrix.previous_verified_sha }}",
-        "scripts/domain_fingerprint.py",
-        "scripts/planner_feedback.py",
-        "scripts/restore_planner_feedback.sh",
-        "scripts/pipeline_metrics.py",
+        "run_android:",
+        "workflow_dispatch:",
+    ),
+    ".github/workflows/source-gate-watcher.yml": (
+        "scripts/source_gate_watch.py",
+        "schedule:",
+        "repository_dispatch:",
     ),
     ".github/workflows/trusted-apk-verifier.yml": (
         "Setup Android SDK tools for resilient image install",
@@ -257,6 +260,27 @@ def validate() -> None:
     assert promotion_index < trusted.index("Finalize trusted result contract"), (
         "reuse promotion must affect job.status before aggregate PASS finalization"
     )
+
+
+    # Cross-app automation must never spawn APK builders implicitly.
+    watcher = (ROOT / ".github/workflows/repo-watcher.yml").read_text(encoding="utf-8")
+    auto = (ROOT / ".github/workflows/source-gate-watcher.yml").read_text(encoding="utf-8")
+    watcher_triggers = watcher.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+    for trigger in ("  schedule:", "  push:", "  repository_dispatch:"):
+        assert trigger not in watcher_triggers, "Android watcher must be manual-only"
+    assert "run_android:" in watcher_triggers and "default: false" in watcher_triggers
+    assert "if: ${{ inputs.run_android == true }}" in watcher
+    assert "always() && inputs.run_android == true" in watcher
+    assert "  schedule:" in auto and "  repository_dispatch:" in auto
+    assert "scripts/source_gate_watch.py --self-test" in auto
+    for forbidden in ("external-project-runner.yml", "external-native-android-runner.yml",
+                      "trusted-apk-verifier.yml", "flutter build apk", "assembleDebug"):
+        assert forbidden not in auto, f"Source watcher starts a runtime path: {forbidden}"
+    assert "SOURCE_STRUCTURE_ONLY" in (ROOT / "scripts/source_gate_watch.py").read_text(encoding="utf-8")
+    import subprocess
+    import sys
+    subprocess.run([sys.executable, str(ROOT / "scripts/source_gate_watch.py"), "--self-test"],
+                   check=True, timeout=10)
 
     for relative in (
         ".github/workflows/external-project-runner.yml",
