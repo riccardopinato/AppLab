@@ -65,6 +65,9 @@ def write_outputs(path: Path, payload: dict[str, Any]) -> None:
     with path.open("a", encoding="utf-8") as handle:
         handle.write(f"enabled={str(bool(payload.get('enabled'))).lower()}\n")
         handle.write(f"mode={payload.get('mode','disabled')}\n")
+        full_shadow = (payload.get('enabled') is True and payload.get('mode') == 'shadow'
+                       and payload.get('lane') == 'FULL_RUNTIME' and payload.get('authoritative') is False)
+        handle.write(f"full_shadow={str(full_shadow).lower()}\n")
         handle.write(
             f"authoritative={str(bool(payload.get('authoritative'))).lower()}\n"
         )
