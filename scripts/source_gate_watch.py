@@ -10,7 +10,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -28,11 +28,13 @@ def fetch_json(url: str, token: str) -> dict:
 
 def inspect_paths(paths: set[str], entry: dict) -> tuple[str, str, str]:
     """Inspect source structure only; does NOT prove compilation or behavior."""
-    root = str(entry.get("working_directory") or ".").strip("/")
-    root = "" if root == "." else root + "/"
+    raw_root = str(entry.get("working_directory") or ".")
     engine = str(entry.get("engine", "auto"))
-    if engine not in ENGINES or ".." in root.split("/"):
+    if (engine not in ENGINES or raw_root.startswith("/")
+            or "\\\\" in raw_root or ".." in PurePosixPath(raw_root).parts):
         return "BLOCKED", "Invalid engine or working directory", "unknown"
+    normalized = PurePosixPath(raw_root).as_posix()
+    root = "" if normalized == "." else normalized.rstrip("/") + "/"
 
     def has(suffix: str) -> bool:
         return root + suffix in paths
@@ -100,6 +102,7 @@ def self_test() -> None:
     flutter = {"flutter_app/pubspec.yaml", "flutter_app/lib/main.dart"}
     entry = {"engine": "flutter", "working_directory": "flutter_app"}
     assert inspect_paths(flutter, entry)[0] == "SOURCE_OK"
+    assert inspect_paths(flutter, {"engine": "flutter", "working_directory": "./flutter_app"})[0] == "SOURCE_OK"
     assert inspect_paths({"flutter_app/pubspec.yaml"}, entry)[0] == "FAIL"
     assert inspect_paths({"app/build.gradle.kts", "settings.gradle.kts"}, {"engine": "auto"})[0] == "SOURCE_OK"
     assert inspect_paths(set(), {"engine": "auto"})[0] == "NOT_VERIFIED"
