@@ -208,11 +208,16 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
         and '"scripts/restore_planner_feedback.sh"' in fingerprint,
         "planner feedback producer/restore helper must invalidate core contract fingerprints",
     )
+    source_watcher = (ROOT / ".github/workflows/source-gate-watcher.yml").read_text(encoding="utf-8")
     require(
-        '"scripts/planner_feedback.py"' in watcher
-        and '"scripts/planner_feedback_contract.py"' in watcher
-        and '"scripts/restore_planner_feedback.sh"' in watcher,
-        "Repo Watcher must react to planner-feedback contract changes",
+        all(f'"{path}"' in source_watcher for path in (
+            "scripts/planner_feedback.py",
+            "scripts/planner_feedback_contract.py",
+            "scripts/restore_planner_feedback.sh",
+        ))
+        and '  schedule:' in source_watcher
+        and '  schedule:' not in watcher.split("\\non:\\n", 1)[1].split("\\npermissions:", 1)[0],
+        "Planner changes must refresh source-only surveillance, never trigger APK watcher",
     )
     require(
         '"scripts/smart_test_plan.py": 1000' in maintainability
