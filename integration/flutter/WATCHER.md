@@ -1,53 +1,48 @@
-# AppLab v0.5 Repo Watcher
+# AppLab Portfolio Watchers — source first
 
-The watcher centralizes automatic APK verification for configured public Flutter
-repositories.
+## Automatic lane (default, all enabled watchlist entries)
 
-## How it works
+`.github/workflows/source-gate-watcher.yml` runs hourly at minute 17,
+on relevant AppLab pushes and on `repository_dispatch: applab-watch`.
+It resolves an immutable GitHub commit/tree SHA for each enabled
+`watchlist.json` entry and performs **source-structure** checks without
+cloning or executing the app, installing Flutter/Gradle, compiling an APK,
+starting an emulator or running Maestro.
 
-1. `AppLab Repo Watcher` runs hourly at minute 17.
-2. `scripts/watch_discover.py` resolves the current commit for every enabled
-   watchlist entry.
-3. AppLab checks its own Actions cache for
-   `applab-v0.5-<watch-key>-<sha>`.
-4. Only uncached commits enter the verification matrix.
-5. Each changed repository is tested through the existing External Project
-   Runner.
-6. PASS and FAIL commits are both cached as checked, so an unchanged broken
-   commit does not consume another emulator run every hour.
-7. `watch_aggregate.py` appends the run to a cumulative `history.jsonl`
-   stored in a rolling GitHub Actions cache and uploads the current central-history
-   artifact with the workflow's present 7-day retention. Release-critical and other
-   longitudinal evidence classes use their own stricter retention contracts.
+The output `SOURCE_OK` is limited to file/entrypoint structure. It is **not**
+lint/test/CI GREEN, a trusted APK/runtime PASS, a physical-device verification,
+or a release/certification verdict. `FAIL` and `BLOCKED` fail the automatic
+lane. Unsupported discovered projects are `NOT_VERIFIED` and remain visible.
 
-A manual watcher run can set `force=true` to retry the same SHA. It can also
-limit execution to one configured `owner/name`.
+## Runtime lane (explicit only)
 
-The automatic source-only watcher accepts `repository_dispatch` type `applab-watch` as an
-immediate trigger for a future cross-repository signal integration. The hourly
-poll remains the credential-free fallback.
+`.github/workflows/repo-watcher.yml` accepts only manual
+`workflow_dispatch` with `run_android=true` (default: false). It still
+uses `scripts/watch_discover.py` for exact SHA/history/cache planning,
+the Flutter/native/universal runners for Android artifacts and
+`scripts/watch_aggregate.py` for trusted runtime history. `force=true`
+can rerun existing SHA, and `repository=owner/name` limits the run.
 
-## Initial watchlist
+FAST/FULL runtime selection, artifact identity, Maestro, physical tests and
+Production Certification retain their original independent requirements.
+Source checks are never an authority for runtime-cache promotion.
 
-v0.5 enables:
+## Inventory and specific app workflows
 
-- `riccardopinato/TrailPath`
-- `riccardopinato/Battery_Guard`
-- `riccardopinato/Notes-Ecosistema` (Flutter project in `flutter_app/`)
+The central watchlist covers multiple Flutter and native Android repositories,
+including Anna's Diary, TrailPath, Battery Guard, Notes-Ecosistema,
+CamperBoss and Send-to-pc. Disabled entries remain disabled.
 
-Each profile reproduces the target repository's required build preparation.
+This does **not** rewrite any application's own GitHub workflows. Local
+PR source checks and manual Android build triggers remain the responsibility
+of the app repository. See
+`integration/hardening/SOURCE_GATE_DEFAULT_2026-10-30.md`.
 
-`Agenda-per-Anna` is intentionally not enabled yet because its current Android
-pipeline performs app-specific Firebase/native/release preparation.
-`Send-to-pc` is a native Gradle Android project rather than Flutter and will
-use the native project runner instead of being forced through the Flutter gate.
+## Key files
 
-## Files
-
-- `watchlist.json`: central repository configuration.
-- `.github/workflows/source-gate-watcher.yml`: automatic read-only source-structure checks (no APK).
-- `.github/workflows/repo-watcher.yml`: manual APK/runtime orchestrator; explicit `run_android=true` required.
-- `watch-profiles/`: target-specific disposable build preparation.
-- `scripts/watch_discover.py`: SHA/cache discovery.
-- `scripts/watch_aggregate.py`: current-run and cumulative history.
-- `scripts/finalize_external_result.py`: stable external-result metadata.
+- `watchlist.json` — enabled inventory and runtime profiles.
+- `scripts/source_gate_watch.py` — read-only source structure inspection.
+- `.github/workflows/source-gate-watcher.yml` — automatic default.
+- `.github/workflows/repo-watcher.yml` — manual Android runtime.
+- `scripts/watch_discover.py` — runtime SHA/cache discovery.
+- `scripts/watch_aggregate.py` — runtime history/evidence.
