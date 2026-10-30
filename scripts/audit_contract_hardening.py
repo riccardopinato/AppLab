@@ -216,7 +216,7 @@ def check_v532_graph_aware_planning_feedback_contract() -> None:
             "scripts/restore_planner_feedback.sh",
         ))
         and '  schedule:' in source_watcher
-        and '  schedule:' not in watcher.split("\\non:\\n", 1)[1].split("\\npermissions:", 1)[0],
+        and '  schedule:' not in watcher.split("on:", 1)[1].split("permissions:", 1)[0],
         "Planner changes must refresh source-only surveillance, never trigger APK watcher",
     )
     require(
