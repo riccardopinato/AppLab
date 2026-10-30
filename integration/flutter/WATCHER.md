@@ -23,7 +23,7 @@ repositories.
 A manual watcher run can set `force=true` to retry the same SHA. It can also
 limit execution to one configured `owner/name`.
 
-The workflow accepts `repository_dispatch` type `applab-watch` as an
+The automatic source-only watcher accepts `repository_dispatch` type `applab-watch` as an
 immediate trigger for a future cross-repository signal integration. The hourly
 poll remains the credential-free fallback.
 
@@ -45,7 +45,7 @@ use the native project runner instead of being forced through the Flutter gate.
 ## Files
 
 - `watchlist.json`: central repository configuration.
-- `.github/workflows/repo-watcher.yml`: scheduled/dispatched orchestrator.
+- `.github/workflows/source-gate-watcher.yml`: automatic read-only source-structure checks (no APK).\n- `.github/workflows/repo-watcher.yml`: manual APK/runtime orchestrator; explicit `run_android=true` required.
 - `watch-profiles/`: target-specific disposable build preparation.
 - `scripts/watch_discover.py`: SHA/cache discovery.
 - `scripts/watch_aggregate.py`: current-run and cumulative history.
