@@ -18,6 +18,7 @@ def run_check(namespace: dict[str, Any]) -> None:
     maintainability = (root / "scripts/maintainability_budget.py").read_text(encoding="utf-8")
     ci = (root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     watcher = (root / ".github/workflows/repo-watcher.yml").read_text(encoding="utf-8")
+    fingerprint = (root / "scripts/contract_fingerprint.py").read_text(encoding="utf-8")
     certification = (root / ".github/workflows/production-certification.yml").read_text(
         encoding="utf-8"
     )
@@ -94,7 +95,9 @@ def run_check(namespace: dict[str, Any]) -> None:
             and "delta-calibration.md" in workflow,
             "central history workflows must publish durable delta calibration evidence",
         )
+    source_watcher = (root / ".github/workflows/source-gate-watcher.yml").read_text(encoding="utf-8")
     require(
-        '"scripts/delta_calibration.py"' in watcher,
-        "Repo Watcher must invalidate when calibration semantics change",
+        '"scripts/delta_calibration.py"' in source_watcher
+        and '"scripts/delta_calibration.py"' in fingerprint,
+        "Calibration changes must invalidate runtime identity without scheduling APK builds",
     )
