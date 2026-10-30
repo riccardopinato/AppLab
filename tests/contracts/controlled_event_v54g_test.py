@@ -296,8 +296,15 @@ def main() -> int:
     watcher = (
         ROOT / ".github" / "workflows" / "repo-watcher.yml"
     ).read_text(encoding="utf-8")
-    assert "17 * * * *" in watcher
-    assert "schedule:" in watcher
+    source_watcher = (
+        ROOT / ".github" / "workflows" / "source-gate-watcher.yml"
+    ).read_text(encoding="utf-8")
+    assert "17 * * * *" in source_watcher
+    assert "schedule:" in source_watcher
+    assert "repository_dispatch:" in source_watcher
+    assert "schedule:" not in watcher
+    assert "run_android:" in watcher
+    assert "default: false" in watcher
     watchlist = json.loads((ROOT / "watchlist.json").read_text(encoding="utf-8"))
     watchdog_targets = {
         (item.get("repository"), item.get("ref"), item.get("working_directory"))
