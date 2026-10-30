@@ -9,6 +9,11 @@ on:
     paths:
       - "watchlist.json"
       - "scripts/source_gate_watch.py"
+      - "scripts/planner_feedback.py"
+      - "scripts/planner_feedback_contract.py"
+      - "scripts/restore_planner_feedback.sh"
+      - "scripts/evidence_contract_registry.py"
+      - "scripts/delta_calibration.py"
       - ".github/workflows/source-gate-watcher.yml"
   repository_dispatch:
     types: [applab-watch]
