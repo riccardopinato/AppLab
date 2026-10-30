@@ -75,10 +75,13 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     ".github/workflows/repo-watcher.yml": (
         "source_ref: ${{ matrix.ref }}",
         "baseline_sha: ${{ matrix.previous_verified_sha }}",
-        "scripts/domain_fingerprint.py",
-        "scripts/planner_feedback.py",
-        "scripts/restore_planner_feedback.sh",
-        "scripts/pipeline_metrics.py",
+        "run_android:",
+        "workflow_dispatch:",
+    ),
+    ".github/workflows/source-gate-watcher.yml": (
+        "scripts/source_gate_watch.py",
+        "schedule:",
+        "repository_dispatch:",
     ),
     ".github/workflows/trusted-apk-verifier.yml": (
         "Setup Android SDK tools for resilient image install",
