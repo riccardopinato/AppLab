@@ -45,7 +45,8 @@ use the native project runner instead of being forced through the Flutter gate.
 ## Files
 
 - `watchlist.json`: central repository configuration.
-- `.github/workflows/source-gate-watcher.yml`: automatic read-only source-structure checks (no APK).\n- `.github/workflows/repo-watcher.yml`: manual APK/runtime orchestrator; explicit `run_android=true` required.
+- `.github/workflows/source-gate-watcher.yml`: automatic read-only source-structure checks (no APK).
+- `.github/workflows/repo-watcher.yml`: manual APK/runtime orchestrator; explicit `run_android=true` required.
 - `watch-profiles/`: target-specific disposable build preparation.
 - `scripts/watch_discover.py`: SHA/cache discovery.
 - `scripts/watch_aggregate.py`: current-run and cumulative history.
