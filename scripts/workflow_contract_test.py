@@ -262,7 +262,7 @@ def validate() -> None:
     # Cross-app automation must never spawn APK builders implicitly.
     watcher = (ROOT / ".github/workflows/repo-watcher.yml").read_text(encoding="utf-8")
     auto = (ROOT / ".github/workflows/source-gate-watcher.yml").read_text(encoding="utf-8")
-    watcher_triggers = watcher.split("on:", 1)[1].split("\\npermissions:", 1)[0]
+    watcher_triggers = watcher.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
     for trigger in ("  schedule:", "  push:", "  repository_dispatch:"):
         assert trigger not in watcher_triggers, "Android watcher must be manual-only"
     assert "run_android:" in watcher_triggers and "default: false" in watcher_triggers
