@@ -1,4 +1,4 @@
-name: AppLab Repo Watcher (manual Android verification)
+name: AppLab Repo Watcher
 
 # APK/runtime verification is opt-in. Automatic cross-app checks run in
 # source-gate-watcher.yml and must never issue an Android build.
