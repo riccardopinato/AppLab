@@ -1,9 +1,10 @@
 {
   "schema_version": 1,
-  "program": "AppLab v5.9C Parallel Runtime Sharding",
+  "program": "AppLab v6.3D Advisory FULL Parallel Shadow Pilot (FAST v5.9C unchanged)",
   "repositories": {
     "riccardopinato/Agenda-per-Anna": {
-      "mode": "shadow"
+      "mode": "shadow",
+      "full_shadow": true
     }
   }
 }

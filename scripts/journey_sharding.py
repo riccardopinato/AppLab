@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import project_adapter
+import full_shadow_pilot_v63d
 
 SCHEMA_VERSION = 1
 ENGINE_VERSION = "5.9C"
@@ -79,18 +80,23 @@ def build_plan(
     mode = admissions.get(repo.lower(), "")
     if not mode:
         return {**base, "mode": "disabled", "reason": "repository is not admitted to journey sharding"}
-    if str(plan.get("lane", "")) != "FAST_RUNTIME":
-        return {**base, "reason": "parallel sharding is FAST-only in v5.9C"}
+    lane = str(plan.get("lane", ""))
+    full_shadow = (
+        lane == "FULL_RUNTIME"
+        and mode == "shadow"
+        and full_shadow_pilot_v63d.opted_in(trusted_root, repo)
+    )
+    if lane != "FAST_RUNTIME" and not full_shadow:
+        return {**base, "reason": "FULL sharding requires trusted shadow opt-in; certification is excluded"}
     selection = plan.get("journey_selection")
     selected = plan.get("selected_journeys")
-    if (
-        not isinstance(selection, dict)
-        or selection.get("enforcement_eligible") is not True
-        or selection.get("unmatched_paths")
-        or not isinstance(selected, list)
-        or len(selected) < 2
-    ):
+    if not isinstance(selection, dict) or not isinstance(selected, list) or len(selected) < 2:
         return {**base, "reason": "journey plan is not safely shardable"}
+    if not full_shadow and (
+        selection.get("enforcement_eligible") is not True
+        or selection.get("unmatched_paths")
+    ):
+        return {**base, "reason": "FAST journey plan is not safely shardable"}
 
     evidence = contract_root / "target-evidence"
     try:
@@ -106,6 +112,23 @@ def build_plan(
 
     if any(not isinstance(value, str) or value not in catalog for value in selected):
         return {**base, "reason": "selected journey is absent from trusted catalog"}
+
+    if full_shadow:
+        shards = full_shadow_pilot_v63d.groups(selected, catalog)
+        if len(shards) != MAX_PARALLEL_SHARDS:
+            return {**base, "reason": "FULL shadow needs complete disjoint UI/diary/deep coverage"}
+        return {
+            **base,
+            "enabled": True,
+            "mode": "shadow",
+            "authoritative": False,
+            "lane": "FULL_RUNTIME",
+            "selected_journeys": selected,
+            "coordinator_journeys": [],
+            "shards": shards,
+            "coverage_union_verified": True,
+            "reason": "advisory FULL parallel shadow; canonical FULL remains sole PASS authority",
+        }
 
     deep = [
         value for value in selected
@@ -218,7 +241,9 @@ def self_test() -> None:
             contract_root=contract, trusted_root=trusted, repository="owner/other"
         )
         assert blocked["enabled"] is False
-    print("AppLab v5.9C journey sharding planner self-test PASS")
+
+        full_shadow_pilot_v63d.self_test(trusted, contract, evidence, build_plan)
+    print("AppLab v6.3D shadow FULL three-way sharding planner self-test PASS")
 
 
 def main() -> int:

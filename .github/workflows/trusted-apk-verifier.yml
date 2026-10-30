@@ -86,6 +86,7 @@ jobs:
     outputs:
       enabled: ${{ steps.admission.outputs.enabled }}
       mode: ${{ steps.admission.outputs.mode }}
+      full_shadow: ${{ steps.admission.outputs.full_shadow }}
       authoritative: ${{ steps.admission.outputs.authoritative }}
       matrix: ${{ steps.admission.outputs.matrix }}
       coordinator_journeys: ${{ steps.admission.outputs.coordinator_journeys }}
@@ -995,6 +996,54 @@ jobs:
           if-no-files-found: warn
           retention-days: 1
 
+
+  full_shadow_report:
+    name: Observe FULL shadow shards (advisory only)
+    needs: [journey_plan, journey_shards, verify]
+    if: always() && needs.journey_plan.outputs.full_shadow == 'true'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout trusted AppLab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .applab
+          persist-credentials: false
+
+      - name: Download bound APK contract
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: ${{ inputs.build_artifact_name }}
+          path: .applab-build
+
+      - name: Download all advisory shard evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        continue-on-error: true
+        with:
+          pattern: journey-shard-${{ github.run_id }}-*
+          path: journey-shadow-evidence
+
+      - name: Evaluate FULL shadow coverage, without minting PASS
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python .applab/scripts/journey_shard_aggregate.py \
+            --expected-contract "$GITHUB_WORKSPACE/.applab-build/contract.json" \
+            --plan "$GITHUB_WORKSPACE/.applab-build/analysis-plan.json" \
+            --evidence-root "$GITHUB_WORKSPACE/journey-shadow-evidence" \
+            --mode shadow \
+            --output "$GITHUB_WORKSPACE/journey-shadow-report.json"
+
+      - name: Upload advisory FULL shadow report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: journey-shadow-report-${{ github.run_id }}
+          path: journey-shadow-report.json
+          if-no-files-found: warn
+          retention-days: 7
 
   journey_aggregate:
     name: Aggregate journey shards
