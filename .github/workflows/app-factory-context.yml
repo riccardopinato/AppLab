@@ -1,4 +1,4 @@
-# APP_FACTORY_CONTEXT_v1 — source metadata only, PR-only; no runtime product changes
+# APP_FACTORY_CONTEXT_v2 — source metadata only, PR-only; no runtime product changes
 name: App Factory — context snapshot
 on:
   schedule:
@@ -13,7 +13,7 @@ concurrency:
   group: app-factory-context-${{ github.repository }}
   cancel-in-progress: false
 jobs:
-  validate:
+  validate-app-factory-context:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -26,11 +26,11 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           s = Path('.github/workflows/app-factory-context.yml').read_text(encoding='utf-8')
-          for marker in ('APP_FACTORY_CONTEXT_v1', 'workflow_dispatch:', 'pull-requests: write', 'APP_FACTORY_CONTEXT.md', 'git push origin HEAD:refs/heads/automation/app-factory-context'):
+          for marker in ('APP_FACTORY_CONTEXT_v2', 'workflow_dispatch:', 'pull-requests: write', 'APP_FACTORY_CONTEXT.md', 'git push origin HEAD:refs/heads/automation/app-factory-context'):
               assert marker in s, marker
           print('APP_FACTORY_CONTEXT_CONTRACT_PASS')
           PY
-  snapshot:
+  snapshot-app-factory-context:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -56,7 +56,7 @@ jobs:
             git switch --track -c automation/app-factory-context origin/automation/app-factory-context
             git merge --no-edit "origin/${BASE_BRANCH}"
           else
-            git switch -c automation/app-factory-context
+            git switch -c automation/app-factory-context "origin/${BASE_BRANCH}"
           fi
           python3 - <<'PY'
           from __future__ import annotations
@@ -89,11 +89,18 @@ jobs:
           PY
           git add -- docs/APP_FACTORY_CONTEXT.json docs/APP_FACTORY_CONTEXT.md
           if git diff --cached --quiet; then
-            echo 'NO_OP: source refs unchanged'
+            echo 'SNAPSHOT_UNCHANGED'
+          else
+            git commit -m 'chore(context): observe upstream factory commits'
+          fi
+          REMOTE_HEAD="$(git ls-remote origin refs/heads/automation/app-factory-context | awk '{print $1}')"
+          if [ "$(git rev-parse HEAD)" != "$REMOTE_HEAD" ]; then
+            git push origin HEAD:refs/heads/automation/app-factory-context
+          fi
+          if git diff --quiet "origin/${BASE_BRANCH}" HEAD -- docs/APP_FACTORY_CONTEXT.json docs/APP_FACTORY_CONTEXT.md; then
+            echo 'NO_OP: no snapshot delta versus base'
             exit 0
           fi
-          git commit -m 'chore(context): observe upstream factory commits'
-          git push origin HEAD:refs/heads/automation/app-factory-context
           if [ -z "$(gh pr list --head automation/app-factory-context --state open --json number --jq '.[0].number // empty')" ]; then
             gh pr create --head automation/app-factory-context --base "${BASE_BRANCH}" --title 'chore(context): new upstream GitHub snapshot' --body 'Metadata only: observe upstream commit SHAs and dates. No application code, Master, Golden, deployment or certification changed. Review and merge through normal project gates.'
           fi
