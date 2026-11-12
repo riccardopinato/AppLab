@@ -37,11 +37,12 @@ def demand(ok: bool, code: str) -> None:
         raise DecisionGateError(code)
 
 
-def _identity(record: dict[str, Any], ident: dict[str, Any], kind: str) -> None:
+def _identity(record: dict[str, Any], ident: dict[str, Any], kind: str,
+              *, include_package: bool = True) -> None:
     demand(isinstance(record, dict)
            and record.get("repository") == ident["repository"]
            and record.get("source_sha") == ident["source_sha"]
-           and record.get("package_id") == ident["package_id"],
+           and (not include_package or record.get("package_id") == ident["package_id"]),
            kind + "_IDENTITY_MISMATCH")
 
 
@@ -96,7 +97,8 @@ def assess_release_decision(
             blockers.append("CI_NOT_GREEN:" + name)
 
     qa = payload["qa"]
-    _identity(qa, ident, "QA")
+    # Canonical qa_test_router_x10.delegate receipt has no package_id.
+    _identity(qa, ident, "QA", include_package=False)
     demand(qa.get("record_type") == "APP_FACTORY_X10_QA_RECEIPT"
            and qa.get("analysis_mode") == "certification"
            and qa.get("independent_provenance_verified") is False
@@ -118,16 +120,28 @@ def assess_release_decision(
     for case in visual:
         _identity(case, ident, "VISUAL")
         screen = case.get("screen")
+        profile = case.get("profile")
+        demand(isinstance(profile, dict) and set(profile) == {
+            "theme", "locale", "form_factor", "text_scale"
+        } and profile["theme"] in ("light", "dark")
+           and profile["form_factor"] in ("phone", "tablet")
+           and isinstance(profile["locale"], str)
+           and re.fullmatch(r"[a-z]{2}(?:-[A-Z]{2})?", profile["locale"]) is not None
+           and type(profile["text_scale"]) in (int, float)
+           and 0.8 <= profile["text_scale"] <= 2.0,
+           "VISUAL_PROFILE_INVALID")
+        key = (screen, profile["theme"], profile["locale"], profile["form_factor"],
+               profile["text_scale"])
         demand(case.get("record_type") == "X10_VISUAL_BASELINE_DIFF"
                and case.get("authority") == "REPORT_ONLY"
                and isinstance(screen, str) and 1 <= len(screen) <= 100
-               and screen not in names
+               and key not in names
                and case.get("certified") is False
                and case.get("false_positives_auto_approved") is False,
                "VISUAL_RECEIPT_INVALID")
-        names.add(screen)
+        names.add(key)
         if case.get("state") != "REFERENCE_MATCH_REPORTED":
-            blockers.append("VISUAL_REVIEW_REQUIRED:" + screen)
+            blockers.append("VISUAL_REVIEW_REQUIRED:" + screen + ":" + profile["theme"])
 
     performance = payload["performance"]
     _identity(performance, ident, "PERFORMANCE")

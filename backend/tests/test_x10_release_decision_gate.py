@@ -21,7 +21,9 @@ def make():
              "package_id": PKG, "version_code": "11",
              "workflow_run_id": RUN, "workflow_repository": "riccardopinato/AppLab"}
     base = {"repository": REPO, "source_sha": SHA, "package_id": PKG}
-    qa = {**base, "record_type": "APP_FACTORY_X10_QA_RECEIPT",
+    # Canonical X10-028 delegate output intentionally omits package_id.
+    qa = {"repository": REPO, "source_sha": SHA,
+          "record_type": "APP_FACTORY_X10_QA_RECEIPT",
           "analysis_mode": "certification", "independent_provenance_verified": False,
           "certification_granted": False, "store_release_granted": False,
           "state": "RUNNER_REPORTED_ONLY",
@@ -29,6 +31,8 @@ def make():
           "gate_results": {"visual_qa": "PASS", "performance_lab": "PASS"}}
     visual = [{**base, "record_type": "X10_VISUAL_BASELINE_DIFF",
                "authority": "REPORT_ONLY", "screen": "home",
+               "profile": {"theme": "light", "locale": "en", "form_factor": "phone",
+                           "text_scale": 1.0},
                "state": "REFERENCE_MATCH_REPORTED", "certified": False,
                "false_positives_auto_approved": False}]
     perf = {**base, "record_type": "X10_PERF_A11Y_REVIEW_RECEIPT",
@@ -105,10 +109,30 @@ class ReleaseDecisionTests(unittest.TestCase):
         with self.assertRaisesRegex(DecisionGateError, "QA_RECEIPT_INVALID_OR_NON_CERTIFICATION"):
             self.assess(x)
 
+    def test_canonical_qa_without_package_id_is_accepted(self):
+        x = make()
+        self.assertNotIn("package_id", x["qa"])
+        self.assertEqual(self.assess(x)["state"],
+                         "INPUTS_REPORTED_READY_FOR_HUMAN_REVIEW")
+
+    def test_same_screen_light_and_dark_profile_are_both_allowed(self):
+        x = make()
+        dark = copy.deepcopy(x["visual"][0])
+        dark["profile"]["theme"] = "dark"
+        x["visual"].append(dark)
+        self.assertEqual(self.assess(x)["state"],
+                         "INPUTS_REPORTED_READY_FOR_HUMAN_REVIEW")
+
+    def test_duplicate_screen_and_profile_rejected(self):
+        x = make()
+        x["visual"].append(copy.deepcopy(x["visual"][0]))
+        with self.assertRaisesRegex(DecisionGateError, "VISUAL_RECEIPT_INVALID"):
+            self.assess(x)
+
     def test_visual_warning_blocks(self):
         x = make()
         x["visual"][0]["state"] = "REQUIRES_HUMAN_VISUAL_REVIEW"
-        self.assertIn("VISUAL_REVIEW_REQUIRED:home", self.assess(x)["blockers"])
+        self.assertIn("VISUAL_REVIEW_REQUIRED:home:light", self.assess(x)["blockers"])
 
     def test_tampered_signed_apk_fails(self):
         x = make()

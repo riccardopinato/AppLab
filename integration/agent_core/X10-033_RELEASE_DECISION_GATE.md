@@ -11,3 +11,4 @@ Critical rules:
 - This adapter **never publishes, signs, approves, merges or changes release configuration**. Product owner has independent release approval; scope X10-032 remains human.
 
 Acceptance: Python unit tests only synthetic + normal AppLab exact-head workflows + Codex review. No user app runtime or Store claim; no automatic pipeline admission. The host must wire the trusted verifier in a separately gated integration before any real release decision can rely on this report.
+Review hardening: X10-028 QA receipts carry repository/source only (not package); package identity remains required on other reports and canonical Release Assurance. Visual coverage distinguishes the same screen under different explicit theme/locale/form-factor/text-scale profiles, and rejects duplicate screen+profile entries.
