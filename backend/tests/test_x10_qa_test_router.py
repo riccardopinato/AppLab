@@ -109,7 +109,7 @@ def test_delegates_to_trusted_runner_but_does_not_mint_pass():
         calls.append(request["source_sha"])
         return {"repository": REPO, "source_sha": SHA,
                 "analysis_mode": "fast",
-                "run_url": "https://github.com/example/app/actions/runs/42",
+                "run_url": "https://github.com/example/consumer/actions/runs/42",
                 "gates": dict.fromkeys(request["gates"], "PASS")}
     reported = router.delegate(route, runner=runner)
     assert calls == [SHA]
@@ -151,7 +151,7 @@ def test_app_lab_existing_nonpassing_states_are_preserved_as_blockers(state):
         gates = dict.fromkeys(route["gates"], "PASS")
         gates["network_lab"] = state
         return {"repository": REPO, "source_sha": SHA, "analysis_mode": "fast",
-                "run_url": "", "gates": gates}
+                "run_url": "https://github.com/example/consumer/actions/runs/44", "gates": gates}
     result = router.delegate(request, runner=runner)
     assert result["gate_results"]["network_lab"] == state
     assert result["unpassed_gates"] == ["network_lab"]
@@ -168,6 +168,67 @@ def test_wrong_executor_sha_denied():
                 "gates": dict.fromkeys(route["gates"], "PASS")}
     with pytest.raises(router.RouterError, match="EXECUTOR_PROVENANCE_MISMATCH"):
         router.delegate(request, runner=runner)
+
+
+
+def test_empty_gates_cannot_report_a_fake_pass():
+    c, p = fixture()
+    request = router.route(c, p, validate_plan=trusted_stub)
+    request["gates"] = []
+    called = []
+    with pytest.raises(router.RouterError, match="INVALID_GATE_SET"):
+        router.delegate(request, runner=lambda _: called.append(1) or {})
+    assert called == []
+
+
+def test_quality_free_and_full_coverage_missing_routes_rejected():
+    c, p = fixture()
+    request = router.route(c, p, validate_plan=trusted_stub)
+    request["gates"] = ["network_lab"]
+    with pytest.raises(router.RouterError, match="MISSING_REQUIRED_QUALITY_GATES"):
+        router.delegate(request, runner=lambda _: {})
+    c, p = fixture(mode="certification")
+    request = router.route(c, p, validate_plan=trusted_stub)
+    request["gates"].remove("network_lab")
+    with pytest.raises(router.RouterError, match="FULL_QA_COVERAGE_REQUIRED"):
+        router.delegate(request, runner=lambda _: {})
+
+
+@pytest.mark.parametrize("untrusted_url", [
+    "https://github.com/other/app/actions/runs/42",
+    "https://github.com/example/consumer/actions/runs/42?fake=1",
+    "https://github.com/example/consumer/actions/runs/not_a_number",
+    "https://github.com/example/consumer.evil/actions/runs/42",
+])
+def test_foreign_or_forged_ci_run_url_never_attested(untrusted_url):
+    c, p = fixture()
+    request = router.route(c, p, validate_plan=trusted_stub)
+    def runner(route):
+        return {"repository": REPO, "source_sha": SHA, "analysis_mode": "fast",
+                "run_url": untrusted_url, "gates": dict.fromkeys(route["gates"], "PASS")}
+    with pytest.raises(router.RouterError, match="RUN_SOURCE_REPOSITORY_MISMATCH"):
+        router.delegate(request, runner=runner)
+
+
+def test_empty_runner_url_never_counts_as_complete_pass_even_with_pass_labels():
+    c, p = fixture()
+    request = router.route(c, p, validate_plan=trusted_stub)
+    def runner(route):
+        return {"repository": REPO, "source_sha": SHA, "analysis_mode": "fast",
+                "run_url": "", "gates": dict.fromkeys(route["gates"], "PASS")}
+    receipt = router.delegate(request, runner=runner)
+    assert receipt["all_reported_pass"] is False
+    assert receipt["state"] == "BLOCKED_OR_FAIL_REPORTED"
+    assert receipt["unpassed_gates"] == ["TRUSTED_RUN_REFERENCE_MISSING"]
+    assert receipt["certification_granted"] is False
+
+
+def test_forged_pre_authorized_route_is_rejected_before_runner():
+    c, p = fixture()
+    request = router.route(c, p, validate_plan=trusted_stub)
+    request["test_executed"] = True
+    with pytest.raises(router.RouterError, match="INVALID_ROUTE"):
+        router.delegate(request, runner=lambda _: {})
 
 
 def test_native_android_uses_lint_not_flutter_analyze():
