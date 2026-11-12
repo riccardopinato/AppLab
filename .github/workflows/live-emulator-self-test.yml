@@ -57,7 +57,9 @@ jobs:
   live-browser-e2e:
     needs: scope
     if: github.event_name != 'pull_request' || needs.scope.outputs.run == 'true'
-    runs-on: ubuntu-latest
+    # Playwright 1.55 Chromium dependencies are not compatible with Ubuntu 26.04.
+    # Keep all browser/runtime tests unchanged; pin a supported runner until upgraded.
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
 
     steps:
