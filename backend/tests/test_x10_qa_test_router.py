@@ -143,6 +143,22 @@ def test_reported_skip_is_blocker_not_success():
     assert reported["state"] == "BLOCKED_OR_FAIL_REPORTED"
 
 
+@pytest.mark.parametrize("state", ["WARN", "SKIPPED"])
+def test_app_lab_existing_nonpassing_states_are_preserved_as_blockers(state):
+    c, p = fixture()
+    request = router.route(c, p, validate_plan=trusted_stub)
+    def runner(route):
+        gates = dict.fromkeys(route["gates"], "PASS")
+        gates["network_lab"] = state
+        return {"repository": REPO, "source_sha": SHA, "analysis_mode": "fast",
+                "run_url": "", "gates": gates}
+    result = router.delegate(request, runner=runner)
+    assert result["gate_results"]["network_lab"] == state
+    assert result["unpassed_gates"] == ["network_lab"]
+    assert result["state"] == "BLOCKED_OR_FAIL_REPORTED"
+    assert result["certification_granted"] is False
+
+
 def test_wrong_executor_sha_denied():
     c, p = fixture()
     request = router.route(c, p, validate_plan=trusted_stub)
