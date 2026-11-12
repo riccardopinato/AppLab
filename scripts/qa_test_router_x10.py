@@ -132,15 +132,38 @@ def delegate(
     """
     _require(callable(runner), "TRUSTED_EXECUTOR_REQUIRED")
     _require(isinstance(request, dict)
+             and request.get("schema_version") == 1
              and request.get("record_type") == "APP_FACTORY_X10_QA_ROUTE"
              and request.get("authority") == "ROUTE_ONLY"
              and request.get("state") == "PENDING_TRUSTED_EXECUTOR"
-             and request.get("certification_granted") is False,
+             and request.get("certification_granted") is False
+             and request.get("store_release_granted") is False
+             and request.get("test_executed") is False
+             and isinstance(request.get("repository"), str)
+             and REPOSITORY.fullmatch(request["repository"]) is not None
+             and isinstance(request.get("source_sha"), str)
+             and SHA40.fullmatch(request["source_sha"]) is not None
+             and request.get("engine") in ENGINES
+             and request.get("requested_mode") in MODES
+             and request.get("effective_mode") in MODES
+             and (request["requested_mode"] == "fast"
+                  or request["requested_mode"] == request["effective_mode"]),
              "INVALID_ROUTE")
     expected = request.get("gates")
-    _require(isinstance(expected, list) and len(expected) == len(set(expected))
+    _require(isinstance(expected, list) and bool(expected)
+             and len(expected) == len(set(expected))
              and all(isinstance(x, str) and x in (*GATES, *QUALITY["flutter"],
              *QUALITY["native_android"]) for x in expected), "INVALID_GATE_SET")
+    # A caller-crafted route containing only a few arbitrary canonical names
+    # is not a valid exact-mode test plan. Never accept empty/quality-free
+    # dispatches as passing QA evidence.
+    required_quality = QUALITY[request["engine"]][:2]
+    _require(all(gate in expected for gate in required_quality),
+             "MISSING_REQUIRED_QUALITY_GATES")
+    if request["effective_mode"] in {"full", "certification"}:
+        _require(set(GATES).issubset(expected)
+                 and QUALITY[request["engine"]][2] in expected,
+                 "FULL_QA_COVERAGE_REQUIRED")
     observed = runner(request)
     _require(isinstance(observed, dict)
              and observed.get("repository") == request["repository"]
@@ -152,10 +175,20 @@ def delegate(
              and all(type(v) is str and v in RUN_STATES for v in gates.values()),
              "MISSING_OR_INVALID_GATE_RESULT")
     run_url = observed.get("run_url")
-    _require(isinstance(run_url, str)
-             and (not run_url or (run_url.startswith("https://github.com/")
-                                  and "/actions/runs/" in run_url)), "INVALID_RUN_REFERENCE")
+    _require(isinstance(run_url, str), "INVALID_RUN_REFERENCE")
+    if run_url:
+        match = re.fullmatch(
+            r"https://github\\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/actions/runs/[1-9][0-9]*"
+            r"(?:/attempts/[1-9][0-9]*)?", run_url,
+        )
+        _require(match is not None
+                 and match.group(1).casefold() == request["repository"].casefold(),
+                 "RUN_SOURCE_REPOSITORY_MISMATCH")
+    # No URL means the injected runner's statements are NOT usable as
+    # executable proof, even if it reports all PASS.
     blocked = sorted(k for k, value in gates.items() if value != "PASS")
+    if not run_url:
+        blocked.append("TRUSTED_RUN_REFERENCE_MISSING")
     return {"schema_version": 1, "record_type": "APP_FACTORY_X10_QA_RECEIPT",
             "state": "RUNNER_REPORTED_ONLY" if not blocked else "BLOCKED_OR_FAIL_REPORTED",
             "repository": request["repository"], "source_sha": request["source_sha"],
