@@ -38,9 +38,15 @@ def check_contract(workflow: str, package: dict) -> dict[str, str]:
     require(re.search(r"(?m)^    needs: scope\s*$", block) is not None
             and re.search(r"(?m)^    if: github\.event_name != 'pull_request' \|\| needs\.scope\.outputs\.run == 'true'\s*$", block) is not None,
             "REQUIRED_SCOPE_GATE_CHANGED")
-    require(re.search(r"(?m)^      - name: Browser WebRTC video and input E2E\s*$", block) is not None
-            and re.search(r"(?m)^        run: npm test\s*$", block) is not None,
-            "BROWSER_E2E_REMOVED")
+    marker = "      - name: Browser WebRTC video and input E2E"
+    require(block.count(marker) == 1, "BROWSER_E2E_REMOVED")
+    # Check the actual E2E step, not a run: npm test string elsewhere.
+    # A step-level condition or continue-on-error can turn a red E2E green.
+    step = block.split(marker, 1)[1].split("\n      - ", 1)[0]
+    require(re.search(r"(?m)^        (if|continue-on-error):", step) is None,
+            "BROWSER_E2E_BYPASS_FORBIDDEN")
+    commands = re.findall(r"(?m)^        run: (.*)$", step)
+    require(commands == ["npm test"], "BROWSER_E2E_REMOVED")
     version = package.get("devDependencies", {}).get("@playwright/test") if isinstance(package.get("devDependencies"), dict) else None
     require(version == PLAYWRIGHT, "PLAYWRIGHT_VERSION_REQUIRES_REVIEW")
     return {"runner": RUNNER, "playwright": PLAYWRIGHT,
