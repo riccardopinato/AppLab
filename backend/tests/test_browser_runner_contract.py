@@ -1,13 +1,16 @@
 """X10-018 runner policy regression tests, not browser/Android runtime proof."""
 import unittest
 from pathlib import Path
-
-from scripts.check_browser_runner_contract import (
-    RunnerCompatibilityError, check_contract, check_host,
-)
 import json
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+# AppLab CI runs pytest from backend/ as well as the repo root; the
+# repository-local scripts folder is not a pip-installed package.
+sys.path.insert(0, str(ROOT))
+from scripts.check_browser_runner_contract import (  # noqa: E402
+    RunnerCompatibilityError, check_contract, check_host,
+)
 
 
 class BrowserRunnerContractTests(unittest.TestCase):
