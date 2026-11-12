@@ -178,11 +178,17 @@ def delegate(
     _require(isinstance(run_url, str), "INVALID_RUN_REFERENCE")
     if run_url:
         match = re.fullmatch(
-            r"https://github\\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/actions/runs/[1-9][0-9]*"
+            r"https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/actions/runs/[1-9][0-9]*"
             r"(?:/attempts/[1-9][0-9]*)?", run_url,
         )
+        # AppLab legitimately runs QA against a different consumer repo.
+        # Only the pinned AppLab orchestrator or the consumer itself may own
+        # a reported GitHub Actions URL; this is a syntax check, NOT proof
+        # the run's commit, artifact or tester is trusted.
+        allowed_run_repos = {request["repository"].casefold(),
+                             "riccardopinato/applab"}
         _require(match is not None
-                 and match.group(1).casefold() == request["repository"].casefold(),
+                 and match.group(1).casefold() in allowed_run_repos,
                  "RUN_SOURCE_REPOSITORY_MISMATCH")
     # No URL means the injected runner's statements are NOT usable as
     # executable proof, even if it reports all PASS.
