@@ -210,6 +210,20 @@ def test_foreign_or_forged_ci_run_url_never_attested(untrusted_url):
         router.delegate(request, runner=runner)
 
 
+def test_app_lab_hosted_runner_link_is_valid_but_never_certifies():
+    c, p = fixture()
+    request = router.route(c, p, validate_plan=trusted_stub)
+    def runner(route):
+        return {"repository": REPO, "source_sha": SHA, "analysis_mode": "fast",
+                "run_url": "https://github.com/riccardopinato/AppLab/actions/runs/42",
+                "gates": dict.fromkeys(route["gates"], "PASS")}
+    result = router.delegate(request, runner=runner)
+    assert result["state"] == "RUNNER_REPORTED_ONLY"
+    assert result["all_reported_pass"] is True
+    assert result["independent_provenance_verified"] is False
+    assert result["certification_granted"] is False
+
+
 def test_empty_runner_url_never_counts_as_complete_pass_even_with_pass_labels():
     c, p = fixture()
     request = router.route(c, p, validate_plan=trusted_stub)
