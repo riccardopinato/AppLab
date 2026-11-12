@@ -100,7 +100,10 @@ def route(
     if effective in {"full", "certification"}:
         picked.update(LABS)
     selected_gates = {f"{name}_lab" for name in picked}
-    if effective == "certification":
+    # FULL and CERTIFICATION require the same canonical strict gate coverage.
+    # The lower branch previously constructed only labs for FULL while
+    # delegate() correctly refused missing maestro/visual strict gates.
+    if effective in {"full", "certification"}:
         selected_gates.update(ADDITIONAL)
     quality = list(QUALITY[engine][:2]) if run_static or picked or effective == "certification" else []
     if run_build or picked or effective == "certification":
