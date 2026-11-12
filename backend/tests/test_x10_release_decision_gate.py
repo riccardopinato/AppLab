@@ -103,6 +103,18 @@ class ReleaseDecisionTests(unittest.TestCase):
         x["qa"]["gate_results"]["visual_qa"] = "WARN"
         self.assertIn("QA_NOT_ALL_REPORTED_PASS", self.assess(x)["blockers"])
 
+    def test_canonical_attempt_specific_qa_run_url_allowed(self):
+        x = make()
+        x["qa"]["run_url"] += "/attempts/2"
+        self.assertEqual(self.assess(x)["state"],
+                         "INPUTS_REPORTED_READY_FOR_HUMAN_REVIEW")
+
+    def test_unrelated_attempt_run_url_rejected(self):
+        x = make()
+        x["qa"]["run_url"] = "https://github.com/example/evil/actions/runs/" + str(RUN)
+        with self.assertRaisesRegex(DecisionGateError, "QA_RECEIPT_INVALID_OR_NON_CERTIFICATION"):
+            self.assess(x)
+
     def test_noncertification_route_rejected(self):
         x = make()
         x["qa"]["analysis_mode"] = "fast"

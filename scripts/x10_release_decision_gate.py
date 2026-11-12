@@ -106,9 +106,11 @@ def assess_release_decision(
            and qa.get("store_release_granted") is False
            and qa.get("state") in ("RUNNER_REPORTED_ONLY", "BLOCKED_OR_FAIL_REPORTED")
            and isinstance(qa.get("gate_results"), dict)
-           and qa.get("run_url") == (
-               f"https://github.com/{ident['workflow_repository']}/actions/runs/{ident['workflow_run_id']}"
-           ), "QA_RECEIPT_INVALID_OR_NON_CERTIFICATION")
+           and isinstance(qa.get("run_url"), str)
+           and re.fullmatch(
+               re.escape(f"https://github.com/{ident['workflow_repository']}/actions/runs/{ident['workflow_run_id']}")
+               + r"(?:/attempts/[1-9][0-9]*)?", qa["run_url"]) is not None,
+           "QA_RECEIPT_INVALID_OR_NON_CERTIFICATION")
     if qa["state"] != "RUNNER_REPORTED_ONLY" or not qa["gate_results"] or any(
             state != "PASS" for state in qa["gate_results"].values()):
         blockers.append("QA_NOT_ALL_REPORTED_PASS")
