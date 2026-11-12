@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from zipfile import BadZipFile, ZipFile
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
@@ -52,6 +53,22 @@ def confined_artifact(root: Path, relative: str) -> Path:
             and 0 < target.stat().st_size <= 1024 * 1024 * 1024,
             "UNAVAILABLE_OR_UNSAFE_ARTIFACT")
     return target
+
+
+def apk_native_abis(path: Path) -> set[str]:
+    """Read ZIP entries only, never extract app-controlled native files."""
+    try:
+        with ZipFile(path) as archive:
+            entries = archive.namelist()
+            require(len(entries) <= 100000, "APK_ENTRY_COUNT_EXCEEDED")
+            names = {p.split("/")[1] for p in entries
+                     if p.startswith("lib/") and p.endswith(".so")
+                     and len(p.split("/")) == 3}
+            require(names <= {"arm64-v8a", "armeabi-v7a", "x86", "x86_64"},
+                    "UNKNOWN_NATIVE_ABI")
+            return names
+    except (BadZipFile, OSError) as exc:
+        raise ProvenanceGateError("APK_ZIP_INVALID") from exc
 
 
 def assess(
@@ -137,6 +154,11 @@ def assess(
             actual=(identity.get("package_id"),identity.get("version_name"),
                     str(identity.get("version_code", "")))
             signing_sha=signing.get("certificate_sha256")
+            actual_abis=apk_native_abis(path)
+            require((abi == "universal" and
+                     (not actual_abis or {"arm64-v8a", "armeabi-v7a"} <= actual_abis))
+                    or (abi != "universal" and actual_abis == {abi}),
+                    "APK_ABI_SCOPE_MISMATCH")
             require(actual == (pkg,v_name,v_code), "APK_MANIFEST_IDENTITY_MISMATCH")
             require(signing_sha == cert, "APK_SIGNING_CERT_MISMATCH")
             source_apk=build_contract.get("apk")
@@ -150,6 +172,18 @@ def assess(
                     and source_apk.get("build_variant") == "release",
                     "CANONICAL_APK_BUILD_CONTRACT_MISMATCH")
         else:
+            # An AAB's signature does not attest source provenance by itself.
+            # It must first match trusted source-bound build-contract bytes.
+            source_aab=build_contract.get("aab")
+            require(isinstance(source_aab, dict)
+                    and source_aab.get("sha256") == claimed_sha
+                    and source_aab.get("size_bytes") == claimed_size
+                    and source_aab.get("package_id") == pkg
+                    and source_aab.get("version_name") == v_name
+                    and str(source_aab.get("version_code")) == v_code
+                    and source_aab.get("signing_cert_sha256") == cert
+                    and source_aab.get("build_variant") == "release",
+                    "SOURCE_BOUND_AAB_BUILD_CONTRACT_REQUIRED")
             require(callable(aab_inspector), "AAB_VERIFIER_NOT_CONFIGURED")
             identity=aab_inspector(path)
             require(isinstance(identity, dict)

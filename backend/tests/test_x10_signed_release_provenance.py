@@ -2,6 +2,8 @@
 import copy
 import hashlib
 import importlib.util
+from io import BytesIO
+from zipfile import ZipFile
 from pathlib import Path
 
 import pytest
@@ -18,7 +20,13 @@ REPO="example/app"
 
 
 def setup(tmp_path, *, kind="APK"):
-    raw=b"synthetic artifact bytes; no actual APK signature"
+    buffer=BytesIO()
+    with ZipFile(buffer, "w") as bundle:
+        if kind == "APK":
+            bundle.writestr("lib/arm64-v8a/libapp.so", b"synthetic binary")
+        else:
+            bundle.writestr("base/manifest/AndroidManifest.xml", b"synthetic manifest")
+    raw=buffer.getvalue()
     path=tmp_path/("app.aab" if kind=="AAB" else "app.apk")
     path.write_bytes(raw)
     digest=hashlib.sha256(raw).hexdigest()
@@ -38,6 +46,11 @@ def setup(tmp_path, *, kind="APK"):
                      "package_id":"com.example.app","version_name":"1.0",
                      "version_code":"42","signing_cert_sha256":CERT,
                      "build_variant":"release"}}
+    if kind == "AAB":
+        contract["aab"] = {"sha256":digest,"size_bytes":len(raw),
+                           "package_id":"com.example.app","version_name":"1.0",
+                           "version_code":"42","signing_cert_sha256":CERT,
+                           "build_variant":"release"}
     return request,contract
 
 
@@ -94,6 +107,27 @@ def test_debug_apk_cannot_claim_signed_release(tmp_path):
     req,contract=setup(tmp_path)
     contract["apk"]["build_variant"]="debug"
     with pytest.raises(gate.ProvenanceGateError,match="CANONICAL_APK_BUILD_CONTRACT_MISMATCH"):
+        run(req,contract,tmp_path)
+
+
+def test_claimed_apk_abi_must_match_native_libraries(tmp_path):
+    req,contract=setup(tmp_path)
+    req["artifacts"][0]["abi"]="armeabi-v7a"
+    with pytest.raises(gate.ProvenanceGateError,match="APK_ABI_SCOPE_MISMATCH"):
+        run(req,contract,tmp_path)
+    req["artifacts"][0]["abi"]="universal"
+    with pytest.raises(gate.ProvenanceGateError,match="APK_ABI_SCOPE_MISMATCH"):
+        run(req,contract,tmp_path)
+
+
+def test_aab_rejects_unsigned_source_contract(tmp_path):
+    req,contract=setup(tmp_path,kind="AAB")
+    contract.pop("aab")
+    with pytest.raises(gate.ProvenanceGateError,match="SOURCE_BOUND_AAB_BUILD_CONTRACT_REQUIRED"):
+        run(req,contract,tmp_path)
+    req,contract=setup(tmp_path,kind="AAB")
+    contract["aab"]["sha256"]="0"*64
+    with pytest.raises(gate.ProvenanceGateError,match="SOURCE_BOUND_AAB_BUILD_CONTRACT_REQUIRED"):
         run(req,contract,tmp_path)
 
 
