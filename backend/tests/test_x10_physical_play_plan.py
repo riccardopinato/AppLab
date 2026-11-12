@@ -42,6 +42,16 @@ def test_is_deterministic_and_no_double_play_or_picker():
     ids = [s["scenario_id"] for s in a["scenarios"]]
     assert len(ids) == len(set(ids))
 
+def test_previous_upgrade_version_changes_plan_digest_and_steps():
+    old = gate.create_plan({**CONTRACT, "previous_version_code": 1})
+    recent = gate.create_plan({**CONTRACT, "previous_version_code": 11})
+    assert old["plan_digest"] != recent["plan_digest"]
+    assert recent["previous_version_code"] == 11
+    assert "from versionCode 11 to 12" in next(
+        x["instructions"] for x in recent["scenarios"]
+        if x["scenario_id"] == "upgrade_preserve_data"
+    )
+
 def test_stale_upgrade_or_identity_mismatch_is_refused():
     for changed in (
         {"previous_version_code": 12},

@@ -90,7 +90,9 @@ def create_plan(contract: dict[str, Any]) -> dict[str, Any]:
             stages.append((scenario_id, "Physical on-device capability check: " + cap))
             already.add(scenario_id)
     scenarios = [{
-        "scenario_id": key, "instructions": description,
+        "scenario_id": key,
+        "instructions": (description + f" (from versionCode {contract['previous_version_code']} to {contract['version_code']})"
+                         if key == "upgrade_preserve_data" else description),
         "status": "NOT_VERIFIED",
         "required_evidence": [
             "independent physical_evidence.py hub receipt",
@@ -103,13 +105,16 @@ def create_plan(contract: dict[str, Any]) -> dict[str, Any]:
         "play_console_verified": False,
     } for key, description in stages]
     fingerprint = hashlib.sha256(json.dumps({
-        "artifact": artifact, "source": source, "package": package, "scenarios": stages
+        "artifact": artifact, "source": source, "package": package,
+        "previous_version_code": contract["previous_version_code"],
+        "version_code": contract["version_code"], "scenarios": stages
     }, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return {
         "schema_version": 1, "record_type": "X10_PHYSICAL_PLAY_ACCEPTANCE_PLAN",
         "authority": "PLAN_ONLY", "repository": repo, "source_sha": source,
         "apk_sha256": artifact, "package_id": package,
         "version_code": contract["version_code"],
+        "previous_version_code": contract["previous_version_code"],
         "signing_cert_sha256": contract["signing_cert_sha256"],
         "release_workflow_url": url,
         "scenario_count": len(scenarios), "scenarios": scenarios,
