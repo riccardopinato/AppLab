@@ -7,3 +7,5 @@ Factory pinned: App-Factory-Core@c5adc147046beb7024629466d10eeb799c3c2619 · Mas
 Output is `PROPOSAL_ONLY`: canonical Pattern-3 suggested classification, complete bounded source references, candidates with replay plans marked `NOT_EXECUTED`. No test retry executed, no Donor promotion, no Golden admission, no source edit, no unapproved Core write and no AI scheduler. Re-running the verified failing test on the actual consumer at the pinned source SHA and cross-app review are explicit later gates.
 
 Acceptance for this PR is SOURCE+CI + independent Codex review; fixture responses are NOT trusted independent failure evidence and do not count as live replay. The existing Factory Core provenance/reuse ledger remains the only canonical admission registry.
+
+Review hardening: each occurrence must originate from a distinct repository+workflow run, with unique provenance digest; the independent verifier must bind exact test_key, failure_code and category as well as source SHA and failed status. Repository case is normalized before canonical Pattern-3 grouping, so mixed capitalization cannot imitate cross-repository evidence.

@@ -55,6 +55,7 @@ def analyze(
            and isinstance(read_only_reuse_catalog.get("repositories"), list),
            "READ_ONLY_CATALOG_MISSING")
     keys = set()
+    evidence_keys = set()
     observations = []
     source_refs = []
     for row in failures:
@@ -77,22 +78,31 @@ def analyze(
                    f"https://github.com/{repo}/actions/runs/{run_id}",
                    f"https://github.com/riccardopinato/AppLab/actions/runs/{run_id}"),
                "FAILURE_SOURCE_OR_TAXONOMY_INVALID")
-        # Run/test identity is unique even across retries. A repeated report
-        # of the same failed test cannot manufacture three occurrences.
-        key = (repo.casefold(), run_id, test_key)
-        demand(key not in keys, "REPLAY_OR_DUPLICATE_FAILURE")
+        # Three *independent runs* are needed, not three test names from one
+        # workflow run, and a repeated evidence blob cannot inflate the count.
+        canonical_repo = repo.casefold()
+        key = (canonical_repo, run_id)
+        evidence_key = (canonical_repo, sha, row["evidence_sha256"])
+        demand(key not in keys and evidence_key not in evidence_keys,
+               "REPLAY_OR_DUPLICATE_FAILURE")
         keys.add(key)
+        evidence_keys.add(evidence_key)
         verified = trusted_failure_verifier(row)
         demand(isinstance(verified, dict) and verified.get("verified") is True
-               and verified.get("repository") == repo and verified.get("source_sha") == sha
+               and isinstance(verified.get("repository"), str)
+               and verified["repository"].casefold() == canonical_repo
+               and verified.get("source_sha") == sha
                and verified.get("workflow_run_id") == run_id
+               and verified.get("test_key") == test_key
+               and verified.get("category") == category
+               and verified.get("failure_code") == code
                and verified.get("evidence_sha256") == row["evidence_sha256"]
-               and verified.get("result") in ("FAIL", "ERROR"),
+               and verified.get("result") == row["result"],
                "FAILURE_PROVENANCE_NOT_INDEPENDENTLY_VERIFIED")
-        # No error text, paths with secrets or logs are promoted into reuse.
-        observations.append({"repository": repo, "category": category,
+        # Pattern-3 uses case-sensitive repo keys: always canonicalize.
+        observations.append({"repository": canonical_repo, "category": category,
                              "code": code, "message": test_key, "occurrences": 1})
-        source_refs.append({"repository": repo, "source_sha": sha,
+        source_refs.append({"repository": canonical_repo, "source_sha": sha,
                             "workflow_run_id": run_id, "test_key": test_key,
                             "evidence_sha256": row["evidence_sha256"],
                             "run_url": row["run_url"]})
@@ -101,7 +111,7 @@ def analyze(
     origin_observations = existing_pattern_observations(queue)
     demand(isinstance(origin_observations, list)
            and len(origin_observations) == len(failures)
-           and all(isinstance(obs, dict) and obs.get("repository") == row["repository"]
+           and all(isinstance(obs, dict) and obs.get("repository") == row["repository"].casefold()
                    and obs.get("count") == 1
                    and isinstance(obs.get("signature"), str)
                    for obs, row in zip(origin_observations, failures)),

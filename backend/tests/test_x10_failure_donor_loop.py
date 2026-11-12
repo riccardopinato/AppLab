@@ -34,7 +34,8 @@ def rows(*, count=3, code="CRASH", test="qa/runtime"):
 
 def verify(row):
     return {**{k: row[k] for k in ("repository", "source_sha", "workflow_run_id",
-                                   "evidence_sha256", "result")}, "verified": True}
+                                   "evidence_sha256", "result", "test_key",
+                                   "category", "failure_code")}, "verified": True}
 
 
 def run(receipts, verifier=verify, pattern=p3.build_report, package=packager.build_packages):
@@ -71,6 +72,47 @@ def test_duplicate_workflow_test_cannot_inflate_counts():
     data[2]["run_url"] = data[1]["run_url"]
     with pytest.raises(gate.FailureDonorLoopError, match="REPLAY_OR_DUPLICATE_FAILURE"):
         run(data)
+
+
+def test_same_run_different_tests_cannot_count_three_occurrences():
+    data = rows()
+    for i, row in enumerate(data):
+        row["workflow_run_id"] = 800
+        row["run_url"] = "https://github.com/example/app/actions/runs/800"
+        row["test_key"] = f"qa/runtime{i}"
+    with pytest.raises(gate.FailureDonorLoopError, match="REPLAY_OR_DUPLICATE_FAILURE"):
+        run(data)
+
+
+def test_same_evidence_hash_reused_across_runs_is_rejected():
+    data = rows()
+    data[2]["evidence_sha256"] = data[1]["evidence_sha256"]
+    with pytest.raises(gate.FailureDonorLoopError, match="REPLAY_OR_DUPLICATE_FAILURE"):
+        run(data)
+
+
+def test_external_proof_must_bind_failure_code_category_and_test_key():
+    def wrong_test(row):
+        return {**verify(row), "test_key": "qa/different"}
+    with pytest.raises(gate.FailureDonorLoopError,
+                       match="FAILURE_PROVENANCE_NOT_INDEPENDENTLY_VERIFIED"):
+        run(rows(), verifier=wrong_test)
+    def wrong_code(row):
+        return {**verify(row), "failure_code": "OTHER"}
+    with pytest.raises(gate.FailureDonorLoopError,
+                       match="FAILURE_PROVENANCE_NOT_INDEPENDENTLY_VERIFIED"):
+        run(rows(), verifier=wrong_code)
+
+
+def test_repo_capitalization_does_not_inflate_distinct_repos():
+    data = rows()
+    data[0]["repository"] = "Example/App"
+    data[0]["run_url"] = "https://github.com/Example/App/actions/runs/800"
+    data[1]["repository"] = "EXAMPLE/APP"
+    data[1]["run_url"] = "https://github.com/EXAMPLE/APP/actions/runs/801"
+    outcome = run(data)
+    assert outcome["candidates"][0]["suggested_classification"] == "DONOR"
+    assert {r["repository"] for r in outcome["candidates"][0]["source_references"]} == {"example/app"}
 
 
 def test_injected_untrusted_evidence_rejected():
