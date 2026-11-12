@@ -55,6 +55,7 @@ def _accessibility(xml: bytes, device: dict[str, Any], package: str) -> list[dic
         in_app += 1
         name = attrs.get("class", "")
         interactive = (attrs.get("clickable") == "true" or
+                       attrs.get("long-clickable") == "true" or
                        attrs.get("checkable") == "true" or
                        any(t in name for t in ("Button", "EditText", "Switch", "CheckBox", "RadioButton")))
         if not interactive or attrs.get("enabled", "true") != "true":
@@ -146,6 +147,16 @@ def assess(request: dict[str, Any], *, hierarchy_path: Path,
                and baseline["review_url"].startswith(f"https://github.com/{repo}/pull/")
                and isinstance(baseline.get("metrics"), dict),
                "BASELINE_NOT_APPROVED_OR_INCOMPARABLE")
+        # AppLab Performance Lab skips missing baseline values; these must
+        # never be silently interpreted as "no regressions".
+        base_metrics = {"metrics": baseline["metrics"]}
+        base_cold = _metric(base_metrics, "startup", "cold", "total_time_ms")
+        base_pss = _metric(base_metrics, "memory", "pss_kb")
+        base_jank = _metric(base_metrics, "gfx", "janky_percent")
+        demand(0 < base_cold <= 180_000
+               and 0 < base_pss <= 131072 * 1024
+               and 0 <= base_jank <= 100,
+               "BASELINE_MEASUREMENTS_MISSING_OR_INVALID")
         compared = applab_regression_findings(summary, baseline)
         demand(isinstance(compared, list), "COMPARATOR_RESULT_INVALID")
         regressions = [r.code for r in compared if isinstance(getattr(r, "code", None), str)]

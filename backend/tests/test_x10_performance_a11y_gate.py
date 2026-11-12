@@ -132,6 +132,26 @@ def test_ui_capture_tamper_rejected(tmp_path):
         run()
 
 
+def test_missing_baseline_metrics_cannot_become_match(tmp_path):
+    _, baseline, _, run = setup(tmp_path)
+    baseline["metrics"] = {}
+    with pytest.raises(gate.PerformanceAccessibilityError,
+                       match="PERFORMANCE_SAMPLE_INCOMPLETE"):
+        run()
+
+
+def test_small_unlabeled_long_clickable_custom_control(tmp_path):
+    req, baseline, ui, run = setup(tmp_path)
+    raw = ('<hierarchy><node package="' + PACKAGE + '" '
+           'class="android.view.View" long-clickable="true" clickable="false" '
+           'enabled="true" bounds="[0,0][20,20]"/></hierarchy>').encode()
+    ui.write_bytes(raw)
+    req["hierarchy_sha256"] = hashlib.sha256(raw).hexdigest()
+    issues = run()["accessibility_findings"]
+    assert {i["code"] for i in issues} >= {
+        "TOUCH_TARGET_UNDER_48DP", "UNLABELED_CONTROL_REVIEW"}
+
+
 def test_not_same_device_baseline_rejected(tmp_path):
     _, baseline, _, run = setup(tmp_path)
     baseline["device"]["density_dpi"] = 320
