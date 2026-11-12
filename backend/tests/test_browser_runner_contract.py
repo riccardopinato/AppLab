@@ -48,7 +48,7 @@ class BrowserRunnerContractTests(unittest.TestCase):
     def test_conditional_browser_step_rejected(self):
         marker = "      - name: Browser WebRTC video and input E2E"
         workflow = self.workflow.replace(
-            marker, marker + "\n        if: \${{ false }}"
+            marker, marker + "\n        if: ${{ false }}"
         )
         self.assertNotEqual(workflow, self.workflow)
         with self.assertRaisesRegex(
