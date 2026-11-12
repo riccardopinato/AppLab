@@ -59,12 +59,13 @@ def fixtures(tmp_path, current_value=40, current_text="Home"):
     b, c = tmp_path / "baseline", tmp_path / "current"
     bc = capture(b)
     cc = capture(c, current_value, current_text)
+    profile = dict(PROFILE)  # per-test copy: negative tests must not poison later cases
     lookup = {"approved": True, "repository": REPO, "package_id": "com.example.app",
-              "screen": "home", "profile": PROFILE, "source_sha": SHA,
+              "screen": "home", "profile": profile, "source_sha": SHA,
               "review_url": f"https://github.com/{REPO}/pull/11", "capture": bc}
     request = {"schema_version": 1, "repository": REPO, "source_sha": SHA,
                "package_id": "com.example.app", "screen": "home",
-               "profile": PROFILE, "workflow_run_id": 555,
+               "profile": dict(profile), "workflow_run_id": 555,
                "capture": cc,
                "interactions": [{"action": "tap", "result": "PASS", "source_sha": SHA,
                                  "workflow_run_id": 555,
