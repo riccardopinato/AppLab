@@ -10,6 +10,8 @@ on:
       - "selftest/**"
       - "docker-compose.live.yml"
       - "scripts/check_live_host.sh"
+      - "scripts/check_browser_runner_contract.py"
+      - "backend/tests/test_browser_runner_contract.py"
       - ".github/workflows/live-emulator-self-test.yml"
       - ".github/workflows/runtime-fixture-build.yml"
       - "scripts/restore_runtime_fixture.sh"
@@ -35,6 +37,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+      - name: Guard browser runner contract and E2E test coverage
+        run: |
+          python3 scripts/check_browser_runner_contract.py --static-only
+          python3 -m unittest discover -s backend/tests -p 'test_browser_runner_contract.py' -v
       - id: scope
         name: Decide whether trusted runtime work is applicable
         shell: bash
@@ -48,7 +54,7 @@ jobs:
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/applab-changed-files.txt"
-          if grep -Eq '^(backend/|frontend/|selftest/|docker-compose\.live\.yml$|scripts/check_live_host\.sh$|scripts/(restore_runtime_fixture|build_runtime_fixture_fallback)\.sh$|\.github/workflows/(live-emulator-self-test|runtime-fixture-build)\.yml$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
+          if grep -Eq '^(backend/|frontend/|selftest/|docker-compose\.live\.yml$|scripts/check_live_host\.sh$|scripts/check_browser_runner_contract\.py$|backend/tests/test_browser_runner_contract\.py$|scripts/(restore_runtime_fixture|build_runtime_fixture_fallback)\.sh$|\.github/workflows/(live-emulator-self-test|runtime-fixture-build)\.yml$)' "$RUNNER_TEMP/applab-changed-files.txt"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -64,6 +70,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Refuse unsupported browser runner before installing dependencies
+        run: python3 scripts/check_browser_runner_contract.py
 
       - name: Enable KVM
         run: |
