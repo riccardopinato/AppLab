@@ -19,3 +19,9 @@ I gate `maestro`, `visual_qa`, `visual_regression`, `visual_journey`, nove speci
 - **SOURCE+CI** significa corretta costruzione della route/receipt, non esecuzione di test su Anna's Diary, World Days, Battery Guard o altri consumer.
 - **X10-029/030/031** restano owner di baselines visual, performance/a11y e signing provenienza; X10-032 richiede prova umana fisica.
 - AppLab v6.2 rollout `SELF_CANARY` e limiti runtime rimangono invariati. Solo reviewer/verifier esterno può attestare prove reali e sbloccare la distribuzione.
+
+## Review hardening 2026-11-12 — receipt provenance e gate non vuoti
+
+Il delegator non può produrre `all_reported_pass:true` quando il piano contiene zero gate, manca un test statico obbligatorio o FULL/CERTIFICATION omette un gate canonico. La route caller-carried deve avere i campi identità e stato originali, ma **non è una firma** e richiede comunque verifica indipendente. Un report con URL vuoto è `BLOCKED_OR_FAIL_REPORTED` e include `TRUSTED_RUN_REFERENCE_MISSING`. Gli URL Actions sono accettati solo per il consumer stesso o il runner `riccardopinato/AppLab` (che può eseguire test su un consumer esterno); l'URL è validato per struttura e repository, **non** autenticato tramite GitHub API né associato a un run SHA/artifact reale. Anche tutti i gate PASS rimangono `RUNNER_REPORTED_ONLY` e `independent_provenance_verified:false`.
+
+I test di regressione includono route vuota o manomessa, gate qualità rimossi, URL estraneo, mancanza di run URL e percorso AppLab legittimo. La PR X10-028 resta soggetta a review, CI exact-head e correzione della dipendenza browser-runner da AppLab #220; non è una certificazione di feature consumer.
