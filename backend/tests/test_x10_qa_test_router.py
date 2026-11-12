@@ -57,6 +57,49 @@ def test_certification_includes_every_existing_strict_gate():
     assert out["requested_mode"] == "certification"
 
 
+def test_full_route_delegates_with_all_canonical_strict_gates():
+    c, p = fixture(mode="full")
+    request = router.route(c, p, validate_plan=trusted_stub)
+    assert set(router.GATES).issubset(request["gates"])
+    assert {"maestro", "visual_qa", "visual_regression", "visual_journey"} <= set(
+        request["gates"])
+    assert request["requested_mode"] == "full"
+    assert request["effective_mode"] == "full"
+    calls = []
+    def runner(route):
+        calls.append(tuple(route["gates"]))
+        return {"repository": REPO, "source_sha": SHA,
+                "analysis_mode": "full",
+                "run_url": "https://github.com/riccardopinato/AppLab/actions/runs/12345",
+                "gates": dict.fromkeys(route["gates"], "PASS")}
+    receipt = router.delegate(request, runner=runner)
+    assert len(calls) == 1
+    assert receipt["state"] == "RUNNER_REPORTED_ONLY"
+    assert receipt["all_reported_pass"] is True
+    assert receipt["independent_provenance_verified"] is False
+    assert receipt["certification_granted"] is False
+
+
+def test_planner_escalated_fast_to_full_is_complete_and_not_certified():
+    c, p = fixture(mode="fast")
+    p["mode"] = "full"
+    p["lane"] = "FULL_RUNTIME"
+    p["selected_labs"] = {name: True for name in router.LABS}
+    request = router.route(c, p, validate_plan=trusted_stub)
+    assert request["requested_mode"] == "fast"
+    assert request["effective_mode"] == "full"
+    assert set(router.GATES).issubset(request["gates"])
+    def runner(route):
+        return {"repository": REPO, "source_sha": SHA,
+                "analysis_mode": "full",
+                "run_url": "https://github.com/example/consumer/actions/runs/909",
+                "gates": dict.fromkeys(route["gates"], "PASS")}
+    receipt = router.delegate(request, runner=runner)
+    assert receipt["state"] == "RUNNER_REPORTED_ONLY"
+    assert receipt["independent_provenance_verified"] is False
+    assert receipt["certification_granted"] is False
+
+
 def test_full_mode_not_reduced_by_proposed_selector():
     c, p = fixture(mode="full")
     p["selected_labs"]["network"] = False
