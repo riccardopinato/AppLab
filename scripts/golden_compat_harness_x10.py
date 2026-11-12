@@ -61,7 +61,7 @@ def assess(manifest: dict[str, Any], receipts: list[dict[str, Any]]) -> dict[str
              and all(isinstance(path, str) and bool(path.strip())
                      and not path.startswith(("/", "~"))
                      and not any(part in ("", ".", "..") for part in path.split("/"))
-                     and "\\\\" not in path and len(path) <= 256
+                     and chr(92) not in path and len(path) <= 256
                      for path in source_files)
              and len(set(source_files)) == len(source_files)
              and manifest.get("license") in {"INTERNAL_APPROVED", "SPDX_VERIFIED"},
