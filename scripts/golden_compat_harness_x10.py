@@ -79,8 +79,10 @@ def assess(manifest: dict[str, Any], receipts: list[dict[str, Any]]) -> dict[str
                  and SHA.fullmatch(consumer["source_sha"]) is not None
                  and consumer.get("approved") is True and isinstance(consumer.get("test_url"), str),
                  "CONSUMER_NOT_APPROVED")
-        _require(consumer["repo"] not in declared, "DUPLICATE_CONSUMER")
-        declared[consumer["repo"]] = consumer
+        # GitHub owner/repository identities are case-insensitive.
+        normalized_repo = consumer["repo"].casefold()
+        _require(normalized_repo not in declared, "DUPLICATE_CONSUMER")
+        declared[normalized_repo] = consumer
 
     seen = set()
     counts = {"DONOR": 0, "CONSUMER": 0, "ROLLBACK": 0}
@@ -96,14 +98,14 @@ def assess(manifest: dict[str, Any], receipts: list[dict[str, Any]]) -> dict[str
                  and isinstance(row.get("run_url"), str)
                  and row["run_url"].startswith("https://github.com/")
                  and "/actions/runs/" in row["run_url"], "NO_MATCHING_PASS")
-        key = (kind, repo)
+        key = (kind, repo.casefold())
         _require(key not in seen, "DUPLICATE_RECEIPT")
         seen.add(key)
         if kind == "DONOR":
-            _require(repo == provenance.get("donor_repo") and source_sha == donor_sha
+            _require(repo.casefold() == str(provenance.get("donor_repo", "")).casefold() and source_sha == donor_sha
                      and row["run_url"] in tests["donor_ci_urls"], "DONOR_MISMATCH")
         elif kind == "CONSUMER":
-            c = declared.get(repo)
+            c = declared.get(repo.casefold())
             _require(c is not None and source_sha == c["source_sha"]
                      and row["run_url"] == c["test_url"]
                      and row["run_url"] in tests["consumer_ci_urls"], "CONSUMER_MISMATCH")
@@ -114,9 +116,14 @@ def assess(manifest: dict[str, Any], receipts: list[dict[str, Any]]) -> dict[str
                      and row.get("to_version") == rollback_version
                      and row.get("from_version") == version
                      and source_sha == donor_sha
-                     and repo == provenance.get("donor_repo"), "ROLLBACK_MISMATCH")
+                     and repo.casefold() == str(provenance.get("donor_repo", "")).casefold(), "ROLLBACK_MISMATCH")
         pair = (row.get("dart"), row.get("flutter"))
-        _require(any(isinstance(p, dict) and pair == (p.get("dart"), p.get("flutter"))
+        _require(all(isinstance(v, str) and VERSION.fullmatch(v) is not None for v in pair),
+                 "SDK_VERSION_MISSING")
+        _require(any(isinstance(p, dict)
+                     and all(isinstance(p.get(v), str) and VERSION.fullmatch(p[v]) is not None
+                             for v in ("dart", "flutter"))
+                     and pair == (p["dart"], p["flutter"])
                      and p.get("test_url") == row["run_url"]
                      for p in compatibility["tested_pairs"]), "SDK_PAIR_NOT_RECORDED")
         counts[kind] += 1
