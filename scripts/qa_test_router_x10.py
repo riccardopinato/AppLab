@@ -9,12 +9,19 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 from typing import Any
 
-try:
-    from scripts.certification_gate import STRICT_GATES
-except ModuleNotFoundError:
-    from certification_gate import STRICT_GATES
+# CI imports this module by absolute file path with only backend/ on sys.path.
+# Resolve the adjacent canonical AppLab gate, not a duplicate local gate list.
+_spec = spec_from_file_location("_x10_app_lab_certification_gate",
+                            Path(__file__).with_name("certification_gate.py"))
+if _spec is None or _spec.loader is None:
+    raise ImportError("AppLab certification gate is not importable")
+_gate_module = module_from_spec(_spec)
+_spec.loader.exec_module(_gate_module)
+STRICT_GATES = _gate_module.STRICT_GATES
 
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
