@@ -56,8 +56,14 @@ def assess(manifest: dict[str, Any], receipts: list[dict[str, Any]]) -> dict[str
              and golden.get("registry_sha") == factory_sha
              and isinstance(donor_sha, str) and SHA.fullmatch(donor_sha) is not None,
              "SOURCE_NOT_PINNED")
-    _require(isinstance(provenance.get("source_files"), list)
-             and bool(provenance["source_files"])
+    source_files = provenance.get("source_files")
+    _require(isinstance(source_files, list) and bool(source_files)
+             and all(isinstance(path, str) and bool(path.strip())
+                     and not path.startswith(("/", "~"))
+                     and not any(part in ("", ".", "..") for part in path.split("/"))
+                     and "\\\\" not in path and len(path) <= 256
+                     for path in source_files)
+             and len(set(source_files)) == len(source_files)
              and manifest.get("license") in {"INTERNAL_APPROVED", "SPDX_VERIFIED"},
              "SOURCE_OR_LICENSE_NOT_ADMITTED")
     _require(isinstance(compatibility.get("tested_pairs"), list)
