@@ -45,6 +45,28 @@ class BrowserRunnerContractTests(unittest.TestCase):
         with self.assertRaisesRegex(RunnerCompatibilityError, "BROWSER_E2E_REMOVED"):
             check_contract(workflow, self.package)
 
+    def test_conditional_browser_step_rejected(self):
+        marker = "      - name: Browser WebRTC video and input E2E"
+        workflow = self.workflow.replace(
+            marker, marker + "\n        if: \${{ false }}"
+        )
+        self.assertNotEqual(workflow, self.workflow)
+        with self.assertRaisesRegex(
+            RunnerCompatibilityError, "BROWSER_E2E_BYPASS_FORBIDDEN"
+        ):
+            check_contract(workflow, self.package)
+
+    def test_continue_on_error_browser_step_rejected(self):
+        marker = "      - name: Browser WebRTC video and input E2E"
+        workflow = self.workflow.replace(
+            marker, marker + "\n        continue-on-error: true"
+        )
+        self.assertNotEqual(workflow, self.workflow)
+        with self.assertRaisesRegex(
+            RunnerCompatibilityError, "BROWSER_E2E_BYPASS_FORBIDDEN"
+        ):
+            check_contract(workflow, self.package)
+
     def test_bumped_playwright_requires_review(self):
         package = dict(self.package)
         package["devDependencies"] = {"@playwright/test": "1.56.0"}
