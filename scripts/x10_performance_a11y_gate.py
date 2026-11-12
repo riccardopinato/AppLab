@@ -15,7 +15,7 @@ from typing import Any, Callable
 
 SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
-PACKAGE = re.compile(r"[A-Za-z][\w]*(?:\.[A-Za-z][\w]*)+\Z")
+PACKAGE = re.compile(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+\Z")
 BOUNDS = re.compile(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]\Z")
 TARGET_DP = 48.0
 
@@ -90,7 +90,7 @@ def assess(request: dict[str, Any], *, hierarchy_path: Path,
            "INVALID_REQUEST")
     repo, sha, package, apk_hash = (request.get(key) for key in
                                     ("repository", "source_sha", "package_id", "apk_sha256"))
-    demand(isinstance(repo, str) and re.fullmatch(r"[A-Za-z\w.-]+/[A-Za-z\w.-]+", repo) is not None
+    demand(isinstance(repo, str) and re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo) is not None
            and isinstance(sha, str) and SHA40.fullmatch(sha) is not None
            and isinstance(package, str) and PACKAGE.fullmatch(package) is not None
            and isinstance(apk_hash, str) and SHA256.fullmatch(apk_hash) is not None,

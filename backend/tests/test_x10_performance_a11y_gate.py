@@ -125,6 +125,17 @@ def test_no_single_sample_and_no_duplicate_sequence(tmp_path):
         run()
 
 
+def test_non_ascii_identifiers_rejected(tmp_path):
+    req, _, _, run = setup(tmp_path)
+    req["repository"] = "exámple/app"
+    with pytest.raises(gate.PerformanceAccessibilityError, match="SOURCE_OR_ARTIFACT_IDENTITY_INVALID"):
+        run()
+    req["repository"] = REPO
+    req["package_id"] = "com.exámple.app"
+    with pytest.raises(gate.PerformanceAccessibilityError, match="SOURCE_OR_ARTIFACT_IDENTITY_INVALID"):
+        run()
+
+
 def test_ui_capture_tamper_rejected(tmp_path):
     _, _, ui, run = setup(tmp_path)
     ui.write_bytes(b"broken capture")
