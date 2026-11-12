@@ -146,6 +146,18 @@ def test_case_only_duplicate_consumer_receipt_rejected():
         mod.assess(m, r)
 
 
+@pytest.mark.parametrize("source_files", [
+    [None], [""], [" "], ["../secrets.dart"],
+    ["lib/../secrets.dart"], ["/absolute/file.dart"],
+    ["lib\\\\secrets.dart"], ["lib/a.dart", "lib/a.dart"]
+])
+def test_source_provenance_requires_real_safe_unique_file_names(source_files):
+    manifest, receipts = fixture()
+    manifest["provenance"]["source_files"] = source_files
+    with pytest.raises(ValueError, match="SOURCE_OR_LICENSE_NOT_ADMITTED"):
+        mod.assess(manifest, receipts)
+
+
 def test_certified_requires_two_distinct_consumers():
     m, r = fixture()
     m["package_state"] = "CERTIFIED_MULTI_CONSUMER"
