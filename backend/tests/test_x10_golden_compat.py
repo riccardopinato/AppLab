@@ -102,6 +102,50 @@ def test_fail_closed(mutation, needle):
         mod.assess(m, r)
 
 
+
+@pytest.mark.parametrize("field", ["dart", "flutter"])
+def test_missing_receipt_sdk_is_denied_even_if_matrix_missing_too(field):
+    m, r = fixture()
+    for receipt in r:
+        receipt.pop(field, None)
+    for pair in m["compatibility"]["tested_pairs"]:
+        pair.pop(field, None)
+    with pytest.raises(ValueError, match="SDK_VERSION_MISSING"):
+        mod.assess(m, r)
+
+
+@pytest.mark.parametrize("field", ["dart", "flutter"])
+def test_invalid_matrix_sdk_not_accepted(field):
+    m, r = fixture()
+    for pair in m["compatibility"]["tested_pairs"]:
+        pair[field] = "NOT_TESTED"
+    with pytest.raises(ValueError, match="SDK_PAIR_NOT_RECORDED"):
+        mod.assess(m, r)
+
+
+def test_case_only_second_consumer_cannot_certify_two_adoptions():
+    m, r = fixture()
+    m["package_state"] = "CERTIFIED_MULTI_CONSUMER"
+    duplicated = copy.deepcopy(m["consumers"][0])
+    duplicated["repo"] = "Example/App"
+    m["consumers"].append(duplicated)
+    second = copy.deepcopy(r[1])
+    second["repository"] = "Example/App"
+    r.append(second)
+    m["tests"]["consumer_ci_urls"].append(second["run_url"])
+    with pytest.raises(ValueError, match="DUPLICATE_CONSUMER"):
+        mod.assess(m, r)
+
+
+def test_case_only_duplicate_consumer_receipt_rejected():
+    m, r = fixture()
+    second = copy.deepcopy(r[1])
+    second["repository"] = "Example/App"
+    r.append(second)
+    with pytest.raises(ValueError, match="DUPLICATE_RECEIPT"):
+        mod.assess(m, r)
+
+
 def test_certified_requires_two_distinct_consumers():
     m, r = fixture()
     m["package_state"] = "CERTIFIED_MULTI_CONSUMER"
