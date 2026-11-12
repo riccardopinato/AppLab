@@ -91,7 +91,11 @@ def assess(
         and int(v_code) > 0 and isinstance(cert, str)
         and SHA256.fullmatch(cert) is not None, "INVALID_RELEASE_IDENTITY")
     run_id=request.get("workflow_run_id")
+    run_repo=request.get("workflow_repository")
     require(type(run_id) is int and run_id > 0, "MISSING_WORKFLOW_RUN")
+    require(isinstance(run_repo, str) and REPO.fullmatch(run_repo) is not None
+            and run_repo in (repo, "riccardopinato/AppLab"),
+            "UNTRUSTED_WORKFLOW_REPOSITORY")
     items=request.get("artifacts")
     require(isinstance(items, list) and 1 <= len(items) <= 4,
             "ARTIFACT_COUNT_INVALID")
@@ -122,7 +126,7 @@ def assess(
         artifact_id=item.get("artifact_id")
         url=item.get("artifact_url")
         require(type(artifact_id) is int and artifact_id > 0
-                and url == (f"https://github.com/{repo}/actions/runs/"
+                and url == (f"https://github.com/{run_repo}/actions/runs/"
                             f"{run_id}/artifacts/{artifact_id}"),
                 "UNBOUND_ARTIFACT_URL")
         if kind == "APK":
@@ -163,7 +167,8 @@ def assess(
         "trusted_applab_sha":engine,"package_id":pkg,"version_code":v_code,
         "version_name":v_name,"signing_cert_sha256":cert,"artifacts":results,
         "state":"PENDING_INDEPENDENT_REMOTE_AND_DEVICE_EVIDENCE",
-        "workflow_run_id":run_id, "artifact_urls_verified_remotely":False,
+        "workflow_run_id":run_id, "workflow_repository":run_repo,
+        "artifact_urls_verified_remotely":False,
         "trusted_runtime_verified":False,"device_verified":False,
         "store_ready":False,"production_released":False,
     }

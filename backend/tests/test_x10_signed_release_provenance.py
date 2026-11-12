@@ -27,6 +27,7 @@ def setup(tmp_path, *, kind="APK"):
         "trusted_applab_sha":ENGINE,"package_id":"com.example.app",
         "version_name":"1.0","version_code":"42",
         "expected_signing_cert_sha256":CERT,"workflow_run_id":12345,
+        "workflow_repository":REPO,
         "artifacts":[{"kind":kind,"abi":"bundle" if kind=="AAB" else "arm64-v8a",
                       "relative_path":path.name,"sha256":digest,
                       "size_bytes":len(raw),"artifact_id":987,
@@ -107,6 +108,22 @@ def test_stale_artifact_url_rejected(tmp_path):
     req,contract=setup(tmp_path)
     req["artifacts"][0]["artifact_url"]="https://github.com/example/app/actions/runs/2/artifacts/987"
     with pytest.raises(gate.ProvenanceGateError,match="UNBOUND_ARTIFACT_URL"):
+        run(req,contract,tmp_path)
+
+
+def test_central_applab_run_url_binds_to_workflow_repo(tmp_path):
+    req,contract=setup(tmp_path)
+    req["workflow_repository"]="riccardopinato/AppLab"
+    req["artifacts"][0]["artifact_url"]="https://github.com/riccardopinato/AppLab/actions/runs/12345/artifacts/987"
+    out=run(req,contract,tmp_path)
+    assert out["workflow_repository"]=="riccardopinato/AppLab"
+    assert out["store_ready"] is False
+
+
+def test_untrusted_run_repository_rejected(tmp_path):
+    req,contract=setup(tmp_path)
+    req["workflow_repository"]="malicious/unrelated"
+    with pytest.raises(gate.ProvenanceGateError,match="UNTRUSTED_WORKFLOW_REPOSITORY"):
         run(req,contract,tmp_path)
 
 
