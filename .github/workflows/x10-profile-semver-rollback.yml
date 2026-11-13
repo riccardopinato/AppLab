@@ -1,0 +1,114 @@
+name: App Factory X10-026 — real 0.1.1 to 0.1.0 package rollback
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/x10-profile-semver-rollback.yml"
+      - "scripts/x10_026_profile_semver_rollback.py"
+      - "integration/agent_core/X10-026_SEMVER_ROLLBACK_CI.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pinned-two-consumer-semver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact AppLab PR SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Setup pinned Flutter and Dart
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Clone immutable true package versions and real consumers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/x10-semver
+          git clone -q https://github.com/riccardopinato/Idee-app-Archivi-riferimenti.git /tmp/x10-semver/donor-new
+          git -C /tmp/x10-semver/donor-new checkout -q --detach 710e83261bcadc1cfd5eda3e28d77bed8b8bc576
+          git -C /tmp/x10-semver/donor-new worktree add -q --detach /tmp/x10-semver/donor-old 1d1a8628e25f58b788b013cf6955763d00363cdc
+          git clone -q https://github.com/riccardopinato/Agenda-per-Anna.git /tmp/x10-semver/anna
+          git clone -q https://github.com/riccardopinato/TasteAI.git /tmp/x10-semver/taste
+          git -C /tmp/x10-semver/anna checkout -q --detach 984a34462ba527b2ea98dbc3a337bdd8614b88d4
+          git -C /tmp/x10-semver/taste checkout -q --detach 61a83aa638654f4e885d503e024408d2dcddebc2
+          test "$(git -C /tmp/x10-semver/donor-new rev-parse HEAD)" = 710e83261bcadc1cfd5eda3e28d77bed8b8bc576
+          test "$(git -C /tmp/x10-semver/donor-old rev-parse HEAD)" = 1d1a8628e25f58b788b013cf6955763d00363cdc
+          test "$(git -C /tmp/x10-semver/anna rev-parse HEAD)" = 984a34462ba527b2ea98dbc3a337bdd8614b88d4
+          test "$(git -C /tmp/x10-semver/taste rev-parse HEAD)" = 61a83aa638654f4e885d503e024408d2dcddebc2
+          python3 scripts/x10_026_profile_semver_rollback.py version --root /tmp/x10-semver/donor-new/19-APP-FACTORY-10X/flutter_kits/profile --version 0.1.1
+          python3 scripts/x10_026_profile_semver_rollback.py version --root /tmp/x10-semver/donor-old/19-APP-FACTORY-10X/flutter_kits/profile --version 0.1.0
+      - name: Run donor tests on BOTH real SemVer versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for version in donor-new donor-old; do
+            (
+              cd "/tmp/x10-semver/$version/19-APP-FACTORY-10X/flutter_kits/profile"
+              dart pub get
+              dart analyze --fatal-infos
+              dart test
+            )
+          done
+      - name: Original pinned consumer baseline 0.1.0 tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/x10_026_profile_semver_rollback.py check --root /tmp/x10-semver/anna --ref 1d1a8628e25f58b788b013cf6955763d00363cdc --version 0.1.0
+          python3 scripts/x10_026_profile_semver_rollback.py check --root /tmp/x10-semver/taste --ref 1d1a8628e25f58b788b013cf6955763d00363cdc --version 0.1.0
+          (
+            cd /tmp/x10-semver/anna
+            flutter pub get --enforce-lockfile
+            flutter test test/x10_026_profile_source_kit_test.dart test/preferences_test.dart
+          )
+          (
+            cd /tmp/x10-semver/taste
+            flutter pub get --enforce-lockfile
+            flutter test test/x10_026_factory_profile_consumer_test.dart test/profile_restore_contract_test.dart
+          )
+      - name: Real SemVer upgrade to 0.1.1 in isolated consumer worktrees
+        shell: bash
+        run: |
+          set -euo pipefail
+          for app in anna taste; do
+            python3 scripts/x10_026_profile_semver_rollback.py switch --root "/tmp/x10-semver/$app" --from-ref 1d1a8628e25f58b788b013cf6955763d00363cdc --to-ref 710e83261bcadc1cfd5eda3e28d77bed8b8bc576
+            (cd "/tmp/x10-semver/$app" && flutter pub get)
+            python3 scripts/x10_026_profile_semver_rollback.py check --root "/tmp/x10-semver/$app" --ref 710e83261bcadc1cfd5eda3e28d77bed8b8bc576 --version 0.1.1
+          done
+          (cd /tmp/x10-semver/anna && flutter test test/x10_026_profile_source_kit_test.dart test/preferences_test.dart)
+          (cd /tmp/x10-semver/taste && flutter test test/x10_026_factory_profile_consumer_test.dart test/profile_restore_contract_test.dart)
+      - name: Actual package-version rollback to immutable 0.1.0 and retest BOTH consumers
+        shell: bash
+        run: |
+          set -euo pipefail
+          for app in anna taste; do
+            python3 scripts/x10_026_profile_semver_rollback.py switch --root "/tmp/x10-semver/$app" --from-ref 710e83261bcadc1cfd5eda3e28d77bed8b8bc576 --to-ref 1d1a8628e25f58b788b013cf6955763d00363cdc
+            (cd "/tmp/x10-semver/$app" && flutter pub get)
+            python3 scripts/x10_026_profile_semver_rollback.py check --root "/tmp/x10-semver/$app" --ref 1d1a8628e25f58b788b013cf6955763d00363cdc --version 0.1.0
+          done
+          (cd /tmp/x10-semver/anna && flutter test test/x10_026_profile_source_kit_test.dart test/preferences_test.dart)
+          (cd /tmp/x10-semver/taste && flutter test test/x10_026_factory_profile_consumer_test.dart test/profile_restore_contract_test.dart)
+          # Assert both consumers returned to their exact immutable tracked dependency config.
+          git -C /tmp/x10-semver/anna diff --exit-code -- pubspec.yaml pubspec.lock
+          git -C /tmp/x10-semver/taste diff --exit-code -- pubspec.yaml pubspec.lock
+      - name: Apply unchanged X10-018 harness and emit non-authoritative receipts
+        shell: bash
+        env:
+          EXPECTED_RUN: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python3 scripts/x10_026_profile_semver_rollback.py receipt --out /tmp/x10-semver/proof --run-id "$EXPECTED_RUN"
+          python3 scripts/golden_compat_harness_x10.py --manifest /tmp/x10-semver/proof/manifest.json --receipts /tmp/x10-semver/proof/receipts.json
+          echo 'X10-026 CI: REAL immutable profile kit 0.1.1 -> 0.1.0 SemVer dependency rollback on two unchanged consumer source trees.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'X10-018 structural PASS requires INDEPENDENT receipt review. No device/Play user-data rollback or Golden admission.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve evidence for independent reviewer
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.2
+        with:
+          name: x10-026-real-semver-rollback-evidence
+          path: /tmp/x10-semver/proof/
+          retention-days: 30
