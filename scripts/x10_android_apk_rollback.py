@@ -79,6 +79,10 @@ def stage(apk: Path, expected: int) -> None:
 
 
 def rehearse(old: Path, new: Path, tools: Path) -> dict:
+    checked_out = run("git", "rev-parse", "HEAD").stdout.strip()
+    expected = os.environ.get("X10_EXPECTED_SOURCE_SHA", "")
+    if not re.fullmatch(r"[0-9a-f]{40}", checked_out) or checked_out != expected:
+        raise RuntimeError("EXACT_SOURCE_SHA_MISMATCH")
     before = apk_metadata(old, 101, tools)
     after = apk_metadata(new, 102, tools)
     if before["sha256"] == after["sha256"] or before["signer_sha256"] != after["signer_sha256"]:
@@ -107,7 +111,7 @@ def rehearse(old: Path, new: Path, tools: Path) -> dict:
     canary_read()
     return {"schema_version": 1, "result": "EMULATOR_DEBUG_ROLLBACK_PASS",
             "factory_baseline": "c5adc147046beb7024629466d10eeb799c3c2619",
-            "source_sha": os.environ.get("GITHUB_SHA", ""),
+            "source_sha": checked_out,
             "workflow_run_id": os.environ.get("GITHUB_RUN_ID", ""),
             "test_package": PACKAGE, "build_type": "debug",
             "old_apk": before, "new_apk": after, "device": device,
