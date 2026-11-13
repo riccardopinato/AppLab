@@ -1,0 +1,104 @@
+name: App Factory X10-026 — two Flutter consumers and rollback source QA
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/x10-two-flutter-consumers.yml"
+      - "integration/agent_core/X10-026_TWO_CONSUMER_SOURCE_ROLLBACK.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/x10-two-flutter-consumers.yml"
+      - "integration/agent_core/X10-026_TWO_CONSUMER_SOURCE_ROLLBACK.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  independent-source-rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - name: Checkout exact AppLab SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Setup pinned Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Checkout immutable donor and consumers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/x10
+          git clone -q https://github.com/riccardopinato/Idee-app-Archivi-riferimenti.git /tmp/x10/donor
+          git clone -q https://github.com/riccardopinato/Agenda-per-Anna.git /tmp/x10/anna
+          git clone -q https://github.com/riccardopinato/TasteAI.git /tmp/x10/taste
+          git -C /tmp/x10/donor checkout -q --detach 1d1a8628e25f58b788b013cf6955763d00363cdc
+          git -C /tmp/x10/anna checkout -q --detach 984a34462ba527b2ea98dbc3a337bdd8614b88d4
+          git -C /tmp/x10/taste checkout -q --detach 61a83aa638654f4e885d503e024408d2dcddebc2
+          test "$(git -C /tmp/x10/donor rev-parse HEAD)" = 1d1a8628e25f58b788b013cf6955763d00363cdc
+          test "$(git -C /tmp/x10/anna rev-parse HEAD)" = 984a34462ba527b2ea98dbc3a337bdd8614b88d4
+          test "$(git -C /tmp/x10/taste rev-parse HEAD)" = 61a83aa638654f4e885d503e024408d2dcddebc2
+      - name: Verify same exact git dependency and locked version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          donor = '1d1a8628e25f58b788b013cf6955763d00363cdc'
+          for consumer in ('anna', 'taste'):
+              root = Path('/tmp/x10') / consumer
+              pub = (root / 'pubspec.yaml').read_text()
+              lock = (root / 'pubspec.lock').read_text()
+              assert 'factory_profile_kit:' in pub and f'ref: {donor}' in pub, consumer
+              assert 'factory_profile_kit:' in lock and f'resolved-ref: "{donor}"' in lock, consumer
+              assert 'source: git' in lock and 'version: "0.1.0"' in lock, consumer
+          pkg = Path('/tmp/x10/donor/19-APP-FACTORY-10X/flutter_kits/profile/pubspec.yaml').read_text()
+          assert 'name: factory_profile_kit' in pkg and 'version: 0.1.0' in pkg
+          PY
+      - name: Run actual donor Dart source tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/x10/donor/19-APP-FACTORY-10X/flutter_kits/profile
+          dart pub get
+          dart analyze --fatal-infos
+          dart test
+      - name: Run Anna consumer and preference regression on pinned source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/x10/anna
+          flutter pub get --enforce-lockfile
+          flutter test test/x10_026_profile_source_kit_test.dart test/preferences_test.dart
+      - name: Run TasteAI consumer and restore regression on pinned source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/x10/taste
+          flutter pub get --enforce-lockfile
+          flutter test test/x10_026_factory_profile_consumer_test.dart test/profile_restore_contract_test.dart
+      - name: Rehearse code rollback to pre-adoption sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C /tmp/x10/anna worktree add -q --detach /tmp/x10/anna-before 8fbfe14f7a21d41af274cf259c462df2eab9dc69
+          git -C /tmp/x10/taste worktree add -q --detach /tmp/x10/taste-before 8e880be68d74686c6c6b7e6a992a5fdc6fa6c384
+          test "$(git -C /tmp/x10/anna-before rev-parse HEAD)" = 8fbfe14f7a21d41af274cf259c462df2eab9dc69
+          test "$(git -C /tmp/x10/taste-before rev-parse HEAD)" = 8e880be68d74686c6c6b7e6a992a5fdc6fa6c384
+          ! grep -q 'factory_profile_kit:' /tmp/x10/anna-before/pubspec.yaml
+          ! grep -q 'factory_profile_kit:' /tmp/x10/taste-before/pubspec.yaml
+          cd /tmp/x10/anna-before
+          flutter pub get
+          flutter test test/preferences_test.dart
+          cd /tmp/x10/taste-before
+          flutter pub get
+          flutter test test/profile_restore_contract_test.dart
+      - name: Report exact scope of proof
+        shell: bash
+        run: |
+          echo 'X10-026 SOURCE+CI: donor, Anna, TasteAI source regression and pre-adoption source rollback smoke only.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'NO device installation, real persisted-data downgrade, Play approval, semver rollback, or Golden promotion.' >> "$GITHUB_STEP_SUMMARY"
