@@ -92,9 +92,17 @@ jobs:
           done
           (cd /tmp/x10-semver/anna && flutter test test/x10_026_profile_source_kit_test.dart test/preferences_test.dart)
           (cd /tmp/x10-semver/taste && flutter test test/x10_026_factory_profile_consumer_test.dart test/profile_restore_contract_test.dart)
-          # Assert both consumers returned to their exact immutable tracked dependency config.
-          git -C /tmp/x10-semver/anna diff --exit-code -- pubspec.yaml pubspec.lock
-          git -C /tmp/x10-semver/taste diff --exit-code -- pubspec.yaml pubspec.lock
+          # Flutter pub get can prune UNRELATED stale lockfile packages even
+          # after the profile dependency has genuinely returned to 0.1.0.
+          # First test and inspect the resolved profile lock, then restore the
+          # exact original lock bytes and require frozen resolution to succeed.
+          for app in anna taste; do
+            git -C "/tmp/x10-semver/$app" diff --exit-code -- pubspec.yaml
+            git -C "/tmp/x10-semver/$app" show HEAD:pubspec.lock > "/tmp/x10-semver/$app/pubspec.lock"
+            (cd "/tmp/x10-semver/$app" && flutter pub get --enforce-lockfile)
+            python3 scripts/x10_026_profile_semver_rollback.py check --root "/tmp/x10-semver/$app" --ref 1d1a8628e25f58b788b013cf6955763d00363cdc --version 0.1.0
+            git -C "/tmp/x10-semver/$app" diff --exit-code -- pubspec.yaml pubspec.lock
+          done
       - name: Apply unchanged X10-018 harness and emit non-authoritative receipts
         shell: bash
         env:
