@@ -57,6 +57,8 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Test real APK install, upgrade, downgrade rejection and debug rollback
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        env:
+          X10_EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         with:
           api-level: 35
           target: google_apis
