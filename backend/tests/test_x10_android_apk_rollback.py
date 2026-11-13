@@ -43,6 +43,12 @@ class TestRollbackSafety(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "APK_SIGNATURE_NOT_VERIFIED"):
                     harness.apk_metadata(apk, 101, Path(d))
 
+    def test_proof_rejects_synthetic_merge_sha_or_stale_checkout(self):
+        with patch.object(harness, "run", return_value=process(stdout="a" * 40)):
+            with patch.dict("os.environ", {"X10_EXPECTED_SOURCE_SHA": "b" * 40}):
+                with self.assertRaisesRegex(RuntimeError, "EXACT_SOURCE_SHA_MISMATCH"):
+                    harness.rehearse(Path("missing-old"), Path("missing-new"), Path("."))
+
     def test_only_emulator_is_classified(self):
         with patch.object(harness, "run", side_effect=[
             process(stdout="emulator-5554\n"), process(stdout="1\n"),
