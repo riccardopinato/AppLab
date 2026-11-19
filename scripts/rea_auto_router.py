@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -28,6 +29,18 @@ WEIGHTS = {
     "UNEXPLAINED_SIZE_DELTA": 4,
 }
 RESEARCH_TRIGGERS = frozenset(WEIGHTS)
+JADX_SHA256 = '6e5eacf500b64292bfb73c49797c1958f6ee44646e43e868039ae7feb573ff75'
+SYMPTOMS = {
+    'source_vs_artifact_diff': 'SOURCE_BINARY_MISMATCH',
+    'manifest_permissions_diverge': 'PERMISSION_DECLARATION_MISMATCH',
+    'missing_source': 'MISSING_SOURCE',
+    'unexpected_native_dependency': 'UNKNOWN_NATIVE_DEPENDENCY',
+    'managed_dependencies_unknown': 'MANAGED_METADATA_QUESTION',
+    'installer_contents_unknown': 'DESKTOP_PACKAGING_QUESTION',
+    'aot_snapshot_unexplained': 'AOT_BINARY_QUESTION',
+    'artifact_growth_unexplained': 'UNEXPLAINED_SIZE_DELTA',
+}
+
 MAX_BYTES = 512 * 1024 * 1024
 
 
@@ -43,13 +56,16 @@ def decide(context: dict) -> dict:
     """Deterministic, auditable signal-to-route decision. Never executes REA."""
     if not isinstance(context, dict):
         raise ValueError("REA context must be a JSON object")
+    symptoms = context.get("symptoms", [])
+    if not isinstance(symptoms, list) or any(x not in SYMPTOMS for x in symptoms):
+        raise ValueError("Unknown or invalid AppLab diagnostic symptoms")
     signals = context.get("signals", [])
     if not isinstance(signals, list) or any(not isinstance(s, str) for s in signals):
         raise ValueError("signals must be a list of known codes")
     unknown = set(signals) - RESEARCH_TRIGGERS
     if unknown:
         raise ValueError("Unknown REA trigger: " + ",".join(sorted(unknown)))
-    signals = sorted(set(signals))
+    signals = sorted(set(signals) | {SYMPTOMS[x] for x in symptoms})
     reason = []
     plan = {"schema_version": 1, "authority": "ADVISORY_UNTIL_GATED_EXECUTION",
             "status": "SKIP", "reason_codes": reason, "signals": signals,
@@ -59,9 +75,7 @@ def decide(context: dict) -> dict:
     if not signals:
         reason.append("SOURCE_FIRST_NO_BINARY_GAP")
         return plan
-    if context.get("source_complete") is True and not (set(signals) & {
-            "SOURCE_BINARY_MISMATCH", "PERMISSION_DECLARATION_MISMATCH",
-            "UNKNOWN_NATIVE_DEPENDENCY", "UNEXPLAINED_SIZE_DELTA"}):
+    if context.get("source_complete") is True and signals == ["MISSING_SOURCE"]:
         reason.append("SOURCE_SUFFICIENT_FOR_CURRENT_QUESTION")
         return plan
     if plan["score"] < 4:
@@ -141,12 +155,35 @@ def decide(context: dict) -> dict:
         return plan
     exe = context.get("rea_bin")
     output = context.get("output_dir")
+    budget = context.get("max_bytes", 64 * 1024 * 1024)
+    if not isinstance(budget, int) or budget <= 0 or budget > MAX_BYTES:
+        plan["status"] = "BLOCKED"
+        reason.append("INVALID_RESEARCH_BYTE_BUDGET")
+        return plan
+    if mode != "desktop" and path.stat().st_size > budget:
+        plan["status"] = "PROPOSE"
+        reason.append("ARTIFACT_EXCEEDS_CONFIGURED_BYTE_BUDGET")
+        return plan
     if (not isinstance(exe, str) or not Path(exe).is_absolute() or
             not Path(exe).exists() or not isinstance(output, str) or
             not Path(output).is_absolute() or Path(output).is_symlink()):
         plan["status"] = "PROPOSE"
         reason.append("REA_ENVIRONMENT_NOT_READY")
         return plan
+    output_real = Path(output).resolve()
+    if (mode == "desktop" and output_real.is_relative_to(path.resolve())) or (
+            mode != "desktop" and output_real == path.parent.resolve()):
+        plan["status"] = "BLOCKED"
+        reason.append("EVIDENCE_OUTPUT_INSIDE_TARGET")
+        return plan
+    if mode == "android":
+        jar_raw = context.get("jadx_jar") or os.environ.get("REA_JADX_MCP_JAR")
+        jar = Path(jar_raw) if isinstance(jar_raw, str) else None
+        if (jar is None or not jar.is_absolute() or not jar.is_file() or
+                jar.is_symlink() or _hash(jar) != JADX_SHA256):
+            plan["status"] = "PROPOSE"
+            reason.append("PINNED_JADX_ENGINE_NOT_READY")
+            return plan
     engine = Path(exe).resolve()
     if engine == path.resolve() or (
             context.get("rea_entry") and
@@ -182,8 +219,12 @@ def execute(context: dict, plan: dict) -> dict:
     budget = context.get("timeout_seconds", 90)
     if not isinstance(budget, int) or not 5 <= budget <= 180:
         raise ValueError("REA auto-run timeout budget must be within 5..180 seconds")
-    argv += ["--timeout", str(budget)]
-    run = subprocess.run(argv, capture_output=True, text=True,
+    argv += ["--timeout", str(budget), "--max-bytes",
+             str(context.get("max_bytes", 64 * 1024 * 1024))]
+    env = os.environ.copy()
+    if plan["mode"] == "android" and context.get("jadx_jar"):
+        env["REA_JADX_MCP_JAR"] = context["jadx_jar"]
+    run = subprocess.run(argv, capture_output=True, text=True, env=env,
                          check=False, timeout=budget * len(plan["operations"]) + 30)
     # Validate the adapter's bound artifact identity; never turn a stale
     # replacement or a fake successful command into a trusted PASS.
