@@ -126,11 +126,15 @@ def decide(context: dict) -> dict:
         reason.append("LOCAL_ARTIFACT_IDENTITY_MISMATCH")
         return plan
     if mode == "desktop":
-        # Tree hashing and completeness are delegated to the canonical adapter,
-        # not misrepresented as a file hash by this selector.
-        plan["status"] = "PROPOSE"
-        reason.append("DESKTOP_TREE_HASH_REQUIRES_ADAPTER_PREFLIGHT")
-        return plan
+        # Use the exact canonical tree identity, not an invented file hash.
+        from rea_cli_research import inspect_tree
+        try:
+            if inspect_tree(path)["sha256"] != expected.lower():
+                raise ValueError("desktop inventory identity mismatch")
+        except (OSError, ValueError) as exc:
+            plan["status"] = "BLOCKED"
+            reason.append("DESKTOP_TREE_IDENTITY_MISMATCH")
+            return plan
     if context["authorization"] != "OWNED":
         plan["status"] = "PROPOSE"
         reason.append("EXTERNAL_SOURCE_REQUIRES_EXPLICIT_REVIEW")
@@ -142,6 +146,13 @@ def decide(context: dict) -> dict:
             not Path(output).is_absolute() or Path(output).is_symlink()):
         plan["status"] = "PROPOSE"
         reason.append("REA_ENVIRONMENT_NOT_READY")
+        return plan
+    engine = Path(exe).resolve()
+    if engine == path.resolve() or (
+            context.get("rea_entry") and
+            Path(context["rea_entry"]).resolve() == path.resolve()):
+        plan["status"] = "BLOCKED"
+        reason.append("REA_EXECUTABLE_EQUALS_TARGET")
         return plan
     plan["status"] = "AUTO_RUN"
     reason.append("OWNED_EXACT_ARTIFACT_WITH_MATERIAL_BINARY_GAP")
@@ -159,10 +170,11 @@ def execute(context: dict, plan: dict) -> dict:
         argv += ["--mode", plan["mode"]]
     argv += ["--rea-bin", context["rea_bin"],
              "--artifact", context["artifact_path"],
-             "--expected-sha256", context["artifact_sha256"],
              "--output-dir", context["output_dir"],
              "--repository", context["repository"],
              "--source-sha", context["source_sha"]]
+    if plan["mode"] != "pe":
+        argv += ["--expected-sha256", context["artifact_sha256"]]
     if context.get("rea_entry"):
         argv += ["--rea-entry", context["rea_entry"]]
     for op in plan["operations"]:
@@ -173,9 +185,18 @@ def execute(context: dict, plan: dict) -> dict:
     argv += ["--timeout", str(budget)]
     run = subprocess.run(argv, capture_output=True, text=True,
                          check=False, timeout=budget * len(plan["operations"]) + 30)
-    # Do not put external evidence/raw stdout or private local paths into the
-    # advisory plan. The canonical adapter writes the evidence privately.
-    return {**plan, "execution": "SUCCESS" if run.returncode == 0 else "FAILED",
+    # Validate the adapter's bound artifact identity; never turn a stale
+    # replacement or a fake successful command into a trusted PASS.
+    ok = False
+    if run.returncode == 0:
+        try:
+            receipt = json.loads(run.stdout)
+            ok = (receipt.get("artifact", {}).get("sha256") ==
+                  context["artifact_sha256"].lower())
+        except (ValueError, TypeError, AttributeError):
+            ok = False
+    # Do not publish external evidence, stdout or private local file paths.
+    return {**plan, "execution": "SUCCESS" if ok else "FAILED",
             "adapter_exit_code": run.returncode, "research_only": True}
 
 
