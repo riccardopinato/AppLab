@@ -1,0 +1,71 @@
+name: Anti-slop native pilot scan (advisory)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/anti_slop_native_audit.py'
+      - 'backend/tests/test_anti_slop_native_audit.py'
+      - '.github/workflows/anti-slop-native-pilots.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: anna
+            repository: riccardopinato/Agenda-per-Anna
+            source_sha: f84d335bac680a2b5e77031c6a2dd3684fb804e7
+          - app: omni
+            repository: riccardopinato/Android-Omni-Cleaner
+            source_sha: 3b652d57c433d23025869b8daea7e7998e9003a2
+    steps:
+      - name: Checkout exact scanner PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: applab
+          persist-credentials: false
+      - name: Checkout public pilot source pinned to exact commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ matrix.repository }}
+          ref: ${{ matrix.source_sha }}
+          path: target
+          persist-credentials: false
+      - name: Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Run native read-only scanner against real checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ matrix.source_sha }}
+          PILOT: ${{ matrix.app }}
+        run: |
+          set -Eeuo pipefail
+          python applab/scripts/anti_slop_native_audit.py target \
+            --source-sha "$SOURCE_SHA" --surface > "${PILOT}-unslop-advisory.json"
+          python - "$PILOT" <<'PY'
+          import json, sys
+          app = sys.argv[1]
+          result = json.load(open(f"{app}-unslop-advisory.json", encoding="utf-8"))
+          print(f"APP={app} SOURCE_SHA={result['source_sha']} FILES={result['files_scanned']} CANDIDATES={result['total_candidates']}")
+          for rule, count in result["counts"].items():
+              print(f"  {rule}: {count}")
+          assert result["status"] == "ADVISORY_NOT_CERTIFICATION"
+          assert result["visual_review"] == "NOT_VERIFIED"
+          PY
+      - name: Upload pilot JSON evidence (not visual acceptance)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: unslop-advisory-${{ matrix.app }}-${{ matrix.source_sha }}
+          path: ${{ matrix.app }}-unslop-advisory.json
+          if-no-files-found: error
+          retention-days: 30
