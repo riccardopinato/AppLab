@@ -1,0 +1,88 @@
+name: REA Flutter Gallery real APK / AOT research proof (on demand)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/rea_cli_research.py"
+      - ".github/workflows/rea-flutter-gallery-proof.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-flutter-binary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout immutable AppLab research adapter
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Python 3.12
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - name: Pinned Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+      - name: Download official Flutter Gallery v2.9.2 and authenticate SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/rea-flutter-gallery"
+          mkdir -p "$dir"
+          apk="$dir/flutter_gallery_Android.apk"
+          curl --fail --location --show-error --silent --retry 3 --connect-timeout 30 \
+            --max-time 240 \
+            "https://github.com/flutter-team-archive/gallery/releases/download/v2.9.2/flutter_gallery_Android.apk" \
+            -o "$apk"
+          test "$(stat -c %s "$apk")" = "117817550"
+          echo "659b5fc6a4319dfe4f117d00ad4e7ec004915ebcadcb96628797fb3544040e29  $apk" | sha256sum --check --status
+          echo "OFFICIAL_FLUTTER_GALLERY_BINARY_SHA256_PASS"
+      - name: Install exact REA 6.9.0 (runner only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/rea-tools" --no-save --omit=optional --no-audit --no-fund rea-agents@6.9.0
+          "$RUNNER_TEMP/rea-tools/node_modules/.bin/rea" --version --json > "$RUNNER_TEMP/gallery-rea-version.json"
+      - name: Invoke real REA Flutter build and Dart AOT research CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/rea_cli_research.py \
+            --mode flutter \
+            --operation identify-flutter-build \
+            --operation inspect-dart-aot \
+            --rea-bin "$RUNNER_TEMP/rea-tools/node_modules/.bin/rea" \
+            --artifact "$RUNNER_TEMP/rea-flutter-gallery/flutter_gallery_Android.apk" \
+            --expected-sha256 659b5fc6a4319dfe4f117d00ad4e7ec004915ebcadcb96628797fb3544040e29 \
+            --repository flutter-team-archive/gallery \
+            --source-sha 56dc27b62f1b93be9aa6ff93a730fc8952a35085 \
+            --max-bytes 268435456 --timeout 180 \
+            --output-dir "$RUNNER_TEMP/gallery-rea-private" \
+            > "$RUNNER_TEMP/gallery-rea-receipt.json"
+          python - "$RUNNER_TEMP/gallery-rea-receipt.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1],encoding="utf8"))
+          assert r["status"]=="REA_RESEARCH_OBSERVED",r
+          assert r["artifact"]["sha256"]=="659b5fc6a4319dfe4f117d00ad4e7ec004915ebcadcb96628797fb3544040e29"
+          assert len(r["artifact"]["flutter_aot_libraries"]) >= 1,r
+          assert [x["status"] for x in r["operations"]]==["OBSERVED","OBSERVED"],r
+          assert r["operations"][1]["full_bundle"],r
+          print("REAL_REA_FLUTTER_GALLERY_AOT_PASS")
+          print("Flutter_ABIs="+",".join(r["artifact"]["flutter_aot_libraries"]))
+          print("APK_SHA256="+r["artifact"]["sha256"])
+          PY
+      - name: Publish verified metadata only, not APK/assets or full AOT strings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: rea-public-flutter-gallery-receipt
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/gallery-rea-version.json
+            ${{ runner.temp }}/gallery-rea-receipt.json
