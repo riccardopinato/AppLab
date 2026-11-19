@@ -180,3 +180,35 @@ def test_cli_outputs_only_decision_when_no_execution_requested(harness, tmp_path
     result = json.loads(proc.stdout)
     assert result["status"] == "AUTO_RUN"
     assert "execution" not in result
+
+
+def test_unstructured_app_symptom_selects_rea_without_manual_operation(harness):
+    ctx, _, _ = harness
+    ctx["signals"] = []
+    ctx["symptoms"] = ["aot_snapshot_unexplained"]
+    assert router.decide(ctx)["status"] == "AUTO_RUN"
+    ctx.update(source_complete=True, symptoms=["source_vs_artifact_diff"])
+    assert router.decide(ctx)["status"] == "AUTO_RUN"
+
+
+def test_missing_jadx_prerequisite_is_not_automatically_installed(harness):
+    ctx, _, _ = harness
+    ctx["signals"] = []
+    ctx["symptoms"] = ["manifest_permissions_diverge"]
+    result = router.decide(ctx)
+    assert result["mode"] == "android"
+    assert result["status"] == "PROPOSE"
+    assert "PINNED_JADX_ENGINE_NOT_READY" in result["reason_codes"]
+
+
+def test_audit_plan_includes_routed_rea_without_replacing_runtime_checks(harness):
+    from audit_orchestrator import build_plan
+    ctx, _, _ = harness
+    app = {"scan": {"confidence": "HIGH"},
+           "product": {"stack": {"engine": "flutter"}, "feature_signals": []}}
+    normal = build_plan(app)
+    assert normal["rea_research"]["status"] == "SKIP"
+    assert any(x["lab"] == "core-runtime" for x in normal["selected_labs"])
+    escalated = build_plan(app, rea_context=ctx)
+    assert escalated["rea_research"]["status"] == "AUTO_RUN"
+    assert escalated["selected_lab_count"] == normal["selected_lab_count"]
