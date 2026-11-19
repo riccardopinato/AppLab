@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from rea_cli_bridge import BridgeBlocked
 
 SHA40 = re.compile(r"^[0-9a-f]{40}$", re.I)
 SHA64 = re.compile(r"^[0-9a-f]{64}$", re.I)
@@ -145,7 +146,7 @@ def decide(context: dict) -> dict:
         try:
             if inspect_tree(path)["sha256"] != expected.lower():
                 raise ValueError("desktop inventory identity mismatch")
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, BridgeBlocked):
             plan["status"] = "BLOCKED"
             reason.append("DESKTOP_TREE_IDENTITY_MISMATCH")
             return plan
@@ -184,10 +185,14 @@ def decide(context: dict) -> dict:
             plan["status"] = "PROPOSE"
             reason.append("PINNED_JADX_ENGINE_NOT_READY")
             return plan
+    entry = context.get("rea_entry")
+    if entry is not None and (not isinstance(entry, str) or not Path(entry).is_absolute()):
+        plan["status"] = "BLOCKED"
+        reason.append("INVALID_REA_ENTRY_PATH")
+        return plan
     engine = Path(exe).resolve()
     if engine == path.resolve() or (
-            context.get("rea_entry") and
-            Path(context["rea_entry"]).resolve() == path.resolve()):
+            entry and Path(entry).resolve() == path.resolve()):
         plan["status"] = "BLOCKED"
         reason.append("REA_EXECUTABLE_EQUALS_TARGET")
         return plan
