@@ -176,6 +176,10 @@ def test_desktop_hashed_inventory_and_safe_output(harness, tmp_path, monkeypatch
                signals=["DESKTOP_PACKAGING_QUESTION"],
                artifact_sha256=research.inspect_tree(folder)["sha256"])
     assert router.decide(ctx)["status"] == "AUTO_RUN"
+    ctx["max_bytes"] = 1
+    assert router.decide(ctx)["status"] == "PROPOSE"
+    assert router.decide(ctx)["reason_codes"][-1] == "ARTIFACT_EXCEEDS_CONFIGURED_BYTE_BUDGET"
+    ctx.pop("max_bytes")
     (folder / "linked").symlink_to(harness[1])
     assert router.decide(ctx)["status"] == "BLOCKED"
 
