@@ -85,7 +85,7 @@ def test_scanning_external_repo_keeps_target_relative_paths(tmp_path):
 
 def test_large_locale_is_scanned_with_correct_offsets(tmp_path):
     path = tmp_path / "localizations.arb"
-    path.write_text('\\n'.join(f'\"message{i}\": \"🧽\"' for i in range(2000)), encoding="utf-8")
+    path.write_text('\n'.join(f'\"message{i}\": \"🧽\"' for i in range(2000)), encoding="utf-8")
     report = audit.audit([path])
     assert report["files_scanned"] == 1
     assert report["counts"]["U11"] == 2000
