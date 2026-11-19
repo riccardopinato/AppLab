@@ -176,9 +176,11 @@ def invoke(rea_bin: Path, entry: Path | None, target: Path, output_dir: Path,
             continue
         command = [*invocation, operation, str(target), "--json"]
         bundle = None
-        if operation in ("inspect-android-package", "inspect-dart-aot"):
-            # These can produce large graphs. REA requires a saved full Evidence
-            # for its compact summary; retain a bounded local copy, never stdout.
+        if operation == "inspect-android-package":
+            # JADX can produce very large source graphs. Require a retained
+            # complete report for the compact package summary.
+            # Dart AOT uses its bounded direct JSON mode instead; older
+            # releases may refuse compact AOT request/retention options.
             with tempfile.TemporaryDirectory(prefix="rea-bundle-", dir=output_dir) as tempdir:
                 raw_path = Path(tempdir) / "full-evidence.json"
                 command.extend(["--detail", "summary", "--evidence_output", str(raw_path)])
