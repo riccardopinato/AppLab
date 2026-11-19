@@ -9,6 +9,7 @@ Some U rules are semantically/visually review-only and cannot be inferred here.
 from __future__ import annotations
 
 import argparse
+from bisect import bisect_right
 import json
 import re
 from collections import Counter
@@ -72,10 +73,6 @@ def source_files(targets: list[Path]):
     return sorted(paths)
 
 
-def line_at(text: str, pos: int) -> int:
-    return text.count("\n", 0, pos) + 1
-
-
 def detect(text: str, surface: bool = False):
     """Return candidate spans, never a conclusive design defect."""
     findings = []
@@ -97,6 +94,8 @@ def audit(targets: list[Path], surface: bool = False, source_sha: str = "") -> d
     findings = []
     total_files = 0
     skipped_files = 0
+    # Keep stable, unambiguous target-relative paths without exposing host paths.
+    roots = [(target.resolve(), target.is_file()) for target in targets]
     for path in source_files(targets):
         try:
             if path.stat().st_size > MAX_BYTES:
@@ -107,14 +106,22 @@ def audit(targets: list[Path], surface: bool = False, source_sha: str = "") -> d
             skipped_files += 1
             continue
         total_files += 1
-        # Relative paths do not expose absolute private development directories.
-        try:
-            name = path.relative_to(Path.cwd().resolve()).as_posix()
-        except ValueError:
-            name = path.name
+        # Match the containing scan root, retaining nested paths and no absolute location.
+        name = path.name
+        for root, is_file in roots:
+            parent = root.parent if is_file else root
+            try:
+                relative = path.relative_to(parent).as_posix()
+            except ValueError:
+                continue
+            name = f"{root.name}/{relative}" if len(roots) > 1 else relative
+            break
+        # Avoid repeatedly splitting/copying and recounting for every candidate.
+        lines = text.splitlines()
+        line_ends = [i for i, ch in enumerate(text) if ch == "\n"]
         for rule, offset in detect(text, surface=surface):
-            number = line_at(text, offset)
-            excerpt = text.splitlines()[number - 1].strip()[:160]
+            number = bisect_right(line_ends, offset) + 1
+            excerpt = lines[number - 1].strip()[:160] if number <= len(lines) else ""
             findings.append({
                 "path": name, "line": number, "rule": rule,
                 "at": list(RULES[rule]), "confidence": "REVIEW_REQUIRED",
