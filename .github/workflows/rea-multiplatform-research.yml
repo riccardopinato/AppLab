@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - "scripts/rea_cli_research.py"
+      - "scripts/rea_auto_router.py"
+      - "scripts/audit_orchestrator.py"
+      - "scripts/autonomous_app_review.py"
+      - "backend/tests/test_rea_auto_router.py"
       - "scripts/rea_desktop_manifest_verify.py"
       - "scripts/rea_donor_review.py"
       - "backend/tests/test_rea_cli_research.py"
@@ -37,7 +41,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install pytest
-          python -m pytest backend/tests/test_rea_cli_bridge.py backend/tests/test_rea_cli_research.py backend/tests/test_rea_desktop_manifest_verify.py backend/tests/test_rea_donor_review.py -q
+          python -m pytest backend/tests/test_rea_cli_bridge.py backend/tests/test_rea_cli_research.py backend/tests/test_rea_desktop_manifest_verify.py backend/tests/test_rea_donor_review.py backend/tests/test_rea_auto_router.py -q
       - name: Install real pinned REA locally (no persistent agent)
         shell: bash
         run: |
@@ -72,6 +76,37 @@ jobs:
           assert d["donor_admission"]=="RESEARCH_ONLY"
           assert not d["artifact"]["flutter_aot_libraries"]
           print("REAL_REA_FLUTTER_IDENTIFY_NEGATIVE_CONTROL_PASS")
+          PY
+      - name: Validate REA autonomous policy decision and real gated dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="$RUNNER_TEMP/inert-nonflutter.apk"
+          sha="$(sha256sum "$target" | cut -d' ' -f1)"
+          python - "$RUNNER_TEMP" "$target" "$sha" "${{ github.event.pull_request.head.sha || github.sha }}" <<'PY'
+          import json,sys
+          from pathlib import Path
+          root,target,digest,source=sys.argv[1:]
+          context={"repository":"riccardopinato/AppLab","source_sha":source,
+                   "authorization":"OWNED","artifact_path":target,
+                   "artifact_kind":"APK","artifact_sha256":digest,
+                   "stack":"flutter","source_complete":False,
+                   "symptoms":["aot_snapshot_unexplained"],
+                   "rea_bin":str(Path(root)/"rea/node_modules/.bin/rea"),
+                   "output_dir":str(Path(root)/"rea-auto-private")}
+          (Path(root)/"rea-auto-context.json").write_text(json.dumps(context))
+          PY
+          python scripts/rea_auto_router.py --context "$RUNNER_TEMP/rea-auto-context.json" \
+            --execute-eligible > "$RUNNER_TEMP/rea-auto-decision.json"
+          python - "$RUNNER_TEMP/rea-auto-decision.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          assert d["status"]=="AUTO_RUN",d
+          assert d["execution"]=="SUCCESS",d
+          assert d["mode"]=="flutter",d
+          assert d["certification"]=="NONE",d
+          assert d["target_executed"] is False,d
+          print("REAL_REA_CONTEXT_ROUTER_AUTORUN_PASS")
           PY
       - name: Publish research receipt (synthetic sample only)
         if: always()
