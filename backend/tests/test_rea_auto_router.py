@@ -247,3 +247,27 @@ def test_output_directory_must_be_bound_to_private_runner_root(harness, monkeypa
     result = router.decide(ctx)
     assert result["status"] == "BLOCKED"
     assert result["reason_codes"][-1] == "TRUSTED_RUNNER_SCOPE_MISMATCH"
+
+
+def test_invalid_optional_rea_context_does_not_abort_mandatory_audit():
+    from audit_orchestrator import build_plan
+    app = {"scan": {"confidence": "HIGH"},
+           "product": {"stack": {"engine": "flutter"}, "feature_signals": []}}
+    plan = build_plan(app, rea_context={"symptoms": ["FORGED_UNKNOWN_SIGNAL"]})
+    assert plan["rea_research"]["status"] == "BLOCKED"
+    assert plan["rea_research"]["reason_codes"] == ["INVALID_OPTIONAL_REA_CONTEXT"]
+    assert any(x["lab"] == "core-runtime" for x in plan["selected_labs"])
+
+
+def test_rea_timeout_records_failure_without_promoting_evidence(harness, monkeypatch):
+    ctx, _, _ = harness
+    plan = router.decide(ctx)
+    assert plan["status"] == "AUTO_RUN"
+    def timed_out(*args, **kwargs):
+        raise subprocess.TimeoutExpired(args[0], timeout=1)
+    monkeypatch.setattr(router.subprocess, "run", timed_out)
+    result = router.execute(ctx, plan)
+    assert result["execution"] == "FAILED"
+    assert result["adapter_exit_code"] == 124
+    assert "REA_ADAPTER_TIMEOUT" in result["reason_codes"]
+    assert result["certification"] == "NONE"
