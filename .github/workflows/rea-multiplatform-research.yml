@@ -96,6 +96,13 @@ jobs:
                    "output_dir":str(Path(root)/"rea-auto-private")}
           (Path(root)/"rea-auto-context.json").write_text(json.dumps(context))
           PY
+          # Only trusted runner configuration may bind an executable and
+          # an owned artifact; WorkItem JSON cannot grant these permissions.
+          export APPLAB_REA_TRUSTED_BIN="$RUNNER_TEMP/rea/node_modules/.bin/rea"
+          export APPLAB_REA_AUTHORIZED_ARTIFACT="$target"
+          export APPLAB_REA_AUTHORIZED_REPOSITORY="riccardopinato/AppLab"
+          export APPLAB_REA_AUTHORIZED_SOURCE_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          export APPLAB_REA_PRIVATE_OUTPUT_ROOT="$RUNNER_TEMP/rea-auto-private"
           python scripts/rea_auto_router.py --context "$RUNNER_TEMP/rea-auto-context.json" \
             --execute-eligible > "$RUNNER_TEMP/rea-auto-decision.json"
           python - "$RUNNER_TEMP/rea-auto-decision.json" <<'PY'
