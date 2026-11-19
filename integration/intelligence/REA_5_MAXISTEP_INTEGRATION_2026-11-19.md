@@ -1,8 +1,14 @@
 # REA Software Intelligence — 5 maxi-step implementation
 
-**2026-11-19 · App Factory Golden Index v30 · COPY-READY PROCESS · AppLab research-only**
+**2026-11-19 · App Factory Golden Index v31 · CERTIFIED PROCESS (SCOPED) · AppLab research-only**
 
 Canonical Golden: [REA CLI Reverse Intelligence](https://github.com/riccardopinato/App-Factory-Core/blob/main/golden/governance/GOLDEN_REA_CLI_REVERSE_INTELLIGENCE_v1.txt). Pinned source: `morluto/rea@4491c84c82140a43fa12390b727840a433875ba8`; npm `rea-agents@6.9.0`, MIT. Application source is never overwritten.
+
+## Post-admission status: Core Index v31
+
+The App Factory Golden REA CLI procedure has been promoted to **CERTIFIED PROCESS (SCOPED)** by [Core PR #122](https://github.com/riccardopinato/App-Factory-Core/pull/122), merged `f8f4a8bb5f36ad272711f3d90dafbc7828dbbe09`. A **third independent Flutter/Android consumer** also passed [Adaptive-Landscape-Android run #44630662704](https://github.com/riccardopinato/Adaptive-Landscape-Android/actions/runs/44630662704), PR #42 merged: 17,805,211-byte arm64 APK from source `03fa33b7e6e563fd6021e0522bd40e82825945a1`, SHA256 `70cdf981ae8cae0832066b5d29657105baa0f275256c35fef3594724f95be33d`. Static REA Flutter build/AOT and Android/JADX operations PASS, not physical wallpaper QA.
+
+This certification is for **the reproducible static research process**, not universal REA behavior, E3 donor code, software functional correctness, Android runtime, malware clearance, or CERTIFIED GOLDEN of reverse-engineered features. The original historical Deskland-Setup.exe is still unavailable. All app- and provider-specific gates remain separate.
 
 ## Real evidence reconciliation — 19 November 2026
 
@@ -28,7 +34,7 @@ The original implementation plan below has been **executed** on three independen
 
 ## Step 5 — Independent second adoption
 
-A dedicated, independently operated target-repository workflow is required to establish a second genuine usage; proposed first target **Android Omni Cleaner** with its own locally built, source-bound APK and `inspect-android-package`, plus Flutter negative control. Outcome must include a real run URL, source SHA, APK SHA-256, Java/REA versions, refusal/negative tests and limitations. A green smoke on an inert ZIP does not count as a second runtime adoption. Core Golden remains **COPY-READY** unless and until an independent verified consumer supports a separately reviewed promotion.
+A dedicated, independently operated target-repository workflow is required to establish a second genuine usage; proposed first target **Android Omni Cleaner** with its own locally built, source-bound APK and `inspect-android-package`, plus Flutter negative control. Outcome must include a real run URL, source SHA, APK SHA-256, Java/REA versions, refusal/negative tests and limitations. A green smoke on an inert ZIP does not count as a second runtime adoption. Core Golden has since been promoted to **CERTIFIED PROCESS (SCOPED)** after a separate independent-consumer admission; no CERTIFIED GOLDEN, donor E3 or app runtime certification is implied.
 
 ## Controlled local example
 
