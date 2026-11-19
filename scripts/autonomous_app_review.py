@@ -9,6 +9,7 @@ from typing import Any
 
 import app_intelligence
 import audit_orchestrator
+import rea_anomaly_feed
 import behavioral_product_lab
 import decision_brief
 import evidence_calibration
@@ -56,6 +57,9 @@ def build_review(
     )
     ux_friction = ux_friction_lab.build_report(app, user_journey, states)
     brief = decision_brief.build_report(calibration, contract, app, ux_friction)
+    if rea_context is None:
+        rea_context = rea_anomaly_feed.from_trusted_apk(
+            repo_root, str(((app.get('product') or {}).get('stack') or {}).get('engine', 'unknown')))
     audit = audit_orchestrator.build_plan(app, has_market_evidence=False,
                                          rea_context=rea_context)
 
@@ -424,6 +428,11 @@ def main() -> int:
         if not path.is_file() or path.is_symlink() or path.stat().st_size > 64 * 1024:
             raise SystemExit("REA context must be a bounded regular JSON file")
         rea_context = audit_orchestrator.load_json(path)
+    discovered = False
+    if rea_context is None:
+        stack = 'flutter' if (root / 'pubspec.yaml').is_file() else 'native_android'
+        rea_context = rea_anomaly_feed.from_trusted_apk(root, stack)
+        discovered = rea_context is not None
     review = build_review(
         root,
         runtime_root,
@@ -431,7 +440,7 @@ def main() -> int:
         trust,
         rea_context,
     )
-    if args.rea_auto_execute and rea_context is not None:
+    if (args.rea_auto_execute or discovered) and rea_context is not None:
         review["audit_plan"]["rea_research"] = audit_orchestrator.rea_auto_router.execute(
             rea_context, review["audit_plan"]["rea_research"])
     write_full(review, Path(args.output_dir))
