@@ -4,6 +4,12 @@
 
 Canonical Golden: [REA CLI Reverse Intelligence](https://github.com/riccardopinato/App-Factory-Core/blob/main/golden/governance/GOLDEN_REA_CLI_REVERSE_INTELLIGENCE_v1.txt). Pinned source: `morluto/rea@4491c84c82140a43fa12390b727840a433875ba8`; npm `rea-agents@6.9.0`, MIT. Application source is never overwritten.
 
+## Real evidence reconciliation — 19 November 2026
+
+The original implementation plan below has been **executed** on three independent artifact families; see [permanent real-proof dossier](REA_MULTIPLATFORM_REAL_PROOF_2026-11-19.md). AppLab REA real Flutter AOT [#44626932001 PASS](https://github.com/riccardopinato/AppLab/actions/runs/44626932001). Independent Omni Cleaner Android/JADX real [#44626294217 PASS](https://github.com/riccardopinato/Android-Omni-Cleaner/actions/runs/44626294217) after an explicitly SHA-256-verified JAR prerequisite. Desktop Deskland public release [#44615407360 PASS](https://github.com/riccardopinato/AppLab/actions/runs/44615407360).
+
+**Important:** the Omni and Flutter validations establish independent static CLI execution, **not Android runtime/Store certification**. The Core Golden remains `COPY-READY PROCESS` pending separately reviewed E5 admission, even though the second consumer pilot has a real PASS.
+
 ## Step 1 — Desktop / managed research
 
 `scripts/rea_cli_research.py --mode desktop` accepts an **already extracted** Windows desktop application directory and invokes `inspect-desktop-application`. It hashes every regular file, rejects symlinks and caps total size/count. `--mode managed` accepts a PE/CLI candidate and invokes `inspect-managed-artifact` plus optionally `inspect-managed-members`. A separate `scripts/rea_desktop_manifest_verify.py` verifies files in a previously extracted directory against a publisher manifest SHA list. It **does not unpack or run any installer**; archives must be extracted independently in an isolated, authorized environment. The historic user's `Deskland-Setup.exe` was not accessible; proof remains the distinct official public Deskland Preview v0.1.3 ([report](REA_DESKLAND_PREVIEW_BINARY_REPORT_2026-11-19.md)).
