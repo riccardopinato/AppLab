@@ -190,6 +190,29 @@ def decide(context: dict) -> dict:
         plan["status"] = "BLOCKED"
         reason.append("INVALID_REA_ENTRY_PATH")
         return plan
+    # WorkItem JSON is data, never sufficient authority to select a process
+    # executable, arbitrary local file, repository or output destination.
+    bindings = {
+        "APPLAB_REA_TRUSTED_BIN": exe,
+        "APPLAB_REA_AUTHORIZED_ARTIFACT": raw,
+        "APPLAB_REA_AUTHORIZED_REPOSITORY": repo,
+        "APPLAB_REA_AUTHORIZED_SOURCE_SHA": sha,
+        "APPLAB_REA_PRIVATE_OUTPUT_ROOT": output,
+    }
+    if any(not os.environ.get(key) for key in bindings):
+        plan["status"] = "PROPOSE"
+        reason.append("TRUSTED_RUNNER_BINDING_REQUIRED")
+        return plan
+    if (Path(os.environ["APPLAB_REA_TRUSTED_BIN"]).resolve() != Path(exe).resolve()
+            or Path(os.environ["APPLAB_REA_AUTHORIZED_ARTIFACT"]).resolve() != path.resolve()
+            or os.environ["APPLAB_REA_AUTHORIZED_REPOSITORY"] != repo
+            or os.environ["APPLAB_REA_AUTHORIZED_SOURCE_SHA"].lower() != sha.lower()
+            or not output_real.is_relative_to(
+                Path(os.environ["APPLAB_REA_PRIVATE_OUTPUT_ROOT"]).resolve())
+            or (entry and os.environ.get("APPLAB_REA_TRUSTED_ENTRY") != entry)):
+        plan["status"] = "BLOCKED"
+        reason.append("TRUSTED_RUNNER_SCOPE_MISMATCH")
+        return plan
     engine = Path(exe).resolve()
     if engine == path.resolve() or (
             entry and Path(entry).resolve() == path.resolve()):
