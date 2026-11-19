@@ -41,7 +41,7 @@ STATIC_BADGE = re.compile(
     r"(?:Badge|Chip|AssistChip|OmniStatusPill)\s*\("
     r"(?:(?!\)\s*[,;]).){0,240}?"
     r"""(?:Text\s*\(\s*|text\s*[:=]\s*|label\s*[:=]\s*Text\s*\(\s*)["']"""
-    r"(?:LIVE|NEW|BETA|AI|PRO|HOT)["']",
+    r"""(?:LIVE|NEW|BETA|AI|PRO|HOT)["']""",
     re.S | re.I,
 )
 PATTERNS = {
