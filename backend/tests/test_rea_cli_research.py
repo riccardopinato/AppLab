@@ -29,6 +29,9 @@ def rig(tmp_path):
         " print(json.dumps({'name':'rea-agents','version':os.environ.get('FAKE_VERSION','6.9.0'),"
         "'supported_runtime':{'satisfied':True}}))\n"
         "else:\n"
+        " if '--evidence_output' in args:\n"
+        "  from pathlib import Path\n"
+        "  Path(args[args.index('--evidence_output')+1]).write_text('{}')\n"
         " print(json.dumps({'normalized_result':{'tool':args[0],"
         "'flutter_detected':False},'coverage':'synthetic'}))\n"
         " if os.environ.get('FAKE_FAIL')=='1':sys.exit(3)\n",
