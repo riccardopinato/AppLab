@@ -21,7 +21,7 @@ REPO = "riccardopinato/OwnApp"
 
 
 @pytest.fixture
-def harness(tmp_path):
+def harness(tmp_path, monkeypatch):
     apk = tmp_path / "own.apk"
     with zipfile.ZipFile(apk, "w") as z:
         z.writestr("AndroidManifest.xml", b"manifest")
@@ -38,6 +38,14 @@ def harness(tmp_path):
         " print(json.dumps({'normalized_result':{'fixture':True},'version':1}))\n"
         "else: sys.exit(3)\n", encoding="utf-8")
     engine.chmod(0o755)
+    for name, value in {
+        "APPLAB_REA_TRUSTED_BIN": str(engine),
+        "APPLAB_REA_AUTHORIZED_ARTIFACT": str(apk),
+        "APPLAB_REA_AUTHORIZED_REPOSITORY": REPO,
+        "APPLAB_REA_AUTHORIZED_SOURCE_SHA": SHA,
+        "APPLAB_REA_PRIVATE_OUTPUT_ROOT": str(tmp_path / "evidence"),
+    }.items():
+        monkeypatch.setenv(name, value)
     ctx = {"repository": REPO, "source_sha": SHA, "authorization": "OWNED",
            "artifact_path": str(apk), "artifact_kind": "APK",
            "artifact_sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
@@ -136,6 +144,7 @@ def test_pe_bridge_is_invoked_without_unknown_expected_sha_flag(harness, monkeyp
     pe = apk.parent / "program.exe"
     # A synthetic target only tests command assembly; PE parsing remains in existing tests.
     pe.write_bytes(b"MZ" + b"\x00" * 300)
+    monkeypatch.setenv("APPLAB_REA_AUTHORIZED_ARTIFACT", str(pe))
     ctx.update(artifact_kind="PE", artifact_path=str(pe),
                artifact_sha256=hashlib.sha256(pe.read_bytes()).hexdigest(),
                signals=["MANAGED_METADATA_QUESTION"])
@@ -157,11 +166,12 @@ def test_pe_bridge_is_invoked_without_unknown_expected_sha_flag(harness, monkeyp
     assert "rea_cli_bridge.py" in " ".join(called["argv"])
 
 
-def test_desktop_hashed_inventory_and_safe_output(harness, tmp_path):
+def test_desktop_hashed_inventory_and_safe_output(harness, tmp_path, monkeypatch):
     ctx, _, _ = harness
     folder = tmp_path / "desktop"
     folder.mkdir()
     (folder / "host.dll").write_bytes(b"MZmanaged-fixture")
+    monkeypatch.setenv("APPLAB_REA_AUTHORIZED_ARTIFACT", str(folder))
     ctx.update(artifact_kind="DESKTOP_DIR", artifact_path=str(folder),
                signals=["DESKTOP_PACKAGING_QUESTION"],
                artifact_sha256=research.inspect_tree(folder)["sha256"])
@@ -212,3 +222,23 @@ def test_audit_plan_includes_routed_rea_without_replacing_runtime_checks(harness
     escalated = build_plan(app, rea_context=ctx)
     assert escalated["rea_research"]["status"] == "AUTO_RUN"
     assert escalated["selected_lab_count"] == normal["selected_lab_count"]
+
+
+def test_untrusted_context_cannot_self_authorize_execution(harness, monkeypatch):
+    ctx, apk, _ = harness
+    monkeypatch.delenv("APPLAB_REA_AUTHORIZED_ARTIFACT")
+    result = router.decide(ctx)
+    assert result["status"] == "PROPOSE"
+    assert result["reason_codes"][-1] == "TRUSTED_RUNNER_BINDING_REQUIRED"
+    monkeypatch.setenv("APPLAB_REA_AUTHORIZED_ARTIFACT", "/private/another-app.apk")
+    result = router.decide(ctx)
+    assert result["status"] == "BLOCKED"
+    assert result["reason_codes"][-1] == "TRUSTED_RUNNER_SCOPE_MISMATCH"
+
+
+def test_output_directory_must_be_bound_to_private_runner_root(harness, monkeypatch):
+    ctx, apk, _ = harness
+    ctx["output_dir"] = str(apk.parent / "outside-private")
+    result = router.decide(ctx)
+    assert result["status"] == "BLOCKED"
+    assert result["reason_codes"][-1] == "TRUSTED_RUNNER_SCOPE_MISMATCH"
