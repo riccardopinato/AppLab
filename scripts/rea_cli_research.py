@@ -13,6 +13,7 @@ import os
 import re
 import stat
 import sys
+import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
@@ -173,13 +174,31 @@ def invoke(rea_bin: Path, entry: Path | None, target: Path, output_dir: Path,
         if mode == "flutter" and operation == "inspect-dart-aot" and not ident["flutter_aot_libraries"]:
             receipts.append({"operation": operation, "status": "NOT_APPLICABLE_NO_LIBAPP_SO"})
             continue
-        rc, data, payload = execute_json([*invocation, operation, str(target), "--json"], timeout)
+        command = [*invocation, operation, str(target), "--json"]
+        bundle = None
+        if operation in ("inspect-android-package", "inspect-dart-aot"):
+            # These can produce large graphs. REA requires a saved full Evidence
+            # for its compact summary; retain a bounded local copy, never stdout.
+            with tempfile.TemporaryDirectory(prefix="rea-bundle-", dir=output_dir) as tempdir:
+                raw_path = Path(tempdir) / "full-evidence.json"
+                command.extend(["--detail", "summary", "--evidence_output", str(raw_path)])
+                rc, data, payload = execute_json(command, timeout)
+                if rc == 0:
+                    if (not raw_path.is_file() or raw_path.is_symlink()
+                            or raw_path.stat().st_size > 256 * 1024 * 1024):
+                        raise BridgeBlocked("REA did not produce bounded full evidence bundle")
+                    bundle = write_proof(output_dir,
+                        f"{ident['sha256'][:14]}-{operation}-full.json",
+                        raw_path.read_bytes())
+        else:
+            rc, data, payload = execute_json(command, timeout)
         evidence = write_proof(output_dir, f"{ident['sha256'][:14]}-{operation}.json", payload)
         result = data.get("normalized_result")
         normalized_keys = sorted(result) if isinstance(result, dict) else []
         op_status = "OBSERVED" if rc == 0 else "REA_FAILED"
         receipts.append({"operation": operation, "status": op_status, "exit_code": rc,
-                         "evidence": evidence, "normalized_keys": normalized_keys,
+                         "evidence": evidence, "full_bundle": bundle,
+                         "normalized_keys": normalized_keys,
                          "review": "UNVALIDATED_EXTERNAL_OUTPUT"})
         if rc != 0:
             status = "REA_RESEARCH_PARTIAL_OR_FAILED"
@@ -217,7 +236,7 @@ def main() -> int:
     args = p.parse_args()
     try:
         receipt = invoke(args.rea_bin, args.rea_entry, args.artifact, args.output_dir,
-                         args.mode, args.operation or list(OPERATIONS[args.mode]),
+                         args.mode, args.operation or (["inspect-managed-artifact"] if args.mode == "managed" else list(OPERATIONS[args.mode])),
                          args.repository, args.source_sha, args.expected_sha256,
                          args.max_bytes, args.timeout)
     except (BridgeBlocked, OSError, ValueError, KeyError) as exc:
