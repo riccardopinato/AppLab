@@ -30,6 +30,27 @@ Un normale commit, cambio estetico, audit contenuti o CI verde **non attiva REA*
 
 Il solo uso dei nomi `REA`, `Flutter`, `Android`, `APK` in un messaggio non costituisce trigger. Per un APK nativo REA/JADX non viene avviato se il JAR pinned non è presente e hash-verificato. Le directory Desktop usano `inspect_tree` per SHA del payload; le app Flutter usano l'inspector APK esistente. La decisione **non** autorizza reverse engineering di programmi terzi senza conferma dei diritti.
 
+## Autorizzazione indipendente dal WorkItem
+
+Il contesto diagnostico del WorkItem può essere influenzato da log o sorgenti
+non attendibili. Per questo `authorization: OWNED` nel JSON **non basta a
+eseguire nulla**. Il runner AppLab deve collegare autonomamente, da dati
+attestati della build e non dal JSON, tutte queste variabili:
+
+`APPLAB_REA_TRUSTED_BIN` (REA CLI già installata e ammessa),
+`APPLAB_REA_AUTHORIZED_ARTIFACT` (path esatto dell'artefatto prodotto),
+`APPLAB_REA_AUTHORIZED_REPOSITORY`,
+`APPLAB_REA_AUTHORIZED_SOURCE_SHA` (commit realmente costruito) e
+`APPLAB_REA_PRIVATE_OUTPUT_ROOT` (destinazione privata degli output).
+L'eventuale entrypoint Node richiede anche `APPLAB_REA_TRUSTED_ENTRY`.
+
+Il router confronta i binding attendibili con i valori del WorkItem.
+Se mancano propone `TRUSTED_RUNNER_BINDING_REQUIRED`; se divergono blocca
+`TRUSTED_RUNNER_SCOPE_MISMATCH`. Un testo d'errore non può selezionare
+un eseguibile arbitrario, estrarre un file di un altro progetto o scrivere
+evidenze fuori dall'area autorizzata. Si registra soltanto il motivo di
+triage, senza raw evidence nell'audit plan.
+
 ## Integrazione CLI nei WorkItem
 
 Il producer del WorkItem può emettere il contesto JSON da anomalie macchina e artefatto già creato. Non deve scegliere il motore REA. Esempio (valori illustrativi da sostituire con metadati **reali**):
