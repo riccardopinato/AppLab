@@ -140,6 +140,17 @@ def build_plan(app: dict[str, Any], *, has_market_evidence: bool = False,
             item["lab"],
         ),
     )
+    # Malformed optional research signals never suppress ordinary QA labs.
+    try:
+        rea_plan = rea_auto_router.decide(rea_context or {})
+    except (ValueError, OSError):
+        rea_plan = {
+            "schema_version": 1, "status": "BLOCKED",
+            "reason_codes": ["INVALID_OPTIONAL_REA_CONTEXT"],
+            "mode": None, "operations": [],
+            "certification": "NONE", "donor_admission": "RESEARCH_ONLY",
+        }
+
     return {
         "schema_version": SCHEMA_VERSION,
         "lab_version": LAB_VERSION,
@@ -153,7 +164,7 @@ def build_plan(app: dict[str, Any], *, has_market_evidence: bool = False,
             for item in ordered
         ),
         "market_evidence_supplied": has_market_evidence,
-        "rea_research": rea_auto_router.decide(rea_context or {}),
+        "rea_research": rea_plan,
         "guardrails": {
             "advisory_plan": True,
             "cannot_skip_certification_requirements": True,
