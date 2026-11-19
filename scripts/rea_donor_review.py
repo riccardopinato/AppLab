@@ -56,6 +56,16 @@ def review(receipt_path: Path, evidence_dir: Path, findings_path: Path) -> dict:
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if digest != ev.get("sha256") or path.stat().st_size != ev.get("bytes"):
             raise ValueError("External REA evidence SHA/size mismatch")
+        bundle = entry.get("full_bundle")
+        if bundle is not None:
+            name = bundle.get("file", "")
+            if not isinstance(name, str) or name != Path(name).name or "/" in name or "\\" in name:
+                raise ValueError("Unsafe REA bundle filename")
+            saved = evidence_dir / name
+            if not saved.is_file() or saved.is_symlink() or saved.stat().st_size > 256 * 1024 * 1024:
+                raise ValueError("Missing or unsafe retained REA evidence")
+            if saved.stat().st_size != bundle.get("bytes") or hashlib.sha256(saved.read_bytes()).hexdigest() != bundle.get("sha256"):
+                raise ValueError("Retained REA Evidence SHA/size mismatch")
         verified_operations.add(entry["operation"])
     rows = plan.get("findings")
     if not isinstance(rows, list) or len(rows) > 100:
