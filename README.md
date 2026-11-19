@@ -1,6 +1,6 @@
 ## Reverse Engineering & Software Intelligence — REA CLI opzionale
 
-Capability di ricerca **opt-in e read-only**: intake SHA-256 e bridge CLI statico a REA 6.9.0 per ispezionare import PE e certificati. Nessun MCP né installazione automatica. Prova reale su PE sintetico nel workflow dedicato; l'installer storico Deskland non è accessibile in questa sessione. Non è un gate trusted né una Golden: [documentazione](integration/intelligence/REA_REVERSE_INTELLIGENCE_PILOT_2026-11-19.md) · [intake](scripts/rea_artifact_intake.py) · [REA CLI bridge](scripts/rea_cli_bridge.py).
+Capability di ricerca **opt-in e read-only**: intake SHA-256 e bridge CLI statico a REA 6.9.0 per ispezionare import PE e certificati. Nessun MCP né installazione automatica. Prova reale su PE sintetico nel workflow dedicato; l'installer storico Deskland non è accessibile in questa sessione. Non è un gate trusted né una Golden: [documentazione](integration/intelligence/REA_REVERSE_INTELLIGENCE_PILOT_2026-11-19.md) · [pilota reale Deskland Preview](integration/intelligence/REA_DESKLAND_PREVIEW_BINARY_REPORT_2026-11-19.md) · [intake](scripts/rea_artifact_intake.py) · [REA CLI bridge](scripts/rea_cli_bridge.py).
 
 
 
