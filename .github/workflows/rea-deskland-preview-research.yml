@@ -198,6 +198,44 @@ jobs:
           print("HOST_REAL_STATIC_PE_PASS")
           print(json.dumps(summary,indent=2))
           PY
+      - name: Execute reusable new Desktop and Managed REA CLI adapters
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/deskland-public"
+          rea="$RUNNER_TEMP/rea-tools/node_modules/.bin/rea"
+          python scripts/rea_research_cli.py \
+            --rea-bin "$rea" --family desktop \
+            --artifact "$root/nsis-files" \
+            --output-dir "$root/rea-generalized-desktop" \
+            --repository BLEZZ0102/Deskland \
+            --source-sha 9818b577402ff476e1b59da07970c56472713126 \
+            --operation inventory \
+            > "$root/rea-generalized-desktop-receipt.json"
+          python scripts/rea_research_cli.py \
+            --rea-bin "$rea" --family managed \
+            --artifact "$root/nsis-files/host/bin/Deskland.exe" \
+            --expected-sha256 5337c513e8c14dc492900d315cd57e287e9dfb4ba750ccf96c2fb668fa4ea530 \
+            --output-dir "$root/rea-generalized-managed" \
+            --repository BLEZZ0102/Deskland \
+            --source-sha 9818b577402ff476e1b59da07970c56472713126 \
+            --operation metadata \
+            > "$root/rea-generalized-managed-receipt.json"
+          python scripts/rea_donor_research.py \
+            --receipt "$root/rea-generalized-managed-receipt.json" \
+            --evidence-dir "$root/rea-generalized-managed" \
+            --output "$root/rea-e1-donor-report.json"
+          python - "$root" <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          for f in ("rea-generalized-desktop-receipt.json","rea-generalized-managed-receipt.json"):
+              d=json.loads((p/f).read_text())
+              assert d["status"]=="REA_CLI_STATIC_OBSERVED" and all(x["cli_success"] for x in d["operations"]),d
+          r=json.loads((p/"rea-e1-donor-report.json").read_text())
+          assert r["admission"]=="E1_RESEARCH_ONLY" and not r["certified_donor"]
+          print("REA_CLI_MULTIFAMILY_REAL_BINARY_PASS, E1_ONLY")
+          PY
       - name: Publish public metadata and REA results only
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -212,6 +250,9 @@ jobs:
             ${{ runner.temp }}/deskland-public/release-manifest.json
             ${{ runner.temp }}/deskland-public/nsis-inventory.json
             ${{ runner.temp }}/deskland-public/host-summary.json
+            ${{ runner.temp }}/deskland-public/rea-generalized-desktop-receipt.json
+            ${{ runner.temp }}/deskland-public/rea-generalized-managed-receipt.json
+            ${{ runner.temp }}/deskland-public/rea-e1-donor-report.json
             ${{ runner.temp }}/deskland-public/host-pe-receipt.json
             ${{ runner.temp }}/deskland-public/host-managed-artifact.json
             ${{ runner.temp }}/deskland-public/host-pe-evidence/*.json
