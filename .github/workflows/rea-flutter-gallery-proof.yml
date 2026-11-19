@@ -71,7 +71,8 @@ jobs:
           assert r["artifact"]["sha256"]=="659b5fc6a4319dfe4f117d00ad4e7ec004915ebcadcb96628797fb3544040e29"
           assert len(r["artifact"]["flutter_aot_libraries"]) >= 1,r
           assert [x["status"] for x in r["operations"]]==["OBSERVED","OBSERVED"],r
-          assert r["operations"][1]["full_bundle"],r
+          assert r["operations"][1]["evidence"]["bytes"]>0,r
+          assert r["operations"][1]["full_bundle"] is None,r
           print("REAL_REA_FLUTTER_GALLERY_AOT_PASS")
           print("Flutter_ABIs="+",".join(r["artifact"]["flutter_aot_libraries"]))
           print("APK_SHA256="+r["artifact"]["sha256"])
