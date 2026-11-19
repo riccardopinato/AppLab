@@ -155,6 +155,49 @@ jobs:
           print("NSIS_STATIC_EXTRACT_PASS")
           print(json.dumps({k:v for k,v in result.items() if k!="files"},indent=2))
           PY
+      - name: Inspect extracted Deskland .NET host with REA CLI (static only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$RUNNER_TEMP/deskland-public"
+          host="$base/nsis-files/host/bin/Deskland.exe"
+          test -f "$host"
+          python scripts/rea_cli_bridge.py \
+            --rea-bin "$RUNNER_TEMP/rea-tools/node_modules/.bin/rea" \
+            --artifact "$host" \
+            --output-dir "$base/host-pe-evidence" \
+            --repository BLEZZ0102/Deskland \
+            --source-sha 9818b577402ff476e1b59da07970c56472713126 \
+            --operation imports \
+            --operation certificates \
+            > "$base/host-pe-receipt.json"
+          if "$RUNNER_TEMP/rea-tools/node_modules/.bin/rea" inspect-managed-artifact "$host" --json > "$base/host-managed-artifact.json"; then
+            echo "HOST_MANAGED_ARTIFACT_ANALYSIS_PASS"
+          else
+            rm -f "$base/host-managed-artifact.json"
+            echo "HOST_MANAGED_ARTIFACT_ANALYSIS_NOT_VERIFIED"
+          fi
+          python - "$base" <<'PY'
+          import json,sys
+          from pathlib import Path
+          base=Path(sys.argv[1])
+          d=json.loads((base/"host-pe-receipt.json").read_text())
+          assert d["status"]=="REA_CLI_STATIC_OBSERVED",d
+          assert d["artifact"]["sha256"]=="5337c513e8c14dc492900d315cd57e287e9dfb4ba750ccf96c2fb668fa4ea530"
+          summary={"host_artifact_sha256":d["artifact"]["sha256"],
+                   "host_bytes":d["artifact"]["bytes"],
+                   "rea_pe_commands":{x["operation"]:{"success":x["rea_success"],
+                     "evidence_sha256":x["evidence_sha256"]} for x in d["operations"]},
+                   "managed_artifact_status":"NOT_VERIFIED"}
+          p=base/"host-managed-artifact.json"
+          if p.is_file():
+              m=json.loads(p.read_text())
+              summary["managed_artifact_status"]="CLI_OK_EXTERNAL_EVIDENCE"
+              summary["managed_result_keys"]=sorted(m.get("normalized_result",{}).keys()) if isinstance(m.get("normalized_result"),dict) else []
+          (base/"host-summary.json").write_text(json.dumps(summary,indent=2)+"\n")
+          print("HOST_REAL_STATIC_PE_PASS")
+          print(json.dumps(summary,indent=2))
+          PY
       - name: Publish public metadata and REA results only
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -168,4 +211,8 @@ jobs:
             ${{ runner.temp }}/deskland-public/public-preview-summary.json
             ${{ runner.temp }}/deskland-public/release-manifest.json
             ${{ runner.temp }}/deskland-public/nsis-inventory.json
+            ${{ runner.temp }}/deskland-public/host-summary.json
+            ${{ runner.temp }}/deskland-public/host-pe-receipt.json
+            ${{ runner.temp }}/deskland-public/host-managed-artifact.json
+            ${{ runner.temp }}/deskland-public/host-pe-evidence/*.json
             ${{ runner.temp }}/deskland-public/research-evidence/*.json
