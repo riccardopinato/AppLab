@@ -1,0 +1,86 @@
+name: REA multi-platform CLI research gate (opt-in, no MCP)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/rea_cli_research.py"
+      - "scripts/rea_desktop_manifest_verify.py"
+      - "scripts/rea_donor_review.py"
+      - "backend/tests/test_rea_cli_research.py"
+      - "backend/tests/test_rea_desktop_manifest_verify.py"
+      - "backend/tests/test_rea_donor_review.py"
+      - ".github/workflows/rea-multiplatform-research.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cli-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Python 3.12
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - name: Pinned Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+      - name: Regression tests for four research modes, hash, license and donor gates
+        shell: bash
+        run: |
+          python -m pip install pytest
+          python -m pytest backend/tests/test_rea_cli_bridge.py backend/tests/test_rea_cli_research.py backend/tests/test_rea_desktop_manifest_verify.py backend/tests/test_rea_donor_review.py -q
+      - name: Install real pinned REA locally (no persistent agent)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/rea" --no-save --omit=optional --no-audit --no-fund rea-agents@6.9.0
+          "$RUNNER_TEMP/rea/node_modules/.bin/rea" --version --json > "$RUNNER_TEMP/version.json"
+      - name: Verify Flutter negative-control APK with actual REA CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/inert-nonflutter.apk" <<'PY'
+          import sys,zipfile
+          with zipfile.ZipFile(sys.argv[1],"w") as z:
+              z.writestr("AndroidManifest.xml",b"\x03\x00\x08\x00")
+              z.writestr("classes.dex",b"dex\n035\x00")
+          PY
+          target="$RUNNER_TEMP/inert-nonflutter.apk"
+          sha="$(sha256sum "$target" | cut -d' ' -f1)"
+          python scripts/rea_cli_research.py \
+            --mode flutter --operation identify-flutter-build \
+            --rea-bin "$RUNNER_TEMP/rea/node_modules/.bin/rea" \
+            --artifact "$target" --expected-sha256 "$sha" \
+            --output-dir "$RUNNER_TEMP/rea-research" \
+            --repository riccardopinato/AppLab \
+            --source-sha ${{ github.event.pull_request.head.sha || github.sha }} \
+            > "$RUNNER_TEMP/receipt.json"
+          python - "$RUNNER_TEMP/receipt.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          assert d["status"]=="REA_RESEARCH_OBSERVED",d
+          assert d["operations"][0]["operation"]=="identify-flutter-build",d
+          assert d["donor_admission"]=="RESEARCH_ONLY"
+          assert not d["artifact"]["flutter_aot_libraries"]
+          print("REAL_REA_FLUTTER_IDENTIFY_NEGATIVE_CONTROL_PASS")
+          PY
+      - name: Publish research receipt (synthetic sample only)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: rea-multiplatform-synthetic-negative-control
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/version.json
+            ${{ runner.temp }}/receipt.json
+            ${{ runner.temp }}/rea-research/*.json
