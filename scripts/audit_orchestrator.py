@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import tempfile
+import rea_auto_router
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +60,8 @@ def add(plan: dict[str, dict[str, Any]], key: str, reason: str, priority: str = 
         current["priority"] = priority
 
 
-def build_plan(app: dict[str, Any], *, has_market_evidence: bool = False) -> dict[str, Any]:
+def build_plan(app: dict[str, Any], *, has_market_evidence: bool = False,
+               rea_context: dict[str, Any] | None = None) -> dict[str, Any]:
     confidence = str((app.get("scan") or {}).get("confidence", "LOW")).upper()
     product = app.get("product") if isinstance(app.get("product"), dict) else {}
     stack = product.get("stack") if isinstance(product.get("stack"), dict) else {}
@@ -138,6 +140,17 @@ def build_plan(app: dict[str, Any], *, has_market_evidence: bool = False) -> dic
             item["lab"],
         ),
     )
+    # Malformed optional research signals never suppress ordinary QA labs.
+    try:
+        rea_plan = rea_auto_router.decide(rea_context or {})
+    except (ValueError, OSError):
+        rea_plan = {
+            "schema_version": 1, "status": "BLOCKED",
+            "reason_codes": ["INVALID_OPTIONAL_REA_CONTEXT"],
+            "mode": None, "operations": [],
+            "certification": "NONE", "donor_admission": "RESEARCH_ONLY",
+        }
+
     return {
         "schema_version": SCHEMA_VERSION,
         "lab_version": LAB_VERSION,
@@ -151,6 +164,7 @@ def build_plan(app: dict[str, Any], *, has_market_evidence: bool = False) -> dic
             for item in ordered
         ),
         "market_evidence_supplied": has_market_evidence,
+        "rea_research": rea_plan,
         "guardrails": {
             "advisory_plan": True,
             "cannot_skip_certification_requirements": True,
@@ -171,6 +185,7 @@ def markdown(report: dict[str, Any]) -> str:
         f"- Source confidence: **{report['scan_confidence']}**",
         f"- Selected labs: **{report['selected_lab_count']}**",
         f"- Manual review required: **{report['manual_review_required']}**",
+        f"- REA static research: **{report['rea_research']['status']}** ({', '.join(report['rea_research']['reason_codes'])})",
         "",
         "| Priority | Lab | Reason |",
         "|---|---|---|",
@@ -226,6 +241,7 @@ def self_test() -> None:
     assert "competitor-market" in selected
     assert "core-runtime" in selected
     assert report["manual_review_required"] is True
+    assert report["rea_research"]["status"] == "SKIP"
     with tempfile.TemporaryDirectory() as raw:
         write(report, Path(raw))
         assert (Path(raw) / "audit-plan.json").is_file()
@@ -237,6 +253,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--app-intelligence")
     parser.add_argument("--market-evidence")
+    parser.add_argument("--rea-context", help="Bounded work-item artifact/source metadata JSON")
+    parser.add_argument("--rea-auto-execute", action="store_true",
+                        help="Execute only if owned exact-artifact policy returns AUTO_RUN")
     parser.add_argument("--output-dir", default="applab-audit-plan")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
@@ -252,12 +271,17 @@ def main() -> int:
     if market_supplied:
         load_json(Path(args.market_evidence))
 
-    report = build_plan(app, has_market_evidence=market_supplied)
+    context = load_json(Path(args.rea_context)) if args.rea_context else None
+    report = build_plan(app, has_market_evidence=market_supplied, rea_context=context)
+    if args.rea_auto_execute and context is not None:
+        report["rea_research"] = rea_auto_router.execute(context, report["rea_research"])
     write(report, Path(args.output_dir))
     print(json.dumps({
         "lab_version": report["lab_version"],
         "selected_labs": report["selected_lab_count"],
         "manual_review_required": report["manual_review_required"],
+        "rea_status": report["rea_research"]["status"],
+        "rea_execution": report["rea_research"].get("execution", "NOT_REQUESTED"),
     }))
     return 0
 
