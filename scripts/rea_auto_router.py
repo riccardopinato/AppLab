@@ -144,7 +144,8 @@ def decide(context: dict) -> dict:
         # Use the exact canonical tree identity, not an invented file hash.
         from rea_cli_research import inspect_tree
         try:
-            if inspect_tree(path)["sha256"] != expected.lower():
+            tree_identity = inspect_tree(path)
+            if tree_identity["sha256"] != expected.lower():
                 raise ValueError("desktop inventory identity mismatch")
         except (OSError, ValueError, BridgeBlocked):
             plan["status"] = "BLOCKED"
@@ -161,7 +162,8 @@ def decide(context: dict) -> dict:
         plan["status"] = "BLOCKED"
         reason.append("INVALID_RESEARCH_BYTE_BUDGET")
         return plan
-    if mode != "desktop" and path.stat().st_size > budget:
+    artifact_bytes = tree_identity["bytes"] if mode == "desktop" else path.stat().st_size
+    if artifact_bytes > budget:
         plan["status"] = "PROPOSE"
         reason.append("ARTIFACT_EXCEEDS_CONFIGURED_BYTE_BUDGET")
         return plan
