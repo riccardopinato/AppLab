@@ -254,8 +254,17 @@ def execute(context: dict, plan: dict) -> dict:
     env = os.environ.copy()
     if plan["mode"] == "android" and context.get("jadx_jar"):
         env["REA_JADX_MCP_JAR"] = context["jadx_jar"]
-    run = subprocess.run(argv, capture_output=True, text=True, env=env,
-                         check=False, timeout=budget * len(plan["operations"]) + 30)
+    try:
+        run = subprocess.run(argv, capture_output=True, text=True, env=env,
+                             check=False, timeout=budget * len(plan["operations"]) + 30)
+    except subprocess.TimeoutExpired:
+        return {**plan, "execution": "FAILED", "adapter_exit_code": 124,
+                "reason_codes": plan["reason_codes"] + ["REA_ADAPTER_TIMEOUT"],
+                "research_only": True}
+    except OSError:
+        return {**plan, "execution": "FAILED", "adapter_exit_code": 127,
+                "reason_codes": plan["reason_codes"] + ["REA_ADAPTER_UNAVAILABLE"],
+                "research_only": True}
     # Validate the adapter's bound artifact identity; never turn a stale
     # replacement or a fake successful command into a trusted PASS.
     ok = False
