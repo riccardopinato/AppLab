@@ -84,6 +84,8 @@ def inspect_tree(root: Path) -> dict:
         for name in sorted(files):
             path = Path(parent, name)
             st = path.lstat()
+            if stat.S_ISLNK(st.st_mode):
+                raise BridgeBlocked("Directory contains symlink")
             if not stat.S_ISREG(st.st_mode):
                 raise BridgeBlocked("Directory contains nonregular entry")
             count += 1
