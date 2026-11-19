@@ -70,3 +70,23 @@ def test_cli_json_and_threshold_are_explicit(tmp_path):
     blocked = subprocess.run(cmd + ["--max", "0"], capture_output=True, text=True)
     assert blocked.returncode == 1
     assert "U1" in blocked.stdout
+
+
+def test_scanning_external_repo_keeps_target_relative_paths(tmp_path):
+    repo = tmp_path / "external_checkout"
+    (repo / "lib" / "feature_a").mkdir(parents=True)
+    (repo / "lib" / "feature_b").mkdir(parents=True)
+    (repo / "lib" / "feature_a" / "home.dart").write_text('Text("One. Big. Thing.");')
+    (repo / "lib" / "feature_b" / "home.dart").write_text('Text("One. Big. Thing.");')
+    report = audit.audit([repo])
+    paths = {row["path"] for row in report["findings"]}
+    assert paths == {"lib/feature_a/home.dart", "lib/feature_b/home.dart"}
+
+
+def test_large_locale_is_scanned_with_correct_offsets(tmp_path):
+    path = tmp_path / "localizations.arb"
+    path.write_text('\\n'.join(f'\"message{i}\": \"🧽\"' for i in range(2000)), encoding="utf-8")
+    report = audit.audit([path])
+    assert report["files_scanned"] == 1
+    assert report["counts"]["U11"] == 2000
+    assert report["findings"][-1]["line"] == 2000
