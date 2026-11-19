@@ -145,3 +145,37 @@ def test_reject_cross_mode_and_small_size(rig):
         adapter.invoke(rig[0], None, rig[4], rig[4] / "out",
                        "desktop", ["inspect-desktop-application"],
                        "riccardopinato/AppLab", SOURCE_SHA)
+
+
+def test_refuse_target_itself_as_rea_binary_without_launch(rig):
+    _, managed, _, _, _, out = rig
+    managed.chmod(0o755)  # It is still inert PE bytes, never executable by the test.
+    with pytest.raises(BridgeBlocked, match="cannot equal"):
+        adapter.invoke(managed, None, managed, out, "managed",
+                       ["inspect-managed-artifact"],
+                       "riccardopinato/AppLab", SOURCE_SHA)
+    assert not out.exists()
+
+
+def test_refuse_rea_launcher_inside_desktop_inventory(rig):
+    exe, _, _, _, root, out = rig
+    launcher = root / "research-engine"
+    launcher.write_bytes(exe.read_bytes())
+    launcher.chmod(0o755)
+    with pytest.raises(BridgeBlocked, match="inside inspected desktop tree"):
+        adapter.invoke(launcher, None, root, out, "desktop",
+                       ["inspect-desktop-application"],
+                       "riccardopinato/AppLab", SOURCE_SHA)
+    assert not out.exists()
+
+
+def test_inaccessible_directory_fails_closed(monkeypatch, rig):
+    import os
+    root = rig[4]
+    def fake_walk(*args, **kwargs):
+        callback = kwargs["onerror"]
+        callback(PermissionError("synthetic read denial"))
+        yield from ()
+    monkeypatch.setattr(adapter.os, "walk", fake_walk)
+    with pytest.raises(BridgeBlocked, match="inaccessible directory"):
+        adapter.inspect_tree(root)
