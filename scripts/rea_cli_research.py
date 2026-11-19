@@ -76,7 +76,10 @@ def inspect_tree(root: Path) -> dict:
     count = 0
     total = 0
     root_real = root.resolve()
-    for parent, dirs, files in os.walk(root, topdown=True, followlinks=False):
+    def reject_walk_error(error: OSError) -> None:
+        raise BridgeBlocked("Desktop tree contains inaccessible directory") from error
+    for parent, dirs, files in os.walk(
+            root, topdown=True, followlinks=False, onerror=reject_walk_error):
         for name in sorted(dirs):
             child = Path(parent, name)
             if child.is_symlink():
@@ -158,6 +161,12 @@ def invoke(rea_bin: Path, entry: Path | None, target: Path, output_dir: Path,
     if expected_sha and expected_sha.lower() != ident["sha256"]:
         raise BridgeBlocked("Input SHA-256 mismatch: expected specific immutable artifact")
     invocation = validate_command(rea_bin, entry)
+    engine_paths = {Path(p).resolve() for p in invocation}
+    real_target = target.resolve()
+    if mode != "desktop" and real_target in engine_paths:
+        raise BridgeBlocked("REA executable/entry cannot equal the inspected artifact")
+    if mode == "desktop" and any(p.is_relative_to(real_target) for p in engine_paths):
+        raise BridgeBlocked("REA executable/entry cannot reside inside inspected desktop tree")
     rc, version, _ = execute_json([*invocation, "--version", "--json"], 20)
     if (rc != 0 or version.get("name") != "rea-agents"
             or version.get("version") != EXPECTED_REA_VERSION
