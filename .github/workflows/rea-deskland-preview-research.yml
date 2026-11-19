@@ -112,6 +112,49 @@ jobs:
           print("REAL_REA_BINARY_STATIC_PASS")
           print(json.dumps(summary,indent=2))
           PY
+      - name: Inventory NSIS extraction without executing the installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v 7z >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq p7zip-full
+          fi
+          base="$RUNNER_TEMP/deskland-public"
+          installer="$base/Deskland-Preview-0.1.3-win-x64-Setup.exe"
+          mkdir -p "$base/nsis-files"
+          7z l -slt "$installer" > "$base/7z-list.txt"
+          7z x -y "-o$base/nsis-files" "$installer" > "$base/7z-extract.log"
+          python - "$base" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          base=Path(sys.argv[1])
+          root=base/"nsis-files"
+          manifest=json.loads((base/"release-manifest.json").read_text(encoding="utf-8-sig"))
+          expected={r["path"].replace("\\","/").casefold():r["sha256"].lower() for r in manifest}
+          files=[p for p in root.rglob("*") if p.is_file() and not p.is_symlink()]
+          if any(not p.resolve().is_relative_to(root.resolve()) for p in files):
+              raise SystemExit("Archive path traversal detected")
+          total=sum(p.stat().st_size for p in files)
+          if total>512*1024*1024:raise SystemExit("Unexpected inflated archive size")
+          inventory=[]
+          for file in files:
+              rel=file.relative_to(root).as_posix()
+              digest=hashlib.file_digest(file.open("rb"),"sha256").hexdigest()
+              matches=[key for key in expected if rel.casefold()==key or rel.casefold().endswith("/"+key)]
+              inventory.append({"path":rel,"bytes":file.stat().st_size,
+                                "sha256":digest,"manifest_match":matches,
+                                "matches_published_checksum":bool(matches and any(expected[key]==digest for key in matches))})
+          result={"source":"OFFICIAL_PUBLIC_PREVIEW_ONLY","file_count":len(files),
+                  "total_extracted_bytes":total,"published_manifest_entries":len(manifest),
+                  "checksum_matches":sum(x["matches_published_checksum"] for x in inventory),
+                  "host_candidates":[x for x in inventory if x["path"].lower().endswith("/deskland.exe")],
+                  "files":inventory,
+                  "status":"UNPACKED_WITHOUT_EXECUTION_NOT_RUNTIME_VERIFIED"}
+          (base/"nsis-inventory.json").write_text(json.dumps(result,indent=2)+"\n")
+          print("NSIS_STATIC_EXTRACT_PASS")
+          print(json.dumps({k:v for k,v in result.items() if k!="files"},indent=2))
+          PY
       - name: Publish public metadata and REA results only
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -124,4 +167,5 @@ jobs:
             ${{ runner.temp }}/deskland-public/rea-receipt.json
             ${{ runner.temp }}/deskland-public/public-preview-summary.json
             ${{ runner.temp }}/deskland-public/release-manifest.json
+            ${{ runner.temp }}/deskland-public/nsis-inventory.json
             ${{ runner.temp }}/deskland-public/research-evidence/*.json
