@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-19  
 **Scope:** static research, exact artifact identities, `rea-agents@6.9.0` (MIT) via Node 24.  
-**Admission:** `COPY-READY PROCESS`, independent consumer execution observed; **no E5/CERTIFIED promotion is implied by this document**.
+**Latest admission:** Core [Index v31 CERTIFIED PROCESS (SCOPED)](https://github.com/riccardopinato/App-Factory-Core/pull/122), independent research consumers verified; **not CERTIFIED GOLDEN of any app/code or runtime**.
 
 ## Proven separate technology families
 
@@ -11,6 +11,10 @@
 | Windows NSIS + .NET | Official Deskland Preview v0.1.3, installer SHA-256 `e253cad56f1ea0ee2fb9d13ebe8a44f7dbe7232a506ba752cbe54c939c17bf44` | [AppLab real binary PASS #44615407360](https://github.com/riccardopinato/AppLab/actions/runs/44615407360): 43/43 published payload SHA match; extracted managed host observed | Historical user `Deskland-Setup.exe` not inspected, no Windows runtime |
 | Flutter / Dart AOT | Official [Flutter Gallery v2.9.2](https://github.com/flutter-team-archive/gallery/releases/tag/v2.9.2) source `56dc27b62f1b93be9aa6ff93a730fc8952a35085`; APK SHA-256 `659b5fc6a4319dfe4f117d00ad4e7ec004915ebcadcb96628797fb3544040e29`, 117,817,550 bytes | [AppLab real Flutter PASS #44626932001](https://github.com/riccardopinato/AppLab/actions/runs/44626932001): `identify-flutter-build` and `inspect-dart-aot` both exit 0, three `libapp.so` ABIs; bounded AOT report 65,416 bytes | Public fixture, not the user's apps; Dart strings are not source reconstruction or complete SDK identification |
 | Android/JADX independent consumer | Own `riccardopinato/Android-Omni-Cleaner` source `b594adc670bce482d0768638648196d92a3b8eaf` on PR #44; locally built debug APK SHA-256 `b2cb75cd332f1261ba5bfee69c47c994fd8acc0d64df88886be81c32fa14e977`, 19,324,653 bytes | [Independent real REA/JADX PASS #44626294217](https://github.com/riccardopinato/Android-Omni-Cleaner/actions/runs/44626294217): static `inspect-android-package` exit 0; compact receipt 28,517 bytes, private full evidence 60,054 bytes; hashes verified; Flutter identification negative (no `libapp.so`); deliberate wrong SHA refused | Does not run APK/clean files; no permission grant or physical/Play certification; full JADX output remains private |
+
+## Third independent Flutter consumer
+
+[Adaptive Landscape Android PR #42 merged](https://github.com/riccardopinato/Adaptive-Landscape-Android/pull/42); [actual own-repo REA CLI PASS run #44630662704](https://github.com/riccardopinato/Adaptive-Landscape-Android/actions/runs/44630662704). Source head `03fa33b7e6e563fd6021e0522bd40e82825945a1`, APK ARM64 17,805,211 bytes, SHA-256 `70cdf981ae8cae0832066b5d29657105baa0f275256c35fef3594724f95be33d`. All three static commands `identify-flutter-build`, `inspect-dart-aot`, `inspect-android-package` PASS; raw evidence hashes recorded separately in Core admission audit; no app source/permissions changed or physical wallpaper test implied.
 
 ## Evidence SHA and technical limitations
 
@@ -24,6 +28,6 @@
 
 ## Interpretation and next admission gate
 
-**Second independent harness executed successfully:** yes — an app-owned, source-bound APK was built and inspected inside the Omni repo, not merely referenced by an AppLab source audit. **Cross-product Golden process certification:** still requires deliberate admission review, exact-head merge provenance, negative case/failure evidence, source-vs-binary incremental insights and authoritative central registry update. Do not automatically mark `CERTIFIED PROCESS`.
+**Second independent harness executed successfully:** yes — an app-owned, source-bound APK was built and inspected inside the Omni repo, not merely referenced by an AppLab source audit. **Cross-product Golden process certification:** now completed by separate [Core PR #122](https://github.com/riccardopinato/App-Factory-Core/pull/122) after source/CI and rights review, with scope limited to bounded static CLI research; broader E5/product admission remains separate. Do not automatically mark `CERTIFIED PROCESS`.
 
 **Portable product functionality newly established from the binary:** none verified for Deskland; no additional Omni Cleaner feature or automatic cleanup behavior has been inferred from the APK. The value is **traceable artifact inspection and contrast**, not automatic donor extraction.
