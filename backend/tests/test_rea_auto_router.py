@@ -129,8 +129,9 @@ def test_unsupported_signals_and_artifact_gates(harness):
     assert router.decide(ctx)["status"] == "BLOCKED"
 
 
-def test_executable_cannot_be_artifact(harness):
+def test_executable_cannot_be_artifact(harness, monkeypatch):
     ctx, apk, engine = harness
+    monkeypatch.setenv("APPLAB_REA_AUTHORIZED_ARTIFACT", str(engine))
     ctx.update(artifact_kind="PE", artifact_path=str(engine),
                artifact_sha256=hashlib.sha256(engine.read_bytes()).hexdigest(),
                signals=["MANAGED_METADATA_QUESTION"])
