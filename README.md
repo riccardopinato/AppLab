@@ -1,5 +1,7 @@
 ## Reverse Engineering & Software Intelligence — REA CLI opzionale
 
+**Selezione autonoma:** [REA Context Router](integration/intelligence/REA_AUTOMATIC_CONTEXT_ROUTING_2026-11-20.md) valuta gap sorgenti/artefatti, permessi, AOT e dipendenze native e restituisce `SKIP / PROPOSE / BLOCKED / AUTO_RUN`. È integrato nel pianificatore audit e nella revisione autonoma; esegue REA **solo** con WorkItem autorizzato, SHA dell'artefatto e runtime CLI già disponibili. Niente scansioni su ogni build, niente MCP e nessuna promozione automatica dei donor.
+
 **Nuovo:** [cinque maxi-step Desktop / Android APK / Flutter AOT / donor / seconda adozione](integration/intelligence/REA_5_MAXISTEP_INTEGRATION_2026-11-19.md) · [prove REA reali su Desktop, Flutter e Omni](integration/intelligence/REA_MULTIPLATFORM_REAL_PROOF_2026-11-19.md) · [runner CLI multi-piattaforma](scripts/rea_cli_research.py) · [verifica manifest desktop](scripts/rea_desktop_manifest_verify.py) · [revisione donor con provenienza](scripts/rea_donor_review.py). Ricerca on-demand, senza MCP, senza scrittura nelle app e senza certificazione automatica.
 
 
