@@ -53,17 +53,29 @@ def execute_json(argv: list[str], seconds: int) -> tuple[int, dict, bytes]:
         raise BridgeBlocked(f"REA executable could not be started: {exc.__class__.__name__}") from exc
 
 
-def validate_binary(path: Path) -> Path:
+def validate_command(path: Path, entry: Path | None) -> list[str]:
     if not path.is_absolute():
         raise BridgeBlocked("Pass an absolute --rea-bin path")
+    if path.suffix.lower() in {".cmd", ".bat", ".ps1"}:
+        raise BridgeBlocked("Windows shell shims are forbidden; use node.exe and --rea-entry")
     binary = path.resolve(strict=True)
     if not binary.is_file() or not os.access(binary, os.X_OK):
-        raise BridgeBlocked("REA CLI is not executable")
-    return binary
+        raise BridgeBlocked("REA executable is not launchable")
+    if entry is not None:
+        if binary.name.lower() not in {"node", "node.exe"}:
+            raise BridgeBlocked("--rea-entry requires a direct Node executable")
+        if not entry.is_absolute() or entry.suffix.lower() != ".mjs":
+            raise BridgeBlocked("REA entrypoint must be an absolute .mjs file")
+        file = entry.resolve(strict=True)
+        if not file.is_file():
+            raise BridgeBlocked("REA entrypoint is missing")
+        return [str(binary), str(file)]
+    return [str(binary)]
 
 
 def run(rea_bin: Path, artifact: Path, output_dir: Path, repository: str,
-        source_sha: str, operations: list[str], timeout: int, max_bytes: int) -> dict:
+        source_sha: str, operations: list[str], timeout: int, max_bytes: int,
+        rea_entry: Path | None = None) -> dict:
     if not REPO.fullmatch(repository) or not SHA40.fullmatch(source_sha):
         raise BridgeBlocked("Provide repository owner/name and a 40-hex source SHA")
     if not 5 <= timeout <= 180 or not 0 < max_bytes <= MAX_ARTIFACT:
@@ -82,10 +94,10 @@ def run(rea_bin: Path, artifact: Path, output_dir: Path, repository: str,
         raise BridgeBlocked(f"Artifact intake rejected: {exc}") from exc
     if identity["container"] != "PE":
         raise BridgeBlocked("PE static commands require a confirmed PE header")
-    executable = validate_binary(rea_bin)
-    if artifact.resolve() == executable:
+    invocation = validate_command(rea_bin, rea_entry)
+    if artifact.resolve() in {Path(x) for x in invocation}:
         raise BridgeBlocked("REA executable cannot be the inspected artifact")
-    rc, version, _ = execute_json([str(executable), "--version", "--json"], 20)
+    rc, version, _ = execute_json([*invocation, "--version", "--json"], 20)
     if (rc != 0 or version.get("name") != "rea-agents"
             or version.get("version") != EXPECTED_REA_VERSION
             or version.get("supported_runtime", {}).get("satisfied") is not True):
@@ -98,7 +110,7 @@ def run(rea_bin: Path, artifact: Path, output_dir: Path, repository: str,
     receipts = []
     overall = "REA_CLI_STATIC_OBSERVED"
     for operation in operations:
-        command = [str(executable), OPERATIONS[operation], str(artifact), "--json"]
+        command = [*invocation, OPERATIONS[operation], str(artifact), "--json"]
         if max_bytes > 64 * 1024 * 1024:
             command.extend(["--max-file-bytes", str(max_bytes)])
         rc, data, payload = execute_json(command, timeout)
@@ -148,6 +160,7 @@ def run(rea_bin: Path, artifact: Path, output_dir: Path, repository: str,
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--rea-bin", required=True, type=Path)
+    p.add_argument("--rea-entry", type=Path, help="Windows: absolute node_modules/rea-agents/scripts/rea.mjs")
     p.add_argument("--artifact", required=True, type=Path)
     p.add_argument("--output-dir", required=True, type=Path)
     p.add_argument("--repository", required=True)
@@ -159,7 +172,7 @@ def main() -> int:
     try:
         receipt = run(args.rea_bin, args.artifact, args.output_dir, args.repository,
                       args.source_sha, args.operation or ["imports", "certificates"],
-                      args.timeout, args.max_bytes)
+                      args.timeout, args.max_bytes, args.rea_entry)
     except (BridgeBlocked, OSError, ValueError) as exc:
         print(f"REA CLI BRIDGE BLOCKED: {exc}", file=sys.stderr)
         return 2
