@@ -1,0 +1,77 @@
+name: REA CLI static smoke (opt-in research)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/rea_cli_bridge.py"
+      - "scripts/rea_artifact_intake.py"
+      - "backend/tests/test_rea_cli_bridge.py"
+      - ".github/workflows/rea-cli-static-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-rea-cli:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout immutable PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up compatible Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - name: Run adapter unit tests
+        run: |
+          python -m pip install pytest
+          python -m pytest backend/tests/test_rea_cli_bridge.py -q
+      - name: Install pinned REA CLI in isolated runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/rea-cli" --no-save --omit=optional --no-audit --no-fund rea-agents@6.9.0
+          "$RUNNER_TEMP/rea-cli/node_modules/.bin/rea" --version --json > "$RUNNER_TEMP/rea-version.json"
+          python - "$RUNNER_TEMP/rea-version.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1], encoding="utf-8"))
+          assert d["name"]=="rea-agents" and d["version"]=="6.9.0",d
+          assert d["supported_runtime"]["satisfied"] is True,d
+          print("REA CLI version/runtime PASS")
+          PY
+      - name: Real static analysis on synthetic, nonexecuted PE fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONPATH=backend/tests
+          python - "$RUNNER_TEMP/synthetic-pe.exe" <<'PY'
+          from pathlib import Path
+          import sys
+          from test_rea_cli_bridge import fixture_pe
+          fixture_pe(Path(sys.argv[1]))
+          PY
+          python scripts/rea_cli_bridge.py \
+            --rea-bin "$RUNNER_TEMP/rea-cli/node_modules/.bin/rea" \
+            --artifact "$RUNNER_TEMP/synthetic-pe.exe" \
+            --output-dir "$RUNNER_TEMP/rea-evidence" \
+            --repository BLEZZ0102/Deskland \
+            --source-sha 9818b577402ff476e1b59da07970c56472713126 \
+            --operation imports \
+            --operation certificates \
+            > "$RUNNER_TEMP/rea-receipt.json"
+          python - "$RUNNER_TEMP/rea-receipt.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1], encoding="utf-8"))
+          assert d["status"]=="REA_CLI_STATIC_OBSERVED",d
+          assert len(d["operations"])==2,d
+          assert all(x["rea_success"] for x in d["operations"]),d
+          print("REA CLI real binary static proof PASS; synthetic fixture only")
+          PY
