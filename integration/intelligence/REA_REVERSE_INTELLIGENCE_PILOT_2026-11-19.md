@@ -1,5 +1,9 @@
 # Reverse Engineering & Software Intelligence — AppLab research pilot
 
+## Public Preview binary experiment — 19 November 2026
+
+A *real* official binary was statically inspected using REA 6.9.0 CLI. Outcome: **PASS** for the public Deskland Preview v0.1.3 PE32/x86 installer, 7 imported DLLs / 163 imports, no embedded PE certificate table, 43-file published manifest. The original `Deskland-Setup.exe` previously uploaded in another chat remains **UNAVAILABLE AND NOT ANALYZED**. The new report documents the exact hashes, selected raw-Evidence fields, no-functional-donor decision and source-vs-binary boundaries: [REA_DESKLAND_PREVIEW_BINARY_REPORT_2026-11-19.md](REA_DESKLAND_PREVIEW_BINARY_REPORT_2026-11-19.md). Proof run [#44614264474](https://github.com/riccardopinato/AppLab/actions/runs/44614264474).
+
 ## CLI execution adapter — 19 November 2026 (supersedes the source-only status below)
 
 **New code:** `scripts/rea_cli_bridge.py` invokes pinned `rea-agents@6.9.0`
