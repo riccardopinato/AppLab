@@ -1,4 +1,8 @@
-## Default AppLab Source Gate — 30 October 2026
+## Reverse Engineering & Software Intelligence — pilota 19 novembre 2026
+
+Capability di ricerca **opt-in e read-only** per identificare file eseguibili locali con impronta SHA-256, senza eseguire REA o decompilatori. Il pilota Deskland è documentato ma il file installer storico non è accessibile in questa sessione. Non è un gate trusted né una Golden: [documentazione](integration/intelligence/REA_REVERSE_INTELLIGENCE_PILOT_2026-11-19.md) · [script](scripts/rea_artifact_intake.py).
+
+
 
 Automatic cross-app checks run source-only without APK builds or emulators.
 The Android Repo Watcher is now an explicit manual opt-in (`run_android=true`).
