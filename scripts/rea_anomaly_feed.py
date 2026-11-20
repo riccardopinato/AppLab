@@ -83,7 +83,9 @@ def from_trusted_apk(repo_root: Path, stack: str) -> dict | None:
         missing, added = sorted(expected - actual), sorted(actual - expected)
         ctx = {
             "repository": os.environ["APPLAB_REA_AUTHORIZED_REPOSITORY"],
-            "source_sha": sha, "authorization": "OWNED",
+            "source_sha": sha,
+            "authorization": ("OWNED" if os.environ.get("APPLAB_REA_OWNERSHIP_ATTESTED") == "true"
+                              else "EXTERNAL_AUTHORIZED"),
             "artifact_path": str(apk), "artifact_sha256": _digest(apk),
             "artifact_kind": "APK", "stack": stack, "source_complete": True,
             "signals": ["PERMISSION_DECLARATION_MISMATCH"] if (missing or added) else [],
