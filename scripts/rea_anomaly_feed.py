@@ -14,7 +14,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-PERMISSION = re.compile(r"uses-permission(?:-sdk-23)?:\\s*name='([^']+)'")
+PERMISSION = re.compile(r"uses-permission(?:-sdk-23)?:\s*name='([^']+)'")
 ANDROID_NAME = "{http://schemas.android.com/apk/res/android}name"
 
 
