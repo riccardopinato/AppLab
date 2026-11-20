@@ -1,4 +1,13 @@
-## Default AppLab Source Gate — 30 October 2026
+## Reverse Engineering & Software Intelligence — REA CLI opzionale
+
+**Selezione autonoma:** [REA Context Router](integration/intelligence/REA_AUTOMATIC_CONTEXT_ROUTING_2026-11-20.md) valuta gap sorgenti/artefatti, permessi, AOT e dipendenze native e restituisce `SKIP / PROPOSE / BLOCKED / AUTO_RUN`. È integrato nel pianificatore audit e nella revisione autonoma; esegue REA **solo** con WorkItem autorizzato, SHA dell'artefatto e runtime CLI già disponibili. Niente scansioni su ogni build, niente MCP e nessuna promozione automatica dei donor.
+
+**Nuovo:** [cinque maxi-step Desktop / Android APK / Flutter AOT / donor / seconda adozione](integration/intelligence/REA_5_MAXISTEP_INTEGRATION_2026-11-19.md) · [prove REA reali su Desktop, Flutter e Omni](integration/intelligence/REA_MULTIPLATFORM_REAL_PROOF_2026-11-19.md) · [runner CLI multi-piattaforma](scripts/rea_cli_research.py) · [verifica manifest desktop](scripts/rea_desktop_manifest_verify.py) · [revisione donor con provenienza](scripts/rea_donor_review.py). Ricerca on-demand, senza MCP, senza scrittura nelle app e senza certificazione automatica.
+
+
+Capability di ricerca **opt-in e read-only**: intake SHA-256 e bridge CLI statico a REA 6.9.0 per ispezionare import PE e certificati. Nessun MCP né installazione automatica. Prova reale su PE sintetico nel workflow dedicato; l'installer storico Deskland non è accessibile in questa sessione. Non è un gate trusted. **Il processo** è ora [Golden CERTIFIED PROCESS limitato (Index v31)](https://github.com/riccardopinato/App-Factory-Core/blob/main/golden/governance/GOLDEN_REA_CLI_REVERSE_INTELLIGENCE_v1.txt), senza certificare il repository esterno come donor o CERTIFIED GOLDEN: [documentazione](integration/intelligence/REA_REVERSE_INTELLIGENCE_PILOT_2026-11-19.md) · [pilota reale Deskland Preview](integration/intelligence/REA_DESKLAND_PREVIEW_BINARY_REPORT_2026-11-19.md) · [intake](scripts/rea_artifact_intake.py) · [REA CLI bridge](scripts/rea_cli_bridge.py).
+
+
 
 Automatic cross-app checks run source-only without APK builds or emulators.
 The Android Repo Watcher is now an explicit manual opt-in (`run_android=true`).

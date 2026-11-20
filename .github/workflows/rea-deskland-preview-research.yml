@@ -1,0 +1,218 @@
+name: REA Deskland official preview binary research (public, static-only)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/rea-deskland-preview-research.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-preview-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Pin and checkout PR source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Node 24 supported by REA
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+      - name: Python 3.12
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - name: Fetch official public preview and verify upstream SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/deskland-public"
+          cd "$RUNNER_TEMP/deskland-public"
+          base="https://github.com/BLEZZ0102/Deskland/releases/download/v0.1.3"
+          file="Deskland-Preview-0.1.3-win-x64-Setup.exe"
+          curl --fail --location --show-error --silent --retry 3 --connect-timeout 20 --max-time 180 "$base/$file" -o "$file"
+          curl --fail --location --show-error --silent --retry 3 --connect-timeout 20 --max-time 60 "$base/$file.sha256" -o "$file.sha256"
+          curl --fail --location --show-error --silent --retry 3 --connect-timeout 20 --max-time 60 "$base/$file.manifest.json" -o release-manifest.json
+          python - "$file.sha256" "$file" <<'PY'
+          import hashlib,sys
+          from pathlib import Path
+          manifest=Path(sys.argv[1]).read_text(encoding="utf-8-sig").strip().splitlines()
+          if len(manifest)!=1:raise SystemExit("Unexpected checksum lines")
+          expected=manifest[0].split()[0].lower()
+          if len(expected)!=64 or any(c not in "0123456789abcdef" for c in expected):
+              raise SystemExit("Malformed published SHA256")
+          path=Path(sys.argv[2])
+          if path.stat().st_size!=28001125:
+              raise SystemExit("Public release size does not match official metadata")
+          observed=hashlib.file_digest(path.open("rb"),"sha256").hexdigest()
+          if observed!=expected:raise SystemExit("Official release SHA256 mismatch")
+          print("OFFICIAL_PUBLIC_PREVIEW_SHA256="+observed)
+          print("OFFICIAL_PUBLIC_PREVIEW_BYTES="+str(path.stat().st_size))
+          PY
+      - name: Install pinned REA CLI in temporary tool directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/rea-tools" --no-save --omit=optional --no-audit --no-fund rea-agents@6.9.0
+          "$RUNNER_TEMP/rea-tools/node_modules/.bin/rea" --version --json > "$RUNNER_TEMP/deskland-public/rea-version.json"
+      - name: Analyze public preview without executing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/rea_cli_bridge.py \
+            --rea-bin "$RUNNER_TEMP/rea-tools/node_modules/.bin/rea" \
+            --artifact "$RUNNER_TEMP/deskland-public/Deskland-Preview-0.1.3-win-x64-Setup.exe" \
+            --output-dir "$RUNNER_TEMP/deskland-public/research-evidence" \
+            --repository BLEZZ0102/Deskland \
+            --source-sha 9818b577402ff476e1b59da07970c56472713126 \
+            --operation imports \
+            --operation certificates \
+            > "$RUNNER_TEMP/deskland-public/rea-receipt.json"
+      - name: Validate and summarize REAL static evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/deskland-public" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          d=json.loads((p/"rea-receipt.json").read_text())
+          assert d["status"]=="REA_CLI_STATIC_OBSERVED",d
+          assert d["mode"]=="CLI_ONLY_NO_MCP",d
+          assert d["artifact"]["bytes"]==28001125,d
+          assert d["artifact"]["container"]=="PE",d
+          assert len(d["operations"])==2 and all(x["rea_success"] for x in d["operations"]),d
+          manifest=json.loads((p/"release-manifest.json").read_text(encoding="utf-8-sig"))
+          summary={"scope":"PUBLIC_PREVIEW_v0.1.3_NOT_HISTORIC_UPLOAD",
+                   "source_url":"https://github.com/BLEZZ0102/Deskland/releases/tag/v0.1.3",
+                   "source_sha":"9818b577402ff476e1b59da07970c56472713126",
+                   "artifact":d["artifact"],
+                   "rea_version":d["engine"]["version"],
+                   "actual_pe_commands":{},
+                   "manifest_file_count":len(manifest) if isinstance(manifest,list) else None,
+                   "execution_of_installer":"NO",
+                   "historic_Deskland_Setup_exe":"NOT_AVAILABLE_NOT_ANALYZED",
+                   "donor_admission":"RESEARCH_ONLY"}
+          for entry in d["operations"]:
+              path=p/"research-evidence"/entry["evidence_file"]
+              raw=path.read_bytes()
+              assert hashlib.sha256(raw).hexdigest()==entry["evidence_sha256"]
+              evidence=json.loads(raw)
+              summary["actual_pe_commands"][entry["operation"]]={
+                   "success":entry["rea_success"],
+                   "result_keys":sorted(evidence.keys()),
+                   "evidence_sha256":entry["evidence_sha256"],
+                   "review":"UNVALIDATED_EXTERNAL_OUTPUT"}
+          (p/"public-preview-summary.json").write_text(json.dumps(summary,indent=2)+"\n")
+          print("REAL_REA_BINARY_STATIC_PASS")
+          print(json.dumps(summary,indent=2))
+          PY
+      - name: Inventory NSIS extraction without executing the installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v 7z >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq p7zip-full
+          fi
+          base="$RUNNER_TEMP/deskland-public"
+          installer="$base/Deskland-Preview-0.1.3-win-x64-Setup.exe"
+          mkdir -p "$base/nsis-files"
+          7z l -slt "$installer" > "$base/7z-list.txt"
+          7z x -y "-o$base/nsis-files" "$installer" > "$base/7z-extract.log"
+          python - "$base" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          base=Path(sys.argv[1])
+          root=base/"nsis-files"
+          manifest=json.loads((base/"release-manifest.json").read_text(encoding="utf-8-sig"))
+          expected={r["path"].replace("\\","/").casefold():r["sha256"].lower() for r in manifest}
+          files=[p for p in root.rglob("*") if p.is_file() and not p.is_symlink()]
+          if any(not p.resolve().is_relative_to(root.resolve()) for p in files):
+              raise SystemExit("Archive path traversal detected")
+          total=sum(p.stat().st_size for p in files)
+          if total>512*1024*1024:raise SystemExit("Unexpected inflated archive size")
+          inventory=[]
+          for file in files:
+              rel=file.relative_to(root).as_posix()
+              digest=hashlib.file_digest(file.open("rb"),"sha256").hexdigest()
+              matches=[key for key in expected if rel.casefold()==key or rel.casefold().endswith("/"+key)]
+              inventory.append({"path":rel,"bytes":file.stat().st_size,
+                                "sha256":digest,"manifest_match":matches,
+                                "matches_published_checksum":bool(matches and any(expected[key]==digest for key in matches))})
+          result={"source":"OFFICIAL_PUBLIC_PREVIEW_ONLY","file_count":len(files),
+                  "total_extracted_bytes":total,"published_manifest_entries":len(manifest),
+                  "checksum_matches":sum(x["matches_published_checksum"] for x in inventory),
+                  "host_candidates":[x for x in inventory if x["path"].lower().endswith("/deskland.exe")],
+                  "files":inventory,
+                  "status":"UNPACKED_WITHOUT_EXECUTION_NOT_RUNTIME_VERIFIED"}
+          (base/"nsis-inventory.json").write_text(json.dumps(result,indent=2)+"\n")
+          print("NSIS_STATIC_EXTRACT_PASS")
+          print(json.dumps({k:v for k,v in result.items() if k!="files"},indent=2))
+          PY
+      - name: Inspect extracted Deskland .NET host with REA CLI (static only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$RUNNER_TEMP/deskland-public"
+          host="$base/nsis-files/host/bin/Deskland.exe"
+          test -f "$host"
+          python scripts/rea_cli_bridge.py \
+            --rea-bin "$RUNNER_TEMP/rea-tools/node_modules/.bin/rea" \
+            --artifact "$host" \
+            --output-dir "$base/host-pe-evidence" \
+            --repository BLEZZ0102/Deskland \
+            --source-sha 9818b577402ff476e1b59da07970c56472713126 \
+            --operation imports \
+            --operation certificates \
+            > "$base/host-pe-receipt.json"
+          if "$RUNNER_TEMP/rea-tools/node_modules/.bin/rea" inspect-managed-artifact "$host" --json > "$base/host-managed-artifact.json"; then
+            echo "HOST_MANAGED_ARTIFACT_ANALYSIS_PASS"
+          else
+            rm -f "$base/host-managed-artifact.json"
+            echo "HOST_MANAGED_ARTIFACT_ANALYSIS_NOT_VERIFIED"
+          fi
+          python - "$base" <<'PY'
+          import json,sys
+          from pathlib import Path
+          base=Path(sys.argv[1])
+          d=json.loads((base/"host-pe-receipt.json").read_text())
+          assert d["status"]=="REA_CLI_STATIC_OBSERVED",d
+          assert d["artifact"]["sha256"]=="5337c513e8c14dc492900d315cd57e287e9dfb4ba750ccf96c2fb668fa4ea530"
+          summary={"host_artifact_sha256":d["artifact"]["sha256"],
+                   "host_bytes":d["artifact"]["bytes"],
+                   "rea_pe_commands":{x["operation"]:{"success":x["rea_success"],
+                     "evidence_sha256":x["evidence_sha256"]} for x in d["operations"]},
+                   "managed_artifact_status":"NOT_VERIFIED"}
+          p=base/"host-managed-artifact.json"
+          if p.is_file():
+              m=json.loads(p.read_text())
+              summary["managed_artifact_status"]="CLI_OK_EXTERNAL_EVIDENCE"
+              summary["managed_result_keys"]=sorted(m.get("normalized_result",{}).keys()) if isinstance(m.get("normalized_result"),dict) else []
+          (base/"host-summary.json").write_text(json.dumps(summary,indent=2)+"\n")
+          print("HOST_REAL_STATIC_PE_PASS")
+          print(json.dumps(summary,indent=2))
+          PY
+      - name: Publish public metadata and REA results only
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: deskland-preview-v0-1-3-rea-research
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/deskland-public/rea-version.json
+            ${{ runner.temp }}/deskland-public/rea-receipt.json
+            ${{ runner.temp }}/deskland-public/public-preview-summary.json
+            ${{ runner.temp }}/deskland-public/release-manifest.json
+            ${{ runner.temp }}/deskland-public/nsis-inventory.json
+            ${{ runner.temp }}/deskland-public/host-summary.json
+            ${{ runner.temp }}/deskland-public/host-pe-receipt.json
+            ${{ runner.temp }}/deskland-public/host-managed-artifact.json
+            ${{ runner.temp }}/deskland-public/host-pe-evidence/*.json
+            ${{ runner.temp }}/deskland-public/research-evidence/*.json
