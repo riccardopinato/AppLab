@@ -5,6 +5,7 @@ import argparse
 import json
 import tempfile
 import rea_auto_router
+import rea_anomaly_feed
 from pathlib import Path
 from typing import Any
 
@@ -254,6 +255,7 @@ def main() -> int:
     parser.add_argument("--app-intelligence")
     parser.add_argument("--market-evidence")
     parser.add_argument("--rea-context", help="Bounded work-item artifact/source metadata JSON")
+    parser.add_argument("--repo-root", help="Optional exact source checkout for trusted APK anomaly discovery")
     parser.add_argument("--rea-auto-execute", action="store_true",
                         help="Execute only if owned exact-artifact policy returns AUTO_RUN")
     parser.add_argument("--output-dir", default="applab-audit-plan")
@@ -272,8 +274,13 @@ def main() -> int:
         load_json(Path(args.market_evidence))
 
     context = load_json(Path(args.rea_context)) if args.rea_context else None
+    discovered = False
+    if context is None and args.repo_root:
+        context = rea_anomaly_feed.from_trusted_apk(
+            Path(args.repo_root), str(((app.get('product') or {}).get('stack') or {}).get('engine', 'unknown')))
+        discovered = context is not None
     report = build_plan(app, has_market_evidence=market_supplied, rea_context=context)
-    if args.rea_auto_execute and context is not None:
+    if (args.rea_auto_execute or discovered) and context is not None:
         report["rea_research"] = rea_auto_router.execute(context, report["rea_research"])
     write(report, Path(args.output_dir))
     print(json.dumps({
