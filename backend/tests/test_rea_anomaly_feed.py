@@ -51,6 +51,7 @@ def apk_build(tmp_path, monkeypatch):
         "APPLAB_REA_PRIVATE_OUTPUT_ROOT": str(tmp_path / "private"),
         "APPLAB_REA_MERGED_MANIFEST": str(manifest),
         "APPLAB_REA_TRUSTED_AAPT_BIN": str(aapt),
+        "APPLAB_REA_OWNERSHIP_ATTESTED": "true",
     }
     for k, v in env.items():
         monkeypatch.setenv(k, v)
@@ -90,6 +91,16 @@ def test_missing_or_stale_runner_attestation_cannot_invent_signal(apk_build, mon
     manifest.unlink()
     manifest.symlink_to(apk_build[1])
     assert feed.from_trusted_apk(root, "flutter") is None
+
+
+def test_unattested_ownership_cannot_start_rea(apk_build, monkeypatch):
+    root, _, _, _, _ = apk_build
+    monkeypatch.delenv("APPLAB_REA_OWNERSHIP_ATTESTED")
+    context = feed.from_trusted_apk(root, "flutter")
+    assert context["authorization"] == "EXTERNAL_AUTHORIZED"
+    plan = router.decide(context)
+    assert plan["status"] == "PROPOSE"
+    assert "EXTERNAL_SOURCE_REQUIRES_EXPLICIT_REVIEW" in plan["reason_codes"]
 
 
 def test_non_android_and_bad_aapt_output_does_not_trigger(apk_build):
