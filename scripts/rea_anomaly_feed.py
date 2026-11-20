@@ -38,7 +38,7 @@ def from_trusted_apk(repo_root: Path, stack: str) -> dict | None:
     """
     names = (
         "APPLAB_REA_AUTHORIZED_ARTIFACT", "APPLAB_REA_AUTHORIZED_REPOSITORY",
-        "APPLAB_REA_AUTHORIZED_SOURCE_SHA", "APPLAB_REA_TRUSTED_BIN",
+        "APPLAB_REA_AUTHORIZED_SOURCE_SHA",
         "APPLAB_REA_PRIVATE_OUTPUT_ROOT", "APPLAB_REA_MERGED_MANIFEST",
         "APPLAB_REA_TRUSTED_AAPT_BIN",
     )
@@ -57,7 +57,14 @@ def from_trusted_apk(repo_root: Path, stack: str) -> dict | None:
         if apk.suffix.lower() != ".apk" or manifest.stat().st_size > 262144:
             return None
         if not manifest.resolve().is_relative_to(root):
-            return None
+            # A build-runner snapshot survives git clean only when a trusted
+            # producer has bound the exact private file and its hash.
+            digest = os.environ.get("APPLAB_REA_MERGED_MANIFEST_SHA256", "")
+            snapshot = os.environ.get("APPLAB_REA_PRESERVED_MANIFEST", "")
+            if (not re.fullmatch(r"[0-9a-fA-F]{64}", digest) or
+                    not snapshot or Path(snapshot).resolve() != manifest.resolve() or
+                    _digest(manifest) != digest.lower()):
+                return None
         checked = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "HEAD"],
             capture_output=True, text=True, check=False, timeout=10,
@@ -89,7 +96,7 @@ def from_trusted_apk(repo_root: Path, stack: str) -> dict | None:
             "artifact_path": str(apk), "artifact_sha256": _digest(apk),
             "artifact_kind": "APK", "stack": stack, "source_complete": True,
             "signals": ["PERMISSION_DECLARATION_MISMATCH"] if (missing or added) else [],
-            "rea_bin": os.environ["APPLAB_REA_TRUSTED_BIN"],
+            "rea_bin": os.environ.get("APPLAB_REA_TRUSTED_BIN", ""),
             "output_dir": os.environ["APPLAB_REA_PRIVATE_OUTPUT_ROOT"],
         }
         if os.environ.get("APPLAB_REA_TRUSTED_ENTRY"):

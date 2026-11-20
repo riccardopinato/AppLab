@@ -1,8 +1,10 @@
 """Native REA anomaly feed: deterministic real artifact signals, no text guessing."""
 from __future__ import annotations
 
+import argparse
 import hashlib
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -13,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 import rea_anomaly_feed as feed  # noqa: E402
 import rea_auto_router as router  # noqa: E402
+import rea_build_probe as probe  # noqa: E402
 
 
 @pytest.fixture
@@ -23,7 +26,7 @@ def apk_build(tmp_path, monkeypatch):
     subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
     subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
     (root / "pubspec.yaml").write_text("name: fixture\n")
-    manifest = root / "build" / "merged" / "AndroidManifest.xml"
+    manifest = root / "build" / "intermediates" / "merged_manifests" / "debug" / "processDebugManifest" / "AndroidManifest.xml"
     manifest.parent.mkdir(parents=True)
     manifest.write_text(
         '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
@@ -119,3 +122,88 @@ def test_derived_signal_does_not_replace_mandatory_labs(apk_build):
     routed = build_plan(report, rea_context=feed.from_trusted_apk(root, "flutter"))
     assert routed["rea_research"]["status"] == "PROPOSE"
     assert routed["selected_labs"] == basic["selected_labs"]
+
+
+def test_build_runner_discovers_real_anomaly_without_manual_rea_json(apk_build, monkeypatch):
+    root, _, manifest, aapt, _ = apk_build
+    monkeypatch.setattr(probe.package_build_contract, "android_build_tool", lambda _: str(aapt))
+    assert probe.merged_manifest(root, root) == manifest
+    monkeypatch.delenv("APPLAB_REA_TRUSTED_BIN")
+    args = argparse.Namespace(source_root=root, working_directory=".", stack="flutter",
+                              execute_eligible=False)
+    plan, gap, owned = probe.build(args)
+    assert gap is True and owned is True
+    assert plan["status"] == "PROPOSE"
+    assert plan["signals"] == ["PERMISSION_DECLARATION_MISMATCH"]
+    assert "REA_ENVIRONMENT_NOT_READY" in plan["reason_codes"]
+
+
+def test_build_runner_skips_ambiguous_manifests(apk_build, monkeypatch):
+    root, _, manifest, aapt, _ = apk_build
+    other = manifest.parent.parent / "processOtherManifest" / "AndroidManifest.xml"
+    other.parent.mkdir()
+    other.write_text(manifest.read_text())
+    monkeypatch.setattr(probe.package_build_contract, "android_build_tool", lambda _: str(aapt))
+    assert probe.merged_manifest(root, root) is None
+    args = argparse.Namespace(source_root=root, working_directory=".", stack="native_android",
+                              execute_eligible=False)
+    plan, gap, owned = probe.build(args)
+    assert plan["status"] == "SKIP" and not gap and not owned
+
+
+
+def test_manifest_snapshot_survives_clean_and_remains_hash_bound(apk_build, tmp_path, monkeypatch):
+    root, _, manifest, aapt, _ = apk_build
+    snapshot = tmp_path / "rea-preserved-manifest.xml"
+    outputs = tmp_path / "github-output"
+    args = argparse.Namespace(source_root=root, working_directory=".", stack="flutter",
+                              output=snapshot, github_output=outputs, execute_eligible=False)
+    probe.capture(args)
+    assert snapshot.is_file()
+    assert f"manifest_file={snapshot}\n" in outputs.read_text()
+    digest = hashlib.sha256(snapshot.read_bytes()).hexdigest()
+    assert f"manifest_sha256={digest}\n" in outputs.read_text()
+    # The repository checkout is restored after build and loses ignored/untracked files.
+    manifest.unlink()
+    monkeypatch.setenv("APPLAB_REA_PRESERVED_MANIFEST", str(snapshot))
+    monkeypatch.setenv("APPLAB_REA_PRESERVED_MANIFEST_SHA256", digest)
+    monkeypatch.setattr(probe.package_build_contract, "android_build_tool", lambda _: str(aapt))
+    decision, gap, owned = probe.build(args)
+    assert gap is True and owned is True
+    assert decision["signals"] == ["PERMISSION_DECLARATION_MISMATCH"]
+    assert decision["status"] == "PROPOSE"
+    snapshot.write_text(snapshot.read_text().replace("CAMERA", "BLUETOOTH"))
+    decision, gap, owned = probe.build(args)
+    assert decision["status"] == "SKIP" and not gap
+
+
+def test_custom_android_module_is_discovered(apk_build):
+    root, _, manifest, _, _ = apk_build
+    mobile = root / "mobile" / "build" / "intermediates" / "merged_manifests" / "debug" / "processDebugManifest"
+    mobile.mkdir(parents=True)
+    custom = mobile / "AndroidManifest.xml"
+    shutil.move(str(manifest), str(custom))
+    assert probe.merged_manifest(root, root) == custom
+
+
+def test_build_runners_bind_ownership_and_keep_rea_research_only():
+    for name in ("external-project-runner.yml", "external-native-android-runner.yml"):
+        source = (ROOT / ".github" / "workflows" / name).read_text()
+        assert len(source.splitlines()) <= 900
+        assert "Preserve merged manifest for optional REA research" in source
+        assert "Execute optional REA research on source-bound APK anomalies" in source
+        assert source.count("uses: ./.applab/.github/actions/rea-auto-research") == 2
+        assert "phase: capture" in source and "phase: research" in source
+        assert "ownership_attested:" in source
+        assert "steps.rea_merged.outputs.manifest_sha256" in source
+        assert "continue-on-error: true" in source
+
+    action = (ROOT / ".github" / "actions" / "rea-auto-research" / "action.yml").read_text()
+    assert "steps.capture.outputs.manifest_sha256" in action
+    assert "APPLAB_REA_PRESERVED_MANIFEST_SHA256" in action
+    assert "steps.preflight.outputs.binary_gap == 'true'" in action
+    assert "steps.node.outcome == 'success'" in action
+    assert "rea-agents@6.9.0" in action
+    assert "sha256sum --check --status" in action
+    assert "--execute-eligible" in action
+    assert action.count("continue-on-error: true") >= 3

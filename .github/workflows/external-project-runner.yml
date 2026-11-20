@@ -248,19 +248,15 @@ on:
         required: false
         default: ""
         type: string
-
     secrets:
       APPLAB_TARGET_TOKEN:
         required: false
-
 permissions:
   contents: read
   actions: read
-
 concurrency:
   group: applab-external-${{ inputs.repository }}-${{ inputs.ref }}
   cancel-in-progress: true
-
 jobs:
   build:
     name: Build ${{ inputs.repository }}@${{ inputs.ref }}
@@ -275,7 +271,6 @@ jobs:
       run_runtime: ${{ steps.impact.outputs.run_runtime }}
       run_build: ${{ steps.impact.outputs.run_build }}
       contract_fingerprint: ${{ steps.adaptive_contract.outputs.fingerprint }}
-
     steps:
       - name: Validate target coordinates
         shell: bash
@@ -290,14 +285,12 @@ jobs:
           import os
           import re
           from pathlib import PurePosixPath
-
           repo = os.environ["TARGET_REPOSITORY"].strip()
           ref = os.environ["TARGET_REF"].strip()
           if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
               raise SystemExit(f"Invalid repository: {repo!r}")
           if not ref or any(ch in ref for ch in "\r\n"):
               raise SystemExit("Invalid ref")
-
           for key in ("TARGET_WORKDIR", "TARGET_APK_PATH", "TARGET_MAESTRO_FLOW"):
               raw = os.environ.get(key, "").strip()
               if not raw:
@@ -306,7 +299,6 @@ jobs:
               if path.is_absolute() or ".." in path.parts:
                   raise SystemExit(f"{key} must be a safe repository-relative path: {raw!r}")
           PY
-
       - name: Checkout AppLab
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -314,7 +306,6 @@ jobs:
           ref: ${{ job.workflow_sha }}
           path: .applab
           persist-credentials: false
-
       - name: Checkout target project
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -324,7 +315,6 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
           token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
-
       - name: Fetch change baseline commit
         if: inputs.baseline_sha != ''
         shell: bash
@@ -346,7 +336,6 @@ jobs:
               authenticated_fetch --no-tags --deepen="$DEEPEN" origin || true
             done
           fi
-
       - name: Restore central history for adaptive risk
         if: inputs.analysis_mode == 'fast'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -355,7 +344,6 @@ jobs:
           key: applab-watch-history-fast-${{ github.run_id }}-${{ inputs.history_key }}
           restore-keys: |
             applab-watch-history-
-
       - name: Restore prior graph planner feedback
         if: inputs.analysis_mode == 'fast' && inputs.baseline_sha != ''
         shell: bash
@@ -369,7 +357,6 @@ jobs:
             "${{ inputs.baseline_sha }}" \
             "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}" \
             "$RUNNER_TEMP/applab-planner-feedback.json"
-
       - name: Plan adaptive verification
         id: impact
         shell: bash
@@ -387,7 +374,6 @@ jobs:
             --planner-feedback "$RUNNER_TEMP/applab-planner-feedback.json" \
             --output "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" \
             --github-output "$GITHUB_OUTPUT"
-
       - name: Resolve current adaptive contract fingerprint
         id: adaptive_contract
         shell: bash
@@ -399,7 +385,6 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
           PLAN_SHA256="$(sha256sum "$GITHUB_WORKSPACE/applab-analysis-plan/analysis-plan.json" | awk '{print $1}')"
           echo "analysis_plan_sha256=$PLAN_SHA256" >> "$GITHUB_OUTPUT"
-
       - name: Prepare evidence directory
         id: target
         shell: bash
@@ -414,21 +399,18 @@ jobs:
             echo "working_directory=${{ inputs.working_directory }}"
             echo "apk_path=${{ inputs.apk_path }}"
           } | tee "$GITHUB_WORKSPACE/applab-report/project.txt"
-
       - name: Validate Flutter project
         shell: bash
         run: |
           PROJECT_DIR="$GITHUB_WORKSPACE/target/${{ inputs.working_directory }}"
           test -d "$PROJECT_DIR"
           test -f "$PROJECT_DIR/pubspec.yaml"
-
       - name: Setup Java for execution identity
         if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
           distribution: temurin
           java-version: ${{ inputs.java_version }}
-
       - name: Resolve Java runtime identity
         id: java_identity
         if: steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true'
@@ -439,7 +421,6 @@ jobs:
           test -n "$JAVA_VERSION"
           echo "version=$JAVA_VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved Temurin Java runtime: $JAVA_VERSION"
-
       - name: Resolve build reuse eligibility
         id: reuse_eligibility
         if: steps.impact.outputs.run_build == 'true'
@@ -459,7 +440,6 @@ jobs:
             --trusted-root "$GITHUB_WORKSPACE/.applab" \
             --output "$GITHUB_WORKSPACE/applab-report/build-reuse-eligibility.json" \
             --github-output "$GITHUB_OUTPUT"
-
       - name: Plan accelerated execution
         id: accel
         shell: bash
@@ -493,7 +473,6 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
           cp "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
              "$GITHUB_WORKSPACE/applab-report/execution-plan.json"
-
       - name: Restore content-addressed build contract
         id: build_reuse
         if: steps.impact.outputs.run_build == 'true' && steps.reuse_eligibility.outputs.eligible == 'true'
@@ -513,7 +492,6 @@ jobs:
             --expected-applab-sha "${{ job.workflow_sha }}" \
             --report-dir "$GITHUB_WORKSPACE/applab-report" \
             --github-output "$GITHUB_OUTPUT"
-
       - name: Record execution acceleration outcome
         shell: bash
         env:
@@ -528,7 +506,6 @@ jobs:
           import os
           import sys
           from pathlib import Path
-
           path = Path(sys.argv[1])
           payload = json.loads(path.read_text(encoding="utf-8"))
           applicable = os.environ.get("BUILD_CACHE_APPLICABLE", "false").lower() == "true"
@@ -549,14 +526,12 @@ jobs:
             cp "$GITHUB_WORKSPACE/applab-acceleration/execution-plan.json" \
                "$GITHUB_WORKSPACE/applab-build-contract/execution-plan.json"
           fi
-
       - name: Setup Flutter channel
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true' && inputs.flutter_version == ''
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: ${{ inputs.flutter_channel }}
           cache: true
-
       - name: Setup exact Flutter version
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true' && inputs.flutter_version != ''
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
@@ -564,7 +539,6 @@ jobs:
           flutter-version: ${{ inputs.flutter_version }}
           channel: stable
           cache: true
-
       - name: Target preparation
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true' && inputs.prepare_command != ''
         working-directory: target/${{ inputs.working_directory }}
@@ -572,7 +546,6 @@ jobs:
         env:
           APPLAB_PREPARE_COMMAND: ${{ inputs.prepare_command }}
         run: bash -Eeuo pipefail -c "$APPLAB_PREPARE_COMMAND"
-
       - name: Require Android scaffold
         if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
         shell: bash
@@ -583,7 +556,6 @@ jobs:
             echo "Use prepare_command for repositories that generate platform scaffolding." >&2
             exit 1
           fi
-
       - name: Resolve dependencies
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
         working-directory: target/${{ inputs.working_directory }}
@@ -595,7 +567,6 @@ jobs:
           else
             flutter pub get
           fi
-
       - name: Post dependency preparation
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true' && inputs.post_pub_get_command != ''
         working-directory: target/${{ inputs.working_directory }}
@@ -603,11 +574,9 @@ jobs:
         env:
           APPLAB_POST_PUB_GET_COMMAND: ${{ inputs.post_pub_get_command }}
         run: bash -Eeuo pipefail -c "$APPLAB_POST_PUB_GET_COMMAND"
-
       - name: Setup Gradle build cache for Flutter
         if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
-
       - name: Adaptive Flutter checks and build
         id: quality
         if: (steps.impact.outputs.run_static == 'true' || steps.impact.outputs.run_build == 'true') && steps.build_reuse.outputs.hit != 'true'
@@ -622,7 +591,6 @@ jobs:
             --report-dir "$GITHUB_WORKSPACE/applab-report" \
             --build-command "${{ inputs.build_command }}" \
             --github-output "$GITHUB_OUTPUT"
-
       - name: Resolve APK
         if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
         id: apk
@@ -640,7 +608,6 @@ jobs:
           echo "candidate_file=$CANDIDATE_APK" >> "$GITHUB_OUTPUT"
           ls -lh "$APK_FILE" | tee "$GITHUB_WORKSPACE/applab-report/apk.txt"
 
-
       - name: Restore trusted AppLab contract packager
         if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
         shell: bash
@@ -651,6 +618,17 @@ jobs:
           git -C "$GITHUB_WORKSPACE/.applab" reset --hard "$APPLAB_TRUSTED_SHA"
           git -C "$GITHUB_WORKSPACE/.applab" clean -ffd
           test "$(git -C "$GITHUB_WORKSPACE/.applab" rev-parse HEAD)" = "$APPLAB_TRUSTED_SHA"
+
+      - name: Preserve merged manifest for optional REA research
+        id: rea_merged
+        if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
+        continue-on-error: true
+        uses: ./.applab/.github/actions/rea-auto-research
+        with:
+          phase: capture
+          source_root: ${{ github.workspace }}/target
+          working_directory: ${{ inputs.working_directory }}
+          stack: flutter
 
       - name: Restore target source before trusted packaging
         if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
@@ -737,6 +715,23 @@ jobs:
           test "$REGENERATED_ARTIFACT_NAME" = "${{ steps.accel.outputs.artifact_name }}"
           cp "$GITHUB_WORKSPACE/applab-build-contract/execution-plan.json" \
              "$GITHUB_WORKSPACE/applab-report/execution-plan.json"
+
+
+      - name: Execute optional REA research on source-bound APK anomalies
+        if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
+        continue-on-error: true
+        uses: ./.applab/.github/actions/rea-auto-research
+        with:
+          phase: research
+          source_root: ${{ github.workspace }}/target
+          working_directory: ${{ inputs.working_directory }}
+          stack: flutter
+          repository: ${{ inputs.repository }}
+          source_sha: ${{ steps.target.outputs.resolved_sha }}
+          artifact_path: ${{ steps.trusted_target.outputs.apk_file }}
+          ownership_attested: ${{ startsWith(inputs.repository, format('{0}/', github.repository_owner)) }}
+          manifest_file: ${{ steps.rea_merged.outputs.manifest_file }}
+          manifest_sha256: ${{ steps.rea_merged.outputs.manifest_sha256 }}
 
       - name: Upload isolated APK contract
         if: steps.impact.outputs.run_build == 'true'
