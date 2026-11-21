@@ -3,17 +3,17 @@
   "sources": [
     {
       "branch": "main",
-      "commit_date": "2026-11-19T23:20:40Z",
+      "commit_date": "2026-11-21T03:54:35Z",
       "purpose": "Master, Golden e policy",
       "repository": "riccardopinato/App-Factory-Core",
-      "sha": "4df94ac3b3ea22a2323634fe83c3c7770fe3b835"
+      "sha": "9391419c6b7c9c23c2f978262fe8fe6670c68160"
     },
     {
       "branch": "main",
-      "commit_date": "2026-11-19T22:57:08Z",
+      "commit_date": "2026-11-21T10:29:36Z",
       "purpose": "Idee, capability e donor",
       "repository": "riccardopinato/Idee-app-Archivi-riferimenti",
-      "sha": "2b3f83a3cbf2b2b6911fadddf2962c0c3ab213f6"
+      "sha": "5cc0cedc042379f19cde7b39dfd463d8354875dd"
     }
   ]
 }
