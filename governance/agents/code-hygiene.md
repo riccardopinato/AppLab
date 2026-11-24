@@ -7,3 +7,10 @@ Do not delete migrations, evidence history, compatibility or fallback without
 an explicit proof of safety. When a module reaches its registered growth ceiling,
 extract a bounded helper instead of raising the budget by default. Re-run
 appropriate validation after cleanup.
+
+## Lean review (advisory pilot)
+
+Use `scripts/lean_pr_report.py` and `docs/LEAN_ENGINEERING_ADVISORY.md` for
+diff-only evidence when running an approved Lean pilot. Reuse is a documented
+decision, **not** a metric that can be inferred from lines of code. Neither
+a small diff nor a touched test implies PASS. Keep all existing trusted gates.
