@@ -89,6 +89,7 @@ class SpecLiteEvidenceAdapterTests(unittest.TestCase):
         return project_spec_evidence(
             self.spec, self.bind, self.item, receipts if receipts is not None else [],
             expected_factory_sha=FACTORY, expected_source_sha=SHA,
+            expected_job_sha256="d" * 64,
             trusted_evidence_verifier=trusted_evidence_verifier,
             trusted_product_decision=trusted_product_decision,
         )
@@ -178,6 +179,28 @@ class SpecLiteEvidenceAdapterTests(unittest.TestCase):
         result = self.evaluate(full, lambda rec, item: True, lambda spec: True)
         self.assertEqual(result["state"], "SOURCE_EVIDENCE_LINKED_NOT_CERTIFIED")
         self.assertFalse(result["certified"])
+
+    def test_unmapped_extra_required_check_denied_even_with_other_receipts(self):
+        self.spec["validation"]["required_checks"].append("DEVICE_TEST")
+        self.bind["spec_sha256"] = hashlib.sha256(json.dumps(
+            self.spec, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        ).encode()).hexdigest()
+        full = [
+            receipt(self.item),
+            receipt(self.item, ac="AC-002", kind="INTEGRATION_TEST", evidence_id="ev_test_02"),
+        ]
+        self.assertDeny("REQUIRED_CHECK_UNMAPPED:DEVICE_TEST",
+                        lambda: self.evaluate(full, lambda rec, item: True))
+
+    def test_changed_job_digest_refused_even_when_same_valid_hex_format(self):
+        self.bind["job_sha256"] = "e" * 64
+        self.assertDeny("BINDING_JOB_DIGEST_MISMATCH", self.evaluate)
+
+    def test_no_trusted_job_digest_fail_closed(self):
+        self.assertDeny("TRUSTED_JOB_DIGEST_REQUIRED", lambda: project_spec_evidence(
+            self.spec, self.bind, self.item, [],
+            expected_factory_sha=FACTORY, expected_source_sha=SHA, expected_job_sha256="",
+        ))
 
     def test_false_binding_runtime_claim_denied(self):
         self.bind["runtime_verified"] = True
