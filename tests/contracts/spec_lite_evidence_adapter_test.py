@@ -86,15 +86,29 @@ class SpecLiteEvidenceAdapterTests(unittest.TestCase):
         # A TEST FAKE representing a fingerprint independently stored with job admission.
         # This is deliberately not auto-recomputed if an untrusted spec mutates.
         self.persisted_spec_sha256 = self.bind["spec_sha256"]
+        self.persisted_work_item_id = self.item["work_item_id"]
+        self.persisted_operation_id = self.item["operation_id"]
+        self.persisted_applab_sha = APPLAB
 
     def evaluate(self, receipts=None, trusted_evidence_verifier=None,
-                 trusted_product_decision=None, expected_spec_sha256=None):
+                 trusted_product_decision=None, expected_spec_sha256=None,
+                 expected_work_item_id=None, expected_operation_id=None,
+                 expected_applab_sha=None):
         return project_spec_evidence(
             self.spec, self.bind, self.item, receipts if receipts is not None else [],
             expected_factory_sha=FACTORY, expected_source_sha=SHA,
             expected_job_sha256="d" * 64,
             expected_spec_sha256=(
                 self.persisted_spec_sha256 if expected_spec_sha256 is None else expected_spec_sha256
+            ),
+            expected_work_item_id=(
+                self.persisted_work_item_id if expected_work_item_id is None else expected_work_item_id
+            ),
+            expected_operation_id=(
+                self.persisted_operation_id if expected_operation_id is None else expected_operation_id
+            ),
+            expected_applab_sha=(
+                self.persisted_applab_sha if expected_applab_sha is None else expected_applab_sha
             ),
             trusted_evidence_verifier=trusted_evidence_verifier,
             trusted_product_decision=trusted_product_decision,
@@ -212,6 +226,9 @@ class SpecLiteEvidenceAdapterTests(unittest.TestCase):
             self.spec, self.bind, self.item, [],
             expected_factory_sha=FACTORY, expected_source_sha=SHA, expected_job_sha256="",
             expected_spec_sha256=self.persisted_spec_sha256,
+            expected_work_item_id=self.persisted_work_item_id,
+            expected_operation_id=self.persisted_operation_id,
+            expected_applab_sha=self.persisted_applab_sha,
         ))
 
     def test_coordination_attack_cannot_strip_ac_or_required_check(self):
@@ -234,6 +251,26 @@ class SpecLiteEvidenceAdapterTests(unittest.TestCase):
     def test_binding_spec_hash_changed_rejected(self):
         self.bind["spec_sha256"] = "e" * 64
         self.assertDeny("BINDING_SPEC_DIGEST_MISMATCH", self.evaluate)
+
+    def test_coordinated_other_workitem_substitution_rejected(self):
+        # Same target repo+source, changed both WorkItem and binding to new IDs:
+        # only an independently trusted durable admission binds the real IDs.
+        alternate = copy.deepcopy(self.item)
+        alternate["work_item_id"] = "wrk_alternative_step4"
+        alternate["operation_id"] = "op_alternative_step4"
+        self.item = alternate
+        self.bind["work_item_id"] = alternate["work_item_id"]
+        self.bind["operation_id"] = alternate["operation_id"]
+        self.assertDeny("WORKITEM_TRUSTED_OPERATION_MISMATCH",
+                        lambda: self.evaluate([receipt(self.item)], lambda rec, item: True))
+
+    def test_missing_trusted_operation_identity_denied(self):
+        self.assertDeny("TRUSTED_WORKITEM_OPERATION_IDS_REQUIRED",
+                        lambda: self.evaluate(expected_work_item_id=""))
+
+    def test_mismatched_trusted_applab_sha_denied(self):
+        self.item["applab_sha"] = "f" * 40
+        self.assertDeny("APPLAB_SOURCE_SHA_MISMATCH", self.evaluate)
 
     def test_false_binding_runtime_claim_denied(self):
         self.bind["runtime_verified"] = True
