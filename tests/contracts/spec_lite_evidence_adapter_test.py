@@ -211,6 +211,7 @@ class SpecLiteEvidenceAdapterTests(unittest.TestCase):
         self.assertDeny("TRUSTED_JOB_DIGEST_REQUIRED", lambda: project_spec_evidence(
             self.spec, self.bind, self.item, [],
             expected_factory_sha=FACTORY, expected_source_sha=SHA, expected_job_sha256="",
+            expected_spec_sha256=self.persisted_spec_sha256,
         ))
 
     def test_coordination_attack_cannot_strip_ac_or_required_check(self):
