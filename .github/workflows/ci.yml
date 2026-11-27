@@ -425,6 +425,7 @@ jobs:
           python tests/contracts/durable_store_v54b_test.py
           python tests/contracts/agent_work_graph_v60a_test.py
           python tests/contracts/spec_lite_evidence_adapter_test.py
+          python tests/contracts/spec_lite_evidence_adapter_test.py
           python tests/contracts/causal_repo_investigator_v60b_test.py
           python tests/contracts/bounded_fix_worker_v60c_test.py
           python tests/contracts/verify_repair_loop_v60d_test.py
