@@ -39,11 +39,14 @@ def project_spec_evidence(
     *,
     expected_factory_sha: str,
     expected_source_sha: str,
+    expected_job_sha256: str,
     trusted_evidence_verifier: Callable[[dict[str, Any], dict[str, Any]], bool] | None = None,
     trusted_product_decision: Callable[[dict[str, Any]], bool] | None = None,
 ) -> dict[str, Any]:
     """Project criterion coverage only after AppLab WorkGraph and source checks.
 
+    expected_job_sha256 MUST be resolved from a trusted durable Agent Core/
+    AppLab job binding; never read it from the supplied Spec Lite projection.
     A verifier callback MUST delegate to an independent AppLab-authorized,
     immutable-evidence verifier, never to a user-provided boolean/LLM claim.
     Passing unit fake callbacks is only fixture proof, not real validation.
@@ -58,6 +61,10 @@ def project_spec_evidence(
         or manifest.get("canonical_refs", {}).get("factory_current", {}).get("sha") != expected_factory_sha
         or manifest.get("target", {}).get("source_sha") != expected_source_sha):
         raise SpecEvidenceError("FACTORY_OR_SOURCE_SHA_DRIFT")
+    if not isinstance(expected_job_sha256, str) or not HEX64.fullmatch(expected_job_sha256):
+        raise SpecEvidenceError("TRUSTED_JOB_DIGEST_REQUIRED")
+    if binding.get("job_sha256") != expected_job_sha256:
+        raise SpecEvidenceError("BINDING_JOB_DIGEST_MISMATCH")
     if (binding.get("schema_version") != 1
         or binding.get("record_type") != "FSL_WORK_ITEM_TRACE_PROJECTION"
         or binding.get("authority") != "TRACE_ONLY"
@@ -110,6 +117,11 @@ def project_spec_evidence(
                 raise SpecEvidenceError("REQUIRED_TEST_NOT_DECLARED")
             expected.append({"requirement_id": req["id"], "acceptance_id": ac["id"],
                              "required_check": ac["evidence_type"]})
+    unused_required_checks = set(checks) - {item["required_check"] for item in expected}
+    if unused_required_checks:
+        # A required check with no acceptance mapping cannot be evidenced.
+        # Reject the inconsistent manifest rather than report false completeness.
+        raise SpecEvidenceError("REQUIRED_CHECK_UNMAPPED:" + ",".join(sorted(unused_required_checks)))
     if binding.get("acceptance") != expected:
         raise SpecEvidenceError("BINDING_ACCEPTANCE_DRIFT")
 
