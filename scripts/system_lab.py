@@ -132,8 +132,11 @@ def wait_for_pid(package_id: str, timeout: float = 30.0) -> str:
 
 
 def app_crash_state(package_id: str) -> tuple[bool, str]:
-    if not pid_of(package_id):
-        return True, "application process is not running"
+    # A single pidof miss is not sufficient evidence of an app failure on
+    # hosted Android emulators. ActivityManager can briefly recycle or hide
+    # the process immediately after force-stop/relaunch and UI automation.
+    # Fail immediately only on target ANR/FATAL evidence; otherwise require
+    # the process to remain absent across a bounded stabilization window.
     logcat = run("adb", "logcat", "-b", "all", "-d", "-v", "brief").stdout
     if f"ANR in {package_id}" in logcat:
         return True, "ANR detected"
@@ -143,6 +146,28 @@ def app_crash_state(package_id: str) -> tuple[bool, str]:
     )
     if fatal:
         return True, "fatal exception detected"
+
+    pid = wait_for_pid(package_id, timeout=5.0)
+    if not pid:
+        # Re-read Logcat after the stabilization window so a real crash is
+        # reported as such rather than as a generic missing-process failure.
+        logcat = run("adb", "logcat", "-b", "all", "-d", "-v", "brief").stdout
+        if f"ANR in {package_id}" in logcat:
+            return True, "ANR detected"
+        fatal = re.search(
+            rf"FATAL EXCEPTION:[\s\S]{{0,1800}}Process:\s*{re.escape(package_id)}\b",
+            logcat,
+        )
+        if fatal:
+            return True, "fatal exception detected"
+        return True, "application process is not running"
+
+    time.sleep(1.0)
+    if not pid_of(package_id):
+        # Treat a second disappearance as unhealthy only after a short retry;
+        # this mirrors the hardened network-lab cold-relaunch policy.
+        if not wait_for_pid(package_id, timeout=3.0):
+            return True, "application process did not remain stable"
     return False, ""
 
 
@@ -468,7 +493,7 @@ def evaluate(
 
     return {
         "schema_version": 1,
-        "system_lab_version": "0.6.7",
+        "system_lab_version": "0.6.8",
         "result": result,
         "package_id": package_id,
         "errors": len(errors),
