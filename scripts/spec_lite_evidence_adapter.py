@@ -41,14 +41,18 @@ def project_spec_evidence(
     expected_source_sha: str,
     expected_job_sha256: str,
     expected_spec_sha256: str,
+    expected_work_item_id: str,
+    expected_operation_id: str,
+    expected_applab_sha: str,
     trusted_evidence_verifier: Callable[[dict[str, Any], dict[str, Any]], bool] | None = None,
     trusted_product_decision: Callable[[dict[str, Any]], bool] | None = None,
 ) -> dict[str, Any]:
     """Project criterion coverage only after AppLab WorkGraph and source checks.
 
-    expected_job_sha256 AND expected_spec_sha256 MUST be resolved
+    expected_job_sha256, expected_spec_sha256, expected_work_item_id,
+    expected_operation_id and expected_applab_sha MUST be resolved
     independently from trusted durable Agent Core/AppLab admission context;
-    never derive either from the supplied manifest or Spec Lite projection.
+    NEVER derive them from the supplied manifest, binding, or WorkItem.
     A verifier callback MUST delegate to an independent AppLab-authorized,
     immutable-evidence verifier, never to a user-provided boolean/LLM claim.
     Passing unit fake callbacks is only fixture proof, not real validation.
@@ -73,6 +77,11 @@ def project_spec_evidence(
         raise SpecEvidenceError("MANIFEST_DIGEST_MISMATCH")
     if binding.get("spec_sha256") != expected_spec_sha256:
         raise SpecEvidenceError("BINDING_SPEC_DIGEST_MISMATCH")
+    if (not isinstance(expected_work_item_id, str) or not expected_work_item_id.strip()
+        or not isinstance(expected_operation_id, str) or not expected_operation_id.strip()):
+        raise SpecEvidenceError("TRUSTED_WORKITEM_OPERATION_IDS_REQUIRED")
+    if not isinstance(expected_applab_sha, str) or not SHA.fullmatch(expected_applab_sha):
+        raise SpecEvidenceError("TRUSTED_APPLAB_SHA_REQUIRED")
     if (binding.get("schema_version") != 1
         or binding.get("record_type") != "FSL_WORK_ITEM_TRACE_PROJECTION"
         or binding.get("authority") != "TRACE_ONLY"
@@ -92,6 +101,13 @@ def project_spec_evidence(
     except (ValueError, KeyError, TypeError) as exc:
         raise SpecEvidenceError("EXISTING_APPLAB_WORKITEM_INVALID") from exc
     repo = manifest.get("target", {}).get("repository")
+    if (work_item.get("work_item_id") != expected_work_item_id
+        or binding.get("work_item_id") != expected_work_item_id
+        or work_item.get("operation_id") != expected_operation_id
+        or binding.get("operation_id") != expected_operation_id):
+        raise SpecEvidenceError("WORKITEM_TRUSTED_OPERATION_MISMATCH")
+    if work_item.get("applab_sha") != expected_applab_sha:
+        raise SpecEvidenceError("APPLAB_SOURCE_SHA_MISMATCH")
     if (binding.get("source_sha") != expected_source_sha
         or binding.get("repository") != repo
         or work_item.get("repository") != repo
