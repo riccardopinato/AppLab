@@ -40,13 +40,15 @@ def project_spec_evidence(
     expected_factory_sha: str,
     expected_source_sha: str,
     expected_job_sha256: str,
+    expected_spec_sha256: str,
     trusted_evidence_verifier: Callable[[dict[str, Any], dict[str, Any]], bool] | None = None,
     trusted_product_decision: Callable[[dict[str, Any]], bool] | None = None,
 ) -> dict[str, Any]:
     """Project criterion coverage only after AppLab WorkGraph and source checks.
 
-    expected_job_sha256 MUST be resolved from a trusted durable Agent Core/
-    AppLab job binding; never read it from the supplied Spec Lite projection.
+    expected_job_sha256 AND expected_spec_sha256 MUST be resolved
+    independently from trusted durable Agent Core/AppLab admission context;
+    never derive either from the supplied manifest or Spec Lite projection.
     A verifier callback MUST delegate to an independent AppLab-authorized,
     immutable-evidence verifier, never to a user-provided boolean/LLM claim.
     Passing unit fake callbacks is only fixture proof, not real validation.
@@ -63,13 +65,18 @@ def project_spec_evidence(
         raise SpecEvidenceError("FACTORY_OR_SOURCE_SHA_DRIFT")
     if not isinstance(expected_job_sha256, str) or not HEX64.fullmatch(expected_job_sha256):
         raise SpecEvidenceError("TRUSTED_JOB_DIGEST_REQUIRED")
+    if not isinstance(expected_spec_sha256, str) or not HEX64.fullmatch(expected_spec_sha256):
+        raise SpecEvidenceError("TRUSTED_SPEC_DIGEST_REQUIRED")
     if binding.get("job_sha256") != expected_job_sha256:
         raise SpecEvidenceError("BINDING_JOB_DIGEST_MISMATCH")
+    if _digest(manifest) != expected_spec_sha256:
+        raise SpecEvidenceError("MANIFEST_DIGEST_MISMATCH")
+    if binding.get("spec_sha256") != expected_spec_sha256:
+        raise SpecEvidenceError("BINDING_SPEC_DIGEST_MISMATCH")
     if (binding.get("schema_version") != 1
         or binding.get("record_type") != "FSL_WORK_ITEM_TRACE_PROJECTION"
         or binding.get("authority") != "TRACE_ONLY"
-        or binding.get("spec_id") != manifest.get("spec_id")
-        or binding.get("spec_sha256") != _digest(manifest)):
+        or binding.get("spec_id") != manifest.get("spec_id")):
         raise SpecEvidenceError("UNTRUSTED_OR_CHANGED_SPEC_BINDING")
     if (not isinstance(binding.get("job_sha256"), str) or not HEX64.fullmatch(binding["job_sha256"])
         or not isinstance(binding.get("binding_id"), str)
