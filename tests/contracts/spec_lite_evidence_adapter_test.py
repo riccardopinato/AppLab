@@ -83,13 +83,19 @@ class SpecLiteEvidenceAdapterTests(unittest.TestCase):
         self.spec = manifest()
         self.item = create_work_item()
         self.bind = binding(self.spec, self.item)
+        # A TEST FAKE representing a fingerprint independently stored with job admission.
+        # This is deliberately not auto-recomputed if an untrusted spec mutates.
+        self.persisted_spec_sha256 = self.bind["spec_sha256"]
 
     def evaluate(self, receipts=None, trusted_evidence_verifier=None,
-                 trusted_product_decision=None):
+                 trusted_product_decision=None, expected_spec_sha256=None):
         return project_spec_evidence(
             self.spec, self.bind, self.item, receipts if receipts is not None else [],
             expected_factory_sha=FACTORY, expected_source_sha=SHA,
             expected_job_sha256="d" * 64,
+            expected_spec_sha256=(
+                self.persisted_spec_sha256 if expected_spec_sha256 is None else expected_spec_sha256
+            ),
             trusted_evidence_verifier=trusted_evidence_verifier,
             trusted_product_decision=trusted_product_decision,
         )
@@ -157,11 +163,13 @@ class SpecLiteEvidenceAdapterTests(unittest.TestCase):
         self.spec["validation"]["required_checks"] = ["UNIT_TEST"]
         self.bind["spec_sha256"] = hashlib.sha256(json.dumps(self.spec, sort_keys=True,
                                 separators=(",", ":"), ensure_ascii=True).encode()).hexdigest()
-        self.assertDeny("REQUIRED_TEST_NOT_DECLARED", self.evaluate)
+        # Explicit test-only trusted fixture for a *different* admitted manifest:
+        self.assertDeny("REQUIRED_TEST_NOT_DECLARED",
+                        lambda: self.evaluate(expected_spec_sha256=self.bind["spec_sha256"]))
 
     def test_binding_fingerprint_detects_spec_modification(self):
         self.spec["requirements"][0]["acceptance"][0]["id"] = "AC-999"
-        self.assertDeny("UNTRUSTED_OR_CHANGED_SPEC_BINDING", self.evaluate)
+        self.assertDeny("MANIFEST_DIGEST_MISMATCH", self.evaluate)
 
     def test_applab_authority_envelope_is_not_overridable(self):
         self.item["authority"] = "CERTIFIER"
@@ -174,9 +182,11 @@ class SpecLiteEvidenceAdapterTests(unittest.TestCase):
                                 separators=(",", ":"), ensure_ascii=True).encode()).hexdigest()
         full = [receipt(self.item), receipt(self.item, ac="AC-002", kind="INTEGRATION_TEST",
                                               evidence_id="ev_test_02")]
-        result = self.evaluate(full, lambda rec, item: True)
+        result = self.evaluate(full, lambda rec, item: True,
+                               expected_spec_sha256=self.bind["spec_sha256"])
         self.assertEqual(result["state"], "SOURCE_EVIDENCE_LINKED_NOT_APPROVED")
-        result = self.evaluate(full, lambda rec, item: True, lambda spec: True)
+        result = self.evaluate(full, lambda rec, item: True, lambda spec: True,
+                               expected_spec_sha256=self.bind["spec_sha256"])
         self.assertEqual(result["state"], "SOURCE_EVIDENCE_LINKED_NOT_CERTIFIED")
         self.assertFalse(result["certified"])
 
@@ -190,7 +200,8 @@ class SpecLiteEvidenceAdapterTests(unittest.TestCase):
             receipt(self.item, ac="AC-002", kind="INTEGRATION_TEST", evidence_id="ev_test_02"),
         ]
         self.assertDeny("REQUIRED_CHECK_UNMAPPED:DEVICE_TEST",
-                        lambda: self.evaluate(full, lambda rec, item: True))
+                        lambda: self.evaluate(full, lambda rec, item: True,
+                                              expected_spec_sha256=self.bind["spec_sha256"]))
 
     def test_changed_job_digest_refused_even_when_same_valid_hex_format(self):
         self.bind["job_sha256"] = "e" * 64
@@ -201,6 +212,27 @@ class SpecLiteEvidenceAdapterTests(unittest.TestCase):
             self.spec, self.bind, self.item, [],
             expected_factory_sha=FACTORY, expected_source_sha=SHA, expected_job_sha256="",
         ))
+
+    def test_coordination_attack_cannot_strip_ac_or_required_check(self):
+        # Both self-asserted manifest and binding are changed together.
+        # Job identity is unchanged, and the trusted persisted spec hash is not.
+        self.spec["requirements"][0]["acceptance"].pop()
+        self.spec["validation"]["required_checks"].remove("INTEGRATION_TEST")
+        self.bind["acceptance"].pop()
+        self.bind["spec_sha256"] = hashlib.sha256(json.dumps(
+            self.spec, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        ).encode()).hexdigest()
+        self.assertDeny("MANIFEST_DIGEST_MISMATCH",
+                        lambda: self.evaluate([receipt(self.item)], lambda rec, item: True))
+
+    def test_missing_trusted_spec_hash_rejected(self):
+        self.assertDeny("TRUSTED_SPEC_DIGEST_REQUIRED", lambda: self.evaluate(
+            expected_spec_sha256="not-a-sha"
+        ))
+
+    def test_binding_spec_hash_changed_rejected(self):
+        self.bind["spec_sha256"] = "e" * 64
+        self.assertDeny("BINDING_SPEC_DIGEST_MISMATCH", self.evaluate)
 
     def test_false_binding_runtime_claim_denied(self):
         self.bind["runtime_verified"] = True
