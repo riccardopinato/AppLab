@@ -1,0 +1,124 @@
+name: Source-bound REA anomaly research (research-only)
+description: Capture merged manifest, or inspect only an owned SHA-bound binary gap with bounded REA
+inputs:
+  phase:
+    description: capture or research
+    required: true
+  source_root:
+    required: true
+    description: Exact source checkout
+  working_directory:
+    required: true
+    description: Project working directory
+  stack:
+    required: true
+    description: flutter or native_android
+  repository:
+    required: false
+    description: Owner/repository
+  source_sha:
+    required: false
+    description: Exact source commit
+  artifact_path:
+    required: false
+    description: Trusted APK bytes
+  ownership_attested:
+    required: false
+    description: Trusted runner ownership decision
+  manifest_file:
+    required: false
+    description: Captured merged manifest file
+  manifest_sha256:
+    required: false
+    description: Captured merged manifest checksum
+outputs:
+  manifest_file:
+    description: Local private merged-manifest snapshot
+    value: ${{ steps.capture.outputs.manifest_file }}
+  manifest_sha256:
+    description: SHA256 of the local private merged-manifest snapshot
+    value: ${{ steps.capture.outputs.manifest_sha256 }}
+runs:
+  using: composite
+  steps:
+    - name: Preserve built merged manifest before target cleanup
+      id: capture
+      if: inputs.phase == 'capture'
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        python .applab/scripts/rea_build_probe.py \
+          --capture-manifest \
+          --source-root "${{ inputs.source_root }}" \
+          --working-directory "${{ inputs.working_directory }}" \
+          --stack "${{ inputs.stack }}" \
+          --output "$RUNNER_TEMP/applab-rea-merged-manifest.xml" \
+          --github-output "$GITHUB_OUTPUT"
+
+    - name: Detect verified binary permission gap without downloading tools
+      id: preflight
+      if: inputs.phase == 'research'
+      shell: bash
+      env:
+        APPLAB_REA_AUTHORIZED_REPOSITORY: ${{ inputs.repository }}
+        APPLAB_REA_AUTHORIZED_SOURCE_SHA: ${{ inputs.source_sha }}
+        APPLAB_REA_AUTHORIZED_ARTIFACT: ${{ inputs.artifact_path }}
+        APPLAB_REA_PRIVATE_OUTPUT_ROOT: ${{ runner.temp }}/rea-private
+        APPLAB_REA_OWNERSHIP_ATTESTED: ${{ inputs.ownership_attested }}
+        APPLAB_REA_PRESERVED_MANIFEST: ${{ inputs.manifest_file }}
+        APPLAB_REA_PRESERVED_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+      run: |
+        set -Eeuo pipefail
+        python .applab/scripts/rea_build_probe.py \
+          --source-root "${{ inputs.source_root }}" \
+          --working-directory "${{ inputs.working_directory }}" \
+          --stack "${{ inputs.stack }}" \
+          --output "$GITHUB_WORKSPACE/applab-report/rea-research-plan.json" \
+          --github-output "$GITHUB_OUTPUT"
+
+    - name: Prepare pinned Node only for observed owned binary gap
+      id: node
+      if: inputs.phase == 'research' && steps.preflight.outputs.binary_gap == 'true' && steps.preflight.outputs.owned == 'true'
+      continue-on-error: true
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+      with:
+        node-version: "24"
+
+    - name: Install research-only REA and verified JADX prerequisites
+      id: deps
+      if: inputs.phase == 'research' && steps.node.outcome == 'success'
+      continue-on-error: true
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        npm install --prefix "$RUNNER_TEMP/rea" --no-save --omit=optional --no-audit --no-fund rea-agents@6.9.0
+        "$RUNNER_TEMP/rea/node_modules/.bin/rea" --version --json > "$RUNNER_TEMP/rea-version.json"
+        jar="$RUNNER_TEMP/jadx-headless-mcp-0.7.1-all.jar"
+        curl --fail --location --silent --show-error --retry 2 --max-time 120 \
+          "https://github.com/1013503897/jadx-headless-mcp/releases/download/v0.7.1/jadx-headless-mcp-0.7.1-all.jar" \
+          --output "$jar"
+        echo "6e5eacf500b64292bfb73c49797c1958f6ee44646e43e868039ae7feb573ff75  $jar" | sha256sum --check --status
+        echo "rea_bin=$RUNNER_TEMP/rea/node_modules/.bin/rea" >> "$GITHUB_OUTPUT"
+        echo "jadx_jar=$jar" >> "$GITHUB_OUTPUT"
+
+    - name: Dispatch bounded REA only when all router gates permit
+      if: inputs.phase == 'research' && steps.deps.outcome == 'success'
+      continue-on-error: true
+      shell: bash
+      env:
+        APPLAB_REA_AUTHORIZED_REPOSITORY: ${{ inputs.repository }}
+        APPLAB_REA_AUTHORIZED_SOURCE_SHA: ${{ inputs.source_sha }}
+        APPLAB_REA_AUTHORIZED_ARTIFACT: ${{ inputs.artifact_path }}
+        APPLAB_REA_PRIVATE_OUTPUT_ROOT: ${{ runner.temp }}/rea-private
+        APPLAB_REA_OWNERSHIP_ATTESTED: ${{ inputs.ownership_attested }}
+        APPLAB_REA_PRESERVED_MANIFEST: ${{ inputs.manifest_file }}
+        APPLAB_REA_PRESERVED_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+        APPLAB_REA_TRUSTED_BIN: ${{ steps.deps.outputs.rea_bin }}
+        REA_JADX_MCP_JAR: ${{ steps.deps.outputs.jadx_jar }}
+      run: |
+        set -Eeuo pipefail
+        python .applab/scripts/rea_build_probe.py \
+          --source-root "${{ inputs.source_root }}" \
+          --working-directory "${{ inputs.working_directory }}" \
+          --stack "${{ inputs.stack }}" --execute-eligible \
+          --output "$GITHUB_WORKSPACE/applab-report/rea-research-plan.json"
