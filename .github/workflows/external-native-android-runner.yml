@@ -220,19 +220,15 @@ on:
         required: false
         default: ""
         type: string
-
     secrets:
       APPLAB_TARGET_TOKEN:
         required: false
-
 permissions:
   contents: read
   actions: read
-
 concurrency:
   group: applab-native-${{ inputs.repository }}-${{ inputs.ref }}
   cancel-in-progress: true
-
 jobs:
   build:
     name: Build ${{ inputs.repository }}@${{ inputs.ref }}
@@ -247,7 +243,6 @@ jobs:
       run_runtime: ${{ steps.impact.outputs.run_runtime }}
       run_build: ${{ steps.impact.outputs.run_build }}
       contract_fingerprint: ${{ steps.adaptive_contract.outputs.fingerprint }}
-
     steps:
       - name: Validate target coordinates
         shell: bash
@@ -262,14 +257,12 @@ jobs:
           import os
           import re
           from pathlib import PurePosixPath
-
           repo = os.environ["TARGET_REPOSITORY"].strip()
           ref = os.environ["TARGET_REF"].strip()
           if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
               raise SystemExit(f"Invalid repository: {repo!r}")
           if not ref or any(ch in ref for ch in "\r\n"):
               raise SystemExit("Invalid ref")
-
           for key in ("TARGET_WORKDIR", "TARGET_APK_PATH", "TARGET_MAESTRO_FLOW"):
               raw = os.environ.get(key, "").strip()
               if not raw:
@@ -280,7 +273,6 @@ jobs:
                       f"{key} must be a safe repository-relative path: {raw!r}"
                   )
           PY
-
       - name: Checkout AppLab
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -288,7 +280,6 @@ jobs:
           ref: ${{ job.workflow_sha }}
           path: .applab
           persist-credentials: false
-
       - name: Checkout target project
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -298,7 +289,6 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
           token: ${{ secrets.APPLAB_TARGET_TOKEN || github.token }}
-
       - name: Fetch change baseline commit
         if: inputs.baseline_sha != ''
         shell: bash
@@ -320,7 +310,6 @@ jobs:
               authenticated_fetch --no-tags --deepen="$DEEPEN" origin || true
             done
           fi
-
       - name: Restore central history for adaptive risk
         if: inputs.analysis_mode == 'fast'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -329,7 +318,6 @@ jobs:
           key: applab-watch-history-fast-${{ github.run_id }}-${{ inputs.history_key }}
           restore-keys: |
             applab-watch-history-
-
       - name: Restore prior graph planner feedback
         if: inputs.analysis_mode == 'fast' && inputs.baseline_sha != ''
         shell: bash
@@ -343,7 +331,6 @@ jobs:
             "${{ inputs.baseline_sha }}" \
             "${{ inputs.source_ref != '' && inputs.source_ref || inputs.ref }}" \
             "$RUNNER_TEMP/applab-planner-feedback.json"
-
       - name: Plan adaptive verification
         id: impact
         shell: bash
@@ -632,6 +619,17 @@ jobs:
           git -C "$GITHUB_WORKSPACE/.applab" clean -ffd
           test "$(git -C "$GITHUB_WORKSPACE/.applab" rev-parse HEAD)" = "$APPLAB_TRUSTED_SHA"
 
+      - name: Preserve merged manifest for optional REA research
+        id: rea_merged
+        if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
+        continue-on-error: true
+        uses: ./.applab/.github/actions/rea-auto-research
+        with:
+          phase: capture
+          source_root: ${{ github.workspace }}/target
+          working_directory: ${{ inputs.working_directory }}
+          stack: native_android
+
       - name: Restore target source before trusted packaging
         if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
         id: trusted_target
@@ -719,6 +717,23 @@ jobs:
              "$GITHUB_WORKSPACE/applab-report/execution-plan.json"
           cp "$GITHUB_WORKSPACE/applab-report/apksigner.txt" \
              "$GITHUB_WORKSPACE/applab-build-contract/apksigner.txt" 2>/dev/null || true
+
+
+      - name: Execute optional REA research on source-bound APK anomalies
+        if: steps.impact.outputs.run_build == 'true' && steps.build_reuse.outputs.hit != 'true'
+        continue-on-error: true
+        uses: ./.applab/.github/actions/rea-auto-research
+        with:
+          phase: research
+          source_root: ${{ github.workspace }}/target
+          working_directory: ${{ inputs.working_directory }}
+          stack: native_android
+          repository: ${{ inputs.repository }}
+          source_sha: ${{ steps.target.outputs.resolved_sha }}
+          artifact_path: ${{ steps.trusted_target.outputs.apk_file }}
+          ownership_attested: ${{ startsWith(inputs.repository, format('{0}/', github.repository_owner)) }}
+          manifest_file: ${{ steps.rea_merged.outputs.manifest_file }}
+          manifest_sha256: ${{ steps.rea_merged.outputs.manifest_sha256 }}
 
       - name: Upload isolated APK contract
         if: steps.impact.outputs.run_build == 'true'
