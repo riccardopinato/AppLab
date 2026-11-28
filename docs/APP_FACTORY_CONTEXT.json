@@ -3,10 +3,10 @@
   "sources": [
     {
       "branch": "main",
-      "commit_date": "2026-11-27T13:49:23Z",
+      "commit_date": "2026-11-27T15:33:36Z",
       "purpose": "Master, Golden e policy",
       "repository": "riccardopinato/App-Factory-Core",
-      "sha": "2efcdfb69537c4aa472c7fd341dff12a1ec98445"
+      "sha": "072f8101fcd2974ecc4c6d3c610c231ad56240e0"
     },
     {
       "branch": "main",
